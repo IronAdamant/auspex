@@ -17,14 +17,14 @@ server.registerTool(
   "auspex_check",
   {
     description:
-      "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG. Always closes the session. Use for post-deploy verification, not raw CDP.",
+      "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: httpUrlSchema.describe("http or https URL to open"),
       expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
       selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
       profile: z.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
-      record: z.boolean().optional().describe("Record the session and return a replay URL"),
+      record: z.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
       sso: z
         .boolean()
         .optional()

@@ -23,6 +23,8 @@ test("expectSchema and httpUrlSchema reject whitespace and non-http(s)", () => {
   assert.equal(httpUrlSchema.safeParse("javascript:alert(1)").success, false)
   assert.equal(httpUrlSchema.safeParse("https://consistencyhub.io").success, true)
   assert.equal(isHttpOrHttpsUrl("http://example.com"), true)
+  assert.equal(isHttpOrHttpsUrl("https://user:pass@example.com/"), false)
+  assert.equal(httpUrlSchema.safeParse("https://user:pass@example.com/").success, false)
 })
 
 test("toReceiptPath does not embed an absolute home path", () => {
@@ -35,6 +37,7 @@ test("toReceiptPath does not embed an absolute home path", () => {
 
 test("findProfileId does not auto-create", () => {
   assert.equal(findProfileId([{ id: "p1", name: "consistencyhub" }], "consistencyhub"), "p1")
+  assert.equal(findProfileId([{ id: "p1", name: "consistencyhub" }], "  consistencyhub  "), "p1")
   assert.throws(
     () => findProfileId([{ id: "p1", name: "consistencyhub" }], "typo"),
     /profile not found/,
@@ -48,8 +51,8 @@ test("toPlaywrightStorageState fills required cookie fields", () => {
   })
   assert.equal(pw.cookies[0]?.path, "/")
   assert.equal(pw.cookies[0]?.sameSite, "Lax")
-  assert.equal(pw.cookies[0]?.httpOnly, false)
-  assert.equal(pw.cookies[0]?.secure, false)
+  assert.equal(pw.cookies[0]?.httpOnly, true)
+  assert.equal(pw.cookies[0]?.secure, true)
   assert.equal(pw.cookies[0]?.expires, -1)
   assert.deepEqual(pw.origins[0]?.localStorage, [])
   const dropped = toPlaywrightStorageState({ cookies: [{ name: "x", value: "y" }] })

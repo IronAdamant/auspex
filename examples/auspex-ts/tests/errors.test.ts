@@ -30,6 +30,16 @@ test("explainSolariError maps 402 and 429", () => {
 test("explainSolariError redacts slr_live_ tokens", () => {
   assert.equal(
     explainSolariError(new Error("bad key slr_live_abc123XYZ and more")),
-    "bad key slr_live_… and more",
+    "bad key slr_… and more",
   )
+})
+
+test("explainSolariError redacts other key-like tokens", () => {
+  const out = explainSolariError(new Error("slr_test_zzz111 and sk-abcdefghijklmnopqrst and Bearer abc.def"))
+  assert.equal(out.includes("slr_test_zzz111"), false)
+  assert.equal(out.includes("sk-abcdefghijklmnopqrst"), false)
+  assert.equal(out.includes("Bearer abc.def"), false)
+  assert.match(out, /slr_…/)
+  assert.match(out, /sk-…/)
+  assert.match(out, /Bearer …/)
 })

@@ -15,7 +15,7 @@ Do **not** use it for pages you can already curl, for generic research crawls, a
 - Always let Auspex **close** the Solari check session. A leaked session burns concurrency until you kill it.
 - Never commit `SOLARI_API_KEY`, `.env`, or `.auspex/` artifacts.
 - Prefer `auspex_check` over driving raw CDP.
-- `--record` / `record: true` after close: poll for `replayUrl`. First poll often 404s. The URL expires in ~15 minutes — do not commit it. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + `demo/replay.html`. Refresh with `npx tsx scripts/save-demo-receipt.ts`. Never record a logged-in ConsistencyHub session.
+- `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + `demo/replay.html`. Refresh with `npx tsx scripts/save-demo-receipt.ts`. Never record a logged-in ConsistencyHub session.
 - Stealth requires a Starter plan. Free will 402.
 - Profiles must be **saved** after a check. Attaching a profile does not auto-save. Treat profiles like passwords.
 

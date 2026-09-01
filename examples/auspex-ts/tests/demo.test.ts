@@ -47,4 +47,10 @@ test("demo replay.ndjson is rrweb events and replay.html inlines them", () => {
   const fromFn = block(generated)
   assert.equal(fromFile.length, events.length)
   assert.equal(fromFn.length, events.length)
+  assert.match(html, /integrity="sha384-/)
+  assert.match(generated, /integrity="sha384-/)
+  const remoteScripts = [...html.matchAll(/<script[^>]*src="[^"]+"[^>]*>/g)].map((m) => m[0])
+  for (const tag of remoteScripts) {
+    assert.match(tag, /integrity=/)
+  }
 })

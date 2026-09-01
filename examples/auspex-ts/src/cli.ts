@@ -36,11 +36,16 @@ function takeFlag(args: string[], name: string): boolean {
   return true
 }
 
-function takeOption(args: string[], name: string): string | undefined {
+function takeOption(
+  args: string[],
+  name: string,
+  opts: { rejectHttp?: boolean } = {},
+): string | undefined {
   const i = args.indexOf(name)
   if (i === -1) return undefined
   const value = args[i + 1]
   if (value === undefined || (value.length > 0 && value.startsWith("-"))) return undefined
+  if (opts.rejectHttp && /^https?:\/\//i.test(value)) return undefined
   args.splice(i, 2)
   return value
 }
@@ -55,9 +60,14 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
     }
-    const expect = takeOption(args, "--expect")
-    const selector = takeOption(args, "--selector")
-    const profile = takeOption(args, "--profile")
+    const expect = takeOption(args, "--expect", { rejectHttp: true })
+    const selector = takeOption(args, "--selector", { rejectHttp: true })
+    const profile = takeOption(args, "--profile", { rejectHttp: true })
+    const profileIdx = args.indexOf("--profile")
+    const profileTok = profileIdx >= 0 ? args[profileIdx + 1] : undefined
+    if (profileTok && /^https?:\/\//i.test(profileTok)) {
+      return { status: "error", message: "--profile value must not be a URL" }
+    }
     const stealth = takeFlag(args, "--stealth")
     const record = takeFlag(args, "--record")
     const sso = takeFlag(args, "--sso")

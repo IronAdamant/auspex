@@ -94,6 +94,16 @@ export class DualStdioServerTransport implements Transport {
       if (this.buffer.length < start + n) return null
       const json = this.buffer.subarray(start, start + n).toString("utf8")
       this.buffer = this.buffer.subarray(start + n)
+      if (this.buffer.length > 0) {
+        const rest = this.buffer.toString("utf8")
+        const restLower = rest.toLowerCase()
+        if (!restLower.startsWith("content-length:")) {
+          const firstLine = restLower.split(/\r?\n/, 1)[0] ?? ""
+          if (!(CL_PREFIX.startsWith(firstLine) && rest.indexOf("\n") === -1)) {
+            throw new Error("stdio framing error: leftover bytes after Content-Length message")
+          }
+        }
+      }
       return JSON.parse(json) as JSONRPCMessage
     }
 

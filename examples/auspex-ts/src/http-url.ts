@@ -3,7 +3,9 @@ import { z } from "zod"
 export function isHttpOrHttpsUrl(value: string): boolean {
   try {
     const u = new URL(value)
-    return u.protocol === "http:" || u.protocol === "https:"
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false
+    if (u.username !== "" || u.password !== "") return false
+    return true
   } catch {
     return false
   }

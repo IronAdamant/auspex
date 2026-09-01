@@ -2,15 +2,60 @@
 export type TimeoutWork<T> = (isCancelled: () => boolean, signal: AbortSignal) => Promise<T>
 
 export const CLOSE_TIMEOUT_MS = 15_000
-export const LAUNCH_SETTLE_MS = 20_000
+/** Kept for callers; `release` waits until set/skip rather than giving up early. */
+export const LAUNCH_SETTLE_MS = 90_000
 
 export async function boundPromise<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
   return raceWithTimeout(async () => p, ms, message)
 }
 
+/** Reject `p` when `signal` aborts (does not cancel the inner work, but observes cancel). */
+export async function observeAbort<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted")
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"))
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort)
+        resolve(v)
+      },
+      (e: unknown) => {
+        signal.removeEventListener("abort", onAbort)
+        reject(e)
+      },
+    )
+  })
+}
+
+/**
+ * Time-bound `close`, then still attempt `release` (DELETE) if close hung or failed
+ * so Playwright `closed = true` cannot skip Solari session release.
+ */
+export async function closeThenRelease(
+  close: () => Promise<void>,
+  release: () => Promise<void>,
+  ms: number,
+): Promise<void> {
+  try {
+    await boundPromise(close(), ms, `session close timed out after ${ms}ms`)
+  } catch (err) {
+    try {
+      await boundPromise(release(), ms, `session release timed out after ${ms}ms`)
+    } catch {
+      /* first error wins */
+    }
+    throw err
+  }
+}
+
 /**
  * Holds a close function that may be assigned after launch. `release` waits until
- * the session is ready (or settleMs) so a timeout during launch cannot skip close.
+ * set/skip so a timeout during launch cannot skip close.
  */
 export class ReadyRelease {
   private mark!: () => void
@@ -32,10 +77,8 @@ export class ReadyRelease {
     this.mark()
   }
 
-  async release(settleMs: number): Promise<void> {
-    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
-      () => undefined,
-    )
+  async release(_settleMs?: number): Promise<void> {
+    await this.ready
     if (this.fn) await this.fn()
   }
 }

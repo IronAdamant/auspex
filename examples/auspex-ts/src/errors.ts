@@ -1,7 +1,11 @@
 import { SolariError } from "@solarisdk/browser"
 
 export function redactSecrets(text: string): string {
-  return text.replace(/slr_live_[A-Za-z0-9_\-]+/g, "slr_live_…")
+  return text
+    .replace(/slr_[a-z]+_[A-Za-z0-9_\-]+/gi, "slr_…")
+    .replace(/\bsk-[A-Za-z0-9]{10,}\b/g, "sk-…")
+    .replace(/\bAKIA[A-Z0-9]{16}\b/g, "AKIA…")
+    .replace(/Bearer\s+\S+/gi, "Bearer …")
 }
 
 export function explainSolariError(err: unknown): string {

@@ -70,7 +70,20 @@ test("leftover bytes after a Content-Length body are a framing error", async () 
   const extra = '{"jsonrpc":"2.0","id":2,"method":"evil"}\n'
   stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}${extra}`)
   await new Promise((r) => setTimeout(r, 20))
-  assert.equal(messages.length, 1)
+  assert.equal(messages.length, 0)
+  assert.ok(errOf())
+  assert.match(errOf()!.message, /framing error/)
+  await t.close()
+})
+
+test("understated Content-Length does not deliver a truncated JSON-RPC message", async () => {
+  const { stdin, t, messages, errOf } = transport()
+  await t.start()
+  const full = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"auspex_check"}}'
+  const n = Buffer.byteLength('{"a":1}')
+  stdin.write(`Content-Length: ${n}\r\n\r\n{"a":1}${full}`)
+  await new Promise((r) => setTimeout(r, 20))
+  assert.equal(messages.length, 0)
   assert.ok(errOf())
   assert.match(errOf()!.message, /framing error/)
   await t.close()

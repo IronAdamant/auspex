@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { ReadyRelease, raceWithTimeout } from "../src/timeout.ts"
+import { closeThenRelease, ReadyRelease, raceWithTimeout } from "../src/timeout.ts"
 
 test("raceWithTimeout clears the timer when work finishes first", async () => {
   const rejections: unknown[] = []
@@ -68,4 +68,21 @@ test("ReadyRelease closes a late-assigned session after the timer wins", async (
     }
   }, /timed out/)
   assert.equal(closed, true)
+})
+
+test("closeThenRelease still calls release if close times out", async () => {
+  let released = false
+  const hang = () => new Promise<void>(() => {})
+  await assert.rejects(
+    () =>
+      closeThenRelease(
+        hang,
+        async () => {
+          released = true
+        },
+        40,
+      ),
+    /timed out/,
+  )
+  assert.equal(released, true)
 })

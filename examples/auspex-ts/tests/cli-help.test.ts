@@ -65,6 +65,25 @@ test("parseArgv rejects non-http(s) URLs", () => {
   if (parsed.status === "error") assert.match(parsed.message, /http or https/)
 })
 
+test("parseArgv rejects userinfo URLs", () => {
+  const parsed = parseArgv(["check", "https://user:pass@example.com/", "--expect", "x"])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /http or https/)
+})
+
+test("parseArgv does not assign an https token as --profile", () => {
+  const parsed = parseArgv([
+    "check",
+    "--profile",
+    "https://example.com",
+    "--expect",
+    "x",
+    "https://ironadamant.com",
+  ])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /profile|URL/i)
+})
+
 test("parseArgv --stealth=true is not a boolean flag", () => {
   const parsed = parseArgv([
     "check",
@@ -118,4 +137,23 @@ test("shipped CLI rejects a non-https URL", () => {
   const bad = runCli(["check", "file:///tmp/x", "--expect", "Build it."])
   assert.notEqual(bad.status, 0)
   assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI rejects a userinfo URL", () => {
+  const bad = runCli(["check", "https://user:pass@example.com/", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI does not take https as --profile", () => {
+  const bad = runCli([
+    "check",
+    "--profile",
+    "https://example.com",
+    "--expect",
+    "x",
+    "https://ironadamant.com",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /profile|URL|unexpected/i)
 })

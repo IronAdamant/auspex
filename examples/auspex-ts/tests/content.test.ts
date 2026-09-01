@@ -56,4 +56,6 @@ test("buildCheckToolContent omits oversized PNGs", async () => {
   }
   const { content } = await buildCheckToolContent(result)
   assert.equal(content.some((p) => p.type === "image"), false)
+  const note = content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("\n")
+  assert.match(note, /PNG omitted/)
 })

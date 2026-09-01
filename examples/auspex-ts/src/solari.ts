@@ -41,8 +41,8 @@ export function toPlaywrightStorageState(state: StorageState): PlaywrightStorage
       domain: c.domain,
       path: c.path ?? "/",
       expires: c.expires ?? -1,
-      httpOnly: c.httpOnly ?? false,
-      secure: c.secure ?? false,
+      httpOnly: c.httpOnly ?? true,
+      secure: c.secure ?? true,
       sameSite,
     })
   }
@@ -54,9 +54,10 @@ export function toPlaywrightStorageState(state: StorageState): PlaywrightStorage
 }
 
 export function findProfileId(profiles: { id: string; name: string }[], name: string): string {
-  const existing = profiles.find((p) => p.name === name)
+  const want = name.trim()
+  const existing = profiles.find((p) => p.name.trim() === want)
   if (!existing) {
-    throw new Error(`Solari profile not found: ${name}. Run login --profile ${name} first.`)
+    throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`)
   }
   return existing.id
 }

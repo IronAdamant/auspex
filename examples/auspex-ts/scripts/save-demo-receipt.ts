@@ -2,19 +2,27 @@
  * Refresh demo/ from a public --record check (ironadamant.com).
  * Does not write replayUrl (presigned, ~15 min). Does not record logins.
  */
-import { copyFile, mkdir, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { gunzipSync } from "node:zlib"
 import { fileURLToPath } from "node:url"
 import { runCheck, packageRoot } from "../src/check.ts"
 import { createClient } from "../src/solari.ts"
 
+const RRWEB_CSS =
+  "https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/style.css"
+const RRWEB_JS =
+  "https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/index.js"
+const RRWEB_CSS_SRI = "sha384-KkV3xosCYjwvyxFBgSDymv2R75UVsSEajt5pp/ANxMkGCES+Gx+0thrpA8yjOKcP"
+const RRWEB_JS_SRI = "sha384-8wpRIGXF6jLCcei4LQ/8mu1JVvFjyIJIPUNShjd7Z0xt3k421PeGOmVJSouiUMt0"
+const GUNZIP_MAX = 8 * 1024 * 1024
+
 const demoDir = path.join(packageRoot, "demo")
 const thisFile = fileURLToPath(import.meta.url)
 
-function asNdjson(raw: Uint8Array): string {
+export function asNdjson(raw: Uint8Array): string {
   if (raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b) {
-    return gunzipSync(raw).toString("utf8")
+    return gunzipSync(raw, { maxOutputLength: GUNZIP_MAX }).toString("utf8")
   }
   return Buffer.from(raw).toString("utf8")
 }
@@ -32,7 +40,7 @@ export function replayHtmlFromNdjson(ndjson: string): string {
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Auspex — Solari cloud Chrome replay (ironadamant.com)</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/style.css"/>
+  <link rel="stylesheet" href="${RRWEB_CSS}" integrity="${RRWEB_CSS_SRI}" crossorigin="anonymous"/>
   <style>
     body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #111; color: #eee; }
     header { padding: 12px 16px; font-size: 14px; }
@@ -47,7 +55,7 @@ export function replayHtmlFromNdjson(ndjson: string): string {
     (public JS page, not a login). rrweb player; no window on the author's Mac.
   </header>
   <div id="player"></div>
-  <script src="https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/index.js"></script>
+  <script src="${RRWEB_JS}" integrity="${RRWEB_JS_SRI}" crossorigin="anonymous"></script>
   <script type="application/json" id="events">${payload}</script>
   <script>
     const events = JSON.parse(document.getElementById("events").textContent);
@@ -75,33 +83,40 @@ export async function saveDemoReceipt(): Promise<void> {
   const shotAbs = path.isAbsolute(result.screenshotPath)
     ? result.screenshotPath
     : path.join(packageRoot, result.screenshotPath)
-  await copyFile(shotAbs, path.join(demoDir, "ironadamant.png"))
-
-  const receipt = {
-    ok: result.ok,
-    expect: result.expect,
-    matched: result.matched,
-    title: result.title,
-    finalUrl: result.finalUrl,
-    excerpt: result.excerpt,
-    sessionId: result.sessionId,
-    networkIdle: result.networkIdle,
-    note: "Presigned replayUrl expires in ~15 minutes and is not committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html (rrweb of this public page).",
-  }
-  await writeFile(path.join(demoDir, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)
-
+  const staging = await mkdtemp(path.join(packageRoot, ".demo-staging-"))
   const solari = createClient()
   try {
     const blob = await solari.sessions.downloadReplay(result.sessionId)
     const ndjson = asNdjson(blob)
     const text = ndjson.endsWith("\n") ? ndjson : `${ndjson}\n`
-    await writeFile(path.join(demoDir, "replay.ndjson"), text)
-    await writeFile(path.join(demoDir, "replay.html"), replayHtmlFromNdjson(text))
+    const receipt = {
+      ok: result.ok,
+      expect: result.expect,
+      matched: result.matched,
+      title: result.title,
+      finalUrl: result.finalUrl,
+      excerpt: result.excerpt,
+      sessionId: result.sessionId,
+      networkIdle: result.networkIdle,
+      note: "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html.",
+    }
+    await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
+    await writeFile(path.join(staging, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)
+    await writeFile(path.join(staging, "replay.ndjson"), text)
+    await writeFile(path.join(staging, "replay.html"), replayHtmlFromNdjson(text))
+    for (const name of ["ironadamant.png", "receipt.json", "replay.ndjson", "replay.html"]) {
+      await rename(path.join(staging, name), path.join(demoDir, name))
+    }
   } finally {
+    await rm(staging, { recursive: true, force: true })
     await solari.close()
   }
 }
 
-if (path.resolve(process.argv[1] ?? "") === thisFile) {
+async function main(): Promise<void> {
   await saveDemoReceipt()
+}
+
+if (path.resolve(process.argv[1] ?? "") === thisFile) {
+  void main()
 }

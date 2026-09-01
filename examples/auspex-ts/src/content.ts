@@ -22,7 +22,17 @@ export async function buildCheckToolContent(
   if (!result.screenshotPath) return { content }
   try {
     const buf = await readFile(resolveScreenshotPath(result.screenshotPath))
-    if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) return { content }
+    if (buf.length === 0) {
+      content.push({ type: "text", text: "PNG omitted: screenshot file is empty" })
+      return { content }
+    }
+    if (buf.length > MAX_IMAGE_BYTES) {
+      content.push({
+        type: "text",
+        text: `PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`,
+      })
+      return { content }
+    }
     content.push({
       type: "image",
       mimeType: "image/png",

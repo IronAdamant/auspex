@@ -17,7 +17,7 @@ Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a lo
 - 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After this is on `main`: [htmlpreview](https://htmlpreview.github.io/?https://github.com/IronAdamant/auspex/blob/main/examples/auspex-ts/demo/replay.html).
 - Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
 
-Presigned `replayUrl` values expire in ~15 minutes and are not committed. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).
+`--record` does not put a presigned replay URL on the JSON receipt. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).
 
 ![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
 
@@ -47,7 +47,7 @@ npx tsx src/cli.ts profiles
 
 `--stealth` and recording need Starter or higher. `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile.
 
-Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`, `replayUrl`. Files land in `.auspex/runs/<timestamp>/`. Replay URLs expire in minutes — do not commit them. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
+Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt (watch in the Solari console via `sessionId`). Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
 ## MCP (Grok)
 

@@ -12,7 +12,9 @@ import { z } from "zod";
 function isHttpOrHttpsUrl(value) {
   try {
     const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    if (u.username !== "" || u.password !== "") return false;
+    return true;
   } catch {
     return false;
   }
@@ -56,8 +58,6 @@ import { Solari, SolariError } from "@solarisdk/browser";
 var GOTO_TIMEOUT_MS = 45e3;
 var NETWORKIDLE_TIMEOUT_MS = 15e3;
 var OVERALL_TIMEOUT_MS = 12e4;
-var REPLAY_ATTEMPTS = 10;
-var REPLAY_DELAY_MS = 3e3;
 var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
 function toPlaywrightStorageState(state) {
   const cookies = [];
@@ -70,8 +70,8 @@ function toPlaywrightStorageState(state) {
       domain: c.domain,
       path: c.path ?? "/",
       expires: c.expires ?? -1,
-      httpOnly: c.httpOnly ?? false,
-      secure: c.secure ?? false,
+      httpOnly: c.httpOnly ?? true,
+      secure: c.secure ?? true,
       sameSite
     });
   }
@@ -82,9 +82,10 @@ function toPlaywrightStorageState(state) {
   return { cookies, origins };
 }
 function findProfileId(profiles, name) {
-  const existing = profiles.find((p) => p.name === name);
+  const want = name.trim();
+  const existing = profiles.find((p) => p.name.trim() === want);
   if (!existing) {
-    throw new Error(`Solari profile not found: ${name}. Run login --profile ${name} first.`);
+    throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`);
   }
   return existing.id;
 }
@@ -133,31 +134,11 @@ async function pageForSession(browser) {
   const ctx = hasState ? await browser.newContext({ storageState: pw }) : browser.contexts()[0] ?? await browser.newContext();
   return ctx.pages()[0] ?? ctx.newPage();
 }
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS) {
-  for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
-    const remain = deadlineMs - Date.now();
-    if (remain <= 0) return void 0;
-    await sleep(Math.min(REPLAY_DELAY_MS, remain));
-    if (Date.now() >= deadlineMs) return void 0;
-    try {
-      const replay = await solari.sessions.getReplayUrl(sessionId);
-      return replay.url;
-    } catch (err) {
-      const status = err instanceof SolariError ? err.status : void 0;
-      if (status === 404) continue;
-      throw err;
-    }
-  }
-  return void 0;
-}
 
 // src/errors.ts
 import { SolariError as SolariError2 } from "@solarisdk/browser";
 function redactSecrets(text) {
-  return text.replace(/slr_live_[A-Za-z0-9_\-]+/g, "slr_live_\u2026");
+  return text.replace(/slr_[a-z]+_[A-Za-z0-9_\-]+/gi, "slr_\u2026").replace(/\bsk-[A-Za-z0-9]{10,}\b/g, "sk-\u2026").replace(/\bAKIA[A-Z0-9]{16}\b/g, "AKIA\u2026").replace(/Bearer\s+\S+/gi, "Bearer \u2026");
 }
 function explainSolariError(err) {
   let msg;
@@ -191,9 +172,18 @@ function stillOnAuth(url) {
   if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
     return true;
   }
-  const path4 = url.pathname.replace(/\/+$/, "") || "/";
-  if (path4 === "/login" || path4 === "/auth" || path4.startsWith("/auth/")) return true;
+  const path4 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path4 === "/login" || path4.startsWith("/login/") || path4 === "/auth" || path4.startsWith("/auth/")) {
+    return true;
+  }
   return false;
+}
+function shouldFailClosedAuth(url, opts) {
+  if (!stillOnAuth(url)) return false;
+  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
+    return true;
+  }
+  return Boolean(opts.sso || opts.profile);
 }
 function stopped(cancel) {
   return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
@@ -203,26 +193,29 @@ async function completeMicrosoftSso(page, cancel = {}) {
   const signal = cancel.signal;
   const msBtn = page.getByRole("button", { name: /sign in with microsoft/i });
   if (await msBtn.count() === 0) return;
-  await msBtn.first().click({ timeout: 1e4 });
+  await msBtn.first().click({ timeout: 1e4, signal });
   if (stopped(cancel)) return;
-  await page.waitForURL(/login\.microsoftonline\.com|login\.live\.com/, { timeout: 3e4, signal }).catch(() => void 0);
+  await page.waitForURL(
+    (url) => hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com"),
+    { timeout: 3e4, signal }
+  ).catch(() => void 0);
   if (stopped(cancel)) return;
   await page.waitForLoadState("domcontentloaded", { timeout: 45e3, signal }).catch(() => void 0);
   if (stopped(cancel)) return;
   const picker = page.getByText(/pick an account/i);
-  await picker.waitFor({ timeout: 2e4 }).catch(() => void 0);
+  await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
   if (stopped(cancel)) return;
   const signedIn = page.getByText(/^Signed in$/i);
   const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
   if (await signedIn.count() > 0) {
-    await signedIn.first().click({ timeout: 1e4 });
+    await signedIn.first().click({ timeout: 1e4, signal });
   } else if (await tile.count() > 0) {
-    await tile.first().click({ timeout: 1e4 });
+    await tile.first().click({ timeout: 1e4, signal });
   }
   if (stopped(cancel)) return;
   const yes = page.getByRole("button", { name: /^yes$/i });
   if (await yes.count() > 0) {
-    await yes.first().click({ timeout: 8e3 }).catch(() => void 0);
+    await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
   }
   if (stopped(cancel)) return;
   await page.waitForURL((url) => !stillOnAuth(url), { timeout: 45e3, signal }).catch(() => void 0);
@@ -232,9 +225,40 @@ async function completeMicrosoftSso(page, cancel = {}) {
 
 // src/timeout.ts
 var CLOSE_TIMEOUT_MS = 15e3;
-var LAUNCH_SETTLE_MS = 2e4;
 async function boundPromise(p, ms, message) {
   return raceWithTimeout(async () => p, ms, message);
+}
+async function observeAbort(p, signal) {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+async function closeThenRelease(close, release, ms) {
+  try {
+    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
+  } catch (err) {
+    try {
+      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
+    } catch {
+    }
+    throw err;
+  }
 }
 var ReadyRelease = class {
   mark;
@@ -252,10 +276,8 @@ var ReadyRelease = class {
   skip() {
     this.mark();
   }
-  async release(settleMs) {
-    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
-      () => void 0
-    );
+  async release(_settleMs) {
+    await this.ready;
     if (this.fn) await this.fn();
   }
 };
@@ -289,16 +311,23 @@ function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   return path2.join(packageRoot, ".auspex", "runs", stamp);
 }
-async function extractText(page, selector) {
+async function extractText(page, selector, signal) {
   if (selector) {
-    return page.locator(selector).first().innerText({ timeout: 1e4 });
+    return page.locator(selector).first().innerText({ timeout: 1e4, signal });
   }
-  return page.locator("body").innerText();
+  return page.locator("body").innerText({ timeout: 3e4, signal });
+}
+async function waitNetworkIdle(page, signal) {
+  try {
+    await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal });
+    return true;
+  } catch {
+    return false;
+  }
 }
 async function runCheck(opts) {
   requireExpect(opts.expect);
   requireHttpUrl(opts.url, "url");
-  const deadline = Date.now() + OVERALL_TIMEOUT_MS;
   const solari = createClient();
   const closer = new ReadyRelease();
   let sessionId = "";
@@ -322,10 +351,10 @@ async function runCheck(opts) {
         profileId
       });
       closer.set(async () => {
-        await boundPromise(
-          browser.close(),
-          CLOSE_TIMEOUT_MS,
-          `session close timed out after ${CLOSE_TIMEOUT_MS}ms`
+        await closeThenRelease(
+          () => browser.close(),
+          () => solari.sessions.releaseAndWait(browser.id),
+          CLOSE_TIMEOUT_MS
         );
       });
       sessionId = browser.id;
@@ -337,29 +366,33 @@ async function runCheck(opts) {
         waitUntil: "domcontentloaded",
         signal
       });
-      try {
-        await page.waitForLoadState("networkidle", {
-          timeout: NETWORKIDLE_TIMEOUT_MS,
-          signal
-        });
-        networkIdle = true;
-      } catch {
-        networkIdle = false;
-      }
+      networkIdle = await waitNetworkIdle(page, signal);
       if (isCancelled()) return;
       if (opts.sso) {
         await completeMicrosoftSso(page, { isCancelled, signal });
+        networkIdle = await waitNetworkIdle(page, signal);
       }
       if (isCancelled()) return;
-      title = await page.title();
+      title = await observeAbort(page.title(), signal);
       finalUrl = page.url();
-      const raw = await extractText(page, opts.selector);
-      const haystack = normalizeHaystack(raw);
-      excerpt = excerptOf(haystack);
-      matched = haystackMatches(raw, opts.expect);
-      if (opts.sso && stillOnAuth(new URL(finalUrl))) {
+      let raw = "";
+      try {
+        raw = await extractText(page, opts.selector, signal);
+        const haystack = normalizeHaystack(raw);
+        excerpt = excerptOf(haystack);
+        matched = haystackMatches(raw, opts.expect);
+      } catch (extractErr) {
+        const authUrl = new URL(finalUrl);
+        if (shouldFailClosedAuth(authUrl, opts)) {
+          matched = false;
+          excerpt = `still on ${finalUrl}. ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`;
+        } else {
+          throw extractErr;
+        }
+      }
+      if (finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts)) {
         matched = false;
-        excerpt = `SSO still on ${finalUrl}. ${excerpt}`;
+        excerpt = `still on ${finalUrl}. ${excerpt}`;
       }
       await page.screenshot({ path: screenshotAbs, type: "png", fullPage: true, signal });
     } finally {
@@ -377,7 +410,7 @@ async function runCheck(opts) {
       workError = err;
     } finally {
       try {
-        await closer.release(LAUNCH_SETTLE_MS);
+        await closer.release();
       } catch (closeErr) {
         const closeMsg = `session close failed: ${explainSolariError(closeErr)}`;
         if (workError) throw new Error(`${explainSolariError(workError)}; ${closeMsg}`);
@@ -385,10 +418,6 @@ async function runCheck(opts) {
       }
     }
     if (workError) throw new Error(explainSolariError(workError));
-    let replayUrl;
-    if (opts.record && sessionId) {
-      replayUrl = await waitForReplayUrl(solari, sessionId, deadline);
-    }
     const result = {
       title,
       finalUrl,
@@ -398,8 +427,7 @@ async function runCheck(opts) {
       excerpt,
       screenshotPath,
       sessionId,
-      networkIdle,
-      replayUrl
+      networkIdle
     };
     await writeFile(path2.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}
 `);
@@ -430,7 +458,17 @@ async function buildCheckToolContent(result) {
   if (!result.screenshotPath) return { content };
   try {
     const buf = await readFile(resolveScreenshotPath(result.screenshotPath));
-    if (buf.length === 0 || buf.length > MAX_IMAGE_BYTES) return { content };
+    if (buf.length === 0) {
+      content.push({ type: "text", text: "PNG omitted: screenshot file is empty" });
+      return { content };
+    }
+    if (buf.length > MAX_IMAGE_BYTES) {
+      content.push({
+        type: "text",
+        text: `PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`
+      });
+      return { content };
+    }
     content.push({
       type: "image",
       mimeType: "image/png",
@@ -554,6 +592,16 @@ var DualStdioServerTransport = class _DualStdioServerTransport {
       if (this.buffer.length < start + n) return null;
       const json = this.buffer.subarray(start, start + n).toString("utf8");
       this.buffer = this.buffer.subarray(start + n);
+      if (this.buffer.length > 0) {
+        const rest = this.buffer.toString("utf8");
+        const restLower = rest.toLowerCase();
+        if (!restLower.startsWith("content-length:")) {
+          const firstLine = restLower.split(/\r?\n/, 1)[0] ?? "";
+          if (!(CL_PREFIX.startsWith(firstLine) && rest.indexOf("\n") === -1)) {
+            throw new Error("stdio framing error: leftover bytes after Content-Length message");
+          }
+        }
+      }
       return JSON.parse(json);
     }
     while (true) {
@@ -625,14 +673,14 @@ var server = new McpServer({
 server.registerTool(
   "auspex_check",
   {
-    description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG. Always closes the session. Use for post-deploy verification, not raw CDP.",
+    description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: httpUrlSchema.describe("http or https URL to open"),
       expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
       selector: z3.string().optional().describe("Optional CSS selector to extract instead of body"),
       profile: z3.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z3.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
-      record: z3.boolean().optional().describe("Record the session and return a replay URL"),
+      record: z3.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
       sso: z3.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear")
     }
   },

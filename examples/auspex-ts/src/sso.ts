@@ -18,9 +18,23 @@ export function stillOnAuth(url: URL): boolean {
   if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
     return true
   }
-  const path = url.pathname.replace(/\/+$/, "") || "/"
-  if (path === "/login" || path === "/auth" || path.startsWith("/auth/")) return true
+  const path = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase()
+  if (path === "/login" || path.startsWith("/login/") || path === "/auth" || path.startsWith("/auth/")) {
+    return true
+  }
   return false
+}
+
+/** Microsoft hosts always fail-close; `/login` and `/auth` when --sso or --profile. */
+export function shouldFailClosedAuth(
+  url: URL,
+  opts: { sso?: boolean; profile?: string },
+): boolean {
+  if (!stillOnAuth(url)) return false
+  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
+    return true
+  }
+  return Boolean(opts.sso || opts.profile)
 }
 
 function stopped(cancel: SsoCancel): boolean {
@@ -33,31 +47,35 @@ export async function completeMicrosoftSso(page: Page, cancel: SsoCancel = {}): 
   const signal = cancel.signal
   const msBtn = page.getByRole("button", { name: /sign in with microsoft/i })
   if ((await msBtn.count()) === 0) return
-  await msBtn.first().click({ timeout: 10_000 })
+  await msBtn.first().click({ timeout: 10_000, signal })
   if (stopped(cancel)) return
   await page
-    .waitForURL(/login\.microsoftonline\.com|login\.live\.com/, { timeout: 30_000, signal })
+    .waitForURL(
+      (url) =>
+        hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com"),
+      { timeout: 30_000, signal },
+    )
     .catch(() => undefined)
   if (stopped(cancel)) return
   await page.waitForLoadState("domcontentloaded", { timeout: 45_000, signal }).catch(() => undefined)
   if (stopped(cancel)) return
 
   const picker = page.getByText(/pick an account/i)
-  await picker.waitFor({ timeout: 20_000 }).catch(() => undefined)
+  await picker.waitFor({ timeout: 20_000, signal }).catch(() => undefined)
   if (stopped(cancel)) return
 
   const signedIn = page.getByText(/^Signed in$/i)
   const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i })
   if ((await signedIn.count()) > 0) {
-    await signedIn.first().click({ timeout: 10_000 })
+    await signedIn.first().click({ timeout: 10_000, signal })
   } else if ((await tile.count()) > 0) {
-    await tile.first().click({ timeout: 10_000 })
+    await tile.first().click({ timeout: 10_000, signal })
   }
   if (stopped(cancel)) return
 
   const yes = page.getByRole("button", { name: /^yes$/i })
   if ((await yes.count()) > 0) {
-    await yes.first().click({ timeout: 8_000 }).catch(() => undefined)
+    await yes.first().click({ timeout: 8_000, signal }).catch(() => undefined)
   }
   if (stopped(cancel)) return
 
