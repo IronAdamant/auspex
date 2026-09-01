@@ -2,6 +2,19 @@ import process from "node:process"
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 
+const CL_PREFIX = "content-length:"
+
+export function parseContentLength(raw: string, maxBytes: number): number {
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`stdio Content-Length not an integer: ${raw}`)
+  }
+  const n = Number(raw)
+  if (!Number.isSafeInteger(n) || n < 0 || n > maxBytes) {
+    throw new Error(`stdio Content-Length out of range: ${n}`)
+  }
+  return n
+}
+
 /**
  * Stdio transport that accepts both Grok's Content-Length framing and
  * newline-delimited JSON. Replies with Content-Length so Grok can parse initialize.
@@ -52,8 +65,17 @@ export class DualStdioServerTransport implements Transport {
   private readOne(): JSONRPCMessage | null {
     if (this.buffer.length === 0) return null
     const asText = this.buffer.toString("utf8")
-    const cl = asText.match(/^Content-Length:\s*(\d+)/i)
-    if (cl || asText.toLowerCase().startsWith("content-length:")) {
+    const lower = asText.toLowerCase()
+
+    if (this.replyContentLength) {
+      if (!lower.startsWith("content-length:")) {
+        const firstLine = lower.split(/\r?\n/, 1)[0] ?? ""
+        if (CL_PREFIX.startsWith(firstLine) && asText.indexOf("\n") === -1) return null
+        throw new Error("stdio framing error: leftover bytes after Content-Length message")
+      }
+    }
+
+    if (lower.startsWith("content-length:") || asText.match(/^Content-Length:\s*\d+/i)) {
       this.replyContentLength = true
       let sep = this.buffer.indexOf("\r\n\r\n")
       let sepLen = 4
@@ -63,26 +85,29 @@ export class DualStdioServerTransport implements Transport {
       }
       if (sep === -1) return null
       const header = this.buffer.subarray(0, sep).toString("utf8")
-      const lenMatch = header.match(/Content-Length:\s*(\d+)/i)
+      const lenMatch = header.match(/Content-Length:\s*(\S+)/i)
       if (!lenMatch) {
         throw new Error(`stdio header missing Content-Length: ${header.slice(0, 80)}`)
       }
-      const n = Number(lenMatch[1])
-      if (!Number.isFinite(n) || n < 0 || n > DualStdioServerTransport.MAX_BUFFER_BYTES) {
-        throw new Error(`stdio Content-Length out of range: ${n}`)
-      }
+      const n = parseContentLength(lenMatch[1] ?? "", DualStdioServerTransport.MAX_BUFFER_BYTES)
       const start = sep + sepLen
       if (this.buffer.length < start + n) return null
       const json = this.buffer.subarray(start, start + n).toString("utf8")
       this.buffer = this.buffer.subarray(start + n)
       return JSON.parse(json) as JSONRPCMessage
     }
-    const nl = this.buffer.indexOf("\n")
-    if (nl === -1) return null
-    const line = this.buffer.subarray(0, nl).toString("utf8").replace(/\r$/, "")
-    this.buffer = this.buffer.subarray(nl + 1)
-    if (!line.trim()) return this.readOne()
-    return JSON.parse(line) as JSONRPCMessage
+
+    while (true) {
+      const nl = this.buffer.indexOf("\n")
+      if (nl === -1) return null
+      const line = this.buffer.subarray(0, nl).toString("utf8").replace(/\r$/, "")
+      this.buffer = this.buffer.subarray(nl + 1)
+      if (!line.trim()) {
+        if (this.buffer.length === 0) return null
+        continue
+      }
+      return JSON.parse(line) as JSONRPCMessage
+    }
   }
 
   async start(): Promise<void> {
@@ -106,9 +131,31 @@ export class DualStdioServerTransport implements Transport {
     const payload = this.replyContentLength
       ? Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, "utf8"), body])
       : Buffer.from(`${json}\n`, "utf8")
-    return new Promise((resolve) => {
-      if (this.stdout.write(payload)) resolve()
-      else this.stdout.once("drain", resolve)
+    return new Promise((resolve, reject) => {
+      const onError = (err: Error) => {
+        this.stdout.off("drain", onDrain)
+        this.stdout.off("error", onError)
+        reject(err)
+      }
+      const onDrain = () => {
+        this.stdout.off("error", onError)
+        resolve()
+      }
+      this.stdout.once("error", onError)
+      let ok: boolean
+      try {
+        ok = this.stdout.write(payload)
+      } catch (err) {
+        this.stdout.off("error", onError)
+        reject(err instanceof Error ? err : new Error(String(err)))
+        return
+      }
+      if (ok) {
+        this.stdout.off("error", onError)
+        resolve()
+      } else {
+        this.stdout.once("drain", onDrain)
+      }
     })
   }
 }

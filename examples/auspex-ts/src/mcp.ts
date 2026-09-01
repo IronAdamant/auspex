@@ -3,8 +3,10 @@ import { z } from "zod"
 import { runCheck } from "./check.ts"
 import { buildCheckToolContent } from "./content.ts"
 import { explainSolariError } from "./errors.ts"
+import { httpUrlSchema } from "./http-url.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
 import { DualStdioServerTransport } from "./stdio-transport.ts"
+import { expectSchema } from "./text.ts"
 
 const server = new McpServer({
   name: "auspex",
@@ -17,8 +19,8 @@ server.registerTool(
     description:
       "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG. Always closes the session. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
-      url: z.string().describe("https URL to open"),
-      expect: z.string().min(1).describe("Non-empty substring that must appear in the page text"),
+      url: httpUrlSchema.describe("http or https URL to open"),
+      expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
       selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
       profile: z.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
@@ -54,7 +56,7 @@ server.registerTool(
       "Create or reuse a named Solari browser profile, then tell the human to log in via Console → Profiles → Open editor → Save. Does not keep a check session open. After Save, pass this profile to auspex_check.",
     inputSchema: {
       profile: z.string().describe("Profile name to create or reuse"),
-      url: z.string().optional().describe("Optional login URL hint to show the human"),
+      url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
     },
   },
   async ({ profile, url }) => {

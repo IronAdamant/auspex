@@ -2,7 +2,9 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
+import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
+import { isNonEmptyExpect } from "./text.ts"
 
 export const USAGE = `Usage:
   npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
@@ -62,7 +64,10 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
-    if (!expect?.trim()) return { status: "error", message: "check requires --expect <string>" }
+    if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
+    if (!expect || !isNonEmptyExpect(expect)) {
+      return { status: "error", message: "check requires --expect <string>" }
+    }
     return { status: "ok", command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso } } }
   }
   if (cmd === "login") {
@@ -73,6 +78,9 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = takeOption(args, "--url")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profile) return { status: "error", message: "login requires --profile <name>" }
+    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
+      return { status: "error", message: "url must be an http or https URL" }
+    }
     return { status: "ok", command: { cmd: "login", profile, url } }
   }
   if (cmd === "profiles") {

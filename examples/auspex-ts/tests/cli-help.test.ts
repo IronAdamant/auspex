@@ -53,6 +53,30 @@ test("parseArgv rejects empty --expect", () => {
   if (parsed.status === "error") assert.match(parsed.message, /--expect/)
 })
 
+test("parseArgv rejects whitespace-only --expect", () => {
+  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", "   "])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /--expect/)
+})
+
+test("parseArgv rejects non-http(s) URLs", () => {
+  const parsed = parseArgv(["check", "file:///etc/passwd", "--expect", "x"])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /http or https/)
+})
+
+test("parseArgv --stealth=true is not a boolean flag", () => {
+  const parsed = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--stealth=true",
+  ])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /unexpected/)
+})
+
 test("parseArgv login and profiles", () => {
   const login = parseArgv(["login", "--profile", "auspex-goal-test"])
   assert.equal(login.status, "ok")
@@ -79,4 +103,19 @@ test("shipped CLI check --help lists login and profiles", () => {
   assert.match(help.stdout, /check/)
   assert.match(help.stdout, /login/)
   assert.match(help.stdout, /profiles/)
+})
+
+test("shipped CLI rejects empty and whitespace --expect", () => {
+  const empty = runCli(["check", "https://ironadamant.com", "--expect", ""])
+  assert.notEqual(empty.status, 0)
+  assert.match(`${empty.stderr}${empty.stdout}`, /--expect/)
+  const ws = runCli(["check", "https://ironadamant.com", "--expect", "   "])
+  assert.notEqual(ws.status, 0)
+  assert.match(`${ws.stderr}${ws.stdout}`, /--expect/)
+})
+
+test("shipped CLI rejects a non-https URL", () => {
+  const bad = runCli(["check", "file:///tmp/x", "--expect", "Build it."])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
 })

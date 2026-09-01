@@ -2,6 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { BrowserSession } from "@solarisdk/browser"
+import { requireHttpUrl } from "./http-url.ts"
+import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
 import {
   createClient,
   GOTO_TIMEOUT_MS,
@@ -13,7 +15,13 @@ import {
 } from "./solari.ts"
 import { explainSolariError } from "./errors.ts"
 import { completeMicrosoftSso, stillOnAuth } from "./sso.ts"
-import { raceWithTimeout } from "./timeout.ts"
+import {
+  boundPromise,
+  CLOSE_TIMEOUT_MS,
+  LAUNCH_SETTLE_MS,
+  ReadyRelease,
+  raceWithTimeout,
+} from "./timeout.ts"
 
 type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
 
@@ -36,19 +44,19 @@ export type CheckResult = {
   excerpt: string
   screenshotPath: string
   sessionId: string
+  networkIdle: boolean
   replayUrl?: string
 }
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+export const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+
+export function toReceiptPath(absPath: string): string {
+  return path.relative(packageRoot, absPath).replaceAll("\\", "/")
+}
 
 function runDir(): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-  return path.join(rootDir, ".auspex", "runs", stamp)
-}
-
-function excerptOf(text: string, max = 500): string {
-  const collapsed = text.replace(/\s+/g, " ").trim()
-  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}…`
+  return path.join(packageRoot, ".auspex", "runs", stamp)
 }
 
 async function extractText(page: Page, selector?: string): Promise<string> {
@@ -59,54 +67,79 @@ async function extractText(page: Page, selector?: string): Promise<string> {
 }
 
 export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
-  if (!opts.expect.trim()) {
-    throw new Error("check requires a non-empty --expect")
-  }
+  requireExpect(opts.expect)
+  requireHttpUrl(opts.url, "url")
+  const deadline = Date.now() + OVERALL_TIMEOUT_MS
   const solari = createClient()
-  let browser: BrowserSession | undefined
+  const closer = new ReadyRelease()
   let sessionId = ""
   const outDir = runDir()
   await mkdir(outDir, { recursive: true })
-  const screenshotPath = path.join(outDir, "screenshot.png")
+  const screenshotAbs = path.join(outDir, "screenshot.png")
+  const screenshotPath = toReceiptPath(screenshotAbs)
 
   let title = ""
   let finalUrl = ""
   let excerpt = ""
   let matched = false
+  let networkIdle = false
+  let workError: unknown
 
-  const work = async (isCancelled: () => boolean) => {
-    const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
-    if (isCancelled()) return
-    browser = await solari.launch({
-      stealth: opts.stealth === true,
-      recording: opts.record === true,
-      profileId,
-    })
-    if (isCancelled()) return
-    sessionId = browser.id
-    const page = await pageForSession(browser)
-    if (isCancelled()) return
-    await page.goto(opts.url, { timeout: GOTO_TIMEOUT_MS, waitUntil: "domcontentloaded" })
-    await page
-      .waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS })
-      .catch(() => undefined)
-    if (isCancelled()) return
-    if (opts.sso) {
-      await completeMicrosoftSso(page)
+  const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
+    try {
+      const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
+      if (isCancelled()) return
+      const browser = await solari.launch({
+        stealth: opts.stealth === true,
+        recording: opts.record === true,
+        profileId,
+      })
+      closer.set(async () => {
+        await boundPromise(
+          browser.close(),
+          CLOSE_TIMEOUT_MS,
+          `session close timed out after ${CLOSE_TIMEOUT_MS}ms`,
+        )
+      })
+      sessionId = browser.id
+      if (isCancelled()) return
+      const page = await pageForSession(browser)
+      if (isCancelled()) return
+      await page.goto(opts.url, {
+        timeout: GOTO_TIMEOUT_MS,
+        waitUntil: "domcontentloaded",
+        signal,
+      })
+      try {
+        await page.waitForLoadState("networkidle", {
+          timeout: NETWORKIDLE_TIMEOUT_MS,
+          signal,
+        })
+        networkIdle = true
+      } catch {
+        networkIdle = false
+      }
+      if (isCancelled()) return
+      if (opts.sso) {
+        await completeMicrosoftSso(page, { isCancelled, signal })
+      }
+      if (isCancelled()) return
+      title = await page.title()
+      finalUrl = page.url()
+      const raw = await extractText(page, opts.selector)
+      const haystack = normalizeHaystack(raw)
+      excerpt = excerptOf(haystack)
+      matched = haystackMatches(raw, opts.expect)
+      if (opts.sso && stillOnAuth(new URL(finalUrl))) {
+        matched = false
+        excerpt = `SSO still on ${finalUrl}. ${excerpt}`
+      }
+      await page.screenshot({ path: screenshotAbs, type: "png", fullPage: true, signal })
+      // Never auto-save: a check of the public login page would overwrite a
+      // console-editor login (empty ~150 byte v4). Save only via the editor.
+    } finally {
+      closer.skip()
     }
-    if (isCancelled()) return
-    title = await page.title()
-    finalUrl = page.url()
-    const raw = await extractText(page, opts.selector)
-    excerpt = excerptOf(raw)
-    matched = raw.includes(opts.expect)
-    if (opts.sso && stillOnAuth(new URL(finalUrl))) {
-      matched = false
-      excerpt = `SSO still on ${finalUrl}. ${excerpt}`
-    }
-    await page.screenshot({ path: screenshotPath, type: "png" })
-    // Never auto-save: a check of the public login page would overwrite a
-    // console-editor login (empty ~150 byte v4). Save only via the editor.
   }
 
   try {
@@ -117,20 +150,21 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         `auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`,
       )
     } catch (err) {
-      throw new Error(explainSolariError(err))
+      workError = err
     } finally {
-      if (browser) {
-        try {
-          await browser.close()
-        } catch {
-          /* already gone */
-        }
+      try {
+        await closer.release(LAUNCH_SETTLE_MS)
+      } catch (closeErr) {
+        const closeMsg = `session close failed: ${explainSolariError(closeErr)}`
+        if (workError) throw new Error(`${explainSolariError(workError)}; ${closeMsg}`)
+        throw new Error(closeMsg)
       }
     }
+    if (workError) throw new Error(explainSolariError(workError))
 
     let replayUrl: string | undefined
     if (opts.record && sessionId) {
-      replayUrl = await waitForReplayUrl(solari, sessionId)
+      replayUrl = await waitForReplayUrl(solari, sessionId, deadline)
     }
 
     const result: CheckResult = {
@@ -142,11 +176,20 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       excerpt,
       screenshotPath,
       sessionId,
+      networkIdle,
       replayUrl,
     }
     await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}\n`)
     return result
   } finally {
-    await solari.close()
+    try {
+      await boundPromise(
+        solari.close(),
+        CLOSE_TIMEOUT_MS,
+        `solari close timed out after ${CLOSE_TIMEOUT_MS}ms`,
+      )
+    } catch {
+      /* local proxy stop is bounded; session already released */
+    }
   }
 }

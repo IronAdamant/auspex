@@ -17,6 +17,7 @@ test("buildCheckToolContent returns JSON text and PNG image from a real file", a
     excerpt: "Build it. Ship it.",
     screenshotPath: fixture,
     sessionId: "test-session",
+    networkIdle: true,
   }
   const { content } = await buildCheckToolContent(result)
   const text = content.find((p) => p.type === "text")
@@ -33,4 +34,26 @@ test("buildCheckToolContent returns JSON text and PNG image from a real file", a
     const raw = Buffer.from(image.data, "base64")
     assert.equal(raw.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
   }
+})
+
+test("buildCheckToolContent omits oversized PNGs", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const { MAX_IMAGE_BYTES } = await import("../src/content.ts")
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-img-"))
+  const big = path.join(dir, "big.png")
+  writeFileSync(big, Buffer.alloc(MAX_IMAGE_BYTES + 1, 0))
+  const result: CheckResult = {
+    title: "t",
+    finalUrl: "https://ironadamant.com/",
+    ok: true,
+    expect: "Build it.",
+    matched: true,
+    excerpt: "Build it.",
+    screenshotPath: big,
+    sessionId: "s",
+    networkIdle: true,
+  }
+  const { content } = await buildCheckToolContent(result)
+  assert.equal(content.some((p) => p.type === "image"), false)
 })
