@@ -1,5 +1,7 @@
 # Demo
 
+No Chrome window opens on your Mac. Solari runs a remote browser; you only get JSON and a PNG.
+
 From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 
 ```bash
@@ -22,3 +24,5 @@ npx tsx src/cli.ts profiles
 ```
 
 After MCP is copied from `grok.mcp.example.toml` into Grok config and Grok is restarted, ask Grok to verify https://ironadamant.com for `"Build it."` via `auspex_check`.
+
+Public post image (Solari cloud Chrome, not a local window): [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json). Do not post logged-in ConsistencyHub dashboards.

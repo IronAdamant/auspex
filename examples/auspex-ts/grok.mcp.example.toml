@@ -1,15 +1,14 @@
-# Copy into ~/.grok/config.toml. Do not commit a live slr_live_ key.
-# Restart Grok after adding this so auspex_check / auspex_login / auspex_profiles appear.
-#
-# Do not add npx @solarisdk/mcp (Solari's 27-tool CDP server) by default.
-# That keeps sessions open and exposes sandbox/desktop. Auspex is the closed-loop tool.
+# Mirror of [mcp_servers.auspex] in ~/.grok/config.toml.
+# Keep the live key in gitignored examples/auspex-ts/.env — Auspex loads it.
+# Restart Grok after changing MCP config.
+# This is a remote Solari Chrome for the agent — not Browser Use, not a window on the Mac.
 
+# Use an absolute node binary. Grok's MCP spawn PATH often lacks `node`,
+# so the tsx shebang (`#!/usr/bin/env node`) dies with "node: No such file or directory".
 [mcp_servers.auspex]
-command = "npx"
-args = ["tsx", "src/mcp.ts"]
+command = "/Users/aron/.local/bin/node"
+args = ["/Users/aron/Documents/coding_projects/auspex/examples/auspex-ts/dist/mcp.mjs"]
 cwd = "/Users/aron/Documents/coding_projects/auspex/examples/auspex-ts"
 enabled = true
 startup_timeout_sec = 30
 tool_timeout_sec = 180
-# Set SOLARI_API_KEY in the environment that launches Grok, or locally:
-# env = { SOLARI_API_KEY = "slr_live_…" }

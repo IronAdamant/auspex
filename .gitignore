@@ -8,6 +8,8 @@ venv/
 screenshot.png
 examples/auspex-ts/.auspex/
 
+.stele-context/
+
 # Local-only — never commit. This repo is public; these stay on this machine.
 /Grok research/
 .wikifier_staging/

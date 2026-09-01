@@ -7,9 +7,11 @@ import {
   GOTO_TIMEOUT_MS,
   NETWORKIDLE_TIMEOUT_MS,
   OVERALL_TIMEOUT_MS,
+  pageForSession,
   resolveProfileId,
   waitForReplayUrl,
 } from "./solari.ts"
+import { completeMicrosoftSso } from "./sso.ts"
 
 type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
 
@@ -20,6 +22,7 @@ export type CheckOptions = {
   profile?: string
   stealth?: boolean
   record?: boolean
+  sso?: boolean
 }
 
 export type CheckResult = {
@@ -74,21 +77,22 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       profileId,
     })
     sessionId = browser.id
-    const page = await browser.newPage()
+    const page = await pageForSession(browser)
     await page.goto(opts.url, { timeout: GOTO_TIMEOUT_MS, waitUntil: "domcontentloaded" })
     await page
       .waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS })
       .catch(() => undefined)
+    if (opts.sso) {
+      await completeMicrosoftSso(page)
+    }
     title = await page.title()
     finalUrl = page.url()
     const raw = await extractText(page, opts.selector)
     excerpt = excerptOf(raw)
     matched = raw.includes(opts.expect)
     await page.screenshot({ path: screenshotPath, type: "png" })
-    if (profileId) {
-      const state = await page.context().storageState()
-      await solari.profiles.save(profileId, state)
-    }
+    // Never auto-save: a check of the public login page would overwrite a
+    // console-editor login (empty ~150 byte v4). Save only via the editor.
   }
 
   try {
@@ -103,7 +107,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         }),
       ])
     } finally {
-      if (browser) await browser.close()
+      if (browser) {
+        try {
+          await browser.close()
+        } catch {
+          /* already gone */
+        }
+      }
     }
 
     let replayUrl: string | undefined

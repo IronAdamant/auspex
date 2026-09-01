@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { runCheck } from "./check.ts"
 import { buildCheckToolContent } from "./content.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
+import { DualStdioServerTransport } from "./stdio-transport.ts"
 
 const server = new McpServer({
   name: "auspex",
@@ -22,9 +22,13 @@ server.registerTool(
       profile: z.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
       record: z.boolean().optional().describe("Record the session and return a replay URL"),
+      sso: z
+        .boolean()
+        .optional()
+        .describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
     },
   },
-  async ({ url, expect, selector, profile, stealth, record }) => {
+  async ({ url, expect, selector, profile, stealth, record, sso }) => {
     const result = await runCheck({
       url,
       expect,
@@ -32,6 +36,7 @@ server.registerTool(
       profile,
       stealth,
       record,
+      sso,
     })
     return await buildCheckToolContent(result)
   },
@@ -65,5 +70,5 @@ server.registerTool(
   },
 )
 
-const transport = new StdioServerTransport()
+const transport = new DualStdioServerTransport()
 await server.connect(transport)

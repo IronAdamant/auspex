@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "check": "tsx src/cli.ts check",
-    "mcp": "tsx src/mcp.ts",
+    "mcp": "node dist/mcp.mjs",
+    "build:mcp": "esbuild src/mcp.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "start": "tsx src/cli.ts"
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "esbuild": "^0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

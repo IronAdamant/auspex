@@ -1,8 +1,8 @@
 # Auspex — for agents
 
-Use Auspex when you need **evidence from a live web page**: open the URL in a Solari cloud browser, snapshot text + PNG, check a claim, keep a recording.
+Use Auspex when you need **evidence from a live web page**. You drive a **Solari cloud Chrome** (its own remote instance, not the human’s local browser). Snapshot text + PNG, check a claim, close. The human does not watch that window.
 
-Do **not** use it for pages you can already curl, for generic research crawls, or as a wrap of Solari’s 27-tool MCP (`solari_browser_*`, sandbox, desktop).
+Do **not** use it for pages you can already curl, for generic research crawls, as a wrap of Solari’s 27-tool MCP (`solari_browser_*`, sandbox, desktop), or instead of Browser Use when the job is “click around in the user’s already-open Chrome.”
 
 ## Tools
 
@@ -22,7 +22,9 @@ Do **not** use it for pages you can already curl, for generic research crawls, o
 ## CLI
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record]
+npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 ```
+
+`--sso` is for Microsoft login cards (e.g. ConsistencyHub): click Sign in with Microsoft, then the signed-in account. Use with `--profile`.

@@ -9,7 +9,7 @@ past. Copy one into your project and change the parts you care about.
 
 ## Examples
 
-- **[auspex-ts](examples/auspex-ts)** — open a live URL in a Solari cloud browser, snapshot evidence, check a claim, keep a recording.
+- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close.
 
 ### Cloud browser
 

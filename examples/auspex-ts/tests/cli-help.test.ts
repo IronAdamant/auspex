@@ -30,6 +30,23 @@ test("parseArgv --help and check --help request help", () => {
   if (b.status === "ok") assert.equal(b.command.cmd, "help")
 })
 
+test("parseArgv check --sso", () => {
+  const parsed = parseArgv([
+    "check",
+    "https://consistencyhub.io/login",
+    "--expect",
+    "Dashboard",
+    "--profile",
+    "consistencyhub",
+    "--sso",
+  ])
+  assert.equal(parsed.status, "ok")
+  if (parsed.status === "ok" && parsed.command.cmd === "check") {
+    assert.equal(parsed.command.opts.sso, true)
+    assert.equal(parsed.command.opts.profile, "consistencyhub")
+  }
+})
+
 test("parseArgv login and profiles", () => {
   const login = parseArgv(["login", "--profile", "auspex-goal-test"])
   assert.equal(login.status, "ok")

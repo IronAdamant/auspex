@@ -4,7 +4,7 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record]
+  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
@@ -57,11 +57,12 @@ export function parseArgv(argv: string[]): ParseResult {
     const profile = takeOption(args, "--profile")
     const stealth = takeFlag(args, "--stealth")
     const record = takeFlag(args, "--record")
+    const sso = takeFlag(args, "--sso")
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
     if (!expect) return { status: "error", message: "check requires --expect <string>" }
-    return { status: "ok", command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record } } }
+    return { status: "ok", command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso } } }
   }
   if (cmd === "login") {
     if (args.includes("--help") || args.includes("-h")) {
