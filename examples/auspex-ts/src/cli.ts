@@ -38,7 +38,7 @@ function takeOption(args: string[], name: string): string | undefined {
   const i = args.indexOf(name)
   if (i === -1) return undefined
   const value = args[i + 1]
-  if (!value || value.startsWith("-")) return undefined
+  if (value === undefined || (value.length > 0 && value.startsWith("-"))) return undefined
   args.splice(i, 2)
   return value
 }

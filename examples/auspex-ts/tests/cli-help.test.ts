@@ -50,6 +50,7 @@ test("parseArgv check --sso", () => {
 test("parseArgv rejects empty --expect", () => {
   const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", ""])
   assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /--expect/)
 })
 
 test("parseArgv login and profiles", () => {

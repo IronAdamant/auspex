@@ -441,8 +441,12 @@ server.registerTool(
     }
   },
   async ({ profile, url }) => {
-    const result = await loginProfile(profile, url);
-    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    try {
+      const result = await loginProfile(profile, url);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    } catch (err) {
+      throw new Error(explainSolariError(err));
+    }
   }
 );
 server.registerTool(
@@ -452,8 +456,12 @@ server.registerTool(
     inputSchema: {}
   },
   async () => {
-    const profiles = await listProfiles();
-    return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+    try {
+      const profiles = await listProfiles();
+      return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+    } catch (err) {
+      throw new Error(explainSolariError(err));
+    }
   }
 );
 var transport = new DualStdioServerTransport();

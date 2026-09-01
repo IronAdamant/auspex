@@ -19,20 +19,30 @@ test("raceWithTimeout clears the timer when work finishes first", async () => {
 })
 
 test("raceWithTimeout rejects when the timer wins and exposes cancelled", async () => {
+  const rejections: unknown[] = []
+  const onrej = (reason: unknown) => {
+    rejections.push(reason)
+  }
+  process.on("unhandledRejection", onrej)
   let sawCancel = false
-  await assert.rejects(
-    () =>
-      raceWithTimeout(
-        async (isCancelled) => {
-          await new Promise((r) => setTimeout(r, 80))
-          sawCancel = isCancelled()
-          return "late"
-        },
-        20,
-        "timed out",
-      ),
-    /timed out/,
-  )
-  await new Promise((r) => setTimeout(r, 100))
-  assert.equal(sawCancel, true)
+  try {
+    await assert.rejects(
+      () =>
+        raceWithTimeout(
+          async (isCancelled) => {
+            await new Promise((r) => setTimeout(r, 80))
+            sawCancel = isCancelled()
+            throw new Error("work continued after timeout")
+          },
+          20,
+          "timed out",
+        ),
+      /timed out/,
+    )
+    await new Promise((r) => setTimeout(r, 100))
+    assert.equal(sawCancel, true)
+    assert.equal(rejections.length, 0)
+  } finally {
+    process.off("unhandledRejection", onrej)
+  }
 })
