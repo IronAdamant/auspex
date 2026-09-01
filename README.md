@@ -9,7 +9,7 @@ past. Copy one into your project and change the parts you care about.
 
 ## Examples
 
-- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. Built with Grok Build; see that example’s README.
+- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
 
   ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 

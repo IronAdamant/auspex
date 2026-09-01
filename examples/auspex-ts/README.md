@@ -10,7 +10,14 @@ Use it when a live page, JS paint, a login, or an audit still is the point. Do n
 
 Grok 4.6 in Grok Build wrote the CLI, MCP server, and Solari wiring. I pointed it at the intern challenge, the cookbook, and my own sites (ironadamant.com, Checkpoint, ConsistencyHub). AI used: the Solari SDK, not a stub; Microsoft SSO click-through after a real console profile save; Grok MCP handshake (Content-Length + absolute `node`). I ran the live checks, saved the Solari profile, and wrote the public post. Private research notes never left this machine.
 
-Replay URLs expire in minutes, so the public receipt is [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json) (`ok` / `matched`). Use `--record` locally if you want a console replay.
+Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a login):
+
+- Still: [demo/ironadamant.png](demo/ironadamant.png)
+- JSON + `sessionId`: [demo/receipt.json](demo/receipt.json)
+- 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After this is on `main`: [htmlpreview](https://htmlpreview.github.io/?https://github.com/IronAdamant/auspex/blob/main/examples/auspex-ts/demo/replay.html).
+- Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
+
+Presigned `replayUrl` values expire in ~15 minutes and are not committed. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).
 
 ![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
 
@@ -40,7 +47,7 @@ npx tsx src/cli.ts profiles
 
 `--stealth` and recording need Starter or higher. `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile.
 
-Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `replayUrl`. Files land in `.auspex/runs/<timestamp>/`. Replay URLs expire in minutes — do not commit them.
+Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`, `replayUrl`. Files land in `.auspex/runs/<timestamp>/`. Replay URLs expire in minutes — do not commit them. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
 ## MCP (Grok)
 

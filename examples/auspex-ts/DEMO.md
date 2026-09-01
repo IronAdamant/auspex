@@ -25,4 +25,4 @@ npx tsx src/cli.ts profiles
 
 After MCP is copied from `grok.mcp.example.toml` into Grok config and Grok is restarted, ask Grok to verify https://ironadamant.com for `"Build it."` via `auspex_check`.
 
-Public post image (Solari cloud Chrome, not a local window): [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json). Do not post logged-in ConsistencyHub dashboards.
+Public post image (Solari cloud Chrome, not a local window): [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json) (`sessionId`) plus [demo/replay.html](demo/replay.html). Do not post logged-in ConsistencyHub dashboards.
