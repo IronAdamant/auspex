@@ -6,6 +6,12 @@ This is not Browser Use, not local Playwright, and not a tab in your Chrome. Hum
 
 Use it when a live page, JS paint, a login, or an audit still is the point. Do not use it to scrape at scale.
 
+## How this was built
+
+Grok 4.6 in Grok Build wrote the CLI, MCP server, and Solari wiring. I pointed it at the intern challenge, the cookbook, and my own sites (ironadamant.com, Checkpoint, ConsistencyHub). AI used: the Solari SDK, not a stub; Microsoft SSO click-through after a real console profile save; Grok MCP handshake (Content-Length + absolute `node`). I ran the live checks, saved the Solari profile, and wrote the public post. Private research notes never left this machine.
+
+Replay URLs expire in minutes, so the public receipt is [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json) (`ok` / `matched`). Use `--record` locally if you want a console replay.
+
 ![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
 
 Do **not** add Solari’s 27-tool MCP (`npx @solarisdk/mcp` / `https://mcp.getsolari.com/mcp`) by default. That keeps sessions open and exposes sandboxes and desktops. Auspex always closes a check session.

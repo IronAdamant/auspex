@@ -11,6 +11,8 @@ export class DualStdioServerTransport implements Transport {
   onerror?: (error: Error) => void
   onmessage?: (message: JSONRPCMessage) => void
 
+  static readonly MAX_BUFFER_BYTES = 10 * 1024 * 1024
+
   private started = false
   private buffer = Buffer.alloc(0)
   private replyContentLength = false
@@ -22,6 +24,11 @@ export class DualStdioServerTransport implements Transport {
 
   private ondata = (chunk: Buffer) => {
     try {
+      if (this.buffer.length + chunk.length > DualStdioServerTransport.MAX_BUFFER_BYTES) {
+        throw new Error(
+          `ReadBuffer exceeded maximum size of ${DualStdioServerTransport.MAX_BUFFER_BYTES} bytes`,
+        )
+      }
       this.buffer = Buffer.concat([this.buffer, chunk])
       this.drain()
     } catch (error) {
@@ -61,6 +68,9 @@ export class DualStdioServerTransport implements Transport {
         throw new Error(`stdio header missing Content-Length: ${header.slice(0, 80)}`)
       }
       const n = Number(lenMatch[1])
+      if (!Number.isFinite(n) || n < 0 || n > DualStdioServerTransport.MAX_BUFFER_BYTES) {
+        throw new Error(`stdio Content-Length out of range: ${n}`)
+      }
       const start = sep + sepLen
       if (this.buffer.length < start + n) return null
       const json = this.buffer.subarray(start, start + n).toString("utf8")

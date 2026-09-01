@@ -6,9 +6,9 @@
 # Use an absolute node binary. Grok's MCP spawn PATH often lacks `node`,
 # so the tsx shebang (`#!/usr/bin/env node`) dies with "node: No such file or directory".
 [mcp_servers.auspex]
-command = "/Users/aron/.local/bin/node"
-args = ["/Users/aron/Documents/coding_projects/auspex/examples/auspex-ts/dist/mcp.mjs"]
-cwd = "/Users/aron/Documents/coding_projects/auspex/examples/auspex-ts"
+command = "/absolute/path/to/node"
+args = ["/absolute/path/to/auspex/examples/auspex-ts/dist/mcp.mjs"]
+cwd = "/absolute/path/to/auspex/examples/auspex-ts"
 enabled = true
 startup_timeout_sec = 30
 tool_timeout_sec = 180

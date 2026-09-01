@@ -1,6 +1,7 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { runCheck, type CheckOptions } from "./check.ts"
+import { explainSolariError } from "./errors.ts"
 import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
 
 export const USAGE = `Usage:
@@ -61,7 +62,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
-    if (!expect) return { status: "error", message: "check requires --expect <string>" }
+    if (!expect?.trim()) return { status: "error", message: "check requires --expect <string>" }
     return { status: "ok", command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso } } }
   }
   if (cmd === "login") {
@@ -109,8 +110,7 @@ export async function main(argv: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify(profiles, null, 2)}\n`)
     return 0
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    process.stderr.write(`${message}\n`)
+    process.stderr.write(`${explainSolariError(err)}\n`)
     return 2
   }
 }

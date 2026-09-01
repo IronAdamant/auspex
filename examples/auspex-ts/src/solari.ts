@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { Solari, SolariError, type BrowserSession, type StorageState } from "@solarisdk/browser"
+import { Solari, SolariError, type BrowserSession } from "@solarisdk/browser"
 
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
@@ -56,13 +56,9 @@ export async function resolveProfileId(solari: Solari, name: string): Promise<st
   return profile.id
 }
 
-type SessionHolder = {
-  session: { storageState?: StorageState | null }
-}
-
 /** Profile cookies live on session.storageState, not the default context. */
 export async function pageForSession(browser: BrowserSession) {
-  const state = (browser as unknown as SessionHolder).session.storageState
+  const state = browser.session.storageState
   const hasState = Boolean(state?.cookies?.length || state?.origins?.length)
   const ctx = hasState && state
     ? await browser.newContext({ storageState: state as never })

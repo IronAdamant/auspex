@@ -47,6 +47,11 @@ test("parseArgv check --sso", () => {
   }
 })
 
+test("parseArgv rejects empty --expect", () => {
+  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", ""])
+  assert.equal(parsed.status, "error")
+})
+
 test("parseArgv login and profiles", () => {
   const login = parseArgv(["login", "--profile", "auspex-goal-test"])
   assert.equal(login.status, "ok")

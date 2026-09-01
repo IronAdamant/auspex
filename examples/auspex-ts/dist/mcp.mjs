@@ -79,6 +79,20 @@ async function waitForReplayUrl(solari, sessionId) {
   return void 0;
 }
 
+// src/errors.ts
+import { SolariError as SolariError2 } from "@solarisdk/browser";
+function explainSolariError(err) {
+  if (err instanceof SolariError2) {
+    if (err.code === "FeatureRequiresPlan" || err.status === 402) {
+      return "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher.";
+    }
+    if (err.code === "ConcurrencyLimitExceeded" || err.status === 429) {
+      return "Solari 429 ConcurrencyLimitExceeded: kill leftover sessions in the console, then retry.";
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 // src/sso.ts
 function stillOnAuth(url) {
   const host = url.hostname;
@@ -94,17 +108,12 @@ async function completeMicrosoftSso(page) {
   await page.waitForLoadState("domcontentloaded", { timeout: 45e3 }).catch(() => void 0);
   const picker = page.getByText(/pick an account/i);
   await picker.waitFor({ timeout: 2e4 }).catch(() => void 0);
-  if (await picker.count() === 0) {
-    await page.waitForTimeout(3e3);
-  }
   const signedIn = page.getByText(/^Signed in$/i);
+  const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
   if (await signedIn.count() > 0) {
     await signedIn.first().click({ timeout: 1e4 });
-  } else {
-    const tile = page.locator("[data-test-id='native-tile'], .tile, [role='button']").filter({
-      hasText: /signed in/i
-    });
-    if (await tile.count() > 0) await tile.first().click({ timeout: 1e4 });
+  } else if (await tile.count() > 0) {
+    await tile.first().click({ timeout: 1e4 });
   }
   const yes = page.getByRole("button", { name: /^yes$/i });
   if (await yes.count() > 0) {
@@ -112,6 +121,26 @@ async function completeMicrosoftSso(page) {
   }
   await page.waitForURL((url) => !stillOnAuth(url), { timeout: 45e3 }).catch(() => void 0);
   await page.waitForLoadState("networkidle", { timeout: 15e3 }).catch(() => void 0);
+}
+
+// src/timeout.ts
+async function raceWithTimeout(work, ms, message) {
+  let timer;
+  let cancelled = false;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      cancelled = true;
+      reject(new Error(message));
+    }, ms);
+  });
+  const pending = work(() => cancelled);
+  void pending.catch(() => {
+  });
+  try {
+    return await Promise.race([pending, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // src/check.ts
@@ -131,6 +160,9 @@ async function extractText(page, selector) {
   return page.locator("body").innerText();
 }
 async function runCheck(opts) {
+  if (!opts.expect.trim()) {
+    throw new Error("check requires a non-empty --expect");
+  }
   const solari = createClient();
   let browser;
   let sessionId = "";
@@ -141,38 +173,45 @@ async function runCheck(opts) {
   let finalUrl = "";
   let excerpt = "";
   let matched = false;
-  const work = async () => {
+  const work = async (isCancelled) => {
     const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
+    if (isCancelled()) return;
     browser = await solari.launch({
       stealth: opts.stealth === true,
       recording: opts.record === true,
       profileId
     });
+    if (isCancelled()) return;
     sessionId = browser.id;
     const page = await pageForSession(browser);
+    if (isCancelled()) return;
     await page.goto(opts.url, { timeout: GOTO_TIMEOUT_MS, waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS }).catch(() => void 0);
+    if (isCancelled()) return;
     if (opts.sso) {
       await completeMicrosoftSso(page);
     }
+    if (isCancelled()) return;
     title = await page.title();
     finalUrl = page.url();
     const raw = await extractText(page, opts.selector);
     excerpt = excerptOf(raw);
     matched = raw.includes(opts.expect);
+    if (opts.sso && stillOnAuth(new URL(finalUrl))) {
+      matched = false;
+      excerpt = `SSO still on ${finalUrl}. ${excerpt}`;
+    }
     await page.screenshot({ path: screenshotPath, type: "png" });
   };
   try {
     try {
-      await Promise.race([
-        work(),
-        new Promise((_, reject) => {
-          setTimeout(
-            () => reject(new Error(`auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`)),
-            OVERALL_TIMEOUT_MS
-          );
-        })
-      ]);
+      await raceWithTimeout(
+        work,
+        OVERALL_TIMEOUT_MS,
+        `auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`
+      );
+    } catch (err) {
+      throw new Error(explainSolariError(err));
     } finally {
       if (browser) {
         try {
@@ -258,7 +297,7 @@ async function listProfiles() {
 
 // src/stdio-transport.ts
 import process2 from "node:process";
-var DualStdioServerTransport = class {
+var DualStdioServerTransport = class _DualStdioServerTransport {
   constructor(stdin = process2.stdin, stdout = process2.stdout) {
     this.stdin = stdin;
     this.stdout = stdout;
@@ -266,11 +305,17 @@ var DualStdioServerTransport = class {
   onclose;
   onerror;
   onmessage;
+  static MAX_BUFFER_BYTES = 10 * 1024 * 1024;
   started = false;
   buffer = Buffer.alloc(0);
   replyContentLength = false;
   ondata = (chunk) => {
     try {
+      if (this.buffer.length + chunk.length > _DualStdioServerTransport.MAX_BUFFER_BYTES) {
+        throw new Error(
+          `ReadBuffer exceeded maximum size of ${_DualStdioServerTransport.MAX_BUFFER_BYTES} bytes`
+        );
+      }
       this.buffer = Buffer.concat([this.buffer, chunk]);
       this.drain();
     } catch (error) {
@@ -307,6 +352,9 @@ var DualStdioServerTransport = class {
         throw new Error(`stdio header missing Content-Length: ${header.slice(0, 80)}`);
       }
       const n = Number(lenMatch[1]);
+      if (!Number.isFinite(n) || n < 0 || n > _DualStdioServerTransport.MAX_BUFFER_BYTES) {
+        throw new Error(`stdio Content-Length out of range: ${n}`);
+      }
       const start = sep + sepLen;
       if (this.buffer.length < start + n) return null;
       const json = this.buffer.subarray(start, start + n).toString("utf8");
@@ -358,7 +406,7 @@ server.registerTool(
     description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG. Always closes the session. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: z.string().describe("https URL to open"),
-      expect: z.string().describe("Substring that must appear in the page text"),
+      expect: z.string().min(1).describe("Non-empty substring that must appear in the page text"),
       selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
       profile: z.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
@@ -367,16 +415,20 @@ server.registerTool(
     }
   },
   async ({ url, expect, selector, profile, stealth, record, sso }) => {
-    const result = await runCheck({
-      url,
-      expect,
-      selector,
-      profile,
-      stealth,
-      record,
-      sso
-    });
-    return await buildCheckToolContent(result);
+    try {
+      const result = await runCheck({
+        url,
+        expect,
+        selector,
+        profile,
+        stealth,
+        record,
+        sso
+      });
+      return await buildCheckToolContent(result);
+    } catch (err) {
+      throw new Error(explainSolariError(err));
+    }
   }
 );
 server.registerTool(

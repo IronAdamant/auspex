@@ -11,7 +11,9 @@ import {
   resolveProfileId,
   waitForReplayUrl,
 } from "./solari.ts"
-import { completeMicrosoftSso } from "./sso.ts"
+import { explainSolariError } from "./errors.ts"
+import { completeMicrosoftSso, stillOnAuth } from "./sso.ts"
+import { raceWithTimeout } from "./timeout.ts"
 
 type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
 
@@ -57,6 +59,9 @@ async function extractText(page: Page, selector?: string): Promise<string> {
 }
 
 export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
+  if (!opts.expect.trim()) {
+    throw new Error("check requires a non-empty --expect")
+  }
   const solari = createClient()
   let browser: BrowserSession | undefined
   let sessionId = ""
@@ -69,27 +74,36 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let excerpt = ""
   let matched = false
 
-  const work = async () => {
+  const work = async (isCancelled: () => boolean) => {
     const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
+    if (isCancelled()) return
     browser = await solari.launch({
       stealth: opts.stealth === true,
       recording: opts.record === true,
       profileId,
     })
+    if (isCancelled()) return
     sessionId = browser.id
     const page = await pageForSession(browser)
+    if (isCancelled()) return
     await page.goto(opts.url, { timeout: GOTO_TIMEOUT_MS, waitUntil: "domcontentloaded" })
     await page
       .waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS })
       .catch(() => undefined)
+    if (isCancelled()) return
     if (opts.sso) {
       await completeMicrosoftSso(page)
     }
+    if (isCancelled()) return
     title = await page.title()
     finalUrl = page.url()
     const raw = await extractText(page, opts.selector)
     excerpt = excerptOf(raw)
     matched = raw.includes(opts.expect)
+    if (opts.sso && stillOnAuth(new URL(finalUrl))) {
+      matched = false
+      excerpt = `SSO still on ${finalUrl}. ${excerpt}`
+    }
     await page.screenshot({ path: screenshotPath, type: "png" })
     // Never auto-save: a check of the public login page would overwrite a
     // console-editor login (empty ~150 byte v4). Save only via the editor.
@@ -97,15 +111,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
 
   try {
     try {
-      await Promise.race([
-        work(),
-        new Promise<never>((_, reject) => {
-          setTimeout(
-            () => reject(new Error(`auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`)),
-            OVERALL_TIMEOUT_MS,
-          )
-        }),
-      ])
+      await raceWithTimeout(
+        work,
+        OVERALL_TIMEOUT_MS,
+        `auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`,
+      )
+    } catch (err) {
+      throw new Error(explainSolariError(err))
     } finally {
       if (browser) {
         try {

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { runCheck } from "./check.ts"
 import { buildCheckToolContent } from "./content.ts"
+import { explainSolariError } from "./errors.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
 import { DualStdioServerTransport } from "./stdio-transport.ts"
 
@@ -17,7 +18,7 @@ server.registerTool(
       "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG. Always closes the session. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: z.string().describe("https URL to open"),
-      expect: z.string().describe("Substring that must appear in the page text"),
+      expect: z.string().min(1).describe("Non-empty substring that must appear in the page text"),
       selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
       profile: z.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
@@ -29,16 +30,20 @@ server.registerTool(
     },
   },
   async ({ url, expect, selector, profile, stealth, record, sso }) => {
-    const result = await runCheck({
-      url,
-      expect,
-      selector,
-      profile,
-      stealth,
-      record,
-      sso,
-    })
-    return await buildCheckToolContent(result)
+    try {
+      const result = await runCheck({
+        url,
+        expect,
+        selector,
+        profile,
+        stealth,
+        record,
+        sso,
+      })
+      return await buildCheckToolContent(result)
+    } catch (err) {
+      throw new Error(explainSolariError(err))
+    }
   },
 )
 
