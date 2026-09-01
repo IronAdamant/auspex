@@ -6,6 +6,8 @@ This is not Browser Use, not local Playwright, and not a tab in your Chrome. Hum
 
 Use it when a live page, JS paint, a login, or an audit still is the point. Do not use it to scrape at scale.
 
+![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
+
 Do **not** add Solari’s 27-tool MCP (`npx @solarisdk/mcp` / `https://mcp.getsolari.com/mcp`) by default. That keeps sessions open and exposes sandboxes and desktops. Auspex always closes a check session.
 
 ## Run
