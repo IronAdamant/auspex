@@ -1,0 +1,22 @@
+{
+  "name": "auspex-ts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsx src/cli.ts check",
+    "mcp": "tsx src/mcp.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "@solarisdk/browser": "^0.1.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

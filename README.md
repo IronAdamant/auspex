@@ -9,6 +9,8 @@ past. Copy one into your project and change the parts you care about.
 
 ## Examples
 
+- **[auspex-ts](examples/auspex-ts)** — open a live URL in a Solari cloud browser, snapshot evidence, check a claim, keep a recording.
+
 ### Cloud browser
 
 | Example | Language | What it shows |
