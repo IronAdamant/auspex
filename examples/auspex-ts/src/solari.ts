@@ -3,10 +3,38 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { BrowserSession, Solari, SolariError, type StorageState } from "@solarisdk/browser"
 import { chromium } from "patchright-core"
-import { CHROMIUM_CONNECT_TIMEOUT_MS } from "./timeout.ts"
+import {
+  boundPromise,
+  CHROMIUM_CONNECT_TIMEOUT_MS,
+  CLOSE_TIMEOUT_MS,
+  closeThenRelease,
+} from "./timeout.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
+
+export type LaunchSession = { id: string; wsEndpoint: string }
+export type LaunchDeps = {
+  create: (opts: {
+    stealth?: boolean
+    recording?: boolean
+    profileId?: string
+  }) => Promise<LaunchSession>
+  connect: (wsEndpoint: string, opts: { timeout: number }) => Promise<unknown>
+  wrap: (session: LaunchSession, browser: unknown) => { close: () => Promise<void> }
+  releaseAndWait: (id: string) => Promise<void>
+  closeTimeoutMs?: number
+}
+
+export function defaultLaunchDeps(solari: Solari): LaunchDeps {
+  return {
+    create: (opts) => solari.sessions.create(opts),
+    connect: (ws, opts) => chromium.connect(ws, opts),
+    wrap: (session, browser) =>
+      new BrowserSession(solari, session as never, browser as never),
+    releaseAndWait: (id) => solari.sessions.releaseAndWait(id),
+  }
+}
 
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
@@ -114,27 +142,38 @@ export async function launchBrowser(
   solari: Solari,
   options: { stealth?: boolean; recording?: boolean; profileId?: string } = {},
   signal?: AbortSignal,
+  deps: LaunchDeps = defaultLaunchDeps(solari),
 ): Promise<BrowserSession> {
-  const session = await solari.sessions.create({
+  const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS
+  const session = await deps.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId,
   })
-  const release = () => solari.sessions.releaseAndWait(session.id).catch(() => undefined)
+  const release = () =>
+    boundPromise(
+      deps.releaseAndWait(session.id),
+      closeMs,
+      `session release timed out after ${closeMs}ms`,
+    ).catch(() => undefined)
   if (signal?.aborted) {
     await release()
     throw new Error("aborted")
   }
   try {
-    const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS)
+    const browser = await deps.connect(session.wsEndpoint, {
+      timeout: CHROMIUM_CONNECT_OPTS.timeout,
+    })
     if (signal?.aborted) {
-      const held = new BrowserSession(solari, session, browser)
-      await held.close().catch(() => undefined)
-      await release()
+      const held = deps.wrap(session, browser)
+      await closeThenRelease(() => held.close(), () => deps.releaseAndWait(session.id), closeMs).catch(
+        () => undefined,
+      )
       throw new Error("aborted")
     }
-    return new BrowserSession(solari, session, browser)
+    return deps.wrap(session, browser) as BrowserSession
   } catch (err) {
+    if (err instanceof Error && err.message === "aborted") throw err
     await release()
     throw err
   }

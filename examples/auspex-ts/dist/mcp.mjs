@@ -143,6 +143,14 @@ async function raceWithTimeout(work, ms, message) {
 
 // src/solari.ts
 var CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
+function defaultLaunchDeps(solari) {
+  return {
+    create: (opts) => solari.sessions.create(opts),
+    connect: (ws, opts) => chromium.connect(ws, opts),
+    wrap: (session, browser) => new BrowserSession(solari, session, browser),
+    releaseAndWait: (id) => solari.sessions.releaseAndWait(id)
+  };
+}
 var GOTO_TIMEOUT_MS = 45e3;
 var NETWORKIDLE_TIMEOUT_MS = 15e3;
 var OVERALL_TIMEOUT_MS = 12e4;
@@ -212,27 +220,36 @@ function requireApiKey() {
 function createClient() {
   return new Solari({ apiKey: requireApiKey() });
 }
-async function launchBrowser(solari, options = {}, signal) {
-  const session = await solari.sessions.create({
+async function launchBrowser(solari, options = {}, signal, deps = defaultLaunchDeps(solari)) {
+  const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS;
+  const session = await deps.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId
   });
-  const release = () => solari.sessions.releaseAndWait(session.id).catch(() => void 0);
+  const release = () => boundPromise(
+    deps.releaseAndWait(session.id),
+    closeMs,
+    `session release timed out after ${closeMs}ms`
+  ).catch(() => void 0);
   if (signal?.aborted) {
     await release();
     throw new Error("aborted");
   }
   try {
-    const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS);
+    const browser = await deps.connect(session.wsEndpoint, {
+      timeout: CHROMIUM_CONNECT_OPTS.timeout
+    });
     if (signal?.aborted) {
-      const held = new BrowserSession(solari, session, browser);
-      await held.close().catch(() => void 0);
-      await release();
+      const held = deps.wrap(session, browser);
+      await closeThenRelease(() => held.close(), () => deps.releaseAndWait(session.id), closeMs).catch(
+        () => void 0
+      );
       throw new Error("aborted");
     }
-    return new BrowserSession(solari, session, browser);
+    return deps.wrap(session, browser);
   } catch (err) {
+    if (err instanceof Error && err.message === "aborted") throw err;
     await release();
     throw err;
   }

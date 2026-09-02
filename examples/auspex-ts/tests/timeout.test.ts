@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { CHROMIUM_CONNECT_OPTS } from "../src/solari.ts"
 import {
   boundPromise,
   CHROMIUM_CONNECT_TIMEOUT_MS,
@@ -77,10 +76,85 @@ test("ReadyRelease closes a late-assigned session after the timer wins", async (
   assert.equal(closed, true)
 })
 
-test("CHROMIUM_CONNECT_OPTS passes a finite timeout to chromium.connect", () => {
-  assert.equal(CHROMIUM_CONNECT_OPTS.timeout, CHROMIUM_CONNECT_TIMEOUT_MS)
-  assert.ok(CHROMIUM_CONNECT_OPTS.timeout > 0)
-  assert.notEqual(CHROMIUM_CONNECT_OPTS.timeout, 0)
+test("launchBrowser passes timeout>0 to connect and releases on connect throw", async () => {
+  const { launchBrowser } = await import("../src/solari.ts")
+  let connectOpts: { timeout: number } | undefined
+  let released = false
+  const fake = {} as import("@solarisdk/browser").Solari
+  await assert.rejects(
+    () =>
+      launchBrowser(fake, { stealth: true }, undefined, {
+        create: async () => ({ id: "s1", wsEndpoint: "ws://example" }),
+        connect: async (_ws, opts) => {
+          connectOpts = opts
+          throw new Error("ws failed")
+        },
+        wrap: () => ({ close: async () => undefined }),
+        releaseAndWait: async () => {
+          released = true
+        },
+        closeTimeoutMs: 40,
+      }),
+    /ws failed/,
+  )
+  assert.ok(connectOpts)
+  assert.ok(connectOpts.timeout > 0)
+  assert.equal(connectOpts.timeout, CHROMIUM_CONNECT_TIMEOUT_MS)
+  assert.equal(released, true)
+})
+
+test("launchBrowser releases if aborted before connect", async () => {
+  const { launchBrowser } = await import("../src/solari.ts")
+  let connected = false
+  let released = false
+  const ac = new AbortController()
+  ac.abort()
+  const fake = {} as import("@solarisdk/browser").Solari
+  await assert.rejects(
+    () =>
+      launchBrowser(fake, {}, ac.signal, {
+        create: async () => ({ id: "s1", wsEndpoint: "ws://example" }),
+        connect: async () => {
+          connected = true
+          return {}
+        },
+        wrap: () => ({ close: async () => undefined }),
+        releaseAndWait: async () => {
+          released = true
+        },
+        closeTimeoutMs: 40,
+      }),
+    /aborted/,
+  )
+  assert.equal(connected, false)
+  assert.equal(released, true)
+})
+
+test("launchBrowser abort after connect still releases if close hangs", async () => {
+  const { launchBrowser } = await import("../src/solari.ts")
+  let released = false
+  let connectTimeout = 0
+  const ac = new AbortController()
+  const fake = {} as import("@solarisdk/browser").Solari
+  await assert.rejects(
+    () =>
+      launchBrowser(fake, {}, ac.signal, {
+        create: async () => ({ id: "s1", wsEndpoint: "ws://example" }),
+        connect: async (_ws, opts) => {
+          connectTimeout = opts.timeout
+          ac.abort()
+          return {}
+        },
+        wrap: () => ({ close: () => new Promise(() => {}) }),
+        releaseAndWait: async () => {
+          released = true
+        },
+        closeTimeoutMs: 40,
+      }),
+    /aborted/,
+  )
+  assert.ok(connectTimeout > 0)
+  assert.equal(released, true)
 })
 
 test("boundPromise rejects a hanging Chromium-style connect", async () => {
