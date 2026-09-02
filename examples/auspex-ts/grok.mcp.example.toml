@@ -12,3 +12,14 @@ cwd = "/absolute/path/to/auspex/examples/auspex-ts"
 enabled = true
 startup_timeout_sec = 30
 tool_timeout_sec = 180
+
+# Official Solari MCP (browser / sandbox / desktop). Separate from Auspex.
+# dist/solari-mcp.mjs starts @solarisdk/mcp only if SOLARI_API_KEY is in env or .env;
+# otherwise it exits 1 and Grok will not list solari_* tools. Rebuild: npm run build:mcp
+[mcp_servers.solari]
+command = "/absolute/path/to/node"
+args = ["/absolute/path/to/auspex/examples/auspex-ts/dist/solari-mcp.mjs"]
+cwd = "/absolute/path/to/auspex/examples/auspex-ts"
+enabled = true
+startup_timeout_sec = 45
+tool_timeout_sec = 300

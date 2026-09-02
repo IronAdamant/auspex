@@ -2,7 +2,9 @@
 
 Use Auspex when you need **evidence from a live web page**. You drive a **Solari cloud Chrome** (its own remote instance, not the human’s local browser). Snapshot text + PNG, check a claim, close. The human does not watch that window.
 
-Do **not** use it for pages you can already curl, for generic research crawls, as a wrap of Solari’s 27-tool MCP (`solari_browser_*`, sandbox, desktop), or instead of Browser Use when the job is “click around in the user’s already-open Chrome.”
+Do **not** use it for pages you can already curl, for generic research crawls, or instead of Browser Use when the job is “click around in the user’s already-open Chrome.”
+
+If this session has **`solari__*`** tools (official Solari MCP), you may use them for ad-hoc cloud browser / sandbox / desktop. Prefer Auspex for check → verify → tear-down. Always `solari_browser_close` / `solari_kill`. If those tools are missing, Solari MCP did not start (no `SOLARI_API_KEY`) — do not invent them.
 
 ## Tools
 

@@ -21,7 +21,7 @@ Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a lo
 
 ![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
 
-Do **not** add Solari’s 27-tool MCP (`npx @solarisdk/mcp` / `https://mcp.getsolari.com/mcp`) by default. That keeps sessions open and exposes sandboxes and desktops. Auspex always closes a check session.
+Official Solari MCP is **optional and gated**: `dist/solari-mcp.mjs` starts `@solarisdk/mcp` only when `SOLARI_API_KEY` is set (env or `.env`). No key → process exits and Grok does not list `solari_*` tools. See `grok.mcp.example.toml` (`[mcp_servers.solari]`). Prefer Auspex for check → verify → close/kill; use Solari MCP for ad-hoc drive. Always close/kill those sessions.
 
 ## Run
 
@@ -55,12 +55,16 @@ Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `exc
 
 ## MCP (Grok)
 
-```bash
-npx tsx src/mcp.ts
-```
+Two servers, one key. Copy both tables from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. Commands are **absolute `node` + absolute paths** under `examples/auspex-ts/dist/`. Run `npm run build:mcp` after changing `src/`. Restart Grok so tools appear.
 
-Tools: `auspex_check` (JSON + PNG), `auspex_verify` (sandbox receipt check, then kill), `auspex_login`, `auspex_profiles`.
+**Auspex** (`dist/mcp.mjs`) — always-teardown check:
 
-Grok starts Auspex from `[mcp_servers.auspex]` in `~/.grok/config.toml` (see [grok.mcp.example.toml](grok.mcp.example.toml)). The command is **absolute `node` + absolute `…/examples/auspex-ts/dist/mcp.mjs`**. Grok does not reliably apply `cwd`, so a relative `dist/mcp.mjs` is resolved from the repo root and the handshake dies. Run `npm run build:mcp` after changing `src/`. `tsx` is too slow/cold for Grok’s handshake. Stdio accepts Grok’s `Content-Length` framing. The server reads `SOLARI_API_KEY` from **this directory’s `.env`**. Restart Grok after config changes so `auspex_check` appears. `tool_timeout_sec` is 180.
+- `auspex_check` — JSON + PNG (optional `verify` runs the sandbox after)
+- `auspex_verify` — headless VM audits the receipt, then **kill**
+- `auspex_login` / `auspex_profiles`
+
+Live: ironadamant.com (`Build it.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
+
+**Solari official** (`dist/solari-mcp.mjs` → `@solarisdk/mcp`) — ad-hoc browser / sandbox / desktop. Starts **only if** `SOLARI_API_KEY` is in env or `.env`; otherwise the process exits and Grok does **not** list `solari_*` tools. Prefer Auspex for check → verify → close. If `solari_*` are present: always `solari_browser_close` / `solari_kill` (sandboxes **pause** unless killed).
 
 See [AGENTS.md](AGENTS.md) and [DEMO.md](DEMO.md).

@@ -8,7 +8,7 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
 ```
 
-Expect JSON on stdout with `"ok": true` and a PNG + `manifest.json` under `.auspex/runs/`. Then re-check that receipt in a headless sandbox:
+Expect JSON on stdout with `"ok": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`) and consistencyhub.io (`--profile` + `--sso` + `--expect "Document Editor"`). Then re-check that receipt in a headless sandbox:
 
 ```bash
 npx tsx src/cli.ts verify

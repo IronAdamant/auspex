@@ -9,7 +9,7 @@ past. Copy one into your project and change the parts you care about.
 
 ## Examples
 
-- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. `verify` re-checks that receipt in a headless Solari sandbox and kills the VM. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
+- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. `verify` re-checks that receipt in a headless Solari sandbox and kills the VM. Optional Grok MCP sibling: official Solari 33 tools, **gated** so they only start when `SOLARI_API_KEY` is set. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
 
   ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
