@@ -11,13 +11,18 @@ export type VerifyResult = {
   sandboxId?: string
 }
 
-function parseAssertStdout(stdout: string): { ok: boolean; errors: string[]; finalUrl?: string } {
-  const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? "{}"
-  const parsed = JSON.parse(line) as { ok?: boolean; errors?: string[]; finalUrl?: string }
-  return {
-    ok: parsed.ok === true,
-    errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
-    finalUrl: parsed.finalUrl,
+export function parseAssertStdout(stdout: string): { ok: boolean; errors: string[]; finalUrl?: string } {
+  const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? ""
+  if (!line) return { ok: false, errors: ["sandbox produced no stdout"] }
+  try {
+    const parsed = JSON.parse(line) as { ok?: boolean; errors?: string[]; finalUrl?: string }
+    return {
+      ok: parsed.ok === true,
+      errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
+      finalUrl: parsed.finalUrl,
+    }
+  } catch {
+    return { ok: false, errors: ["sandbox stdout was not JSON"] }
   }
 }
 
@@ -47,6 +52,10 @@ export async function verifyReceipt(runDir?: string): Promise<VerifyResult> {
   } catch (err) {
     throw new Error(explainSolariError(err))
   } finally {
-    await sandbox.kill()
+    try {
+      await sandbox.kill()
+    } catch {
+      /* original error wins */
+    }
   }
 }

@@ -31,7 +31,7 @@ export function formatLogin(result: LoginResult): string {
 export async function ensureProfile(name: string): Promise<ProfileInfo> {
   const solari = createClient()
   try {
-    const existing = (await solari.profiles.list()).find((p) => p.name === name)
+    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === name.trim())
     const profile = existing ?? (await solari.profiles.create({ name }))
     return { id: profile.id, name: profile.name }
   } finally {

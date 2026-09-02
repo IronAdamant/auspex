@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { parseArgv } from "../src/cli.ts"
 import { findLatestRun, RECEIPT_ASSERT_PY } from "../src/receipt.ts"
+import { parseAssertStdout } from "../src/sandbox.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const demoPng = path.join(root, "demo", "ironadamant.png")
@@ -65,6 +66,39 @@ test("findLatestRun picks the complete newest stamp", async () => {
   writeFileSync(path.join(newest, "screenshot.png"), Buffer.alloc(8))
   const found = await findLatestRun(runs)
   assert.equal(found, newest)
+})
+
+test("parseAssertStdout uses the last JSON line and rejects garbage", () => {
+  const ok = parseAssertStdout('noise\n{"ok":true,"errors":[]}\n')
+  assert.equal(ok.ok, true)
+  assert.deepEqual(ok.errors, [])
+  const bad = parseAssertStdout("not json")
+  assert.equal(bad.ok, false)
+  assert.match(bad.errors[0] ?? "", /not JSON/)
+  const empty = parseAssertStdout("   ")
+  assert.equal(empty.ok, false)
+})
+
+test("RECEIPT_ASSERT_PY does not treat a suffix host as Microsoft", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://login.microsoftonline.com.evil.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  const out = runAssert(dir)
+  assert.equal(out.status, 0, out.stderr + out.stdout)
+})
+
+test("runCheck source does not auto-save Solari profiles", () => {
+  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
+  assert.equal(src.includes("profiles.save"), false)
+  assert.equal(src.includes(".save("), false)
 })
 
 test("parseArgv verify accepts an optional run dir", () => {

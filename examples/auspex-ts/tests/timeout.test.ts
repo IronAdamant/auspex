@@ -1,7 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { CHROMIUM_CONNECT_OPTS } from "../src/solari.ts"
 import {
   boundPromise,
+  CHROMIUM_CONNECT_TIMEOUT_MS,
   closeThenRelease,
   ReadyRelease,
   raceWithTimeout,
@@ -73,6 +75,12 @@ test("ReadyRelease closes a late-assigned session after the timer wins", async (
     }
   }, /timed out/)
   assert.equal(closed, true)
+})
+
+test("CHROMIUM_CONNECT_OPTS passes a finite timeout to chromium.connect", () => {
+  assert.equal(CHROMIUM_CONNECT_OPTS.timeout, CHROMIUM_CONNECT_TIMEOUT_MS)
+  assert.ok(CHROMIUM_CONNECT_OPTS.timeout > 0)
+  assert.notEqual(CHROMIUM_CONNECT_OPTS.timeout, 0)
 })
 
 test("boundPromise rejects a hanging Chromium-style connect", async () => {

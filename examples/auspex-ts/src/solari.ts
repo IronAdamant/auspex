@@ -1,7 +1,12 @@
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { Solari, SolariError, type BrowserSession, type StorageState } from "@solarisdk/browser"
+import { BrowserSession, Solari, SolariError, type StorageState } from "@solarisdk/browser"
+import { chromium } from "patchright-core"
+import { CHROMIUM_CONNECT_TIMEOUT_MS } from "./timeout.ts"
+
+/** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
+export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
 
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
@@ -102,6 +107,25 @@ export function requireApiKey(): string {
 
 export function createClient(): Solari {
   return new Solari({ apiKey: requireApiKey() })
+}
+
+/** sessions.create then chromium.connect with a real timeout; release if connect fails. */
+export async function launchBrowser(
+  solari: Solari,
+  options: { stealth?: boolean; recording?: boolean; profileId?: string } = {},
+): Promise<BrowserSession> {
+  const session = await solari.sessions.create({
+    stealth: options.stealth,
+    recording: options.recording,
+    profileId: options.profileId,
+  })
+  try {
+    const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS)
+    return new BrowserSession(solari, session, browser)
+  } catch (err) {
+    await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
+    throw err
+  }
 }
 
 export async function resolveProfileId(solari: Solari, name: string): Promise<string> {

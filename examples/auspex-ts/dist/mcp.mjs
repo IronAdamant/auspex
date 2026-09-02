@@ -54,7 +54,95 @@ var expectSchema = z2.string().refine(isNonEmptyExpect, { message: "check requir
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Solari, SolariError } from "@solarisdk/browser";
+import { BrowserSession, Solari, SolariError } from "@solarisdk/browser";
+import { chromium } from "patchright-core";
+
+// src/timeout.ts
+var CLOSE_TIMEOUT_MS = 15e3;
+var LAUNCH_SETTLE_MS = 5e4;
+var CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
+var SCREENSHOT_TIMEOUT_MS = 3e4;
+async function boundPromise(p, ms, message) {
+  return raceWithTimeout(async () => p, ms, message);
+}
+async function observeAbort(p, signal) {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+async function closeThenRelease(close, release, ms) {
+  try {
+    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
+  } catch (err) {
+    try {
+      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
+    } catch {
+    }
+    throw err;
+  }
+}
+var ReadyRelease = class {
+  mark;
+  ready;
+  fn;
+  constructor() {
+    this.ready = new Promise((r) => {
+      this.mark = r;
+    });
+  }
+  set(fn) {
+    this.fn = fn;
+    this.mark();
+  }
+  skip() {
+    this.mark();
+  }
+  async release(settleMs = LAUNCH_SETTLE_MS) {
+    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
+      () => void 0
+    );
+    if (this.fn) await this.fn();
+  }
+};
+async function raceWithTimeout(work, ms, message) {
+  let timer;
+  let cancelled = false;
+  const ac = new AbortController();
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      cancelled = true;
+      ac.abort();
+      reject(new Error(message));
+    }, ms);
+  });
+  const pending = work(() => cancelled, ac.signal);
+  void pending.catch(() => {
+  });
+  try {
+    return await Promise.race([pending, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+// src/solari.ts
+var CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
 var GOTO_TIMEOUT_MS = 45e3;
 var NETWORKIDLE_TIMEOUT_MS = 15e3;
 var OVERALL_TIMEOUT_MS = 12e4;
@@ -123,6 +211,20 @@ function requireApiKey() {
 }
 function createClient() {
   return new Solari({ apiKey: requireApiKey() });
+}
+async function launchBrowser(solari, options = {}) {
+  const session = await solari.sessions.create({
+    stealth: options.stealth,
+    recording: options.recording,
+    profileId: options.profileId
+  });
+  try {
+    const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS);
+    return new BrowserSession(solari, session, browser);
+  } catch (err) {
+    await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
+    throw err;
+  }
 }
 async function resolveProfileId(solari, name) {
   return findProfileId(await solari.profiles.list(), name);
@@ -223,90 +325,6 @@ async function completeMicrosoftSso(page, cancel = {}) {
   await page.waitForLoadState("networkidle", { timeout: 15e3, signal }).catch(() => void 0);
 }
 
-// src/timeout.ts
-var CLOSE_TIMEOUT_MS = 15e3;
-var LAUNCH_SETTLE_MS = 5e4;
-var CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
-var SCREENSHOT_TIMEOUT_MS = 3e4;
-async function boundPromise(p, ms, message) {
-  return raceWithTimeout(async () => p, ms, message);
-}
-async function observeAbort(p, signal) {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-    p.then(
-      (v) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(v);
-      },
-      (e) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(e);
-      }
-    );
-  });
-}
-async function closeThenRelease(close, release, ms) {
-  try {
-    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
-  } catch (err) {
-    try {
-      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
-    } catch {
-    }
-    throw err;
-  }
-}
-var ReadyRelease = class {
-  mark;
-  ready;
-  fn;
-  constructor() {
-    this.ready = new Promise((r) => {
-      this.mark = r;
-    });
-  }
-  set(fn) {
-    this.fn = fn;
-    this.mark();
-  }
-  skip() {
-    this.mark();
-  }
-  async release(settleMs = LAUNCH_SETTLE_MS) {
-    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
-      () => void 0
-    );
-    if (this.fn) await this.fn();
-  }
-};
-async function raceWithTimeout(work, ms, message) {
-  let timer;
-  let cancelled = false;
-  const ac = new AbortController();
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      cancelled = true;
-      ac.abort();
-      reject(new Error(message));
-    }, ms);
-  });
-  const pending = work(() => cancelled, ac.signal);
-  void pending.catch(() => {
-  });
-  try {
-    return await Promise.race([pending, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 // src/check.ts
 var packageRoot = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), "..");
 function toReceiptPath(absPath) {
@@ -351,15 +369,11 @@ async function runCheck(opts) {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
       if (isCancelled()) return;
       const browser = await observeAbort(
-        boundPromise(
-          solari.launch({
-            stealth: opts.stealth === true,
-            recording: opts.record === true,
-            profileId
-          }),
-          CHROMIUM_CONNECT_TIMEOUT_MS,
-          `waiting for Chromium timed out after ${CHROMIUM_CONNECT_TIMEOUT_MS}ms`
-        ),
+        launchBrowser(solari, {
+          stealth: opts.stealth === true,
+          recording: opts.record === true,
+          profileId
+        }),
         signal
       );
       closer.set(async () => {
@@ -511,7 +525,7 @@ function loginInstructions(profile, urlHint) {
 async function ensureProfile(name) {
   const solari = createClient();
   try {
-    const existing = (await solari.profiles.list()).find((p) => p.name === name);
+    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === name.trim());
     const profile = existing ?? await solari.profiles.create({ name });
     return { id: profile.id, name: profile.name };
   } finally {
@@ -557,7 +571,9 @@ if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("
     errors.append("screenshotPath looks like an operator home path")
 url = str(man.get("finalUrl") or "")
 host = (urlparse(url).hostname or "").lower()
-if "login.microsoftonline.com" in host or host == "login.live.com" or host.endswith(".login.live.com"):
+def host_is(h, domain):
+    return h == domain or h.endswith("." + domain)
+if host_is(host, "login.microsoftonline.com") or host_is(host, "login.live.com"):
     errors.append("finalUrl still on Microsoft auth")
 path = (urlparse(url).path or "/").rstrip("/").lower() or "/"
 if path == "/login" or path.startswith("/login/") or path == "/auth" or path.startswith("/auth/"):
@@ -599,13 +615,18 @@ async function loadRunFiles(runDir2) {
 
 // src/sandbox.ts
 function parseAssertStdout(stdout) {
-  const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? "{}";
-  const parsed = JSON.parse(line);
-  return {
-    ok: parsed.ok === true,
-    errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
-    finalUrl: parsed.finalUrl
-  };
+  const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? "";
+  if (!line) return { ok: false, errors: ["sandbox produced no stdout"] };
+  try {
+    const parsed = JSON.parse(line);
+    return {
+      ok: parsed.ok === true,
+      errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
+      finalUrl: parsed.finalUrl
+    };
+  } catch {
+    return { ok: false, errors: ["sandbox stdout was not JSON"] };
+  }
 }
 async function verifyReceipt(runDir2) {
   const dir = runDir2 ? runDir2 : await findLatestRun();
@@ -632,7 +653,10 @@ async function verifyReceipt(runDir2) {
   } catch (err) {
     throw new Error(explainSolariError(err));
   } finally {
-    await sandbox.kill();
+    try {
+      await sandbox.kill();
+    } catch {
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./
 import {
   createClient,
   GOTO_TIMEOUT_MS,
+  launchBrowser,
   NETWORKIDLE_TIMEOUT_MS,
   OVERALL_TIMEOUT_MS,
   pageForSession,
@@ -16,7 +17,6 @@ import { explainSolariError } from "./errors.ts"
 import { completeMicrosoftSso, shouldFailClosedAuth } from "./sso.ts"
 import {
   boundPromise,
-  CHROMIUM_CONNECT_TIMEOUT_MS,
   closeThenRelease,
   CLOSE_TIMEOUT_MS,
   observeAbort,
@@ -98,18 +98,12 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     try {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
-      // SDK chromium.connect has timeout 0 (wait forever). Bound it so a dead
-      // wsEndpoint cannot hang the check past OVERALL_TIMEOUT_MS.
       const browser = await observeAbort(
-        boundPromise(
-          solari.launch({
-            stealth: opts.stealth === true,
-            recording: opts.record === true,
-            profileId,
-          }),
-          CHROMIUM_CONNECT_TIMEOUT_MS,
-          `waiting for Chromium timed out after ${CHROMIUM_CONNECT_TIMEOUT_MS}ms`,
-        ),
+        launchBrowser(solari, {
+          stealth: opts.stealth === true,
+          recording: opts.record === true,
+          profileId,
+        }),
         signal,
       )
       closer.set(async () => {

@@ -24,7 +24,9 @@ if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("
     errors.append("screenshotPath looks like an operator home path")
 url = str(man.get("finalUrl") or "")
 host = (urlparse(url).hostname or "").lower()
-if "login.microsoftonline.com" in host or host == "login.live.com" or host.endswith(".login.live.com"):
+def host_is(h, domain):
+    return h == domain or h.endswith("." + domain)
+if host_is(host, "login.microsoftonline.com") or host_is(host, "login.live.com"):
     errors.append("finalUrl still on Microsoft auth")
 path = (urlparse(url).path or "/").rstrip("/").lower() or "/"
 if path == "/login" or path.startswith("/login/") or path == "/auth" or path.startswith("/auth/"):
