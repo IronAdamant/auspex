@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { closeThenRelease, ReadyRelease, raceWithTimeout } from "../src/timeout.ts"
+import {
+  boundPromise,
+  closeThenRelease,
+  ReadyRelease,
+  raceWithTimeout,
+} from "../src/timeout.ts"
 
 test("raceWithTimeout clears the timer when work finishes first", async () => {
   const rejections: unknown[] = []
@@ -68,6 +73,23 @@ test("ReadyRelease closes a late-assigned session after the timer wins", async (
     }
   }, /timed out/)
   assert.equal(closed, true)
+})
+
+test("boundPromise rejects a hanging Chromium-style connect", async () => {
+  const hang = new Promise<never>(() => {})
+  const started = Date.now()
+  await assert.rejects(
+    () => boundPromise(hang, 40, "waiting for Chromium timed out after 40ms"),
+    /waiting for Chromium timed out after 40ms/,
+  )
+  assert.ok(Date.now() - started < 1000)
+})
+
+test("ReadyRelease.release does not hang forever if never armed", async () => {
+  const closer = new ReadyRelease()
+  const started = Date.now()
+  await closer.release(40)
+  assert.ok(Date.now() - started < 1000)
 })
 
 test("closeThenRelease still calls release if close times out", async () => {

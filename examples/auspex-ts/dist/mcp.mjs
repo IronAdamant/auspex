@@ -225,6 +225,9 @@ async function completeMicrosoftSso(page, cancel = {}) {
 
 // src/timeout.ts
 var CLOSE_TIMEOUT_MS = 15e3;
+var LAUNCH_SETTLE_MS = 5e4;
+var CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
+var SCREENSHOT_TIMEOUT_MS = 3e4;
 async function boundPromise(p, ms, message) {
   return raceWithTimeout(async () => p, ms, message);
 }
@@ -276,8 +279,10 @@ var ReadyRelease = class {
   skip() {
     this.mark();
   }
-  async release(_settleMs) {
-    await this.ready;
+  async release(settleMs = LAUNCH_SETTLE_MS) {
+    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
+      () => void 0
+    );
     if (this.fn) await this.fn();
   }
 };
@@ -345,11 +350,18 @@ async function runCheck(opts) {
     try {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
       if (isCancelled()) return;
-      const browser = await solari.launch({
-        stealth: opts.stealth === true,
-        recording: opts.record === true,
-        profileId
-      });
+      const browser = await observeAbort(
+        boundPromise(
+          solari.launch({
+            stealth: opts.stealth === true,
+            recording: opts.record === true,
+            profileId
+          }),
+          CHROMIUM_CONNECT_TIMEOUT_MS,
+          `waiting for Chromium timed out after ${CHROMIUM_CONNECT_TIMEOUT_MS}ms`
+        ),
+        signal
+      );
       closer.set(async () => {
         await closeThenRelease(
           () => browser.close(),
@@ -394,7 +406,13 @@ async function runCheck(opts) {
         matched = false;
         excerpt = `still on ${finalUrl}. ${excerpt}`;
       }
-      await page.screenshot({ path: screenshotAbs, type: "png", fullPage: true, signal });
+      await page.screenshot({
+        path: screenshotAbs,
+        type: "png",
+        fullPage: true,
+        signal,
+        timeout: SCREENSHOT_TIMEOUT_MS
+      });
     } finally {
       closer.skip();
     }

@@ -16,11 +16,13 @@ import { explainSolariError } from "./errors.ts"
 import { completeMicrosoftSso, shouldFailClosedAuth } from "./sso.ts"
 import {
   boundPromise,
+  CHROMIUM_CONNECT_TIMEOUT_MS,
   closeThenRelease,
   CLOSE_TIMEOUT_MS,
   observeAbort,
   ReadyRelease,
   raceWithTimeout,
+  SCREENSHOT_TIMEOUT_MS,
 } from "./timeout.ts"
 
 type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
@@ -96,11 +98,20 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     try {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
-      const browser = await solari.launch({
-        stealth: opts.stealth === true,
-        recording: opts.record === true,
-        profileId,
-      })
+      // SDK chromium.connect has timeout 0 (wait forever). Bound it so a dead
+      // wsEndpoint cannot hang the check past OVERALL_TIMEOUT_MS.
+      const browser = await observeAbort(
+        boundPromise(
+          solari.launch({
+            stealth: opts.stealth === true,
+            recording: opts.record === true,
+            profileId,
+          }),
+          CHROMIUM_CONNECT_TIMEOUT_MS,
+          `waiting for Chromium timed out after ${CHROMIUM_CONNECT_TIMEOUT_MS}ms`,
+        ),
+        signal,
+      )
       closer.set(async () => {
         await closeThenRelease(
           () => browser.close(),
@@ -145,7 +156,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         matched = false
         excerpt = `still on ${finalUrl}. ${excerpt}`
       }
-      await page.screenshot({ path: screenshotAbs, type: "png", fullPage: true, signal })
+      await page.screenshot({
+        path: screenshotAbs,
+        type: "png",
+        fullPage: true,
+        signal,
+        timeout: SCREENSHOT_TIMEOUT_MS,
+      })
       // Never auto-save: a check of the public login page would overwrite a
       // console-editor login (empty ~150 byte v4). Save only via the editor.
     } finally {

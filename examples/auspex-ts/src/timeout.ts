@@ -2,8 +2,11 @@
 export type TimeoutWork<T> = (isCancelled: () => boolean, signal: AbortSignal) => Promise<T>
 
 export const CLOSE_TIMEOUT_MS = 15_000
-/** Kept for callers; `release` waits until set/skip rather than giving up early. */
-export const LAUNCH_SETTLE_MS = 90_000
+/** Cap wait for launch to arm a closer. Solari's chromium.connect has no timeout (0 = forever). */
+export const LAUNCH_SETTLE_MS = 50_000
+/** Bound around `solari.launch()` / Playwright `chromium.connect`. */
+export const CHROMIUM_CONNECT_TIMEOUT_MS = 45_000
+export const SCREENSHOT_TIMEOUT_MS = 30_000
 
 export async function boundPromise<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
   return raceWithTimeout(async () => p, ms, message)
@@ -77,8 +80,10 @@ export class ReadyRelease {
     this.mark()
   }
 
-  async release(_settleMs?: number): Promise<void> {
-    await this.ready
+  async release(settleMs: number = LAUNCH_SETTLE_MS): Promise<void> {
+    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
+      () => undefined,
+    )
     if (this.fn) await this.fn()
   }
 }
