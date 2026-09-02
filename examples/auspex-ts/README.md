@@ -39,7 +39,7 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
+npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso] [--verify]
 npx tsx src/cli.ts verify [runDir]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
@@ -49,7 +49,7 @@ npx tsx src/cli.ts profiles
 
 `--stealth` and recording need Starter or higher. `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile.
 
-**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}`. `verify` boots a **headless** Solari microVM (no screen, no login), uploads that receipt, asserts PNG magic + `ok`/`matched` + not still on `/login` or Microsoft, prints JSON, and **kills** the VM. Optional `[runDir]`; default is the latest run. Same `SOLARI_API_KEY`. The sandbox never opens ConsistencyHub.
+**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}`. `verify` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt (max 2 MiB), and **kills** the VM. Integrity (`ok`/`errors`: PNG, path, auth URL) is separate from claim (`claimOk`/`claimErrors`). A missed claim can still be a valid receipt. Optional `[runDir]`; default is the latest run. The sandbox never opens ConsistencyHub.
 
 Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt (watch in the Solari console via `sessionId`). Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 

@@ -4,7 +4,10 @@ import { packageRoot } from "./check.ts"
 
 export const RUNS_DIR = path.join(packageRoot, ".auspex", "runs")
 
-/** Same script the sandbox runs. argv[1] is the work dir (default /work). */
+/** Same script the sandbox runs. argv[1] is the work dir (default /work).
+ * `ok` / `errors` = receipt integrity (PNG, path, auth URL).
+ * `claimOk` / `claimErrors` = check claim (`ok`/`matched`). Integrity can pass when the claim failed.
+ */
 export const RECEIPT_ASSERT_PY = `import json, sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,26 +15,33 @@ from urllib.parse import urlparse
 work = Path(sys.argv[1] if len(sys.argv) > 1 else "/work")
 man = json.loads((work / "manifest.json").read_text())
 png = (work / "screenshot.png").read_bytes()
-errors = []
+integrity = []
+claim = []
 if png[:8] != bytes.fromhex("89504e470d0a1a0a"):
-    errors.append("screenshot is not a PNG")
-if man.get("ok") is not True:
-    errors.append("manifest ok is not true")
-if man.get("matched") is not True:
-    errors.append("manifest matched is not true")
+    integrity.append("screenshot is not a PNG")
 shot = str(man.get("screenshotPath") or "")
 if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("/tmp")):
-    errors.append("screenshotPath looks like an operator home path")
+    integrity.append("screenshotPath looks like an operator home path")
 url = str(man.get("finalUrl") or "")
 host = (urlparse(url).hostname or "").lower()
 def host_is(h, domain):
     return h == domain or h.endswith("." + domain)
 if host_is(host, "login.microsoftonline.com") or host_is(host, "login.live.com"):
-    errors.append("finalUrl still on Microsoft auth")
+    integrity.append("finalUrl still on Microsoft auth")
 path = (urlparse(url).path or "/").rstrip("/").lower() or "/"
 if path == "/login" or path.startswith("/login/") or path == "/auth" or path.startswith("/auth/"):
-    errors.append("finalUrl still on an auth path")
-out = {"ok": len(errors) == 0, "errors": errors, "finalUrl": url}
+    integrity.append("finalUrl still on an auth path")
+if man.get("ok") is not True:
+    claim.append("manifest ok is not true")
+if man.get("matched") is not True:
+    claim.append("manifest matched is not true")
+out = {
+    "ok": len(integrity) == 0,
+    "errors": integrity,
+    "claimOk": len(claim) == 0,
+    "claimErrors": claim,
+    "finalUrl": url,
+}
 print(json.dumps(out))
 sys.exit(0 if out["ok"] else 1)
 `

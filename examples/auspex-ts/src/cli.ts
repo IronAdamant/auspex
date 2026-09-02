@@ -4,17 +4,18 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
-import { verifyReceipt } from "./sandbox.ts"
+import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { isNonEmptyExpect } from "./text.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
+  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso] [--verify]
   npx tsx src/cli.ts verify [runDir]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
 verify uploads that receipt into a headless Solari sandbox, asserts PNG + JSON, and kills the VM.
+--verify on check runs verify on that run immediately. Integrity (PNG/path/auth URL) is separate from claim ok/matched.
 login creates or reuses a named Solari profile and prints the console Profiles editor (log in live, Save).
 profiles lists profile names and ids.
 
@@ -24,7 +25,7 @@ Never commit .env or .auspex/ run artifacts.
 
 export type CliCommand =
   | { cmd: "help" }
-  | { cmd: "check"; opts: CheckOptions }
+  | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
   | { cmd: "login"; profile: string; url?: string }
   | { cmd: "profiles" }
   | { cmd: "verify"; runDir?: string }
@@ -75,6 +76,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const stealth = takeFlag(args, "--stealth")
     const record = takeFlag(args, "--record")
     const sso = takeFlag(args, "--sso")
+    const verifyAfter = takeFlag(args, "--verify")
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
@@ -82,7 +84,10 @@ export function parseArgv(argv: string[]): ParseResult {
     if (!expect || !isNonEmptyExpect(expect)) {
       return { status: "error", message: "check requires --expect <string>" }
     }
-    return { status: "ok", command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso } } }
+    return {
+      status: "ok",
+      command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso }, verifyAfter },
+    }
   }
   if (cmd === "login") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -128,6 +133,11 @@ export async function main(argv: string[]): Promise<number> {
   }
   try {
     if (parsed.command.cmd === "check") {
+      if (parsed.command.verifyAfter) {
+        const both = await checkThenVerify(parsed.command.opts)
+        process.stdout.write(`${JSON.stringify(both, null, 2)}\n`)
+        return both.check.ok && both.verify.ok ? 0 : 1
+      }
       const result = await runCheck(parsed.command.opts)
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1

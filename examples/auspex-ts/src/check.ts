@@ -55,6 +55,13 @@ export function toReceiptPath(absPath: string): string {
   return path.relative(packageRoot, absPath).replaceAll("\\", "/")
 }
 
+export function runDirFromResult(result: CheckResult): string {
+  const abs = path.isAbsolute(result.screenshotPath)
+    ? result.screenshotPath
+    : path.join(packageRoot, result.screenshotPath)
+  return path.dirname(abs)
+}
+
 function runDir(): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-")
   return path.join(packageRoot, ".auspex", "runs", stamp)

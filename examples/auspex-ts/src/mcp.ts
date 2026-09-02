@@ -5,7 +5,7 @@ import { buildCheckToolContent } from "./content.ts"
 import { explainSolariError } from "./errors.ts"
 import { httpUrlSchema } from "./http-url.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
-import { verifyReceipt } from "./sandbox.ts"
+import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { DualStdioServerTransport } from "./stdio-transport.ts"
 import { expectSchema } from "./text.ts"
 
@@ -18,7 +18,7 @@ server.registerTool(
   "auspex_check",
   {
     description:
-      "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Use for post-deploy verification, not raw CDP.",
+      "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: httpUrlSchema.describe("http or https URL to open"),
       expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
@@ -30,19 +30,19 @@ server.registerTool(
         .boolean()
         .optional()
         .describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
+      verify: z.boolean().optional().describe("After check, audit the receipt in a headless Solari sandbox and kill the VM"),
     },
   },
-  async ({ url, expect, selector, profile, stealth, record, sso }) => {
+  async ({ url, expect, selector, profile, stealth, record, sso, verify }) => {
     try {
-      const result = await runCheck({
-        url,
-        expect,
-        selector,
-        profile,
-        stealth,
-        record,
-        sso,
-      })
+      const opts = { url, expect, selector, profile, stealth, record, sso }
+      if (verify) {
+        const both = await checkThenVerify(opts)
+        const packed = await buildCheckToolContent(both.check)
+        packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) }
+        return packed
+      }
+      const result = await runCheck(opts)
       return await buildCheckToolContent(result)
     } catch (err) {
       throw new Error(explainSolariError(err))

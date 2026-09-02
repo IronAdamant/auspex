@@ -358,6 +358,10 @@ var packageRoot = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), 
 function toReceiptPath(absPath) {
   return path2.relative(packageRoot, absPath).replaceAll("\\", "/");
 }
+function runDirFromResult(result) {
+  const abs = path2.isAbsolute(result.screenshotPath) ? result.screenshotPath : path2.join(packageRoot, result.screenshotPath);
+  return path2.dirname(abs);
+}
 function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   return path2.join(packageRoot, ".auspex", "runs", stamp);
@@ -591,26 +595,33 @@ from urllib.parse import urlparse
 work = Path(sys.argv[1] if len(sys.argv) > 1 else "/work")
 man = json.loads((work / "manifest.json").read_text())
 png = (work / "screenshot.png").read_bytes()
-errors = []
+integrity = []
+claim = []
 if png[:8] != bytes.fromhex("89504e470d0a1a0a"):
-    errors.append("screenshot is not a PNG")
-if man.get("ok") is not True:
-    errors.append("manifest ok is not true")
-if man.get("matched") is not True:
-    errors.append("manifest matched is not true")
+    integrity.append("screenshot is not a PNG")
 shot = str(man.get("screenshotPath") or "")
 if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("/tmp")):
-    errors.append("screenshotPath looks like an operator home path")
+    integrity.append("screenshotPath looks like an operator home path")
 url = str(man.get("finalUrl") or "")
 host = (urlparse(url).hostname or "").lower()
 def host_is(h, domain):
     return h == domain or h.endswith("." + domain)
 if host_is(host, "login.microsoftonline.com") or host_is(host, "login.live.com"):
-    errors.append("finalUrl still on Microsoft auth")
+    integrity.append("finalUrl still on Microsoft auth")
 path = (urlparse(url).path or "/").rstrip("/").lower() or "/"
 if path == "/login" or path.startswith("/login/") or path == "/auth" or path.startswith("/auth/"):
-    errors.append("finalUrl still on an auth path")
-out = {"ok": len(errors) == 0, "errors": errors, "finalUrl": url}
+    integrity.append("finalUrl still on an auth path")
+if man.get("ok") is not True:
+    claim.append("manifest ok is not true")
+if man.get("matched") is not True:
+    claim.append("manifest matched is not true")
+out = {
+    "ok": len(integrity) == 0,
+    "errors": integrity,
+    "claimOk": len(claim) == 0,
+    "claimErrors": claim,
+    "finalUrl": url,
+}
 print(json.dumps(out))
 sys.exit(0 if out["ok"] else 1)
 `;
@@ -654,29 +665,47 @@ async function loadRunFiles(runDir2) {
 }
 
 // src/sandbox.ts
+function defaultVerifyDeps() {
+  return {
+    create: async () => {
+      const pt = new SolariClient({ apiKey: requireApiKey() });
+      return pt.sandboxes.create({
+        template: "base",
+        timeoutMs: 5 * 6e4,
+        lifecycle: { onTimeout: "kill" }
+      });
+    }
+  };
+}
+function assertReceiptUploadSize(manifest, png, cap = MAX_IMAGE_BYTES) {
+  const n = Buffer.byteLength(manifest, "utf8") + png.length;
+  if (png.length > cap || n > cap) {
+    throw new Error(`receipt exceeds ${cap} bytes`);
+  }
+}
 function parseAssertStdout(stdout) {
   const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? "";
-  if (!line) return { ok: false, errors: ["sandbox produced no stdout"] };
+  if (!line) {
+    return { ok: false, errors: ["sandbox produced no stdout"], claimOk: false, claimErrors: [] };
+  }
   try {
     const parsed = JSON.parse(line);
     return {
       ok: parsed.ok === true,
       errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
+      claimOk: parsed.claimOk === true,
+      claimErrors: Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [],
       finalUrl: parsed.finalUrl
     };
   } catch {
-    return { ok: false, errors: ["sandbox stdout was not JSON"] };
+    return { ok: false, errors: ["sandbox stdout was not JSON"], claimOk: false, claimErrors: [] };
   }
 }
-async function verifyReceipt(runDir2) {
+async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
   const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
-  const pt = new SolariClient({ apiKey: requireApiKey() });
-  const sandbox = await pt.sandboxes.create({
-    template: "base",
-    timeoutMs: 5 * 6e4,
-    lifecycle: { onTimeout: "kill" }
-  });
+  assertReceiptUploadSize(manifest, png);
+  const sandbox = await deps.create();
   try {
     await sandbox.connect();
     await sandbox.files.mkdir("/work");
@@ -688,7 +717,7 @@ async function verifyReceipt(runDir2) {
       6e4,
       "sandbox assert timed out after 60000ms"
     );
-    const parsed = parseAssertStdout(out.stdout || out.stderr || "{}");
+    const parsed = parseAssertStdout(out.stdout || out.stderr || "");
     if (out.exitCode !== 0 && parsed.ok) {
       parsed.ok = false;
       parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
@@ -702,6 +731,11 @@ async function verifyReceipt(runDir2) {
     } catch {
     }
   }
+}
+async function checkThenVerify(opts, deps) {
+  const check = await runCheck(opts);
+  const verify = await verifyReceipt(runDirFromResult(check), deps);
+  return { check, verify };
 }
 
 // src/stdio-transport.ts
@@ -864,7 +898,7 @@ var server = new McpServer({
 server.registerTool(
   "auspex_check",
   {
-    description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Use for post-deploy verification, not raw CDP.",
+    description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
     inputSchema: {
       url: httpUrlSchema.describe("http or https URL to open"),
       expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
@@ -872,20 +906,20 @@ server.registerTool(
       profile: z3.string().optional().describe("Solari profile name to reuse cookies/storage"),
       stealth: z3.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
       record: z3.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
-      sso: z3.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear")
+      sso: z3.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
+      verify: z3.boolean().optional().describe("After check, audit the receipt in a headless Solari sandbox and kill the VM")
     }
   },
-  async ({ url, expect, selector, profile, stealth, record, sso }) => {
+  async ({ url, expect, selector, profile, stealth, record, sso, verify }) => {
     try {
-      const result = await runCheck({
-        url,
-        expect,
-        selector,
-        profile,
-        stealth,
-        record,
-        sso
-      });
+      const opts = { url, expect, selector, profile, stealth, record, sso };
+      if (verify) {
+        const both = await checkThenVerify(opts);
+        const packed = await buildCheckToolContent(both.check);
+        packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) };
+        return packed;
+      }
+      const result = await runCheck(opts);
       return await buildCheckToolContent(result);
     } catch (err) {
       throw new Error(explainSolariError(err));
