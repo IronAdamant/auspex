@@ -8,7 +8,11 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
 ```
 
-Expect JSON on stdout with `"ok": true` and a PNG + `manifest.json` under `.auspex/runs/`.
+Expect JSON on stdout with `"ok": true` and a PNG + `manifest.json` under `.auspex/runs/`. Then re-check that receipt in a headless sandbox:
+
+```bash
+npx tsx src/cli.ts verify
+```
 
 Optional recording:
 

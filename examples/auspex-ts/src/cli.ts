@@ -4,18 +4,21 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
+import { verifyReceipt } from "./sandbox.ts"
 import { isNonEmptyExpect } from "./text.ts"
 
 export const USAGE = `Usage:
   npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
+  npx tsx src/cli.ts verify [runDir]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
+verify uploads that receipt into a headless Solari sandbox, asserts PNG + JSON, and kills the VM.
 login creates or reuses a named Solari profile and prints the console Profiles editor (log in live, Save).
-profiles lists profile names and ids. Neither login nor profiles holds a check session open.
+profiles lists profile names and ids.
 
-Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes the session.
+Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes.
 Never commit .env or .auspex/ run artifacts.
 `
 
@@ -24,6 +27,7 @@ export type CliCommand =
   | { cmd: "check"; opts: CheckOptions }
   | { cmd: "login"; profile: string; url?: string }
   | { cmd: "profiles" }
+  | { cmd: "verify"; runDir?: string }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -93,6 +97,15 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     return { status: "ok", command: { cmd: "login", profile, url } }
   }
+  if (cmd === "verify") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const runDir = args.shift()
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    if (runDir?.startsWith("-")) return { status: "error", message: "verify takes an optional run directory" }
+    return { status: "ok", command: { cmd: "verify", runDir } }
+  }
   if (cmd === "profiles") {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
@@ -123,6 +136,11 @@ export async function main(argv: string[]): Promise<number> {
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
       process.stdout.write(formatLogin(result))
       return 0
+    }
+    if (parsed.command.cmd === "verify") {
+      const result = await verifyReceipt(parsed.command.runDir)
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+      return result.ok ? 0 : 1
     }
     const profiles = await listProfiles()
     process.stdout.write(`${JSON.stringify(profiles, null, 2)}\n`)

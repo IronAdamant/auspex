@@ -9,7 +9,7 @@ past. Copy one into your project and change the parts you care about.
 
 ## Examples
 
-- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
+- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. `verify` re-checks that receipt in a headless Solari sandbox and kills the VM. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
 
   ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
@@ -30,6 +30,7 @@ past. Copy one into your project and change the parts you care about.
 | [sandbox-quickstart-ts](examples/sandbox-quickstart-ts) | TypeScript | Run a command, write and read files |
 | [sandbox-code-interpreter-py](examples/sandbox-code-interpreter-py) | Python | Stateful Python kernel for agent loops |
 | [sandbox-port-preview-ts](examples/sandbox-port-preview-ts) | TypeScript | Expose a server in the VM on a public URL |
+| [auspex-ts](examples/auspex-ts) `verify` | TypeScript | Headless VM re-checks a cloud-browser PNG + JSON receipt, then kill |
 
 ### Desktop
 

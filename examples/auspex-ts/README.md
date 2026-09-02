@@ -31,14 +31,16 @@ npm install
 # Persist the key for CLI *and* Grok (this file is gitignored). `export` in another terminal does not reach Grok.
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env
 npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
+npx tsx src/cli.ts verify
 ```
 
-Always close the session (the CLI does this in `finally`). Never commit `.env`, the API key, or `.auspex/` run artifacts.
+Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
 
 ### Commands
 
 ```
 npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
+npx tsx src/cli.ts verify [runDir]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 ```
@@ -46,6 +48,8 @@ npx tsx src/cli.ts profiles
 `login` creates or reuses a named Solari profile and prints the console Profiles editor. Log in there (2FA/captcha), hit Save. Then `check --profile <name>`. Login does not hold an Auspex check session open.
 
 `--stealth` and recording need Starter or higher. `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile.
+
+**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}`. `verify` boots a **headless** Solari microVM (no screen, no login), uploads that receipt, asserts PNG magic + `ok`/`matched` + not still on `/login` or Microsoft, prints JSON, and **kills** the VM. Optional `[runDir]`; default is the latest run. Same `SOLARI_API_KEY`. The sandbox never opens ConsistencyHub.
 
 Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt (watch in the Solari console via `sessionId`). Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
@@ -55,7 +59,7 @@ Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `exc
 npx tsx src/mcp.ts
 ```
 
-Tools: `auspex_check` (JSON + PNG), `auspex_login`, `auspex_profiles`.
+Tools: `auspex_check` (JSON + PNG), `auspex_verify` (sandbox receipt check, then kill), `auspex_login`, `auspex_profiles`.
 
 Grok starts Auspex from `[mcp_servers.auspex]` in `~/.grok/config.toml` (see [grok.mcp.example.toml](grok.mcp.example.toml)). The command is **absolute `node` + absolute `…/examples/auspex-ts/dist/mcp.mjs`**. Grok does not reliably apply `cwd`, so a relative `dist/mcp.mjs` is resolved from the repo root and the handshake dies. Run `npm run build:mcp` after changing `src/`. `tsx` is too slow/cold for Grok’s handshake. Stdio accepts Grok’s `Content-Length` framing. The server reads `SOLARI_API_KEY` from **this directory’s `.env`**. Restart Grok after config changes so `auspex_check` appears. `tool_timeout_sec` is 180.
 

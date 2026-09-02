@@ -9,6 +9,7 @@ Do **not** use it for pages you can already curl, for generic research crawls, a
 - `auspex_check` — one shot: launch → goto → assert → screenshot → close. Returns JSON plus a PNG.
 - `auspex_login` — create/reuse a named profile. Tell the human to open Console → Profiles → Open editor → Save. Then pass `profile` to `auspex_check`.
 - `auspex_profiles` — list names/ids.
+- `auspex_verify` — after a check, run the receipt through a headless Solari sandbox (PNG + JSON), then kill the VM. Login stays on the browser profile.
 
 ## Rules
 
@@ -25,6 +26,7 @@ Do **not** use it for pages you can already curl, for generic research crawls, a
 npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
+npx tsx src/cli.ts verify [runDir]
 ```
 
 `--sso` is for Microsoft login cards (e.g. ConsistencyHub): click Sign in with Microsoft, then the signed-in account. Use with `--profile`.

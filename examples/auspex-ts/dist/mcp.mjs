@@ -172,8 +172,8 @@ function stillOnAuth(url) {
   if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
     return true;
   }
-  const path4 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path4 === "/login" || path4.startsWith("/login/") || path4 === "/auth" || path4.startsWith("/auth/")) {
+  const path5 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path5 === "/login" || path5.startsWith("/login/") || path5 === "/auth" || path5.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -531,6 +531,111 @@ async function listProfiles() {
   }
 }
 
+// src/sandbox.ts
+import { SolariClient } from "@solarisdk/sdk";
+
+// src/receipt.ts
+import { readdir, readFile as readFile2, stat } from "node:fs/promises";
+import path4 from "node:path";
+var RUNS_DIR = path4.join(packageRoot, ".auspex", "runs");
+var RECEIPT_ASSERT_PY = `import json, sys
+from pathlib import Path
+from urllib.parse import urlparse
+
+work = Path(sys.argv[1] if len(sys.argv) > 1 else "/work")
+man = json.loads((work / "manifest.json").read_text())
+png = (work / "screenshot.png").read_bytes()
+errors = []
+if png[:8] != bytes.fromhex("89504e470d0a1a0a"):
+    errors.append("screenshot is not a PNG")
+if man.get("ok") is not True:
+    errors.append("manifest ok is not true")
+if man.get("matched") is not True:
+    errors.append("manifest matched is not true")
+shot = str(man.get("screenshotPath") or "")
+if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("/tmp")):
+    errors.append("screenshotPath looks like an operator home path")
+url = str(man.get("finalUrl") or "")
+host = (urlparse(url).hostname or "").lower()
+if "login.microsoftonline.com" in host or host == "login.live.com" or host.endswith(".login.live.com"):
+    errors.append("finalUrl still on Microsoft auth")
+path = (urlparse(url).path or "/").rstrip("/").lower() or "/"
+if path == "/login" or path.startswith("/login/") or path == "/auth" or path.startswith("/auth/"):
+    errors.append("finalUrl still on an auth path")
+out = {"ok": len(errors) == 0, "errors": errors, "finalUrl": url}
+print(json.dumps(out))
+sys.exit(0 if out["ok"] else 1)
+`;
+async function findLatestRun(runsDir = RUNS_DIR) {
+  let names;
+  try {
+    names = await readdir(runsDir);
+  } catch {
+    throw new Error(`no Auspex runs in ${runsDir}. Run check first.`);
+  }
+  const dirs = [];
+  for (const name of names.sort().reverse()) {
+    const dir = path4.join(runsDir, name);
+    const st = await stat(dir).catch(() => void 0);
+    if (!st?.isDirectory()) continue;
+    dirs.push(dir);
+  }
+  for (const dir of dirs) {
+    try {
+      await stat(path4.join(dir, "manifest.json"));
+      await stat(path4.join(dir, "screenshot.png"));
+      return dir;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`);
+}
+async function loadRunFiles(runDir2) {
+  const manifest = await readFile2(path4.join(runDir2, "manifest.json"), "utf8");
+  const png = await readFile2(path4.join(runDir2, "screenshot.png"));
+  return { manifest, png };
+}
+
+// src/sandbox.ts
+function parseAssertStdout(stdout) {
+  const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? "{}";
+  const parsed = JSON.parse(line);
+  return {
+    ok: parsed.ok === true,
+    errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
+    finalUrl: parsed.finalUrl
+  };
+}
+async function verifyReceipt(runDir2) {
+  const dir = runDir2 ? runDir2 : await findLatestRun();
+  const { manifest, png } = await loadRunFiles(dir);
+  const pt = new SolariClient({ apiKey: requireApiKey() });
+  const sandbox = await pt.sandboxes.create({
+    template: "base",
+    timeoutMs: 5 * 6e4,
+    lifecycle: { onTimeout: "kill" }
+  });
+  try {
+    await sandbox.connect();
+    await sandbox.files.mkdir("/work");
+    await sandbox.files.write("/work/manifest.json", manifest);
+    await sandbox.files.write("/work/screenshot.png", png);
+    await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY);
+    const out = await sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] });
+    const parsed = parseAssertStdout(out.stdout || out.stderr || "{}");
+    if (out.exitCode !== 0 && parsed.ok) {
+      parsed.ok = false;
+      parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
+    }
+    return { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+  } catch (err) {
+    throw new Error(explainSolariError(err));
+  } finally {
+    await sandbox.kill();
+  }
+}
+
 // src/stdio-transport.ts
 import process2 from "node:process";
 var CL_PREFIX = "content-length:";
@@ -747,6 +852,23 @@ server.registerTool(
     try {
       const profiles = await listProfiles();
       return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+    } catch (err) {
+      throw new Error(explainSolariError(err));
+    }
+  }
+);
+server.registerTool(
+  "auspex_verify",
+  {
+    description: "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
+    inputSchema: {
+      runDir: z3.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory")
+    }
+  },
+  async ({ runDir: runDir2 }) => {
+    try {
+      const result = await verifyReceipt(runDir2);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       throw new Error(explainSolariError(err));
     }

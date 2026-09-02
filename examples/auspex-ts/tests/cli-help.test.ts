@@ -19,6 +19,7 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /check/)
   assert.match(USAGE, /login/)
   assert.match(USAGE, /profiles/)
+  assert.match(USAGE, /verify/)
 })
 
 test("parseArgv --help and check --help request help", () => {

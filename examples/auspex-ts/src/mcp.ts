@@ -5,6 +5,7 @@ import { buildCheckToolContent } from "./content.ts"
 import { explainSolariError } from "./errors.ts"
 import { httpUrlSchema } from "./http-url.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
+import { verifyReceipt } from "./sandbox.ts"
 import { DualStdioServerTransport } from "./stdio-transport.ts"
 import { expectSchema } from "./text.ts"
 
@@ -79,6 +80,25 @@ server.registerTool(
     try {
       const profiles = await listProfiles()
       return { content: [{ type: "text" as const, text: JSON.stringify(profiles, null, 2) }] }
+    } catch (err) {
+      throw new Error(explainSolariError(err))
+    }
+  },
+)
+
+server.registerTool(
+  "auspex_verify",
+  {
+    description:
+      "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
+    inputSchema: {
+      runDir: z.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory"),
+    },
+  },
+  async ({ runDir }) => {
+    try {
+      const result = await verifyReceipt(runDir)
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
     } catch (err) {
       throw new Error(explainSolariError(err))
     }
