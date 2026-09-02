@@ -7,7 +7,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { parseArgv } from "../src/cli.ts"
-import { findLatestRun, RECEIPT_ASSERT_PY } from "../src/receipt.ts"
+import { assertRunDirUnderRuns, findLatestRun, RECEIPT_ASSERT_PY, RUNS_DIR } from "../src/receipt.ts"
 import { parseAssertStdout } from "../src/sandbox.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -54,6 +54,12 @@ test("RECEIPT_ASSERT_PY fails leftover-auth URLs and non-PNGs", () => {
   assert.equal(parsed.ok, false)
   assert.ok(parsed.errors.some((e) => /PNG/i.test(e)))
   assert.ok(parsed.errors.some((e) => /auth path/i.test(e)))
+})
+
+test("assertRunDirUnderRuns rejects paths outside .auspex/runs", () => {
+  assert.throws(() => assertRunDirUnderRuns("/etc/passwd"), /under \.auspex\/runs/)
+  const ok = assertRunDirUnderRuns(path.join(RUNS_DIR, "stamp"))
+  assert.ok(ok.includes(".auspex"))
 })
 
 test("findLatestRun picks the complete newest stamp", async () => {

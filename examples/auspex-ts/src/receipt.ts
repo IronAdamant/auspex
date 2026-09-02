@@ -36,6 +36,15 @@ print(json.dumps(out))
 sys.exit(0 if out["ok"] else 1)
 `
 
+export function assertRunDirUnderRuns(runDir: string, runsDir = RUNS_DIR): string {
+  const dir = path.resolve(runDir)
+  const root = path.resolve(runsDir)
+  if (dir !== root && !dir.startsWith(root + path.sep)) {
+    throw new Error("runDir must be under .auspex/runs")
+  }
+  return dir
+}
+
 export async function findLatestRun(runsDir = RUNS_DIR): Promise<string> {
   let names: string[]
   try {

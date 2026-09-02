@@ -99,11 +99,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
       const browser = await observeAbort(
-        launchBrowser(solari, {
-          stealth: opts.stealth === true,
-          recording: opts.record === true,
-          profileId,
-        }),
+        launchBrowser(
+          solari,
+          {
+            stealth: opts.stealth === true,
+            recording: opts.record === true,
+            profileId,
+          },
+          signal,
+        ),
         signal,
       )
       closer.set(async () => {

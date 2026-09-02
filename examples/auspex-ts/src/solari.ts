@@ -109,21 +109,33 @@ export function createClient(): Solari {
   return new Solari({ apiKey: requireApiKey() })
 }
 
-/** sessions.create then chromium.connect with a real timeout; release if connect fails. */
+/** sessions.create then chromium.connect with a real timeout; release if connect fails or abort fires. */
 export async function launchBrowser(
   solari: Solari,
   options: { stealth?: boolean; recording?: boolean; profileId?: string } = {},
+  signal?: AbortSignal,
 ): Promise<BrowserSession> {
   const session = await solari.sessions.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId,
   })
+  const release = () => solari.sessions.releaseAndWait(session.id).catch(() => undefined)
+  if (signal?.aborted) {
+    await release()
+    throw new Error("aborted")
+  }
   try {
     const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS)
+    if (signal?.aborted) {
+      const held = new BrowserSession(solari, session, browser)
+      await held.close().catch(() => undefined)
+      await release()
+      throw new Error("aborted")
+    }
     return new BrowserSession(solari, session, browser)
   } catch (err) {
-    await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
+    await release()
     throw err
   }
 }

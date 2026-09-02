@@ -1,6 +1,7 @@
 import { SolariClient } from "@solarisdk/sdk"
 import { explainSolariError } from "./errors.ts"
-import { findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
+import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
+import { boundPromise } from "./timeout.ts"
 import { requireApiKey } from "./solari.ts"
 
 export type VerifyResult = {
@@ -28,7 +29,7 @@ export function parseAssertStdout(stdout: string): { ok: boolean; errors: string
 
 /** Headless microVM: upload check receipt, assert PNG + JSON, kill. Login stays on the browser profile. */
 export async function verifyReceipt(runDir?: string): Promise<VerifyResult> {
-  const dir = runDir ? runDir : await findLatestRun()
+  const dir = assertRunDirUnderRuns(runDir ? runDir : await findLatestRun())
   const { manifest, png } = await loadRunFiles(dir)
   const pt = new SolariClient({ apiKey: requireApiKey() })
   const sandbox = await pt.sandboxes.create({
@@ -42,7 +43,11 @@ export async function verifyReceipt(runDir?: string): Promise<VerifyResult> {
     await sandbox.files.write("/work/manifest.json", manifest)
     await sandbox.files.write("/work/screenshot.png", png)
     await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY)
-    const out = await sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] })
+    const out = await boundPromise(
+      sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
+      60_000,
+      "sandbox assert timed out after 60000ms",
+    )
     const parsed = parseAssertStdout(out.stdout || out.stderr || "{}")
     if (out.exitCode !== 0 && parsed.ok) {
       parsed.ok = false

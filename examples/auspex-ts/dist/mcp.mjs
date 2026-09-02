@@ -212,17 +212,28 @@ function requireApiKey() {
 function createClient() {
   return new Solari({ apiKey: requireApiKey() });
 }
-async function launchBrowser(solari, options = {}) {
+async function launchBrowser(solari, options = {}, signal) {
   const session = await solari.sessions.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId
   });
+  const release = () => solari.sessions.releaseAndWait(session.id).catch(() => void 0);
+  if (signal?.aborted) {
+    await release();
+    throw new Error("aborted");
+  }
   try {
     const browser = await chromium.connect(session.wsEndpoint, CHROMIUM_CONNECT_OPTS);
+    if (signal?.aborted) {
+      const held = new BrowserSession(solari, session, browser);
+      await held.close().catch(() => void 0);
+      await release();
+      throw new Error("aborted");
+    }
     return new BrowserSession(solari, session, browser);
   } catch (err) {
-    await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
+    await release();
     throw err;
   }
 }
@@ -369,11 +380,15 @@ async function runCheck(opts) {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
       if (isCancelled()) return;
       const browser = await observeAbort(
-        launchBrowser(solari, {
-          stealth: opts.stealth === true,
-          recording: opts.record === true,
-          profileId
-        }),
+        launchBrowser(
+          solari,
+          {
+            stealth: opts.stealth === true,
+            recording: opts.record === true,
+            profileId
+          },
+          signal
+        ),
         signal
       );
       closer.set(async () => {
@@ -582,6 +597,14 @@ out = {"ok": len(errors) == 0, "errors": errors, "finalUrl": url}
 print(json.dumps(out))
 sys.exit(0 if out["ok"] else 1)
 `;
+function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
+  const dir = path4.resolve(runDir2);
+  const root = path4.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path4.sep)) {
+    throw new Error("runDir must be under .auspex/runs");
+  }
+  return dir;
+}
 async function findLatestRun(runsDir = RUNS_DIR) {
   let names;
   try {
@@ -629,7 +652,7 @@ function parseAssertStdout(stdout) {
   }
 }
 async function verifyReceipt(runDir2) {
-  const dir = runDir2 ? runDir2 : await findLatestRun();
+  const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   const pt = new SolariClient({ apiKey: requireApiKey() });
   const sandbox = await pt.sandboxes.create({
@@ -643,7 +666,11 @@ async function verifyReceipt(runDir2) {
     await sandbox.files.write("/work/manifest.json", manifest);
     await sandbox.files.write("/work/screenshot.png", png);
     await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY);
-    const out = await sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] });
+    const out = await boundPromise(
+      sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
+      6e4,
+      "sandbox assert timed out after 60000ms"
+    );
     const parsed = parseAssertStdout(out.stdout || out.stderr || "{}");
     if (out.exitCode !== 0 && parsed.ok) {
       parsed.ok = false;
