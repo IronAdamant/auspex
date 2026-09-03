@@ -2,13 +2,14 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
-import { isHttpOrHttpsUrl } from "./http-url.ts"
-import { formatLogin, listProfiles, loginProfile } from "./profiles.ts"
+import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
+import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { isNonEmptyExpect } from "./text.ts"
+import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso] [--verify]
+  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
   npx tsx src/cli.ts verify [runDir]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
@@ -75,18 +76,44 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const stealth = takeFlag(args, "--stealth")
     const record = takeFlag(args, "--record")
+    const allowRecordProfile = takeFlag(args, "--allow-record-profile")
     const sso = takeFlag(args, "--sso")
     const verifyAfter = takeFlag(args, "--verify")
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
     if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
+    if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
     if (!expect || !isNonEmptyExpect(expect)) {
       return { status: "error", message: "check requires --expect <string>" }
     }
+    let profileName = profile
+    if (profileName !== undefined) {
+      try {
+        profileName = requireProfileName(profileName)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    if (record && profileName && !allowRecordProfile) {
+      return { status: "error", message: RECORD_PROFILE_ERROR }
+    }
     return {
       status: "ok",
-      command: { cmd: "check", opts: { url, expect, selector, profile, stealth, record, sso }, verifyAfter },
+      command: {
+        cmd: "check",
+        opts: {
+          url,
+          expect,
+          selector,
+          profile: profileName,
+          stealth,
+          record,
+          sso,
+          allowRecordProfile,
+        },
+        verifyAfter,
+      },
     }
   }
   if (cmd === "login") {
@@ -97,10 +124,16 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = takeOption(args, "--url")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profile) return { status: "error", message: "login requires --profile <name>" }
+    let profileName: string
+    try {
+      profileName = requireProfileName(profile)
+    } catch (err) {
+      return { status: "error", message: err instanceof Error ? err.message : String(err) }
+    }
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
     }
-    return { status: "ok", command: { cmd: "login", profile, url } }
+    return { status: "ok", command: { cmd: "login", profile: profileName, url } }
   }
   if (cmd === "verify") {
     if (args.includes("--help") || args.includes("-h")) {

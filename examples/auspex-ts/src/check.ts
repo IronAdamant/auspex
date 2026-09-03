@@ -2,8 +2,10 @@ import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { BrowserSession } from "@solarisdk/browser"
-import { requireHttpUrl } from "./http-url.ts"
+import { requireCheckUrl } from "./http-url.ts"
+import { requireProfileName } from "./profiles.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
+import { assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   createClient,
   GOTO_TIMEOUT_MS,
@@ -35,6 +37,7 @@ export type CheckOptions = {
   stealth?: boolean
   record?: boolean
   sso?: boolean
+  allowRecordProfile?: boolean
 }
 
 export type CheckResult = {
@@ -85,7 +88,9 @@ async function waitNetworkIdle(page: Page, signal: AbortSignal): Promise<boolean
 
 export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   requireExpect(opts.expect)
-  requireHttpUrl(opts.url, "url")
+  requireCheckUrl(opts.url, "url")
+  assertRecordProfileAllowed(opts)
+  if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
   const solari = createClient()
   const closer = new ReadyRelease()
   let sessionId = ""

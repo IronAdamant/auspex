@@ -7,7 +7,7 @@ import path from "node:path"
 import { gunzipSync } from "node:zlib"
 import { fileURLToPath } from "node:url"
 import { runCheck, packageRoot } from "../src/check.ts"
-import { createClient } from "../src/solari.ts"
+import { createClient, downloadReplayWhenReady } from "../src/solari.ts"
 
 const RRWEB_CSS =
   "https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/style.css"
@@ -86,7 +86,10 @@ export async function saveDemoReceipt(): Promise<void> {
   const staging = await mkdtemp(path.join(packageRoot, ".demo-staging-"))
   const solari = createClient()
   try {
-    const blob = await solari.sessions.downloadReplay(result.sessionId)
+    const blob = await downloadReplayWhenReady(
+      (id) => solari.sessions.downloadReplay(id),
+      result.sessionId,
+    )
     const ndjson = asNdjson(blob)
     const text = ndjson.endsWith("\n") ? ndjson : `${ndjson}\n`
     const receipt = {

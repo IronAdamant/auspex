@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { CheckResult } from "./check.ts"
+import { fitPngUnderCap } from "./png-fit.ts"
 
 export type ToolTextContent = { type: "text"; text: string }
 export type ToolImageContent = { type: "image"; mimeType: "image/png"; data: string }
@@ -15,6 +16,10 @@ export function resolveScreenshotPath(p: string): string {
   return path.isAbsolute(p) ? p : path.join(packageRoot, p)
 }
 
+function pngNote(text: string): ToolTextContent {
+  return { type: "text", text }
+}
+
 export async function buildCheckToolContent(
   result: CheckResult,
 ): Promise<{ content: ToolContent[] }> {
@@ -23,23 +28,27 @@ export async function buildCheckToolContent(
   try {
     const buf = await readFile(resolveScreenshotPath(result.screenshotPath))
     if (buf.length === 0) {
-      content.push({ type: "text", text: "PNG omitted: screenshot file is empty" })
+      content.push(pngNote("PNG omitted: screenshot file is empty"))
       return { content }
     }
-    if (buf.length > MAX_IMAGE_BYTES) {
-      content.push({
-        type: "text",
-        text: `PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`,
-      })
+    const attach = buf.length <= MAX_IMAGE_BYTES ? buf : fitPngUnderCap(buf, MAX_IMAGE_BYTES)
+    if (attach.length > MAX_IMAGE_BYTES) {
+      content.push(pngNote(`PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`))
       return { content }
     }
     content.push({
       type: "image",
       mimeType: "image/png",
-      data: buf.toString("base64"),
+      data: attach.toString("base64"),
     })
-  } catch {
-    // JSON receipt still stands if the PNG is missing.
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code) : ""
+    if (code === "ENOENT") {
+      content.push(pngNote("PNG omitted: screenshot file is missing"))
+    } else {
+      const msg = err instanceof Error ? err.message : String(err)
+      content.push(pngNote(`PNG omitted: ${msg}`))
+    }
   }
   return { content }
 }

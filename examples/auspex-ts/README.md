@@ -39,7 +39,7 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso] [--verify]
+npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
 npx tsx src/cli.ts verify [runDir]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles

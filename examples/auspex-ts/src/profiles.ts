@@ -1,6 +1,16 @@
+import { z } from "zod"
 import { createClient } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
+export const PROFILE_NAME_ERROR = "profile name must be non-empty"
+
+export function requireProfileName(value: string): string {
+  const name = value.trim()
+  if (!name) throw new Error(PROFILE_NAME_ERROR)
+  return name
+}
+
+export const profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAME_ERROR })
 
 export type ProfileInfo = {
   id: string
@@ -29,10 +39,11 @@ export function formatLogin(result: LoginResult): string {
 }
 
 export async function ensureProfile(name: string): Promise<ProfileInfo> {
+  const want = requireProfileName(name)
   const solari = createClient()
   try {
-    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === name.trim())
-    const profile = existing ?? (await solari.profiles.create({ name }))
+    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === want)
+    const profile = existing ?? (await solari.profiles.create({ name: want }))
     return { id: profile.id, name: profile.name }
   } finally {
     await solari.close()

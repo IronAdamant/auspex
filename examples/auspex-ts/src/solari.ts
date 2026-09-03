@@ -39,8 +39,8 @@ export function defaultLaunchDeps(solari: Solari): LaunchDeps {
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
 export const OVERALL_TIMEOUT_MS = 120_000
-const REPLAY_ATTEMPTS = 10
-const REPLAY_DELAY_MS = 3_000
+export const REPLAY_ATTEMPTS = 10
+export const REPLAY_DELAY_MS = 3_000
 
 export const DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env")
 
@@ -198,25 +198,64 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+export type ReplayRetryOpts = {
+  deadlineMs?: number
+  now?: () => number
+  sleep?: (ms: number) => Promise<void>
+}
+
+function replayStatus(err: unknown): number | undefined {
+  if (err instanceof SolariError) return err.status
+  if (err && typeof err === "object" && "status" in err) {
+    const s = (err as { status?: unknown }).status
+    return typeof s === "number" ? s : undefined
+  }
+  return undefined
+}
+
+/** Retry an async replay call while the endpoint 404s (upload is async after release). */
+export async function retryReplay404<T>(op: () => Promise<T>, opts: ReplayRetryOpts = {}): Promise<T> {
+  const now = opts.now ?? Date.now
+  const sleepFn = opts.sleep ?? sleep
+  const deadlineMs = opts.deadlineMs ?? now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
+    if (now() >= deadlineMs) break
+    try {
+      return await op()
+    } catch (err) {
+      if (replayStatus(err) !== 404) throw err
+      lastErr = err
+    }
+    const remain = deadlineMs - now()
+    if (remain <= 0) break
+    await sleepFn(Math.min(REPLAY_DELAY_MS, remain))
+  }
+  if (lastErr) throw lastErr
+  throw new Error("replay was not ready before deadline")
+}
+
+export async function downloadReplayWhenReady(
+  download: (sessionId: string) => Promise<Uint8Array>,
+  sessionId: string,
+  opts: ReplayRetryOpts = {},
+): Promise<Uint8Array> {
+  return retryReplay404(() => download(sessionId), opts)
+}
+
 /** Replay upload is async after release. Stops at deadline so teardown cannot run unbounded. */
 export async function waitForReplayUrl(
   solari: Solari,
   sessionId: string,
   deadlineMs = Date.now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS,
 ): Promise<string | undefined> {
-  for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
-    const remain = deadlineMs - Date.now()
-    if (remain <= 0) return undefined
-    await sleep(Math.min(REPLAY_DELAY_MS, remain))
-    if (Date.now() >= deadlineMs) return undefined
-    try {
+  try {
+    return await retryReplay404(async () => {
       const replay = await solari.sessions.getReplayUrl(sessionId)
       return replay.url
-    } catch (err) {
-      const status = err instanceof SolariError ? err.status : undefined
-      if (status === 404) continue
-      throw err
-    }
+    }, { deadlineMs })
+  } catch (err) {
+    if (replayStatus(err) === 404) return undefined
+    throw err
   }
-  return undefined
 }

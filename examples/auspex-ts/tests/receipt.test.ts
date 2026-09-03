@@ -226,6 +226,72 @@ test("parseArgv check --verify requests verify-after-check", () => {
   }
 })
 
+test("verifyReceipt is not ok:true when kill fails after a good assert", async () => {
+  const dir = path.join(RUNS_DIR, `killok-${Date.now()}`)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://ironadamant.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  const result = await verifyReceipt(dir, {
+    create: async () => ({
+      connect: async () => undefined,
+      files: {
+        mkdir: async () => undefined,
+        write: async () => undefined,
+      },
+      commands: {
+        run: async () => ({
+          exitCode: 0,
+          stdout: `${JSON.stringify({ ok: true, errors: [], claimOk: true, claimErrors: [] })}\n`,
+        }),
+      },
+      kill: async () => {
+        throw new Error("kill boom")
+      },
+      sandboxId: "sbx-1",
+    }),
+  })
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((e) => /kill/i.test(e)))
+  assert.match(result.errors.join(" "), /kill boom/)
+})
+
+test("checkThenVerify keeps the check receipt when verify throws", async () => {
+  const { checkThenVerify } = await import("../src/sandbox.ts")
+  const check = {
+    title: "Software & AI tooling | Iron Adamant",
+    finalUrl: "https://ironadamant.com/",
+    ok: true,
+    expect: "Build it.",
+    matched: true,
+    excerpt: "Build it.",
+    screenshotPath: ".auspex/runs/stamp/screenshot.png",
+    sessionId: "sess-paid",
+    networkIdle: true,
+  }
+  const both = await checkThenVerify(
+    { url: "https://ironadamant.com", expect: "Build it." },
+    {
+      check: async () => check,
+      verify: async () => {
+        throw new Error("sandbox down")
+      },
+    },
+  )
+  assert.equal(both.check.screenshotPath, check.screenshotPath)
+  assert.equal(both.check.sessionId, "sess-paid")
+  assert.equal(both.check.ok, true)
+  assert.equal(both.verify.ok, false)
+  assert.match(both.verify.errors.join(" "), /sandbox down/)
+})
+
 test("parseArgv verify accepts an optional run dir", () => {
   const a = parseArgv(["verify"])
   assert.equal(a.status, "ok")

@@ -43,8 +43,8 @@ past. Copy one into your project and change the parts you care about.
 Each directory is self-contained.
 
 ```bash
-git clone https://github.com/solari-sdk/solari-cookbook.git
-cd solari-cookbook/examples/browser-quickstart-ts
+git clone https://github.com/IronAdamant/auspex.git
+cd auspex/examples/browser-quickstart-ts
 
 npm install                          # or: pip install -r requirements.txt
 export SOLARI_API_KEY=slr_live_...   # grab one at console.getsolari.com

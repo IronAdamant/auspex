@@ -3,8 +3,13 @@ import { runCheck, runDirFromResult, type CheckOptions, type CheckResult } from 
 import { MAX_IMAGE_BYTES } from "./content.ts"
 import { explainSolariError } from "./errors.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { requireApiKey } from "./solari.ts"
-import { boundPromise } from "./timeout.ts"
+import { OVERALL_TIMEOUT_MS, requireApiKey } from "./solari.ts"
+import { boundPromise, CLOSE_TIMEOUT_MS } from "./timeout.ts"
+
+export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
+/** Nested check + session-close + sandbox-assert budgets. Must stay ≤ Auspex MCP tool_timeout_sec. */
+export const CHECK_THEN_VERIFY_WORST_MS =
+  OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + SANDBOX_ASSERT_TIMEOUT_MS
 
 export type VerifyResult = {
   ok: boolean
@@ -108,31 +113,59 @@ export async function verifyReceipt(
     await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY)
     const out = await boundPromise(
       sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
-      60_000,
-      "sandbox assert timed out after 60000ms",
+      SANDBOX_ASSERT_TIMEOUT_MS,
+      `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`,
     )
     const parsed = parseAssertStdout(out.stdout || out.stderr || "")
     if (out.exitCode !== 0 && parsed.ok) {
       parsed.ok = false
       parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`]
     }
-    return { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
+    const result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
+    try {
+      await sandbox.kill()
+    } catch (killErr) {
+      const msg = `sandbox kill failed: ${explainSolariError(killErr)}`
+      return { ...result, ok: false, errors: [...result.errors, msg] }
+    }
+    return result
   } catch (err) {
-    throw new Error(explainSolariError(err))
-  } finally {
     try {
       await sandbox.kill()
     } catch {
       /* original error wins */
     }
+    throw new Error(explainSolariError(err))
   }
+}
+
+export type CheckThenVerifyDeps = {
+  create?: () => Promise<SandboxHandle>
+  check?: (opts: CheckOptions) => Promise<CheckResult>
+  verify?: (runDir: string) => Promise<VerifyResult>
 }
 
 export async function checkThenVerify(
   opts: CheckOptions,
-  deps?: VerifyDeps,
+  deps?: CheckThenVerifyDeps,
 ): Promise<{ check: CheckResult; verify: VerifyResult }> {
-  const check = await runCheck(opts)
-  const verify = await verifyReceipt(runDirFromResult(check), deps)
-  return { check, verify }
+  const check = deps?.check ? await deps.check(opts) : await runCheck(opts)
+  const dir = runDirFromResult(check)
+  try {
+    const verify = deps?.verify
+      ? await deps.verify(dir)
+      : await verifyReceipt(dir, deps?.create ? { create: deps.create } : undefined)
+    return { check, verify }
+  } catch (err) {
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [explainSolariError(err)],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir,
+      },
+    }
+  }
 }

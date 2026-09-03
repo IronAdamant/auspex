@@ -20,6 +20,7 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /login/)
   assert.match(USAGE, /profiles/)
   assert.match(USAGE, /verify/)
+  assert.match(USAGE, /--verify/)
 })
 
 test("parseArgv --help and check --help request help", () => {
@@ -115,6 +116,8 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /check/)
   assert.match(help.stdout, /login/)
   assert.match(help.stdout, /profiles/)
+  assert.match(help.stdout, /verify/)
+  assert.match(help.stdout, /--verify/)
 })
 
 test("shipped CLI check --help lists login and profiles", () => {
@@ -157,4 +160,89 @@ test("shipped CLI does not take https as --profile", () => {
   ])
   assert.notEqual(bad.status, 0)
   assert.match(`${bad.stderr}${bad.stdout}`, /profile|URL|unexpected/i)
+})
+
+test("parseArgv rejects loopback check URLs", () => {
+  for (const url of ["http://localhost:3000", "http://127.0.0.1/", "http://[::1]/"]) {
+    const parsed = parseArgv(["check", url, "--expect", "x"])
+    assert.equal(parsed.status, "error", url)
+    if (parsed.status === "error") {
+      assert.match(parsed.message, /loopback|cloud|agent machine/i)
+    }
+  }
+})
+
+test("parseArgv rejects --record with --profile unless override is set", () => {
+  const blocked = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "consistencyhub",
+    "--record",
+  ])
+  assert.equal(blocked.status, "error")
+  if (blocked.status === "error") assert.match(blocked.message, /allow-record-profile|record/i)
+  const ok = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "consistencyhub",
+    "--record",
+    "--allow-record-profile",
+  ])
+  assert.equal(ok.status, "ok")
+  if (ok.status === "ok" && ok.command.cmd === "check") {
+    assert.equal(ok.command.opts.allowRecordProfile, true)
+    assert.equal(ok.command.opts.record, true)
+    assert.equal(ok.command.opts.profile, "consistencyhub")
+  }
+})
+
+test("parseArgv rejects whitespace-only --profile on check and login", () => {
+  const check = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "   ",
+  ])
+  assert.equal(check.status, "error")
+  if (check.status === "error") assert.match(check.message, /profile name/i)
+  const login = parseArgv(["login", "--profile", "   "])
+  assert.equal(login.status, "error")
+  if (login.status === "error") assert.match(login.message, /profile name/i)
+})
+
+test("shipped CLI rejects loopback check URLs without launching Solari", () => {
+  const bad = runCli(["check", "http://localhost:3000", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /loopback|cloud Chrome|agent machine/i)
+})
+
+test("shipped CLI rejects --record with --profile", () => {
+  const bad = runCli([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "consistencyhub",
+    "--record",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /allow-record-profile|record/i)
+})
+
+test("shipped CLI rejects whitespace-only --profile", () => {
+  const check = runCli(["check", "https://ironadamant.com", "--expect", "Build it.", "--profile", "   "])
+  assert.notEqual(check.status, 0)
+  assert.match(`${check.stderr}${check.stdout}`, /profile name/i)
+  const login = runCli(["login", "--profile", "   "])
+  assert.notEqual(login.status, 0)
+  assert.match(`${login.stderr}${login.stdout}`, /profile name/i)
 })

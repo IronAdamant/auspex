@@ -1,6 +1,9 @@
 // src/mcp.ts
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z as z3 } from "zod";
+import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+// src/mcp-tools.ts
+import "@modelcontextprotocol/sdk/server/mcp.js";
+import { z as z5 } from "zod";
 
 // src/check.ts
 import { mkdir, writeFile } from "node:fs/promises";
@@ -9,6 +12,11 @@ import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/http-url.ts
 import { z } from "zod";
+var LOOPBACK_URL_ERROR = "url is a loopback address; Solari cloud Chrome cannot see the agent machine";
+function isLoopbackHost(hostname) {
+  const h = hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0:0:0:0:0:0:0:1";
+}
 function isHttpOrHttpsUrl(value) {
   try {
     const u = new URL(value);
@@ -25,30 +33,26 @@ function requireHttpUrl(value, label = "url") {
   }
   return value;
 }
-var httpUrlSchema = z.string().refine(isHttpOrHttpsUrl, { message: "url must be an http or https URL" });
-
-// src/text.ts
-import { z as z2 } from "zod";
-function normalizeHaystack(text) {
-  return text.replace(/\s+/g, " ").trim();
-}
-function excerptOf(text, max = 500) {
-  const collapsed = normalizeHaystack(text);
-  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}\u2026`;
-}
-function isNonEmptyExpect(value) {
-  return value.trim().length > 0;
-}
-function requireExpect(value) {
-  if (!isNonEmptyExpect(value)) {
-    throw new Error("check requires a non-empty --expect");
+function requireCheckUrl(value, label = "url") {
+  requireHttpUrl(value, label);
+  if (isLoopbackHost(new URL(value).hostname)) {
+    throw new Error(LOOPBACK_URL_ERROR);
   }
   return value;
 }
-function haystackMatches(raw, expect) {
-  return normalizeHaystack(raw).includes(normalizeHaystack(expect));
-}
-var expectSchema = z2.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
+var httpUrlSchema = z.string().refine(isHttpOrHttpsUrl, { message: "url must be an http or https URL" });
+var checkUrlSchema = z.string().superRefine((value, ctx) => {
+  if (!isHttpOrHttpsUrl(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "url must be an http or https URL" });
+    return;
+  }
+  if (isLoopbackHost(new URL(value).hostname)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: LOOPBACK_URL_ERROR });
+  }
+});
+
+// src/profiles.ts
+import { z as z2 } from "zod";
 
 // src/solari.ts
 import { existsSync, readFileSync } from "node:fs";
@@ -265,6 +269,100 @@ async function pageForSession(browser) {
   return ctx.pages()[0] ?? ctx.newPage();
 }
 
+// src/profiles.ts
+var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
+var PROFILE_NAME_ERROR = "profile name must be non-empty";
+function requireProfileName(value) {
+  const name = value.trim();
+  if (!name) throw new Error(PROFILE_NAME_ERROR);
+  return name;
+}
+var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
+function loginInstructions(profile, urlHint) {
+  const where = urlHint ? ` Log in at ${urlHint}.` : " Log in.";
+  return {
+    profileId: profile.id,
+    name: profile.name,
+    consoleUrl: CONSOLE_PROFILES_URL,
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save, then run auspex check with --profile ${profile.name}`
+  };
+}
+async function ensureProfile(name) {
+  const want = requireProfileName(name);
+  const solari = createClient();
+  try {
+    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === want);
+    const profile = existing ?? await solari.profiles.create({ name: want });
+    return { id: profile.id, name: profile.name };
+  } finally {
+    await solari.close();
+  }
+}
+async function loginProfile(name, urlHint) {
+  const profile = await ensureProfile(name);
+  return loginInstructions(profile, urlHint);
+}
+async function listProfiles() {
+  const solari = createClient();
+  try {
+    return (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name }));
+  } finally {
+    await solari.close();
+  }
+}
+
+// src/text.ts
+import { z as z3 } from "zod";
+function normalizeHaystack(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+function excerptOf(text, max = 500) {
+  const collapsed = normalizeHaystack(text);
+  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}\u2026`;
+}
+function isNonEmptyExpect(value) {
+  return value.trim().length > 0;
+}
+function requireExpect(value) {
+  if (!isNonEmptyExpect(value)) {
+    throw new Error("check requires a non-empty --expect");
+  }
+  return value;
+}
+function haystackMatches(raw, expect) {
+  return normalizeHaystack(raw).includes(normalizeHaystack(expect));
+}
+var expectSchema = z3.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
+
+// src/tool-schema.ts
+import { z as z4 } from "zod";
+var RECORD_PROFILE_ERROR = "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile to override.";
+function assertRecordProfileAllowed(opts) {
+  if (opts.record && opts.profile && !opts.allowRecordProfile) {
+    throw new Error(RECORD_PROFILE_ERROR);
+  }
+}
+var auspexCheckInputObject = z4.object({
+  url: checkUrlSchema.describe("http or https URL to open (not loopback)"),
+  expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
+  selector: z4.string().optional().describe("Optional CSS selector to extract instead of body"),
+  profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
+  stealth: z4.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
+  record: z4.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
+  sso: z4.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
+  verify: z4.boolean().optional().describe("After check, audit the receipt in a headless sandbox and kill the VM"),
+  allowRecordProfile: z4.boolean().optional().describe("Override: allow --record together with a profile (recordings capture input)")
+});
+var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
+  if (val.record && val.profile && !val.allowRecordProfile) {
+    ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] });
+  }
+});
+var auspexLoginInputSchema = z4.object({
+  profile: profileNameSchema.describe("Profile name to create or reuse"),
+  url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human")
+});
+
 // src/errors.ts
 import { SolariError as SolariError2 } from "@solarisdk/browser";
 function redactSecrets(text) {
@@ -382,7 +480,9 @@ async function waitNetworkIdle(page, signal) {
 }
 async function runCheck(opts) {
   requireExpect(opts.expect);
-  requireHttpUrl(opts.url, "url");
+  requireCheckUrl(opts.url, "url");
+  assertRecordProfileAllowed(opts);
+  if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) };
   const solari = createClient();
   const closer = new ReadyRelease();
   let sessionId = "";
@@ -516,10 +616,174 @@ async function runCheck(opts) {
 import { readFile } from "node:fs/promises";
 import path3 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
+
+// src/png-fit.ts
+import { deflateSync, inflateSync } from "node:zlib";
+var PNG_SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+var CRC_TABLE = new Uint32Array(256);
+for (let n = 0; n < 256; n++) {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+  CRC_TABLE[n] = c >>> 0;
+}
+function crc32(buf) {
+  let c = 4294967295;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 255] ^ c >>> 8;
+  return (c ^ 4294967295) >>> 0;
+}
+function paeth(a, b, c) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+function chunk(type, data) {
+  const typeBuf = Buffer.from(type, "ascii");
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const crcBuf = Buffer.alloc(4);
+  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
+  return Buffer.concat([len, typeBuf, data, crcBuf]);
+}
+function unfilter(data, width, height, bpp) {
+  const stride = width * bpp;
+  const out = Buffer.alloc(height * stride);
+  let src = 0;
+  for (let y = 0; y < height; y++) {
+    if (src >= data.length) throw new Error("PNG IDAT truncated");
+    const filter = data[src++];
+    const row = out.subarray(y * stride, (y + 1) * stride);
+    const prev = y === 0 ? void 0 : out.subarray((y - 1) * stride, y * stride);
+    for (let i = 0; i < stride; i++) {
+      if (src >= data.length) throw new Error("PNG IDAT truncated");
+      const raw = data[src++];
+      const a = i >= bpp ? row[i - bpp] : 0;
+      const b = prev ? prev[i] : 0;
+      const c = prev && i >= bpp ? prev[i - bpp] : 0;
+      let val;
+      switch (filter) {
+        case 0:
+          val = raw;
+          break;
+        case 1:
+          val = raw + a & 255;
+          break;
+        case 2:
+          val = raw + b & 255;
+          break;
+        case 3:
+          val = raw + (a + b >> 1) & 255;
+          break;
+        case 4:
+          val = raw + paeth(a, b, c) & 255;
+          break;
+        default:
+          throw new Error(`unsupported PNG filter ${filter}`);
+      }
+      row[i] = val;
+    }
+  }
+  return out;
+}
+function decodePng(buf) {
+  if (buf.length < 8 || !buf.subarray(0, 8).equals(PNG_SIG)) {
+    throw new Error("not a PNG");
+  }
+  let i = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idats = [];
+  while (i + 12 <= buf.length) {
+    const len = buf.readUInt32BE(i);
+    const type = buf.subarray(i + 4, i + 8).toString("ascii");
+    const data = buf.subarray(i + 8, i + 8 + len);
+    i += 12 + len;
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+      const interlace = data[12];
+      if (bitDepth !== 8) throw new Error("PNG bit depth must be 8");
+      if (interlace !== 0) throw new Error("interlaced PNG is not supported");
+      if (colorType !== 2 && colorType !== 6) throw new Error("PNG color type must be RGB or RGBA");
+    } else if (type === "IDAT") {
+      idats.push(Buffer.from(data));
+    } else if (type === "IEND") {
+      break;
+    }
+  }
+  if (!width || !height) throw new Error("PNG missing IHDR");
+  const bpp = colorType === 6 ? 4 : 3;
+  const inflated = inflateSync(Buffer.concat(idats));
+  const pixels = unfilter(inflated, width, height, bpp);
+  return { width, height, bpp, pixels };
+}
+function encodePng(width, height, pixels, bpp) {
+  const stride = width * bpp;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    raw[y * (stride + 1)] = 0;
+    pixels.copy(raw, y * (stride + 1) + 1, y * stride, y * stride + stride);
+  }
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = bpp === 4 ? 6 : 2;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+  return Buffer.concat([
+    PNG_SIG,
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0))
+  ]);
+}
+function resize(pixels, sw, sh, dw, dh, bpp) {
+  const out = Buffer.alloc(dw * dh * bpp);
+  for (let y = 0; y < dh; y++) {
+    const sy = Math.min(sh - 1, Math.floor((y + 0.5) * sh / dh));
+    for (let x = 0; x < dw; x++) {
+      const sx = Math.min(sw - 1, Math.floor((x + 0.5) * sw / dw));
+      const si = (sy * sw + sx) * bpp;
+      pixels.copy(out, (y * dw + x) * bpp, si, si + bpp);
+    }
+  }
+  return out;
+}
+function fitPngUnderCap(png, cap) {
+  if (png.length <= cap) return png;
+  const decoded = decodePng(png);
+  let scale = Math.min(1, Math.sqrt(cap / png.length) * 0.9);
+  for (let i = 0; i < 12; i++) {
+    const dw = Math.max(1, Math.floor(decoded.width * scale));
+    const dh = Math.max(1, Math.floor(decoded.height * scale));
+    const pixels2 = resize(decoded.pixels, decoded.width, decoded.height, dw, dh, decoded.bpp);
+    const out = encodePng(dw, dh, pixels2, decoded.bpp);
+    if (out.length <= cap) return out;
+    scale *= 0.7;
+  }
+  const pixels = resize(decoded.pixels, decoded.width, decoded.height, 1, 1, decoded.bpp);
+  const tiny = encodePng(1, 1, pixels, decoded.bpp);
+  if (tiny.length > cap) throw new Error("PNG could not be scaled under cap");
+  return tiny;
+}
+
+// src/content.ts
 var packageRoot2 = path3.resolve(path3.dirname(fileURLToPath3(import.meta.url)), "..");
 var MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 function resolveScreenshotPath(p) {
   return path3.isAbsolute(p) ? p : path3.join(packageRoot2, p);
+}
+function pngNote(text) {
+  return { type: "text", text };
 }
 async function buildCheckToolContent(result) {
   const content = [{ type: "text", text: JSON.stringify(result, null, 2) }];
@@ -527,58 +791,29 @@ async function buildCheckToolContent(result) {
   try {
     const buf = await readFile(resolveScreenshotPath(result.screenshotPath));
     if (buf.length === 0) {
-      content.push({ type: "text", text: "PNG omitted: screenshot file is empty" });
+      content.push(pngNote("PNG omitted: screenshot file is empty"));
       return { content };
     }
-    if (buf.length > MAX_IMAGE_BYTES) {
-      content.push({
-        type: "text",
-        text: `PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`
-      });
+    const attach = buf.length <= MAX_IMAGE_BYTES ? buf : fitPngUnderCap(buf, MAX_IMAGE_BYTES);
+    if (attach.length > MAX_IMAGE_BYTES) {
+      content.push(pngNote(`PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`));
       return { content };
     }
     content.push({
       type: "image",
       mimeType: "image/png",
-      data: buf.toString("base64")
+      data: attach.toString("base64")
     });
-  } catch {
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+    if (code === "ENOENT") {
+      content.push(pngNote("PNG omitted: screenshot file is missing"));
+    } else {
+      const msg = err instanceof Error ? err.message : String(err);
+      content.push(pngNote(`PNG omitted: ${msg}`));
+    }
   }
   return { content };
-}
-
-// src/profiles.ts
-var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
-function loginInstructions(profile, urlHint) {
-  const where = urlHint ? ` Log in at ${urlHint}.` : " Log in.";
-  return {
-    profileId: profile.id,
-    name: profile.name,
-    consoleUrl: CONSOLE_PROFILES_URL,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save, then run auspex check with --profile ${profile.name}`
-  };
-}
-async function ensureProfile(name) {
-  const solari = createClient();
-  try {
-    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === name.trim());
-    const profile = existing ?? await solari.profiles.create({ name });
-    return { id: profile.id, name: profile.name };
-  } finally {
-    await solari.close();
-  }
-}
-async function loginProfile(name, urlHint) {
-  const profile = await ensureProfile(name);
-  return loginInstructions(profile, urlHint);
-}
-async function listProfiles() {
-  const solari = createClient();
-  try {
-    return (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name }));
-  } finally {
-    await solari.close();
-  }
 }
 
 // src/sandbox.ts
@@ -665,6 +900,8 @@ async function loadRunFiles(runDir2) {
 }
 
 // src/sandbox.ts
+var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
+var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + SANDBOX_ASSERT_TIMEOUT_MS;
 function defaultVerifyDeps() {
   return {
     create: async () => {
@@ -714,28 +951,122 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
     await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY);
     const out = await boundPromise(
       sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
-      6e4,
-      "sandbox assert timed out after 60000ms"
+      SANDBOX_ASSERT_TIMEOUT_MS,
+      `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`
     );
     const parsed = parseAssertStdout(out.stdout || out.stderr || "");
     if (out.exitCode !== 0 && parsed.ok) {
       parsed.ok = false;
       parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
     }
-    return { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+    const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+    try {
+      await sandbox.kill();
+    } catch (killErr) {
+      const msg = `sandbox kill failed: ${explainSolariError(killErr)}`;
+      return { ...result, ok: false, errors: [...result.errors, msg] };
+    }
+    return result;
   } catch (err) {
-    throw new Error(explainSolariError(err));
-  } finally {
     try {
       await sandbox.kill();
     } catch {
     }
+    throw new Error(explainSolariError(err));
   }
 }
 async function checkThenVerify(opts, deps) {
-  const check = await runCheck(opts);
-  const verify = await verifyReceipt(runDirFromResult(check), deps);
-  return { check, verify };
+  const check = deps?.check ? await deps.check(opts) : await runCheck(opts);
+  const dir = runDirFromResult(check);
+  try {
+    const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, deps?.create ? { create: deps.create } : void 0);
+    return { check, verify };
+  } catch (err) {
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [explainSolariError(err)],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir
+      }
+    };
+  }
+}
+
+// src/mcp-tools.ts
+function registerAuspexTools(server2) {
+  server2.registerTool(
+    "auspex_check",
+    {
+      description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (on-disk shot stays full-page; MCP attach is downscaled to 2 MiB if needed). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
+      inputSchema: auspexCheckInputObject
+    },
+    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }) => {
+      try {
+        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile };
+        assertRecordProfileAllowed(opts);
+        if (verify) {
+          const both = await checkThenVerify(opts);
+          const packed = await buildCheckToolContent(both.check);
+          packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) };
+          return packed;
+        }
+        const result = await runCheck(opts);
+        return await buildCheckToolContent(result);
+      } catch (err) {
+        throw new Error(explainSolariError(err));
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_login",
+    {
+      description: "Create or reuse a named Solari browser profile, then tell the human to log in via Console \u2192 Profiles \u2192 Open editor \u2192 Save. Does not keep a check session open. After Save, pass this profile to auspex_check.",
+      inputSchema: auspexLoginInputSchema
+    },
+    async ({ profile, url }) => {
+      try {
+        const result = await loginProfile(profile, url);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        throw new Error(explainSolariError(err));
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_profiles",
+    {
+      description: "List Solari browser profile names and ids on this account.",
+      inputSchema: {}
+    },
+    async () => {
+      try {
+        const profiles = await listProfiles();
+        return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+      } catch (err) {
+        throw new Error(explainSolariError(err));
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_verify",
+    {
+      description: "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
+      inputSchema: {
+        runDir: z5.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory")
+      }
+    },
+    async ({ runDir: runDir2 }) => {
+      try {
+        const result = await verifyReceipt(runDir2);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        throw new Error(explainSolariError(err));
+      }
+    }
+  );
 }
 
 // src/stdio-transport.ts
@@ -763,14 +1094,14 @@ var DualStdioServerTransport = class _DualStdioServerTransport {
   started = false;
   buffer = Buffer.alloc(0);
   replyContentLength = false;
-  ondata = (chunk) => {
+  ondata = (chunk2) => {
     try {
-      if (this.buffer.length + chunk.length > _DualStdioServerTransport.MAX_BUFFER_BYTES) {
+      if (this.buffer.length + chunk2.length > _DualStdioServerTransport.MAX_BUFFER_BYTES) {
         throw new Error(
           `ReadBuffer exceeded maximum size of ${_DualStdioServerTransport.MAX_BUFFER_BYTES} bytes`
         );
       }
-      this.buffer = Buffer.concat([this.buffer, chunk]);
+      this.buffer = Buffer.concat([this.buffer, chunk2]);
       this.drain();
     } catch (error) {
       this.onerror?.(error instanceof Error ? error : new Error(String(error)));
@@ -891,90 +1222,10 @@ var DualStdioServerTransport = class _DualStdioServerTransport {
 };
 
 // src/mcp.ts
-var server = new McpServer({
+var server = new McpServer2({
   name: "auspex",
   version: "0.1.0"
 });
-server.registerTool(
-  "auspex_check",
-  {
-    description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (or a note if the PNG exceeds 2 MiB). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
-    inputSchema: {
-      url: httpUrlSchema.describe("http or https URL to open"),
-      expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
-      selector: z3.string().optional().describe("Optional CSS selector to extract instead of body"),
-      profile: z3.string().optional().describe("Solari profile name to reuse cookies/storage"),
-      stealth: z3.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
-      record: z3.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
-      sso: z3.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
-      verify: z3.boolean().optional().describe("After check, audit the receipt in a headless Solari sandbox and kill the VM")
-    }
-  },
-  async ({ url, expect, selector, profile, stealth, record, sso, verify }) => {
-    try {
-      const opts = { url, expect, selector, profile, stealth, record, sso };
-      if (verify) {
-        const both = await checkThenVerify(opts);
-        const packed = await buildCheckToolContent(both.check);
-        packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) };
-        return packed;
-      }
-      const result = await runCheck(opts);
-      return await buildCheckToolContent(result);
-    } catch (err) {
-      throw new Error(explainSolariError(err));
-    }
-  }
-);
-server.registerTool(
-  "auspex_login",
-  {
-    description: "Create or reuse a named Solari browser profile, then tell the human to log in via Console \u2192 Profiles \u2192 Open editor \u2192 Save. Does not keep a check session open. After Save, pass this profile to auspex_check.",
-    inputSchema: {
-      profile: z3.string().describe("Profile name to create or reuse"),
-      url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human")
-    }
-  },
-  async ({ profile, url }) => {
-    try {
-      const result = await loginProfile(profile, url);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    } catch (err) {
-      throw new Error(explainSolariError(err));
-    }
-  }
-);
-server.registerTool(
-  "auspex_profiles",
-  {
-    description: "List Solari browser profile names and ids on this account.",
-    inputSchema: {}
-  },
-  async () => {
-    try {
-      const profiles = await listProfiles();
-      return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
-    } catch (err) {
-      throw new Error(explainSolariError(err));
-    }
-  }
-);
-server.registerTool(
-  "auspex_verify",
-  {
-    description: "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
-    inputSchema: {
-      runDir: z3.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory")
-    }
-  },
-  async ({ runDir: runDir2 }) => {
-    try {
-      const result = await verifyReceipt(runDir2);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
-    } catch (err) {
-      throw new Error(explainSolariError(err));
-    }
-  }
-);
+registerAuspexTools(server);
 var transport = new DualStdioServerTransport();
 await server.connect(transport);

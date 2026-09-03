@@ -25,7 +25,7 @@ If this session has **`solari__*`** tools (official Solari MCP), you may use the
 ## CLI
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--sso]
+npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 npx tsx src/cli.ts verify [runDir]

@@ -11,7 +11,7 @@ args = ["/absolute/path/to/auspex/examples/auspex-ts/dist/mcp.mjs"]
 cwd = "/absolute/path/to/auspex/examples/auspex-ts"
 enabled = true
 startup_timeout_sec = 30
-tool_timeout_sec = 180
+tool_timeout_sec = 300
 
 # Official Solari MCP (browser / sandbox / desktop). Separate from Auspex.
 # dist/solari-mcp.mjs starts @solarisdk/mcp only if SOLARI_API_KEY is in env or .env;

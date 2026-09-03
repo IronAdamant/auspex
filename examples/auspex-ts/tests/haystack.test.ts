@@ -2,7 +2,8 @@ import assert from "node:assert/strict"
 import path from "node:path"
 import test from "node:test"
 import { excerptOf, expectSchema, haystackMatches, normalizeHaystack } from "../src/text.ts"
-import { httpUrlSchema, isHttpOrHttpsUrl } from "../src/http-url.ts"
+import { checkUrlSchema, httpUrlSchema, isHttpOrHttpsUrl } from "../src/http-url.ts"
+import { auspexCheckInputSchema, auspexLoginInputSchema } from "../src/tool-schema.ts"
 import { toReceiptPath, packageRoot } from "../src/check.ts"
 import { findProfileId, toPlaywrightStorageState } from "../src/solari.ts"
 
@@ -25,6 +26,50 @@ test("expectSchema and httpUrlSchema reject whitespace and non-http(s)", () => {
   assert.equal(isHttpOrHttpsUrl("http://example.com"), true)
   assert.equal(isHttpOrHttpsUrl("https://user:pass@example.com/"), false)
   assert.equal(httpUrlSchema.safeParse("https://user:pass@example.com/").success, false)
+})
+
+test("checkUrlSchema rejects loopback hosts that Solari cloud Chrome cannot see", () => {
+  for (const url of ["http://localhost:3000", "http://127.0.0.1/", "http://[::1]/"]) {
+    const parsed = checkUrlSchema.safeParse(url)
+    assert.equal(parsed.success, false, url)
+    if (!parsed.success) {
+      assert.match(parsed.error.message, /loopback|cloud|agent machine/i)
+    }
+  }
+  assert.equal(checkUrlSchema.safeParse("https://ironadamant.com").success, true)
+  assert.equal(httpUrlSchema.safeParse("http://localhost:3000").success, true)
+})
+
+test("MCP auspex_check schema rejects loopback, record+profile, and whitespace profile", () => {
+  const base = { url: "https://ironadamant.com", expect: "Build it." }
+  assert.equal(auspexCheckInputSchema.safeParse(base).success, true)
+  const loop = auspexCheckInputSchema.safeParse({ ...base, url: "http://localhost:3000" })
+  assert.equal(loop.success, false)
+  if (!loop.success) assert.match(loop.error.message, /loopback|cloud|agent machine/i)
+  const rec = auspexCheckInputSchema.safeParse({
+    ...base,
+    record: true,
+    profile: "consistencyhub",
+  })
+  assert.equal(rec.success, false)
+  if (!rec.success) assert.match(rec.error.message, /allow-record-profile|record/i)
+  const recOk = auspexCheckInputSchema.safeParse({
+    ...base,
+    record: true,
+    profile: "consistencyhub",
+    allowRecordProfile: true,
+  })
+  assert.equal(recOk.success, true)
+  const ws = auspexCheckInputSchema.safeParse({ ...base, profile: "   " })
+  assert.equal(ws.success, false)
+})
+
+test("MCP auspex_login schema rejects whitespace-only profile names", () => {
+  assert.equal(auspexLoginInputSchema.safeParse({ profile: "auspex-demo" }).success, true)
+  assert.equal(auspexLoginInputSchema.safeParse({ profile: "   " }).success, false)
+  const trimmed = auspexLoginInputSchema.safeParse({ profile: "  auspex-demo  " })
+  assert.equal(trimmed.success, true)
+  if (trimmed.success) assert.equal(trimmed.data.profile, "auspex-demo")
 })
 
 test("toReceiptPath does not embed an absolute home path", () => {
