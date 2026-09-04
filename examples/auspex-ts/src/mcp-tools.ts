@@ -1,7 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { runCheck } from "./check.ts"
-import { buildCheckToolContent } from "./content.ts"
+import { buildCheckToolContent, buildReceiptToolContent } from "./content.ts"
+import { runDesktopReview } from "./desktop.ts"
 import { explainSolariError } from "./errors.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
@@ -60,6 +61,28 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const profiles = await listProfiles()
         return { content: [{ type: "text" as const, text: JSON.stringify(profiles, null, 2) }] }
+      } catch (err) {
+        throw new Error(explainSolariError(err))
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_desktop",
+    {
+      description:
+        "Minimal Solari GUI desktop: boot, screenshot, kill. Always returns an append-only ASCII log (:: booting … ==> ok=true path=…) as the tool text so Grok/Codex/Claude can show it without a TTY. Optional PNG. No VNC. Desktops need Starter or higher.",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = await runDesktopReview()
+        const packed = await buildReceiptToolContent(
+          { ok: result.ok, ready: result.ready, screenshotPath: result.screenshotPath, errors: result.errors },
+          result.screenshotPath,
+        )
+        packed.content[0] = { type: "text", text: result.log }
+        return packed
       } catch (err) {
         throw new Error(explainSolariError(err))
       }

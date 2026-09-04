@@ -21,6 +21,7 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /profiles/)
   assert.match(USAGE, /verify/)
   assert.match(USAGE, /--verify/)
+  assert.match(USAGE, /desktop/)
 })
 
 test("parseArgv --help and check --help request help", () => {
@@ -118,6 +119,7 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /profiles/)
   assert.match(help.stdout, /verify/)
   assert.match(help.stdout, /--verify/)
+  assert.match(help.stdout, /desktop/)
 })
 
 test("shipped CLI check --help lists login and profiles", () => {
@@ -245,4 +247,12 @@ test("shipped CLI rejects whitespace-only --profile", () => {
   const login = runCli(["login", "--profile", "   "])
   assert.notEqual(login.status, 0)
   assert.match(`${login.stderr}${login.stdout}`, /profile name/i)
+})
+
+test("parseArgv desktop takes no extra args", () => {
+  const a = parseArgv(["desktop"])
+  assert.equal(a.status, "ok")
+  if (a.status === "ok") assert.equal(a.command.cmd, "desktop")
+  const b = parseArgv(["desktop", "extra"])
+  assert.equal(b.status, "error")
 })

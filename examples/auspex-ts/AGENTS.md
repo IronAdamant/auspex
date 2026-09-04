@@ -12,6 +12,7 @@ If this session has **`solari__*`** tools (official Solari MCP), you may use the
 - `auspex_login` — create/reuse a named profile. Tell the human to open Console → Profiles → Open editor → Save. Then pass `profile` to `auspex_check`.
 - `auspex_profiles` — list names/ids.
 - `auspex_verify` — after a check, run the receipt through a headless Solari sandbox (PNG + JSON), then kill the VM. Login stays on the browser profile.
+- `auspex_desktop` — boot a Solari GUI desktop, screenshot, kill. No VNC. Always emits an append-only ASCII log (`:: booting` … `==> ok=true path=…`) as the tool text / CLI stderr so you can quote the log instead of dumping JSON.
 
 ## Rules
 
@@ -29,6 +30,7 @@ npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 npx tsx src/cli.ts verify [runDir]
+npx tsx src/cli.ts desktop
 ```
 
 `--sso` is for Microsoft login cards (e.g. ConsistencyHub): click Sign in with Microsoft, then the signed-in account. Use with `--profile`.

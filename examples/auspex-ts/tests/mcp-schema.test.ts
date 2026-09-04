@@ -34,6 +34,9 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     const required = check.inputSchema.required ?? []
     assert.ok(required.includes("url"))
     assert.ok(required.includes("expect"))
+    const desktop = listed.tools.find((t) => t.name === "auspex_desktop")
+    assert.ok(desktop, "auspex_desktop missing from ListTools")
+    assert.match(desktop.description ?? "", /auspex_desktop|overview|log|shell/i)
   } finally {
     await client.close()
     await mcp.close()

@@ -14,4 +14,6 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /fitPngUnderCap/)
   assert.match(dist, /screenshot file is missing/)
   assert.match(dist, /inputSchema:\s*auspexCheckInputObject/)
+  assert.match(dist, /auspex_desktop/)
+  assert.match(dist, /Starting Solari desktop review/)
 })

@@ -20,13 +20,14 @@ function pngNote(text: string): ToolTextContent {
   return { type: "text", text }
 }
 
-export async function buildCheckToolContent(
-  result: CheckResult,
+export async function buildReceiptToolContent(
+  payload: object,
+  screenshotPath?: string,
 ): Promise<{ content: ToolContent[] }> {
-  const content: ToolContent[] = [{ type: "text", text: JSON.stringify(result, null, 2) }]
-  if (!result.screenshotPath) return { content }
+  const content: ToolContent[] = [{ type: "text", text: JSON.stringify(payload, null, 2) }]
+  if (!screenshotPath) return { content }
   try {
-    const buf = await readFile(resolveScreenshotPath(result.screenshotPath))
+    const buf = await readFile(resolveScreenshotPath(screenshotPath))
     if (buf.length === 0) {
       content.push(pngNote("PNG omitted: screenshot file is empty"))
       return { content }
@@ -51,4 +52,10 @@ export async function buildCheckToolContent(
     }
   }
   return { content }
+}
+
+export async function buildCheckToolContent(
+  result: CheckResult,
+): Promise<{ content: ToolContent[] }> {
+  return buildReceiptToolContent(result, result.screenshotPath)
 }

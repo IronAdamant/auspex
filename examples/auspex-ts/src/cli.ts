@@ -4,6 +4,7 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
+import { runDesktopReview } from "./desktop.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
@@ -11,16 +12,18 @@ import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 export const USAGE = `Usage:
   npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
   npx tsx src/cli.ts verify [runDir]
+  npx tsx src/cli.ts desktop
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
 verify uploads that receipt into a headless Solari sandbox, asserts PNG + JSON, and kills the VM.
 --verify on check runs verify on that run immediately. Integrity (PNG/path/auth URL) is separate from claim ok/matched.
+desktop boots a Solari GUI VM, takes a screenshot, and kills it. Stderr is an append-only log (:: booting, :: screenshot, …) like apt/pacman — any shell. Stdout is JSON for the agent. No VNC.
 login creates or reuses a named Solari profile and prints the console Profiles editor (log in live, Save).
 profiles lists profile names and ids.
 
-Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes.
+Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
 Never commit .env or .auspex/ run artifacts.
 `
 
@@ -30,6 +33,7 @@ export type CliCommand =
   | { cmd: "login"; profile: string; url?: string }
   | { cmd: "profiles" }
   | { cmd: "verify"; runDir?: string }
+  | { cmd: "desktop" }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -151,6 +155,13 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     return { status: "ok", command: { cmd: "profiles" } }
   }
+  if (cmd === "desktop") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    return { status: "ok", command: { cmd: "desktop" } }
+  }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
 
@@ -182,6 +193,11 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (parsed.command.cmd === "verify") {
       const result = await verifyReceipt(parsed.command.runDir)
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+      return result.ok ? 0 : 1
+    }
+    if (parsed.command.cmd === "desktop") {
+      const result = await runDesktopReview()
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1
     }

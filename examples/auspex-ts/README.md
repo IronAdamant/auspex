@@ -41,6 +41,7 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ```
 npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
 npx tsx src/cli.ts verify [runDir]
+npx tsx src/cli.ts desktop
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 ```
@@ -62,6 +63,7 @@ Two servers, one key. Copy both tables from [grok.mcp.example.toml](grok.mcp.exa
 - `auspex_check` — JSON + PNG (optional `verify` runs the sandbox after)
 - `auspex_verify` — headless VM audits the receipt, then **kill**
 - `auspex_login` / `auspex_profiles`
+- `auspex_desktop` — Solari GUI VM, screenshot, **kill**. Always returns the ASCII log (`:: booting` … `==> ok=true path=…`) as the tool text. No VNC.
 
 Live: ironadamant.com (`Build it.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 

@@ -400,8 +400,8 @@ function stillOnAuth(url) {
   if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com")) {
     return true;
   }
-  const path5 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path5 === "/login" || path5.startsWith("/login/") || path5 === "/auth" || path5.startsWith("/auth/")) {
+  const path6 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path6 === "/login" || path6.startsWith("/login/") || path6 === "/auth" || path6.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -785,11 +785,11 @@ function resolveScreenshotPath(p) {
 function pngNote(text) {
   return { type: "text", text };
 }
-async function buildCheckToolContent(result) {
-  const content = [{ type: "text", text: JSON.stringify(result, null, 2) }];
-  if (!result.screenshotPath) return { content };
+async function buildReceiptToolContent(payload, screenshotPath) {
+  const content = [{ type: "text", text: JSON.stringify(payload, null, 2) }];
+  if (!screenshotPath) return { content };
   try {
-    const buf = await readFile(resolveScreenshotPath(result.screenshotPath));
+    const buf = await readFile(resolveScreenshotPath(screenshotPath));
     if (buf.length === 0) {
       content.push(pngNote("PNG omitted: screenshot file is empty"));
       return { content };
@@ -815,14 +815,178 @@ async function buildCheckToolContent(result) {
   }
   return { content };
 }
+async function buildCheckToolContent(result) {
+  return buildReceiptToolContent(result, result.screenshotPath);
+}
+
+// src/desktop.ts
+import { mkdirSync, writeFileSync } from "node:fs";
+import path4 from "node:path";
+import { SolariClient } from "@solarisdk/sdk";
+
+// src/banner.ts
+var REVIEW_START = "Agent is using Solari to review";
+var REVIEW_DONE = "Solari closed, all operations completed per request. Agent sending output...";
+
+// src/tui.ts
+function desktopOverviewText() {
+  return `auspex_desktop
+${REVIEW_START}
+${REVIEW_DONE}`;
+}
+function desktopLogLine(phase) {
+  if (phase === "done") return `==> ${REVIEW_DONE}`;
+  return `:: ${phase}`;
+}
+function desktopLogHeader() {
+  return `:: Starting Solari desktop review
+==> ${REVIEW_START}`;
+}
+function desktopSummary(opts) {
+  const err = opts.errors.length ? ` errors=${opts.errors.join("; ")}` : "";
+  return `==> ok=${opts.ok} ready=${opts.ready}${err}
+==> path=${opts.screenshotPath}`;
+}
+function createDesktopTui(stream) {
+  let started = false;
+  const lines = [];
+  const write = (s) => {
+    for (const line of s.split("\n")) {
+      lines.push(line);
+      stream.write(`${line}
+`);
+    }
+  };
+  return {
+    setPhase: (phase) => {
+      if (phase === "done") {
+        write(desktopLogLine("done"));
+        return;
+      }
+      if (!started) {
+        started = true;
+        write(desktopLogHeader());
+      }
+      write(desktopLogLine(phase));
+    },
+    close: () => write(desktopLogLine("done")),
+    transcript: () => lines.join("\n")
+  };
+}
+
+// src/desktop.ts
+var DESKTOP_OVERALL_MS = 9e4;
+var DESKTOP_HEALTH_MS = 3e4;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function defaultDesktopDeps() {
+  return {
+    create: async () => {
+      const pt = new SolariClient({ apiKey: requireApiKey() });
+      const d = await pt.desktops.create({
+        template: "default",
+        resolution: "1280x720",
+        timeoutMs: 5 * 6e4,
+        lifecycle: { onTimeout: "kill" }
+      });
+      return {
+        sessionId: d.sessionId,
+        connect: () => d.connect(),
+        health: () => d.health(),
+        screenshot: () => d.screenshot({ format: "png" }),
+        kill: () => d.kill()
+      };
+    }
+  };
+}
+function newRunDir() {
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+  return path4.join(packageRoot, ".auspex", "runs", stamp);
+}
+async function waitReady(desktop, sleepFn) {
+  const deadline = Date.now() + DESKTOP_HEALTH_MS;
+  while (Date.now() < deadline) {
+    try {
+      const health = await desktop.health();
+      if (health.ready) return true;
+    } catch {
+    }
+    await sleepFn(1e3);
+  }
+  return false;
+}
+async function runDesktopReview(deps = defaultDesktopDeps()) {
+  const status = deps.status ?? process.stderr;
+  const sleepFn = deps.sleep ?? sleep;
+  const tui = deps.tui ?? createDesktopTui(status);
+  const overview = desktopOverviewText();
+  tui.setPhase("booting");
+  let desktop;
+  try {
+    return await boundPromise(
+      (async () => {
+        desktop = await deps.create();
+        tui.setPhase("connecting");
+        await desktop.connect();
+        tui.setPhase("waiting");
+        const ready = await waitReady(desktop, sleepFn);
+        tui.setPhase("screenshot");
+        const png = await desktop.screenshot();
+        const dir = newRunDir();
+        mkdirSync(dir, { recursive: true });
+        const abs = path4.join(dir, "screenshot.png");
+        writeFileSync(abs, png);
+        const desktopId = desktop.sessionId;
+        tui.setPhase("killing");
+        let killErr;
+        try {
+          await desktop.kill();
+        } catch (err) {
+          killErr = `desktop kill failed: ${explainSolariError(err)}`;
+        }
+        desktop = void 0;
+        tui.close();
+        const errors = killErr ? [killErr] : [];
+        const screenshotPath = toReceiptPath(abs);
+        const ok = errors.length === 0;
+        const summary = desktopSummary({ ok, ready, screenshotPath, errors });
+        status.write(`${summary}
+`);
+        const log = `${tui.transcript()}
+${summary}`;
+        return {
+          ok,
+          errors,
+          desktopId,
+          screenshotPath,
+          ready,
+          overview,
+          log
+        };
+      })(),
+      DESKTOP_OVERALL_MS,
+      `desktop review timed out after ${DESKTOP_OVERALL_MS}ms`
+    );
+  } catch (err) {
+    if (desktop) {
+      try {
+        await desktop.kill();
+      } catch {
+      }
+    }
+    tui.close();
+    throw new Error(explainSolariError(err));
+  }
+}
 
 // src/sandbox.ts
-import { SolariClient } from "@solarisdk/sdk";
+import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 
 // src/receipt.ts
 import { readdir, readFile as readFile2, stat } from "node:fs/promises";
-import path4 from "node:path";
-var RUNS_DIR = path4.join(packageRoot, ".auspex", "runs");
+import path5 from "node:path";
+var RUNS_DIR = path5.join(packageRoot, ".auspex", "runs");
 var RECEIPT_ASSERT_PY = `import json, sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -861,9 +1025,9 @@ print(json.dumps(out))
 sys.exit(0 if out["ok"] else 1)
 `;
 function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
-  const dir = path4.resolve(runDir2);
-  const root = path4.resolve(runsDir);
-  if (dir !== root && !dir.startsWith(root + path4.sep)) {
+  const dir = path5.resolve(runDir2);
+  const root = path5.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path5.sep)) {
     throw new Error("runDir must be under .auspex/runs");
   }
   return dir;
@@ -877,15 +1041,15 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   }
   const dirs = [];
   for (const name of names.sort().reverse()) {
-    const dir = path4.join(runsDir, name);
+    const dir = path5.join(runsDir, name);
     const st = await stat(dir).catch(() => void 0);
     if (!st?.isDirectory()) continue;
     dirs.push(dir);
   }
   for (const dir of dirs) {
     try {
-      await stat(path4.join(dir, "manifest.json"));
-      await stat(path4.join(dir, "screenshot.png"));
+      await stat(path5.join(dir, "manifest.json"));
+      await stat(path5.join(dir, "screenshot.png"));
       return dir;
     } catch {
       continue;
@@ -894,8 +1058,8 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`);
 }
 async function loadRunFiles(runDir2) {
-  const manifest = await readFile2(path4.join(runDir2, "manifest.json"), "utf8");
-  const png = await readFile2(path4.join(runDir2, "screenshot.png"));
+  const manifest = await readFile2(path5.join(runDir2, "manifest.json"), "utf8");
+  const png = await readFile2(path5.join(runDir2, "screenshot.png"));
   return { manifest, png };
 }
 
@@ -905,7 +1069,7 @@ var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + SANDBOX
 function defaultVerifyDeps() {
   return {
     create: async () => {
-      const pt = new SolariClient({ apiKey: requireApiKey() });
+      const pt = new SolariClient2({ apiKey: requireApiKey() });
       return pt.sandboxes.create({
         template: "base",
         timeoutMs: 5 * 6e4,
@@ -1045,6 +1209,26 @@ function registerAuspexTools(server2) {
       try {
         const profiles = await listProfiles();
         return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+      } catch (err) {
+        throw new Error(explainSolariError(err));
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_desktop",
+    {
+      description: "Minimal Solari GUI desktop: boot, screenshot, kill. Always returns an append-only ASCII log (:: booting \u2026 ==> ok=true path=\u2026) as the tool text so Grok/Codex/Claude can show it without a TTY. Optional PNG. No VNC. Desktops need Starter or higher.",
+      inputSchema: {}
+    },
+    async () => {
+      try {
+        const result = await runDesktopReview();
+        const packed = await buildReceiptToolContent(
+          { ok: result.ok, ready: result.ready, screenshotPath: result.screenshotPath, errors: result.errors },
+          result.screenshotPath
+        );
+        packed.content[0] = { type: "text", text: result.log };
+        return packed;
       } catch (err) {
         throw new Error(explainSolariError(err));
       }
