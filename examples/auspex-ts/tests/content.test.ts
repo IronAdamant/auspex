@@ -81,7 +81,7 @@ test("buildCheckToolContent downscales oversized on-disk PNGs without rewriting 
   }
 })
 
-test("fitMcpAttach bytes decode as a real PNG (inflate IDAT + sips)", async () => {
+test("fitMcpAttach bytes decode as a real PNG (inflate IDAT)", async () => {
   const { mkdtempSync, writeFileSync, readFileSync } = await import("node:fs")
   const { tmpdir } = await import("node:os")
   const { spawnSync } = await import("node:child_process")
@@ -96,10 +96,31 @@ test("fitMcpAttach bytes decode as a real PNG (inflate IDAT + sips)", async () =
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-sips-"))
   const file = path.join(dir, "attach.png")
   writeFileSync(file, buf)
+  const py = spawnSync(
+    "python3",
+    [
+      "-c",
+      "import sys,zlib,struct\n"
+        + "png=open(sys.argv[1],'rb').read()\n"
+        + "assert png[:8]==bytes.fromhex('89504e470d0a1a0a')\n"
+        + "i=8; idats=[]\n"
+        + "while i+12<=len(png):\n"
+        + " ln=struct.unpack('>I', png[i:i+4])[0]; typ=png[i+4:i+8]; data=png[i+8:i+8+ln]; i+=12+ln\n"
+        + " if typ==b'IDAT': idats.append(data)\n"
+        + " if typ==b'IEND': break\n"
+        + "raw=zlib.decompress(b''.join(idats))\n"
+        + "assert len(raw)>0\n",
+      file,
+    ],
+    { encoding: "utf8" },
+  )
+  assert.equal(py.status, 0, py.stderr + py.stdout)
   const sips = spawnSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file], { encoding: "utf8" })
-  assert.equal(sips.status, 0, sips.stderr)
-  assert.match(sips.stdout, /pixelWidth: \d+/)
-  assert.doesNotMatch(sips.stderr + sips.stdout, /error 13|Unable to render/i)
+  if (sips.status !== null) {
+    assert.equal(sips.status, 0, sips.stderr)
+    assert.match(sips.stdout, /pixelWidth: \d+/)
+    assert.doesNotMatch(sips.stderr + sips.stdout, /error 13|Unable to render/i)
+  }
   assert.ok(readFileSync(file).equals(buf))
 })
 
