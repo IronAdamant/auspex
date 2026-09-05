@@ -4,6 +4,7 @@ export type DesktopPhase =
   | "booting"
   | "connecting"
   | "waiting"
+  | "task"
   | "screenshot"
   | "killing"
   | "done"

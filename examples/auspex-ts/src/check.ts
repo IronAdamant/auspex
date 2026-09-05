@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -10,12 +11,13 @@ import {
   createClient,
   GOTO_TIMEOUT_MS,
   launchBrowser,
-  NETWORKIDLE_TIMEOUT_MS,
   OVERALL_TIMEOUT_MS,
   pageForSession,
   resolveProfileId,
+  waitUntilReleased,
 } from "./solari.ts"
-import { explainSolariError } from "./errors.ts"
+import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
+import { noopProgress, type ProgressFn } from "./progress.ts"
 import { completeMicrosoftSso, shouldFailClosedAuth } from "./sso.ts"
 import {
   boundPromise,
@@ -38,6 +40,7 @@ export type CheckOptions = {
   record?: boolean
   sso?: boolean
   allowRecordProfile?: boolean
+  onProgress?: ProgressFn
 }
 
 export type CheckResult = {
@@ -70,20 +73,22 @@ function runDir(): string {
   return path.join(packageRoot, ".auspex", "runs", stamp)
 }
 
-async function extractText(page: Page, selector: string | undefined, signal: AbortSignal): Promise<string> {
-  if (selector) {
-    return page.locator(selector).first().innerText({ timeout: 10_000, signal })
-  }
-  return page.locator("body").innerText({ timeout: 30_000, signal })
-}
-
-async function waitNetworkIdle(page: Page, signal: AbortSignal): Promise<boolean> {
-  try {
-    await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal })
-    return true
-  } catch {
-    return false
-  }
+async function extractPage(
+  page: Page,
+  selector: string | undefined,
+  signal: AbortSignal,
+): Promise<{ title: string; finalUrl: string; raw: string }> {
+  return observeAbort(
+    page.evaluate((sel: string | null) => {
+      const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
+      return {
+        title: document.title,
+        finalUrl: location.href,
+        raw: el?.innerText ?? "",
+      }
+    }, selector ?? null),
+    signal,
+  )
 }
 
 export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
@@ -91,6 +96,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   requireCheckUrl(opts.url, "url")
   assertRecordProfileAllowed(opts)
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
+  const onProgress = opts.onProgress ?? noopProgress
   const solari = createClient()
   const closer = new ReadyRelease()
   let sessionId = ""
@@ -108,6 +114,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
     try {
+      onProgress("launching")
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
       const browser = await observeAbort(
@@ -123,9 +130,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         signal,
       )
       closer.set(async () => {
+        onProgress("closing")
         await closeThenRelease(
           () => browser.close(),
-          () => solari.sessions.releaseAndWait(browser.id),
+          async () => {
+            await solari.sessions.releaseAndWait(browser.id)
+            await waitUntilReleased(browser.id).catch(() => undefined)
+          },
           CLOSE_TIMEOUT_MS,
         )
       })
@@ -133,27 +144,31 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (isCancelled()) return
       const page = await pageForSession(browser)
       if (isCancelled()) return
+      onProgress("goto")
       await page.goto(opts.url, {
         timeout: GOTO_TIMEOUT_MS,
         waitUntil: "domcontentloaded",
         signal,
       })
-      networkIdle = await waitNetworkIdle(page, signal)
       if (isCancelled()) return
       if (opts.sso) {
+        onProgress("sso")
         await completeMicrosoftSso(page, { isCancelled, signal })
-        networkIdle = await waitNetworkIdle(page, signal)
       }
       if (isCancelled()) return
-      title = await observeAbort(page.title(), signal)
-      finalUrl = page.url()
+      onProgress("extract")
       let raw = ""
       try {
-        raw = await extractText(page, opts.selector, signal)
+        const extracted = await extractPage(page, opts.selector, signal)
+        title = extracted.title
+        finalUrl = extracted.finalUrl || page.url()
+        raw = extracted.raw
         const haystack = normalizeHaystack(raw)
         excerpt = excerptOf(haystack)
         matched = haystackMatches(raw, opts.expect)
       } catch (extractErr) {
+        title = title || (await observeAbort(page.title(), signal).catch(() => ""))
+        finalUrl = page.url()
         const authUrl = new URL(finalUrl)
         if (shouldFailClosedAuth(authUrl, opts)) {
           matched = false
@@ -166,6 +181,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         matched = false
         excerpt = `still on ${finalUrl}. ${excerpt}`
       }
+      onProgress("screenshot")
       await page.screenshot({
         path: screenshotAbs,
         type: "png",
@@ -198,7 +214,14 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         throw new Error(closeMsg)
       }
     }
-    if (workError) throw new Error(explainSolariError(workError))
+    if (workError) {
+      throw new AuspexError(explainSolariError(workError), {
+        issue: classifySolariError(workError),
+        sessionId: sessionId || undefined,
+        screenshotPath: existsSync(screenshotAbs) ? screenshotPath : undefined,
+        cause: workError,
+      })
+    }
 
     const result: CheckResult = {
       title,

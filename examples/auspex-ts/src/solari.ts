@@ -8,6 +8,7 @@ import {
   CHROMIUM_CONNECT_TIMEOUT_MS,
   CLOSE_TIMEOUT_MS,
   closeThenRelease,
+  observeAbort,
 } from "./timeout.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
@@ -23,6 +24,7 @@ export type LaunchDeps = {
   connect: (wsEndpoint: string, opts: { timeout: number }) => Promise<unknown>
   wrap: (session: LaunchSession, browser: unknown) => { close: () => Promise<void> }
   releaseAndWait: (id: string) => Promise<void>
+  getStatus?: (id: string) => Promise<{ status?: string }>
   closeTimeoutMs?: number
 }
 
@@ -33,14 +35,74 @@ export function defaultLaunchDeps(solari: Solari): LaunchDeps {
     wrap: (session, browser) =>
       new BrowserSession(solari, session as never, browser as never),
     releaseAndWait: (id) => solari.sessions.releaseAndWait(id),
+    getStatus: (id) => getSessionStatus(id),
+  }
+}
+
+export function fetchWithIdempotencyKey(base: typeof fetch = fetch): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    const method = (init?.method ?? "GET").toUpperCase()
+    const url = String(input)
+    let path = url
+    try {
+      path = new URL(url, BROWSER_API_BASE).pathname
+    } catch {
+      /* use raw */
+    }
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path)
+    if (isVmCreate && !headers.has("Idempotency-Key")) {
+      headers.set("Idempotency-Key", crypto.randomUUID())
+    }
+    return base(input, { ...init, headers })
+  }) as typeof fetch
+}
+
+export async function getSessionStatus(
+  id: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ status?: string }> {
+  const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${requireApiKey()}` },
+  })
+  if (!res.ok) throw new Error(`session status ${res.status}`)
+  return (await res.json()) as { status?: string }
+}
+
+export async function waitUntilReleased(
+  id: string,
+  opts: {
+    getStatus?: (id: string) => Promise<{ status?: string }>
+    sleep?: (ms: number) => Promise<void>
+    deadlineMs?: number
+  } = {},
+): Promise<void> {
+  const getStatus = opts.getStatus ?? ((sid: string) => getSessionStatus(sid))
+  const sleepFn = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
+  const deadline = opts.deadlineMs ?? Date.now() + 5_000
+  let last = ""
+  while (Date.now() < deadline) {
+    try {
+      const { status } = await getStatus(id)
+      last = status ?? ""
+      if (status === "released" || status === "expired") return
+    } catch {
+      /* keep polling */
+    }
+    await sleepFn(200)
+  }
+  if (last && last !== "released") {
+    throw new Error(`session ${id} not released (status=${last})`)
   }
 }
 
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
 export const OVERALL_TIMEOUT_MS = 120_000
-export const REPLAY_ATTEMPTS = 10
-export const REPLAY_DELAY_MS = 3_000
+/** Docs: replay URL is typically ready 1–3s after release. */
+export const REPLAY_ATTEMPTS = 6
+export const REPLAY_DELAY_MS = 500
+export const BROWSER_API_BASE = "https://api.getsolari.com"
 
 export const DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env")
 
@@ -145,17 +207,35 @@ export async function launchBrowser(
   deps: LaunchDeps = defaultLaunchDeps(solari),
 ): Promise<BrowserSession> {
   const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS
-  const session = await deps.create({
+  const createP = deps.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId,
   })
-  const release = () =>
-    boundPromise(
+  let session: LaunchSession
+  if (signal) {
+    try {
+      session = await observeAbort(createP, signal)
+    } catch (err) {
+      void createP.then((s) => deps.releaseAndWait(s.id).catch(() => undefined))
+      throw err
+    }
+  } else {
+    session = await createP
+  }
+  const release = async () => {
+    await boundPromise(
       deps.releaseAndWait(session.id),
       closeMs,
       `session release timed out after ${closeMs}ms`,
     ).catch(() => undefined)
+    if (deps.getStatus) {
+      await waitUntilReleased(session.id, {
+        getStatus: deps.getStatus,
+        deadlineMs: Date.now() + 2_000,
+      }).catch(() => undefined)
+    }
+  }
   if (signal?.aborted) {
     await release()
     throw new Error("aborted")

@@ -2,10 +2,11 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { CheckResult } from "./check.ts"
-import { fitPngUnderCap } from "./png-fit.ts"
+import { AuspexError, classifySolariError } from "./errors.ts"
+import { fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
 
 export type ToolTextContent = { type: "text"; text: string }
-export type ToolImageContent = { type: "image"; mimeType: "image/png"; data: string }
+export type ToolImageContent = { type: "image"; mimeType: "image/png" | "image/jpeg"; data: string }
 export type ToolContent = ToolTextContent | ToolImageContent
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -32,14 +33,20 @@ export async function buildReceiptToolContent(
       content.push(pngNote("PNG omitted: screenshot file is empty"))
       return { content }
     }
-    const attach = buf.length <= MAX_IMAGE_BYTES ? buf : fitPngUnderCap(buf, MAX_IMAGE_BYTES)
+    const { buf: attach, mimeType } =
+      buf.length <= MAX_IMAGE_BYTES
+        ? fitMcpAttach(buf)
+        : (() => {
+            const scaled = fitPngUnderCap(buf, MAX_IMAGE_BYTES)
+            return fitMcpAttach(scaled)
+          })()
     if (attach.length > MAX_IMAGE_BYTES) {
       content.push(pngNote(`PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`))
       return { content }
     }
     content.push({
       type: "image",
-      mimeType: "image/png",
+      mimeType,
       data: attach.toString("base64"),
     })
   } catch (err) {
@@ -58,4 +65,28 @@ export async function buildCheckToolContent(
   result: CheckResult,
 ): Promise<{ content: ToolContent[] }> {
   return buildReceiptToolContent(result, result.screenshotPath)
+}
+
+/** MCP failure payload: structured issue plus any receipt/log/sessionId already produced. */
+export async function packToolFailure(err: unknown): Promise<{ content: ToolContent[]; isError: true }> {
+  const issue = classifySolariError(err)
+  const extra = err instanceof AuspexError ? err : undefined
+  const payload: Record<string, unknown> = {
+    ok: false,
+    error: issue.message,
+    code: issue.code,
+    retryable: issue.retryable,
+  }
+  if (issue.recovery) payload.recovery = issue.recovery
+  if (issue.status !== undefined) payload.status = issue.status
+  if (extra?.sessionId) payload.sessionId = extra.sessionId
+  if (extra?.screenshotPath) payload.screenshotPath = extra.screenshotPath
+  if (extra?.receipt && typeof extra.receipt === "object") {
+    Object.assign(payload, extra.receipt)
+  }
+  const packed = await buildReceiptToolContent(payload, extra?.screenshotPath)
+  if (extra?.log) {
+    packed.content.unshift({ type: "text", text: extra.log })
+  }
+  return { content: packed.content, isError: true }
 }

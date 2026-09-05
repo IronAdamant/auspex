@@ -9,10 +9,46 @@ import test from "node:test"
 import { MAX_IMAGE_BYTES } from "../src/content.ts"
 import { parseArgv } from "../src/cli.ts"
 import { assertRunDirUnderRuns, findLatestRun, RECEIPT_ASSERT_PY, RUNS_DIR } from "../src/receipt.ts"
+import { encodePng } from "../src/png-fit.ts"
 import { assertReceiptUploadSize, parseAssertStdout, verifyReceipt } from "../src/sandbox.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const demoPng = path.join(root, "demo", "ironadamant.png")
+
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const CRC_TABLE = new Uint32Array(256)
+for (let n = 0; n < 256; n++) {
+  let c = n
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+  CRC_TABLE[n] = c >>> 0
+}
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]!) & 0xff]! ^ (c >>> 8)
+  return (c ^ 0xffffffff) >>> 0
+}
+function pngChunk(type: string, data: Buffer): Buffer {
+  const typeBuf = Buffer.from(type, "ascii")
+  const len = Buffer.alloc(4)
+  len.writeUInt32BE(data.length)
+  const crcBuf = Buffer.alloc(4)
+  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])))
+  return Buffer.concat([len, typeBuf, data, crcBuf])
+}
+/** Valid IHDR + CRC, garbage IDAT that will not inflate to pixels. */
+function forgedPngIhdr(width: number, height: number): Buffer {
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr[8] = 8
+  ihdr[9] = 2
+  return Buffer.concat([
+    PNG_SIG,
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", Buffer.from("not-a-zlib-stream")),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ])
+}
 
 function runAssert(work: string) {
   return spawnSync("python3", ["-c", RECEIPT_ASSERT_PY, work], { encoding: "utf8" })
@@ -68,6 +104,44 @@ test("RECEIPT_ASSERT_PY separates claim miss from receipt junk", () => {
   assert.deepEqual(parsed.errors, [])
   assert.equal(parsed.claimOk, false)
   assert.ok(parsed.claimErrors.some((e) => /ok is not true/i.test(e)))
+})
+
+test("RECEIPT_ASSERT_PY fails a tiny PNG even when the manifest claims ok", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://ironadamant.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), encodePng(1, 1, Buffer.from([0, 0, 0]), 3))
+  const out = runAssert(dir)
+  assert.notEqual(out.status, 0)
+  const parsed = JSON.parse(out.stdout) as { ok: boolean; errors: string[] }
+  assert.equal(parsed.ok, false)
+  assert.ok(parsed.errors.some((e) => /tiny|small|empty/i.test(e)))
+})
+
+test("RECEIPT_ASSERT_PY fails a forged IHDR with garbage IDAT even when the manifest claims ok", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://ironadamant.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), forgedPngIhdr(1920, 1080))
+  const out = runAssert(dir)
+  assert.notEqual(out.status, 0, out.stdout + out.stderr)
+  const parsed = JSON.parse(out.stdout) as { ok: boolean; errors: string[] }
+  assert.equal(parsed.ok, false)
+  assert.ok(parsed.errors.some((e) => /invalid|IDAT|pixels|zlib|decompress/i.test(e)))
 })
 
 test("RECEIPT_ASSERT_PY fails leftover-auth URLs and non-PNGs", () => {
@@ -290,6 +364,42 @@ test("checkThenVerify keeps the check receipt when verify throws", async () => {
   assert.equal(both.check.ok, true)
   assert.equal(both.verify.ok, false)
   assert.match(both.verify.errors.join(" "), /sandbox down/)
+})
+
+test("verifyReceipt overall bound kills a hung create", async () => {
+  const dir = path.join(RUNS_DIR, `bound-${Date.now()}`)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://ironadamant.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  let killed = false
+  await assert.rejects(
+    () =>
+      verifyReceipt(dir, {
+        overallMs: 40,
+        create: async () => {
+          await new Promise((r) => setTimeout(r, 200))
+          return {
+            connect: async () => undefined,
+            files: { mkdir: async () => undefined, write: async () => undefined },
+            commands: { run: async () => ({ exitCode: 0, stdout: "{}" }) },
+            kill: async () => {
+              killed = true
+            },
+          }
+        },
+      }),
+    /timed out/,
+  )
+  await new Promise((r) => setTimeout(r, 250))
+  assert.equal(killed, true)
 })
 
 test("parseArgv verify accepts an optional run dir", () => {

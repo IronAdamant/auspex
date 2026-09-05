@@ -36,11 +36,31 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.ok(required.includes("expect"))
     const desktop = listed.tools.find((t) => t.name === "auspex_desktop")
     assert.ok(desktop, "auspex_desktop missing from ListTools")
-    assert.match(desktop.description ?? "", /auspex_desktop|overview|log|shell/i)
+    assert.match(desktop.description ?? "", /auspex_desktop|overview|log|JSON|computer-use/i)
+    assert.match(check.description ?? "", /verify=true|one-shot|claimOk/i)
+    assert.match(check.description ?? "", /record\+profile|allowRecordProfile/)
+    assert.match(check.description ?? "", /402|FeatureRequiresPlan/)
+    assert.match(check.description ?? "", /429/)
+    assert.match(check.description ?? "", /solari_kill|solari_browser_close/)
+    const verify = listed.tools.find((t) => t.name === "auspex_verify")
+    assert.ok(verify)
+    assert.match(verify.description ?? "", /claimOk|ok/)
+    const login = listed.tools.find((t) => t.name === "auspex_login")
+    assert.ok(login)
+    assert.match(login.description ?? "", /handoff/)
+    const deskProps = desktop.inputSchema.properties ?? {}
+    assert.ok("open" in deskProps || "type" in deskProps)
   } finally {
     await client.close()
     await mcp.close()
   }
+})
+
+test("mcp-tools desktop payload keeps ASCII log and JSON", () => {
+  const tools = readFileSync(path.join(root, "src", "mcp-tools.ts"), "utf8")
+  assert.match(tools, /unshift/)
+  assert.match(tools, /desktopId/)
+  assert.match(tools, /packToolFailure/)
 })
 
 test("mcp.ts registers tools via registerAuspexTools; that path uses auspexCheckInputObject", () => {

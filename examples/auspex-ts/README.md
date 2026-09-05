@@ -2,7 +2,7 @@
 
 Web eyes for **coding agents**. An agent calls Auspex; Solari boots a **throwaway Chrome in their cloud** (not on your Mac); the agent gets JSON + a PNG; the session is killed. You do not sit in that browser.
 
-This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, the Solari **console profile editor** to Save cookies once.
+This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, a **single-use login-handoff URL** to sign in and Save once.
 
 Use it when a live page, JS paint, a login, or an audit still is the point. Do not use it to scrape at scale.
 
@@ -41,16 +41,18 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ```
 npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
 npx tsx src/cli.ts verify [runDir]
-npx tsx src/cli.ts desktop
+npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>]
 npx tsx src/cli.ts login --profile <name> [--url <hint>]
 npx tsx src/cli.ts profiles
 ```
 
-`login` creates or reuses a named Solari profile and prints the console Profiles editor. Log in there (2FA/captcha), hit Save. Then `check --profile <name>`. Login does not hold an Auspex check session open.
+`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `check --profile <name>`. Login does not hold an Auspex check session open.
 
-`--stealth` and recording need Starter or higher. `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile.
+`--stealth` needs Starter or higher (402 FeatureRequiresPlan on Free — not retryable). `--profile` loads the Solari profile into the page context (cookies are not on the default context). `--sso` clicks **Sign in with Microsoft** and the signed-in account picker. Checks do not overwrite the profile. `record`+`profile` is forbidden unless `--allow-record-profile`.
 
-**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}`. `verify` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt (max 2 MiB), and **kills** the VM. Integrity (`ok`/`errors`: PNG, path, auth URL) is separate from claim (`claimOk`/`claimErrors`). A missed claim can still be a valid receipt. Optional `[runDir]`; default is the latest run. The sandbox never opens ConsistencyHub.
+**429 ConcurrencyLimitExceeded is not retryable.** Call `solari_browser_close` / `solari_kill` (or let Auspex finish teardown) to free leftover sessions, then retry.
+
+**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}`. `verify` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt (max 2 MiB), and **kills** the VM. Integrity (`ok`/`errors`: PNG magic/size, path, auth URL) is separate from claim (`claimOk`/`claimErrors`). A missed claim can still be a valid receipt. `--verify` on check is one-shot — do not also run `verify`. Optional `[runDir]`; default is the latest run. The sandbox never opens ConsistencyHub.
 
 Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt (watch in the Solari console via `sessionId`). Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
@@ -60,10 +62,10 @@ Two servers, one key. Copy both tables from [grok.mcp.example.toml](grok.mcp.exa
 
 **Auspex** (`dist/mcp.mjs`) — always-teardown check:
 
-- `auspex_check` — JSON + PNG (optional `verify` runs the sandbox after)
-- `auspex_verify` — headless VM audits the receipt, then **kill**
-- `auspex_login` / `auspex_profiles`
-- `auspex_desktop` — Solari GUI VM, screenshot, **kill**. Always returns the ASCII log (`:: booting` … `==> ok=true path=…`) as the tool text. No VNC.
+- `auspex_check` — JSON + JPEG attach (optional `verify=true` is one-shot check-then-sandbox; do not also call `auspex_verify`)
+- `auspex_verify` — headless VM audits integrity `ok` vs claim `claimOk`, then **kill**
+- `auspex_login` — login-handoff URL / `auspex_profiles`
+- `auspex_desktop` — Solari GUI VM, one computer-use action, screenshot, **kill**. ASCII log **and** JSON. No VNC.
 
 Live: ironadamant.com (`Build it.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 

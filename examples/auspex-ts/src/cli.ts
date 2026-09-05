@@ -4,7 +4,7 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
-import { runDesktopReview } from "./desktop.ts"
+import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
@@ -12,17 +12,19 @@ import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 export const USAGE = `Usage:
   npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
   npx tsx src/cli.ts verify [runDir]
-  npx tsx src/cli.ts desktop
+  npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
-verify uploads that receipt into a headless Solari sandbox, asserts PNG + JSON, and kills the VM.
---verify on check runs verify on that run immediately. Integrity (PNG/path/auth URL) is separate from claim ok/matched.
-desktop boots a Solari GUI VM, takes a screenshot, and kills it. Stderr is an append-only log (:: booting, :: screenshot, …) like apt/pacman — any shell. Stdout is JSON for the agent. No VNC.
-login creates or reuses a named Solari profile and prints the console Profiles editor (log in live, Save).
+verify uploads that receipt into a headless Solari sandbox, asserts integrity (ok) vs claim (claimOk), and kills the VM.
+--verify on check is one-shot check-then-sandbox (do not also run verify). A missed expect can still be a valid receipt.
+desktop boots a Solari GUI VM, performs one computer-use action (default click center), screenshots, and kills it. Stderr is an append-only log; stdout is JSON. No VNC.
+login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password).
 profiles lists profile names and ids.
 
+402 FeatureRequiresPlan (stealth/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
+429: solari_browser_close / solari_kill leftover sessions, then retry — do not only use the Solari console.
 Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
 Never commit .env or .auspex/ run artifacts.
 `
@@ -33,7 +35,7 @@ export type CliCommand =
   | { cmd: "login"; profile: string; url?: string }
   | { cmd: "profiles" }
   | { cmd: "verify"; runDir?: string }
-  | { cmd: "desktop" }
+  | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number } }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -159,8 +161,19 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
     }
+    const open = takeOption(args, "--open")
+    const type = takeOption(args, "--type")
+    const clickRaw = takeOption(args, "--click")
+    let click: { x: number; y: number } | undefined
+    if (clickRaw) {
+      const parts = clickRaw.split(",").map((p) => Number(p.trim()))
+      if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) {
+        return { status: "error", message: "--click must be x,y" }
+      }
+      click = { x: parts[0]!, y: parts[1]! }
+    }
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "desktop" } }
+    return { status: "ok", command: { cmd: "desktop", open, type, click } }
   }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
@@ -197,7 +210,14 @@ export async function main(argv: string[]): Promise<number> {
       return result.ok ? 0 : 1
     }
     if (parsed.command.cmd === "desktop") {
-      const result = await runDesktopReview()
+      const result = await runDesktopReview({
+        ...defaultDesktopDeps(),
+        task: {
+          open: parsed.command.open,
+          type: parsed.command.type,
+          click: parsed.command.click,
+        },
+      })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1
     }

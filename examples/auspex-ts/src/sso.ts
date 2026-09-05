@@ -57,8 +57,6 @@ export async function completeMicrosoftSso(page: Page, cancel: SsoCancel = {}): 
     )
     .catch(() => undefined)
   if (stopped(cancel)) return
-  await page.waitForLoadState("domcontentloaded", { timeout: 45_000, signal }).catch(() => undefined)
-  if (stopped(cancel)) return
 
   const picker = page.getByText(/pick an account/i)
   await picker.waitFor({ timeout: 20_000, signal }).catch(() => undefined)
@@ -82,6 +80,4 @@ export async function completeMicrosoftSso(page: Page, cancel: SsoCancel = {}): 
   await page
     .waitForURL((url) => !stillOnAuth(url), { timeout: 45_000, signal })
     .catch(() => undefined)
-  if (stopped(cancel)) return
-  await page.waitForLoadState("networkidle", { timeout: 15_000, signal }).catch(() => undefined)
 }

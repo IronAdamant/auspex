@@ -22,11 +22,16 @@ export const auspexCheckInputObject = z.object({
   expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
   selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
   profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
-  stealth: z.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
+  stealth: z
+    .boolean()
+    .optional()
+    .describe("Solari stealth pool. Starter+; Free returns 402 FeatureRequiresPlan (not retryable)"),
   record: z
     .boolean()
     .optional()
-    .describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
+    .describe(
+      "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile",
+    ),
   sso: z
     .boolean()
     .optional()
@@ -34,11 +39,13 @@ export const auspexCheckInputObject = z.object({
   verify: z
     .boolean()
     .optional()
-    .describe("After check, audit the receipt in a headless sandbox and kill the VM"),
+    .describe(
+      "One-shot: after check, audit the receipt in a headless sandbox and kill that VM. Do not also call auspex_verify",
+    ),
   allowRecordProfile: z
     .boolean()
     .optional()
-    .describe("Override: allow --record together with a profile (recordings capture input)"),
+    .describe("Override: allow record together with a profile (recordings capture input)"),
 })
 
 /** Full parse including record+profile combination. MCP registerTool must use auspexCheckInputObject. */
@@ -51,4 +58,11 @@ export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, c
 export const auspexLoginInputSchema = z.object({
   profile: profileNameSchema.describe("Profile name to create or reuse"),
   url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
+})
+
+export const auspexDesktopInputSchema = z.object({
+  open: z.string().optional().describe("Optional app name to open on the desktop before screenshot"),
+  type: z.string().optional().describe("Optional text to type after open"),
+  clickX: z.number().optional().describe("Click X (default 640)"),
+  clickY: z.number().optional().describe("Click Y (default 360)"),
 })

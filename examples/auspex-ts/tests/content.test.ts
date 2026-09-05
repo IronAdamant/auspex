@@ -32,7 +32,11 @@ test("buildCheckToolContent returns JSON text and PNG image from a real file", a
     assert.equal(image.mimeType, "image/png")
     assert.ok(image.data.length > 0)
     const raw = Buffer.from(image.data, "base64")
-    assert.equal(raw.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
+    const disk = (await import("node:fs")).readFileSync(fixture)
+    assert.notEqual(raw.equals(disk), true)
+    const { decodePng } = await import("../src/png-fit.ts")
+    const decoded = decodePng(raw)
+    assert.ok(decoded.width >= 1 && decoded.height >= 1)
   }
 })
 
@@ -69,8 +73,34 @@ test("buildCheckToolContent downscales oversized on-disk PNGs without rewriting 
   if (image && image.type === "image") {
     const raw = Buffer.from(image.data, "base64")
     assert.ok(raw.length <= MAX_IMAGE_BYTES)
-    assert.equal(raw.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
+    assert.ok(raw.length < before)
+    assert.equal(image.mimeType, "image/png")
+    const { decodePng } = await import("../src/png-fit.ts")
+    const decoded = decodePng(raw)
+    assert.ok(decoded.width >= 1 && decoded.height >= 1)
   }
+})
+
+test("fitMcpAttach bytes decode as a real PNG (inflate IDAT + sips)", async () => {
+  const { mkdtempSync, writeFileSync, readFileSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const { spawnSync } = await import("node:child_process")
+  const { fitMcpAttach, decodePng, encodePng } = await import("../src/png-fit.ts")
+  const pixels = Buffer.alloc(64 * 48 * 3, 80)
+  const png = encodePng(64, 48, pixels, 3)
+  const { buf, mimeType } = fitMcpAttach(png)
+  assert.equal(mimeType, "image/png")
+  const decoded = decodePng(buf)
+  assert.ok(decoded.width >= 1 && decoded.height >= 1)
+  assert.ok(decoded.pixels.length >= decoded.width * decoded.height * 3)
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-sips-"))
+  const file = path.join(dir, "attach.png")
+  writeFileSync(file, buf)
+  const sips = spawnSync("sips", ["-g", "pixelWidth", "-g", "pixelHeight", file], { encoding: "utf8" })
+  assert.equal(sips.status, 0, sips.stderr)
+  assert.match(sips.stdout, /pixelWidth: \d+/)
+  assert.doesNotMatch(sips.stderr + sips.stdout, /error 13|Unable to render/i)
+  assert.ok(readFileSync(file).equals(buf))
 })
 
 test("buildCheckToolContent notes a missing screenshot file", async () => {
@@ -90,4 +120,41 @@ test("buildCheckToolContent notes a missing screenshot file", async () => {
   const note = content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("\n")
   assert.match(note, /PNG omitted/)
   assert.match(note, /missing/)
+})
+
+test("packToolFailure attaches a screenshot when AuspexError has a path", async () => {
+  const { packToolFailure } = await import("../src/content.ts")
+  const { AuspexError } = await import("../src/errors.ts")
+  const packed = await packToolFailure(
+    new AuspexError("check failed", {
+      sessionId: "sess-shot",
+      screenshotPath: path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "demo", "ironadamant.png"),
+    }),
+  )
+  assert.equal(packed.isError, true)
+  const text = packed.content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("\n")
+  assert.match(text, /sess-shot/)
+  assert.ok(packed.content.some((p) => p.type === "image"))
+})
+
+test("packToolFailure includes structured 429 and receipt sessionId", async () => {
+  const { packToolFailure } = await import("../src/content.ts")
+  const { AuspexError } = await import("../src/errors.ts")
+  const { SolariError } = await import("@solarisdk/browser")
+  const packed = await packToolFailure(
+    new AuspexError("x", {
+      issue: {
+        code: "ConcurrencyLimitExceeded",
+        retryable: false,
+        message: "leftover",
+        recovery: "solari_kill",
+      },
+      sessionId: "sess-fail",
+      cause: new SolariError("x", 429, undefined, "ConcurrencyLimitExceeded"),
+    }),
+  )
+  assert.equal(packed.isError, true)
+  const text = packed.content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("\n")
+  assert.match(text, /sess-fail/)
+  assert.match(text, /ConcurrencyLimitExceeded|"retryable": false/)
 })

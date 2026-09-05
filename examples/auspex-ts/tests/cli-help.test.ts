@@ -22,6 +22,11 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /verify/)
   assert.match(USAGE, /--verify/)
   assert.match(USAGE, /desktop/)
+  assert.match(USAGE, /handoff/)
+  assert.match(USAGE, /--verify/)
+  assert.match(USAGE, /not retryable/)
+  assert.match(USAGE, /solari_kill|solari_browser_close/)
+  assert.equal(USAGE.includes("kill leftover sessions in the console"), false)
 })
 
 test("parseArgv --help and check --help request help", () => {
@@ -120,6 +125,8 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /verify/)
   assert.match(help.stdout, /--verify/)
   assert.match(help.stdout, /desktop/)
+  assert.match(help.stdout, /solari_kill|solari_browser_close/)
+  assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
 })
 
 test("shipped CLI check --help lists login and profiles", () => {

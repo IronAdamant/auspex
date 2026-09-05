@@ -1,24 +1,44 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { runCheck } from "./check.ts"
-import { buildCheckToolContent, buildReceiptToolContent } from "./content.ts"
+import { buildCheckToolContent, buildReceiptToolContent, packToolFailure } from "./content.ts"
 import { runDesktopReview } from "./desktop.ts"
-import { explainSolariError } from "./errors.ts"
+import { createProgress, type ProgressExtra } from "./progress.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
-import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
-import { assertRecordProfileAllowed, auspexCheckInputObject, auspexLoginInputSchema } from "./tool-schema.ts"
+import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
+import { defaultDesktopDeps } from "./desktop.ts"
+import { assertRecordProfileAllowed, auspexCheckInputObject, auspexDesktopInputSchema, auspexLoginInputSchema } from "./tool-schema.ts"
+
+const CHECK_DESCRIPTION =
+  "Open a live URL in a Solari cloud browser (fast pool by default), snapshot the page, and check that expected text is present. Always closes/releases the session. Returns JSON plus a downscaled JPEG attach; the on-disk shot stays full-page PNG. Set verify=true for one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate: a missed expect can still be a valid receipt. stealth is Starter+ (402 FeatureRequiresPlan, not retryable). record+profile is forbidden unless allowRecordProfile. 429 ConcurrencyLimitExceeded is not retryable — solari_browser_close / solari_kill leftover sessions, then retry."
+
+const VERIFY_DESCRIPTION =
+  "After auspex_check without verify=true, upload the on-disk receipt (PNG + JSON) into a headless Solari sandbox, assert integrity (ok) vs claim (claimOk), and kill the VM. Do not call this if you already passed verify=true on auspex_check. 429 is not retryable: solari_kill leftover VMs first."
+
+const LOGIN_DESCRIPTION =
+  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, wait for them to Save, then pass this profile to auspex_check."
+
+const DESKTOP_DESCRIPTION =
+  "Solari GUI desktop: boot, one computer-use action (default click center; optional open/type), screenshot, kill. Returns ASCII log plus structured JSON and optional PNG. Desktops may 402 FeatureRequiresPlan on Free (not retryable). 429: solari_kill leftovers, do not retry create."
+
+const PROFILES_DESCRIPTION = "List Solari browser profile names and ids on this account."
+
+function progressFromExtra(extra: unknown) {
+  return createProgress({ extra: extra as ProgressExtra })
+}
 
 export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_check",
     {
-      description:
-        "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (on-disk shot stays full-page; MCP attach is downscaled to 2 MiB if needed). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
+      description: CHECK_DESCRIPTION,
       inputSchema: auspexCheckInputObject,
     },
-    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }) => {
+    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }, extra) => {
       try {
-        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile }
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_check")
+        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile, onProgress }
         assertRecordProfileAllowed(opts)
         if (verify) {
           const both = await checkThenVerify(opts)
@@ -29,7 +49,7 @@ export function registerAuspexTools(server: McpServer): void {
         const result = await runCheck(opts)
         return await buildCheckToolContent(result)
       } catch (err) {
-        throw new Error(explainSolariError(err))
+        return packToolFailure(err)
       }
     },
   )
@@ -37,8 +57,7 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_login",
     {
-      description:
-        "Create or reuse a named Solari browser profile, then tell the human to log in via Console → Profiles → Open editor → Save. Does not keep a check session open. After Save, pass this profile to auspex_check.",
+      description: LOGIN_DESCRIPTION,
       inputSchema: auspexLoginInputSchema,
     },
     async ({ profile, url }) => {
@@ -46,7 +65,7 @@ export function registerAuspexTools(server: McpServer): void {
         const result = await loginProfile(profile, url)
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
       } catch (err) {
-        throw new Error(explainSolariError(err))
+        return packToolFailure(err)
       }
     },
   )
@@ -54,7 +73,7 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_profiles",
     {
-      description: "List Solari browser profile names and ids on this account.",
+      description: PROFILES_DESCRIPTION,
       inputSchema: {},
     },
     async () => {
@@ -62,7 +81,7 @@ export function registerAuspexTools(server: McpServer): void {
         const profiles = await listProfiles()
         return { content: [{ type: "text" as const, text: JSON.stringify(profiles, null, 2) }] }
       } catch (err) {
-        throw new Error(explainSolariError(err))
+        return packToolFailure(err)
       }
     },
   )
@@ -70,21 +89,37 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_desktop",
     {
-      description:
-        "Minimal Solari GUI desktop: boot, screenshot, kill. Always returns an append-only ASCII log (:: booting … ==> ok=true path=…) as the tool text so Grok/Codex/Claude can show it without a TTY. Optional PNG. No VNC. Desktops need Starter or higher.",
-      inputSchema: {},
+      description: DESKTOP_DESCRIPTION,
+      inputSchema: auspexDesktopInputSchema,
     },
-    async () => {
+    async ({ open, type, clickX, clickY }, extra) => {
       try {
-        const result = await runDesktopReview()
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_desktop")
+        const result = await runDesktopReview({
+          ...defaultDesktopDeps(),
+          task: {
+            open,
+            type,
+            click: clickX !== undefined && clickY !== undefined ? { x: clickX, y: clickY } : undefined,
+          },
+          status: process.stderr,
+        })
         const packed = await buildReceiptToolContent(
-          { ok: result.ok, ready: result.ready, screenshotPath: result.screenshotPath, errors: result.errors },
+          {
+            ok: result.ok,
+            ready: result.ready,
+            screenshotPath: result.screenshotPath,
+            errors: result.errors,
+            desktopId: result.desktopId,
+            overview: result.overview,
+          },
           result.screenshotPath,
         )
-        packed.content[0] = { type: "text", text: result.log }
+        packed.content.unshift({ type: "text", text: result.log })
         return packed
       } catch (err) {
-        throw new Error(explainSolariError(err))
+        return packToolFailure(err)
       }
     },
   )
@@ -92,18 +127,19 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_verify",
     {
-      description:
-        "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
+      description: VERIFY_DESCRIPTION,
       inputSchema: {
         runDir: z.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory"),
       },
     },
-    async ({ runDir }) => {
+    async ({ runDir }, extra) => {
       try {
-        const result = await verifyReceipt(runDir)
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_verify")
+        const result = await verifyReceipt(runDir, { ...defaultVerifyDeps(), onProgress })
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
       } catch (err) {
-        throw new Error(explainSolariError(err))
+        return packToolFailure(err)
       }
     },
   )

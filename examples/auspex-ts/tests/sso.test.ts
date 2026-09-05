@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { shouldFailClosedAuth, stillOnAuth } from "../src/sso.ts"
+
+const ssoSrc = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/sso.ts"), "utf8")
 
 test("stillOnAuth is true on Microsoft and /login", () => {
   assert.equal(stillOnAuth(new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize")), true)
@@ -24,4 +29,8 @@ test("shouldFailClosedAuth is always true on Microsoft, and on /login when sso o
   assert.equal(shouldFailClosedAuth(login, {}), false)
   assert.equal(shouldFailClosedAuth(login, { sso: true }), true)
   assert.equal(shouldFailClosedAuth(login, { profile: "consistencyhub" }), true)
+})
+
+test("completeMicrosoftSso source has no fail-open networkidle wait", () => {
+  assert.equal(ssoSrc.includes("networkidle"), false)
 })

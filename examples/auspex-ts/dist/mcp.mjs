@@ -6,6 +6,7 @@ import "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as z5 } from "zod";
 
 // src/check.ts
+import { existsSync as existsSync2 } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path2 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -152,12 +153,55 @@ function defaultLaunchDeps(solari) {
     create: (opts) => solari.sessions.create(opts),
     connect: (ws, opts) => chromium.connect(ws, opts),
     wrap: (session, browser) => new BrowserSession(solari, session, browser),
-    releaseAndWait: (id) => solari.sessions.releaseAndWait(id)
+    releaseAndWait: (id) => solari.sessions.releaseAndWait(id),
+    getStatus: (id) => getSessionStatus(id)
   };
 }
+function fetchWithIdempotencyKey(base = fetch) {
+  return (async (input, init) => {
+    const headers = new Headers(init?.headers);
+    const method = (init?.method ?? "GET").toUpperCase();
+    const url = String(input);
+    let path6 = url;
+    try {
+      path6 = new URL(url, BROWSER_API_BASE).pathname;
+    } catch {
+    }
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path6);
+    if (isVmCreate && !headers.has("Idempotency-Key")) {
+      headers.set("Idempotency-Key", crypto.randomUUID());
+    }
+    return base(input, { ...init, headers });
+  });
+}
+async function getSessionStatus(id, fetchImpl = fetch) {
+  const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${requireApiKey()}` }
+  });
+  if (!res.ok) throw new Error(`session status ${res.status}`);
+  return await res.json();
+}
+async function waitUntilReleased(id, opts = {}) {
+  const getStatus = opts.getStatus ?? ((sid) => getSessionStatus(sid));
+  const sleepFn = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const deadline = opts.deadlineMs ?? Date.now() + 5e3;
+  let last = "";
+  while (Date.now() < deadline) {
+    try {
+      const { status } = await getStatus(id);
+      last = status ?? "";
+      if (status === "released" || status === "expired") return;
+    } catch {
+    }
+    await sleepFn(200);
+  }
+  if (last && last !== "released") {
+    throw new Error(`session ${id} not released (status=${last})`);
+  }
+}
 var GOTO_TIMEOUT_MS = 45e3;
-var NETWORKIDLE_TIMEOUT_MS = 15e3;
 var OVERALL_TIMEOUT_MS = 12e4;
+var BROWSER_API_BASE = "https://api.getsolari.com";
 var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
 function toPlaywrightStorageState(state) {
   const cookies = [];
@@ -226,16 +270,35 @@ function createClient() {
 }
 async function launchBrowser(solari, options = {}, signal, deps = defaultLaunchDeps(solari)) {
   const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS;
-  const session = await deps.create({
+  const createP = deps.create({
     stealth: options.stealth,
     recording: options.recording,
     profileId: options.profileId
   });
-  const release = () => boundPromise(
-    deps.releaseAndWait(session.id),
-    closeMs,
-    `session release timed out after ${closeMs}ms`
-  ).catch(() => void 0);
+  let session;
+  if (signal) {
+    try {
+      session = await observeAbort(createP, signal);
+    } catch (err) {
+      void createP.then((s) => deps.releaseAndWait(s.id).catch(() => void 0));
+      throw err;
+    }
+  } else {
+    session = await createP;
+  }
+  const release = async () => {
+    await boundPromise(
+      deps.releaseAndWait(session.id),
+      closeMs,
+      `session release timed out after ${closeMs}ms`
+    ).catch(() => void 0);
+    if (deps.getStatus) {
+      await waitUntilReleased(session.id, {
+        getStatus: deps.getStatus,
+        deadlineMs: Date.now() + 2e3
+      }).catch(() => void 0);
+    }
+  };
   if (signal?.aborted) {
     await release();
     throw new Error("aborted");
@@ -278,13 +341,56 @@ function requireProfileName(value) {
   return name;
 }
 var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
-function loginInstructions(profile, urlHint) {
-  const where = urlHint ? ` Log in at ${urlHint}.` : " Log in.";
+function loginInstructions(profile, urlHint, handoff) {
+  const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
+  if (handoff?.url) {
+    return {
+      profileId: profile.id,
+      name: profile.name,
+      consoleUrl: CONSOLE_PROFILES_URL,
+      url: handoff.url,
+      handoffId: handoff.handoffId,
+      expiresAt: handoff.expiresAt,
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done, then run auspex check with --profile ${profile.name}`
+    };
+  }
   return {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save, then run auspex check with --profile ${profile.name}`
+  };
+}
+async function defaultProfileHttp() {
+  const key = requireApiKey();
+  return {
+    post: async (path6, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path6}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body ?? {})
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`;
+        throw new Error(err);
+      }
+      return json;
+    }
+  };
+}
+async function requestLoginHandoff(profileId, reason, http) {
+  const json = await http.post(`/profiles/${encodeURIComponent(profileId)}/login-handoff`, { reason });
+  const url = typeof json.url === "string" ? json.url : "";
+  if (!url) throw new Error("login-handoff returned no url");
+  return {
+    url,
+    handoffId: typeof json.handoffId === "string" ? json.handoffId : void 0,
+    expiresAt: typeof json.expiresAt === "string" ? json.expiresAt : void 0,
+    version: typeof json.version === "number" ? json.version : void 0
   };
 }
 async function ensureProfile(name) {
@@ -298,9 +404,15 @@ async function ensureProfile(name) {
     await solari.close();
   }
 }
-async function loginProfile(name, urlHint) {
+async function loginProfile(name, urlHint, http) {
   const profile = await ensureProfile(name);
-  return loginInstructions(profile, urlHint);
+  const client = http ?? await defaultProfileHttp();
+  const handoff = await requestLoginHandoff(
+    profile.id,
+    `Auspex login for profile ${profile.name}`,
+    client
+  );
+  return loginInstructions(profile, urlHint, handoff);
 }
 async function listProfiles() {
   const solari = createClient();
@@ -347,11 +459,15 @@ var auspexCheckInputObject = z4.object({
   expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
   selector: z4.string().optional().describe("Optional CSS selector to extract instead of body"),
   profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
-  stealth: z4.boolean().optional().describe("Launch with Solari stealth (Starter plan)"),
-  record: z4.boolean().optional().describe("Record the session for Solari console Replay (sessionId). Does not return a presigned URL"),
+  stealth: z4.boolean().optional().describe("Solari stealth pool. Starter+; Free returns 402 FeatureRequiresPlan (not retryable)"),
+  record: z4.boolean().optional().describe(
+    "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile"
+  ),
   sso: z4.boolean().optional().describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
-  verify: z4.boolean().optional().describe("After check, audit the receipt in a headless sandbox and kill the VM"),
-  allowRecordProfile: z4.boolean().optional().describe("Override: allow --record together with a profile (recordings capture input)")
+  verify: z4.boolean().optional().describe(
+    "One-shot: after check, audit the receipt in a headless sandbox and kill that VM. Do not also call auspex_verify"
+  ),
+  allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)")
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (val.record && val.profile && !val.allowRecordProfile) {
@@ -362,33 +478,133 @@ var auspexLoginInputSchema = z4.object({
   profile: profileNameSchema.describe("Profile name to create or reuse"),
   url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human")
 });
+var auspexDesktopInputSchema = z4.object({
+  open: z4.string().optional().describe("Optional app name to open on the desktop before screenshot"),
+  type: z4.string().optional().describe("Optional text to type after open"),
+  clickX: z4.number().optional().describe("Click X (default 640)"),
+  clickY: z4.number().optional().describe("Click Y (default 360)")
+});
 
 // src/errors.ts
 import { SolariError as SolariError2 } from "@solarisdk/browser";
+var CLOSE_KILL_RECOVERY = "Not retryable. Free the slot with solari_browser_close / solari_kill (or let Auspex check/verify/desktop finish teardown), then retry.";
+var AuspexError = class extends Error {
+  issue;
+  sessionId;
+  screenshotPath;
+  log;
+  receipt;
+  constructor(message, extra = {}) {
+    super(redactSecrets(message));
+    this.name = "AuspexError";
+    this.issue = {
+      message: this.message,
+      code: extra.issue?.code ?? "AuspexError",
+      retryable: extra.issue?.retryable === true,
+      recovery: extra.issue?.recovery,
+      status: extra.issue?.status
+    };
+    this.sessionId = extra.sessionId;
+    this.screenshotPath = extra.screenshotPath;
+    this.log = extra.log;
+    this.receipt = extra.receipt;
+    if (extra.cause !== void 0) {
+      ;
+      this.cause = extra.cause;
+    }
+  }
+};
 function redactSecrets(text) {
   return text.replace(/slr_[a-z]+_[A-Za-z0-9_\-]+/gi, "slr_\u2026").replace(/\bsk-[A-Za-z0-9]{10,}\b/g, "sk-\u2026").replace(/\bAKIA[A-Z0-9]{16}\b/g, "AKIA\u2026").replace(/Bearer\s+\S+/gi, "Bearer \u2026");
 }
-function explainSolariError(err) {
-  let msg;
-  if (err instanceof SolariError2) {
-    if (err.code === "FeatureRequiresPlan" || err.status === 402) {
-      msg = "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher.";
-    } else if (err.code === "ConcurrencyLimitExceeded" || err.status === 429) {
-      msg = "Solari 429 ConcurrencyLimitExceeded: kill leftover sessions in the console, then retry.";
-    } else if (err.code === "PlanLimitExceeded" || err.status === 403) {
-      msg = "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage).";
-    } else if (err.code === "BrowserUnhealthy") {
-      msg = "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check.";
-    } else if (err.code === "InvalidSessionId") {
-      msg = "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released.";
-    } else {
-      msg = err.message;
-    }
-  } else {
-    msg = err instanceof Error ? err.message : String(err);
-  }
-  return redactSecrets(msg);
+function codeOf(err) {
+  return typeof err.code === "string" && err.code ? err.code : void 0;
 }
+function classifySolariError(err) {
+  if (err instanceof AuspexError) return err.issue;
+  if (err instanceof SolariError2) {
+    const code = codeOf(err);
+    if (code === "FeatureRequiresPlan" || err.status === 402) {
+      return {
+        message: redactSecrets(
+          "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher."
+        ),
+        code: "FeatureRequiresPlan",
+        retryable: false,
+        recovery: "Drop stealth/proxy/captcha/desktop or upgrade the plan. Do not retry the same call.",
+        status: 402
+      };
+    }
+    if (code === "ConcurrencyLimitExceeded" || err.status === 429) {
+      return {
+        message: redactSecrets(
+          "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot."
+        ),
+        code: "ConcurrencyLimitExceeded",
+        retryable: false,
+        recovery: CLOSE_KILL_RECOVERY,
+        status: 429
+      };
+    }
+    if (code === "PlanLimitExceeded" || err.status === 403) {
+      return {
+        message: redactSecrets(
+          "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage)."
+        ),
+        code: "PlanLimitExceeded",
+        retryable: false,
+        status: err.status
+      };
+    }
+    if (code === "BrowserUnhealthy") {
+      return {
+        message: redactSecrets(
+          "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check."
+        ),
+        code: "BrowserUnhealthy",
+        retryable: true
+      };
+    }
+    if (code === "InvalidSessionId") {
+      return {
+        message: redactSecrets(
+          "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released."
+        ),
+        code: "InvalidSessionId",
+        retryable: false,
+        status: err.status
+      };
+    }
+    return {
+      message: redactSecrets(err.message),
+      code: code ?? "SolariError",
+      retryable: false,
+      status: err.status
+    };
+  }
+  const message = redactSecrets(err instanceof Error ? err.message : String(err));
+  return { message, code: "AuspexError", retryable: false };
+}
+function explainSolariError(err) {
+  const issue = classifySolariError(err);
+  return issue.recovery ? `${issue.message} ${issue.recovery}` : issue.message;
+}
+
+// src/progress.ts
+function createProgress(opts = {}) {
+  const stream = opts.stream ?? process.stderr;
+  return (phase) => {
+    stream.write(`:: ${phase}
+`);
+    const send = opts.extra?.sendNotification;
+    if (!send) return;
+    void send({
+      method: "notifications/progress",
+      params: { progressToken: "auspex", progress: 1, message: phase }
+    }).catch(() => void 0);
+  };
+}
+var noopProgress = () => void 0;
 
 // src/sso.ts
 function hostIs(hostname, domain) {
@@ -428,8 +644,6 @@ async function completeMicrosoftSso(page, cancel = {}) {
     { timeout: 3e4, signal }
   ).catch(() => void 0);
   if (stopped(cancel)) return;
-  await page.waitForLoadState("domcontentloaded", { timeout: 45e3, signal }).catch(() => void 0);
-  if (stopped(cancel)) return;
   const picker = page.getByText(/pick an account/i);
   await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
   if (stopped(cancel)) return;
@@ -447,8 +661,6 @@ async function completeMicrosoftSso(page, cancel = {}) {
   }
   if (stopped(cancel)) return;
   await page.waitForURL((url) => !stillOnAuth(url), { timeout: 45e3, signal }).catch(() => void 0);
-  if (stopped(cancel)) return;
-  await page.waitForLoadState("networkidle", { timeout: 15e3, signal }).catch(() => void 0);
 }
 
 // src/check.ts
@@ -464,25 +676,25 @@ function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   return path2.join(packageRoot, ".auspex", "runs", stamp);
 }
-async function extractText(page, selector, signal) {
-  if (selector) {
-    return page.locator(selector).first().innerText({ timeout: 1e4, signal });
-  }
-  return page.locator("body").innerText({ timeout: 3e4, signal });
-}
-async function waitNetworkIdle(page, signal) {
-  try {
-    await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal });
-    return true;
-  } catch {
-    return false;
-  }
+async function extractPage(page, selector, signal) {
+  return observeAbort(
+    page.evaluate((sel) => {
+      const el = sel ? document.querySelector(sel) : document.body;
+      return {
+        title: document.title,
+        finalUrl: location.href,
+        raw: el?.innerText ?? ""
+      };
+    }, selector ?? null),
+    signal
+  );
 }
 async function runCheck(opts) {
   requireExpect(opts.expect);
   requireCheckUrl(opts.url, "url");
   assertRecordProfileAllowed(opts);
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) };
+  const onProgress = opts.onProgress ?? noopProgress;
   const solari = createClient();
   const closer = new ReadyRelease();
   let sessionId = "";
@@ -498,6 +710,7 @@ async function runCheck(opts) {
   let workError;
   const work = async (isCancelled, signal) => {
     try {
+      onProgress("launching");
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
       if (isCancelled()) return;
       const browser = await observeAbort(
@@ -513,9 +726,13 @@ async function runCheck(opts) {
         signal
       );
       closer.set(async () => {
+        onProgress("closing");
         await closeThenRelease(
           () => browser.close(),
-          () => solari.sessions.releaseAndWait(browser.id),
+          async () => {
+            await solari.sessions.releaseAndWait(browser.id);
+            await waitUntilReleased(browser.id).catch(() => void 0);
+          },
           CLOSE_TIMEOUT_MS
         );
       });
@@ -523,27 +740,31 @@ async function runCheck(opts) {
       if (isCancelled()) return;
       const page = await pageForSession(browser);
       if (isCancelled()) return;
+      onProgress("goto");
       await page.goto(opts.url, {
         timeout: GOTO_TIMEOUT_MS,
         waitUntil: "domcontentloaded",
         signal
       });
-      networkIdle = await waitNetworkIdle(page, signal);
       if (isCancelled()) return;
       if (opts.sso) {
+        onProgress("sso");
         await completeMicrosoftSso(page, { isCancelled, signal });
-        networkIdle = await waitNetworkIdle(page, signal);
       }
       if (isCancelled()) return;
-      title = await observeAbort(page.title(), signal);
-      finalUrl = page.url();
+      onProgress("extract");
       let raw = "";
       try {
-        raw = await extractText(page, opts.selector, signal);
+        const extracted = await extractPage(page, opts.selector, signal);
+        title = extracted.title;
+        finalUrl = extracted.finalUrl || page.url();
+        raw = extracted.raw;
         const haystack = normalizeHaystack(raw);
         excerpt = excerptOf(haystack);
         matched = haystackMatches(raw, opts.expect);
       } catch (extractErr) {
+        title = title || await observeAbort(page.title(), signal).catch(() => "");
+        finalUrl = page.url();
         const authUrl = new URL(finalUrl);
         if (shouldFailClosedAuth(authUrl, opts)) {
           matched = false;
@@ -556,6 +777,7 @@ async function runCheck(opts) {
         matched = false;
         excerpt = `still on ${finalUrl}. ${excerpt}`;
       }
+      onProgress("screenshot");
       await page.screenshot({
         path: screenshotAbs,
         type: "png",
@@ -585,7 +807,14 @@ async function runCheck(opts) {
         throw new Error(closeMsg);
       }
     }
-    if (workError) throw new Error(explainSolariError(workError));
+    if (workError) {
+      throw new AuspexError(explainSolariError(workError), {
+        issue: classifySolariError(workError),
+        sessionId: sessionId || void 0,
+        screenshotPath: existsSync2(screenshotAbs) ? screenshotPath : void 0,
+        cause: workError
+      });
+    }
     const result = {
       title,
       finalUrl,
@@ -775,6 +1004,18 @@ function fitPngUnderCap(png, cap) {
   if (tiny.length > cap) throw new Error("PNG could not be scaled under cap");
   return tiny;
 }
+var MCP_ATTACH_MAX_SIDE = 1024;
+var MCP_ATTACH_MAX_BYTES = 180 * 1024;
+function fitMcpAttach(png, cap = MCP_ATTACH_MAX_BYTES) {
+  const decoded = decodePng(png);
+  const scale = Math.min(0.9, MCP_ATTACH_MAX_SIDE / Math.max(decoded.width, decoded.height, 1));
+  const dw = Math.max(1, Math.floor(decoded.width * scale));
+  const dh = Math.max(1, Math.floor(decoded.height * scale));
+  const pixels = resize(decoded.pixels, decoded.width, decoded.height, dw, dh, decoded.bpp);
+  const pngOut = fitPngUnderCap(encodePng(dw, dh, pixels, decoded.bpp), cap);
+  decodePng(pngOut);
+  return { buf: pngOut, mimeType: "image/png" };
+}
 
 // src/content.ts
 var packageRoot2 = path3.resolve(path3.dirname(fileURLToPath3(import.meta.url)), "..");
@@ -794,14 +1035,17 @@ async function buildReceiptToolContent(payload, screenshotPath) {
       content.push(pngNote("PNG omitted: screenshot file is empty"));
       return { content };
     }
-    const attach = buf.length <= MAX_IMAGE_BYTES ? buf : fitPngUnderCap(buf, MAX_IMAGE_BYTES);
+    const { buf: attach, mimeType } = buf.length <= MAX_IMAGE_BYTES ? fitMcpAttach(buf) : (() => {
+      const scaled = fitPngUnderCap(buf, MAX_IMAGE_BYTES);
+      return fitMcpAttach(scaled);
+    })();
     if (attach.length > MAX_IMAGE_BYTES) {
       content.push(pngNote(`PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`));
       return { content };
     }
     content.push({
       type: "image",
-      mimeType: "image/png",
+      mimeType,
       data: attach.toString("base64")
     });
   } catch (err) {
@@ -817,6 +1061,28 @@ async function buildReceiptToolContent(payload, screenshotPath) {
 }
 async function buildCheckToolContent(result) {
   return buildReceiptToolContent(result, result.screenshotPath);
+}
+async function packToolFailure(err) {
+  const issue = classifySolariError(err);
+  const extra = err instanceof AuspexError ? err : void 0;
+  const payload = {
+    ok: false,
+    error: issue.message,
+    code: issue.code,
+    retryable: issue.retryable
+  };
+  if (issue.recovery) payload.recovery = issue.recovery;
+  if (issue.status !== void 0) payload.status = issue.status;
+  if (extra?.sessionId) payload.sessionId = extra.sessionId;
+  if (extra?.screenshotPath) payload.screenshotPath = extra.screenshotPath;
+  if (extra?.receipt && typeof extra.receipt === "object") {
+    Object.assign(payload, extra.receipt);
+  }
+  const packed = await buildReceiptToolContent(payload, extra?.screenshotPath);
+  if (extra?.log) {
+    packed.content.unshift({ type: "text", text: extra.log });
+  }
+  return { content: packed.content, isError: true };
 }
 
 // src/desktop.ts
@@ -880,22 +1146,29 @@ var DESKTOP_HEALTH_MS = 3e4;
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+var DESKTOP_CREATE_OPTS = {
+  template: "default",
+  resolution: "1280x720",
+  cpu: 1,
+  memMb: 2048,
+  timeoutMs: 5 * 6e4,
+  lifecycle: { onTimeout: "kill" }
+};
+var DEFAULT_DESKTOP_CLICK = { x: 640, y: 360 };
 function defaultDesktopDeps() {
   return {
     create: async () => {
-      const pt = new SolariClient({ apiKey: requireApiKey() });
-      const d = await pt.desktops.create({
-        template: "default",
-        resolution: "1280x720",
-        timeoutMs: 5 * 6e4,
-        lifecycle: { onTimeout: "kill" }
-      });
+      const pt = new SolariClient({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
+      const d = await pt.desktops.create(DESKTOP_CREATE_OPTS);
       return {
         sessionId: d.sessionId,
         connect: () => d.connect(),
         health: () => d.health(),
         screenshot: () => d.screenshot({ format: "png" }),
-        kill: () => d.kill()
+        kill: () => d.kill(),
+        click: (x, y) => d.mouse.click(x, y),
+        typeText: (text) => d.keyboard.type(text),
+        openApp: (name) => d.open(name).then(() => void 0)
       };
     }
   };
@@ -921,16 +1194,33 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
   const sleepFn = deps.sleep ?? sleep;
   const tui = deps.tui ?? createDesktopTui(status);
   const overview = desktopOverviewText();
+  const overallMs = deps.overallMs ?? DESKTOP_OVERALL_MS;
   tui.setPhase("booting");
   let desktop;
+  const createP = deps.create();
   try {
-    return await boundPromise(
-      (async () => {
-        desktop = await deps.create();
+    return await raceWithTimeout(
+      async (isCancelled, signal) => {
+        try {
+          desktop = await observeAbort(createP, signal);
+        } catch (err) {
+          void createP.then((d) => d.kill().catch(() => void 0));
+          throw err;
+        }
+        if (isCancelled()) {
+          await desktop.kill().catch(() => void 0);
+          throw new Error(`desktop review timed out after ${overallMs}ms`);
+        }
         tui.setPhase("connecting");
         await desktop.connect();
         tui.setPhase("waiting");
         const ready = await waitReady(desktop, sleepFn);
+        tui.setPhase("task");
+        const task = deps.task ?? {};
+        const clickAt = task.click ?? DEFAULT_DESKTOP_CLICK;
+        if (task.open && desktop.openApp) await desktop.openApp(task.open);
+        if (task.type && desktop.typeText) await desktop.typeText(task.type);
+        if (desktop.click) await desktop.click(clickAt.x, clickAt.y);
         tui.setPhase("screenshot");
         const png = await desktop.screenshot();
         const dir = newRunDir();
@@ -964,9 +1254,9 @@ ${summary}`;
           overview,
           log
         };
-      })(),
-      DESKTOP_OVERALL_MS,
-      `desktop review timed out after ${DESKTOP_OVERALL_MS}ms`
+      },
+      overallMs,
+      `desktop review timed out after ${overallMs}ms`
     );
   } catch (err) {
     if (desktop) {
@@ -974,9 +1264,15 @@ ${summary}`;
         await desktop.kill();
       } catch {
       }
+    } else {
+      void createP.then((d) => d.kill().catch(() => void 0));
     }
     tui.close();
-    throw new Error(explainSolariError(err));
+    throw new AuspexError(explainSolariError(err), {
+      issue: classifySolariError(err),
+      log: tui.transcript(),
+      cause: err
+    });
   }
 }
 
@@ -987,9 +1283,73 @@ import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 import { readdir, readFile as readFile2, stat } from "node:fs/promises";
 import path5 from "node:path";
 var RUNS_DIR = path5.join(packageRoot, ".auspex", "runs");
-var RECEIPT_ASSERT_PY = `import json, sys
+var RECEIPT_ASSERT_PY = `import json, struct, sys, zlib
 from pathlib import Path
 from urllib.parse import urlparse
+
+def paeth(a, b, c):
+    p = a + b - c
+    pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+    if pa <= pb and pa <= pc:
+        return a
+    if pb <= pc:
+        return b
+    return c
+
+def decode_png_pixels(png):
+    if png[:8] != bytes.fromhex("89504e470d0a1a0a"):
+        raise ValueError("screenshot is not a PNG")
+    i = 8
+    w = h = 0
+    bit_depth = color_type = interlace = None
+    idats = []
+    while i + 12 <= len(png):
+        ln = struct.unpack(">I", png[i:i+4])[0]
+        typ = png[i+4:i+8]
+        data = png[i+8:i+8+ln]
+        i += 12 + ln
+        if typ == b"IHDR":
+            w, h = struct.unpack(">II", data[:8])
+            bit_depth, color_type, interlace = data[8], data[9], data[12]
+        elif typ == b"IDAT":
+            idats.append(data)
+        elif typ == b"IEND":
+            break
+    if w < 8 or h < 8:
+        raise ValueError("screenshot is too small to be a page capture")
+    if bit_depth != 8 or interlace != 0 or color_type not in (2, 6):
+        raise ValueError("screenshot PNG is unsupported")
+    bpp = 4 if color_type == 6 else 3
+    raw = zlib.decompress(b"".join(idats))
+    stride = w * bpp
+    need = h * (stride + 1)
+    if len(raw) < need:
+        raise ValueError("screenshot PNG IDAT is truncated")
+    out = bytearray(h * stride)
+    src = 0
+    for y in range(h):
+        filt = raw[src]
+        src += 1
+        for x in range(stride):
+            val = raw[src]
+            src += 1
+            a = out[y * stride + x - bpp] if x >= bpp else 0
+            b = out[(y - 1) * stride + x] if y else 0
+            c = out[(y - 1) * stride + x - bpp] if y and x >= bpp else 0
+            if filt == 0:
+                pix = val
+            elif filt == 1:
+                pix = (val + a) & 255
+            elif filt == 2:
+                pix = (val + b) & 255
+            elif filt == 3:
+                pix = (val + ((a + b) >> 1)) & 255
+            elif filt == 4:
+                pix = (val + paeth(a, b, c)) & 255
+            else:
+                raise ValueError("screenshot PNG filter is invalid")
+            out[y * stride + x] = pix
+    return w, h, bytes(out)
 
 work = Path(sys.argv[1] if len(sys.argv) > 1 else "/work")
 man = json.loads((work / "manifest.json").read_text())
@@ -998,6 +1358,15 @@ integrity = []
 claim = []
 if png[:8] != bytes.fromhex("89504e470d0a1a0a"):
     integrity.append("screenshot is not a PNG")
+elif len(png) < 64:
+    integrity.append("screenshot is empty or tiny")
+else:
+    try:
+        w, h, pixels = decode_png_pixels(png)
+        if w < 8 or h < 8 or len(pixels) < 8 * 8 * 3:
+            integrity.append("screenshot is too small to be a page capture")
+    except Exception as exc:
+        integrity.append(str(exc) if str(exc).startswith("screenshot") else "screenshot PNG pixels are invalid")
 shot = str(man.get("screenshotPath") or "")
 if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("/tmp")):
     integrity.append("screenshotPath looks like an operator home path")
@@ -1065,16 +1434,40 @@ async function loadRunFiles(runDir2) {
 
 // src/sandbox.ts
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
-var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + SANDBOX_ASSERT_TIMEOUT_MS;
+var VERIFY_OVERALL_MS = 9e4;
+var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
+var SANDBOX_CREATE_OPTS = {
+  template: "base",
+  cpu: 1,
+  memMb: 2048,
+  timeoutMs: 5 * 6e4,
+  lifecycle: { onTimeout: "kill" }
+};
+function wrapSandboxRestExec(sbx, fetchImpl = fetch) {
+  return {
+    connect: async () => void 0,
+    files: {
+      mkdir: async (p) => {
+        await sbx.commands.run("mkdir", { args: ["-p", p] });
+      },
+      write: async (p, data) => {
+        const { url } = await sbx.uploadUrl(p);
+        const body = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+        const res = await fetchImpl(url, { method: "PUT", body });
+        if (!res.ok) throw new Error(`upload ${p} failed: ${res.status}`);
+      }
+    },
+    commands: sbx.commands,
+    kill: () => sbx.kill(),
+    sandboxId: sbx.id
+  };
+}
 function defaultVerifyDeps() {
   return {
     create: async () => {
-      const pt = new SolariClient2({ apiKey: requireApiKey() });
-      return pt.sandboxes.create({
-        template: "base",
-        timeoutMs: 5 * 6e4,
-        lifecycle: { onTimeout: "kill" }
-      });
+      const pt = new SolariClient2({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
+      const sbx = await pt.sandboxes.create(SANDBOX_CREATE_OPTS);
+      return wrapSandboxRestExec(sbx);
     }
   };
 }
@@ -1103,73 +1496,140 @@ function parseAssertStdout(stdout) {
   }
 }
 async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
+  const onProgress = deps.onProgress ?? noopProgress;
+  const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
   const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   assertReceiptUploadSize(manifest, png);
-  const sandbox = await deps.create();
+  let sandbox;
+  const createP = deps.create();
   try {
-    await sandbox.connect();
-    await sandbox.files.mkdir("/work");
-    await sandbox.files.write("/work/manifest.json", manifest);
-    await sandbox.files.write("/work/screenshot.png", png);
-    await sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY);
-    const out = await boundPromise(
-      sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
-      SANDBOX_ASSERT_TIMEOUT_MS,
-      `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`
+    return await raceWithTimeout(
+      async (isCancelled, signal) => {
+        onProgress("sandbox-create");
+        try {
+          sandbox = await observeAbort(createP, signal);
+        } catch (err) {
+          void createP.then((s) => s.kill().catch(() => void 0));
+          throw err;
+        }
+        if (isCancelled()) {
+          await sandbox.kill().catch(() => void 0);
+          throw new Error(`sandbox verify timed out after ${overallMs}ms`);
+        }
+        onProgress("sandbox-upload");
+        await sandbox.connect();
+        await sandbox.files.mkdir("/work");
+        await Promise.all([
+          sandbox.files.write("/work/manifest.json", manifest),
+          sandbox.files.write("/work/screenshot.png", png),
+          sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY)
+        ]);
+        onProgress("sandbox-assert");
+        const out = await boundPromise(
+          sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
+          SANDBOX_ASSERT_TIMEOUT_MS,
+          `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`
+        );
+        const parsed = parseAssertStdout(out.stdout || out.stderr || "");
+        if (out.exitCode !== 0 && parsed.ok) {
+          parsed.ok = false;
+          parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
+        }
+        const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+        onProgress("sandbox-kill");
+        try {
+          await sandbox.kill();
+          sandbox = void 0;
+        } catch (killErr) {
+          const msg = `sandbox kill failed: ${explainSolariError(killErr)}`;
+          return { ...result, ok: false, errors: [...result.errors, msg] };
+        }
+        return result;
+      },
+      overallMs,
+      `sandbox verify timed out after ${overallMs}ms`
     );
-    const parsed = parseAssertStdout(out.stdout || out.stderr || "");
-    if (out.exitCode !== 0 && parsed.ok) {
-      parsed.ok = false;
-      parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
-    }
-    const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
-    try {
-      await sandbox.kill();
-    } catch (killErr) {
-      const msg = `sandbox kill failed: ${explainSolariError(killErr)}`;
-      return { ...result, ok: false, errors: [...result.errors, msg] };
-    }
-    return result;
   } catch (err) {
-    try {
-      await sandbox.kill();
-    } catch {
+    if (sandbox) {
+      try {
+        await sandbox.kill();
+      } catch {
+      }
     }
-    throw new Error(explainSolariError(err));
+    throw new AuspexError(explainSolariError(err), {
+      issue: classifySolariError(err),
+      cause: err
+    });
   }
 }
 async function checkThenVerify(opts, deps) {
-  const check = deps?.check ? await deps.check(opts) : await runCheck(opts);
-  const dir = runDirFromResult(check);
+  const onProgress = deps?.onProgress ?? opts.onProgress ?? noopProgress;
+  const overlap = !deps?.verify;
+  const createFn = overlap ? deps?.create ?? defaultVerifyDeps().create : void 0;
+  let created;
+  const pending = createFn ? createFn().then((s) => {
+    created = s;
+    return s;
+  }) : void 0;
   try {
-    const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, deps?.create ? { create: deps.create } : void 0);
-    return { check, verify };
+    onProgress("check");
+    const check = deps?.check ? await deps.check({ ...opts, onProgress }) : await runCheck({ ...opts, onProgress });
+    const dir = runDirFromResult(check);
+    try {
+      const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
+        create: async () => {
+          if (pending) return pending;
+          return (deps?.create ?? defaultVerifyDeps().create)();
+        },
+        onProgress
+      });
+      return { check, verify };
+    } catch (err) {
+      return {
+        check,
+        verify: {
+          ok: false,
+          errors: [explainSolariError(err)],
+          claimOk: false,
+          claimErrors: [],
+          runDir: dir
+        }
+      };
+    }
   } catch (err) {
-    return {
-      check,
-      verify: {
-        ok: false,
-        errors: [explainSolariError(err)],
-        claimOk: false,
-        claimErrors: [],
-        runDir: dir
+    if (pending) {
+      try {
+        const s = created ?? await pending.catch(() => void 0);
+        if (s) await s.kill();
+      } catch {
       }
-    };
+    }
+    throw err;
   }
 }
 
 // src/mcp-tools.ts
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser (fast pool by default), snapshot the page, and check that expected text is present. Always closes/releases the session. Returns JSON plus a downscaled JPEG attach; the on-disk shot stays full-page PNG. Set verify=true for one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate: a missed expect can still be a valid receipt. stealth is Starter+ (402 FeatureRequiresPlan, not retryable). record+profile is forbidden unless allowRecordProfile. 429 ConcurrencyLimitExceeded is not retryable \u2014 solari_browser_close / solari_kill leftover sessions, then retry.";
+var VERIFY_DESCRIPTION = "After auspex_check without verify=true, upload the on-disk receipt (PNG + JSON) into a headless Solari sandbox, assert integrity (ok) vs claim (claimOk), and kill the VM. Do not call this if you already passed verify=true on auspex_check. 429 is not retryable: solari_kill leftover VMs first.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, wait for them to Save, then pass this profile to auspex_check.";
+var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, one computer-use action (default click center; optional open/type), screenshot, kill. Returns ASCII log plus structured JSON and optional PNG. Desktops may 402 FeatureRequiresPlan on Free (not retryable). 429: solari_kill leftovers, do not retry create.";
+var PROFILES_DESCRIPTION = "List Solari browser profile names and ids on this account.";
+function progressFromExtra(extra) {
+  return createProgress({ extra });
+}
 function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_check",
     {
-      description: "Open a live URL in a Solari cloud browser, snapshot the page, and check that expected text is present. Returns JSON plus a PNG (on-disk shot stays full-page; MCP attach is downscaled to 2 MiB if needed). Always closes the session. Set verify=true to then audit the receipt in a headless sandbox and kill the VM. Use for post-deploy verification, not raw CDP.",
+      description: CHECK_DESCRIPTION,
       inputSchema: auspexCheckInputObject
     },
-    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }) => {
+    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }, extra) => {
       try {
-        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile };
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_check");
+        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile, onProgress };
         assertRecordProfileAllowed(opts);
         if (verify) {
           const both = await checkThenVerify(opts);
@@ -1180,14 +1640,14 @@ function registerAuspexTools(server2) {
         const result = await runCheck(opts);
         return await buildCheckToolContent(result);
       } catch (err) {
-        throw new Error(explainSolariError(err));
+        return packToolFailure(err);
       }
     }
   );
   server2.registerTool(
     "auspex_login",
     {
-      description: "Create or reuse a named Solari browser profile, then tell the human to log in via Console \u2192 Profiles \u2192 Open editor \u2192 Save. Does not keep a check session open. After Save, pass this profile to auspex_check.",
+      description: LOGIN_DESCRIPTION,
       inputSchema: auspexLoginInputSchema
     },
     async ({ profile, url }) => {
@@ -1195,14 +1655,14 @@ function registerAuspexTools(server2) {
         const result = await loginProfile(profile, url);
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
-        throw new Error(explainSolariError(err));
+        return packToolFailure(err);
       }
     }
   );
   server2.registerTool(
     "auspex_profiles",
     {
-      description: "List Solari browser profile names and ids on this account.",
+      description: PROFILES_DESCRIPTION,
       inputSchema: {}
     },
     async () => {
@@ -1210,44 +1670,63 @@ function registerAuspexTools(server2) {
         const profiles = await listProfiles();
         return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
       } catch (err) {
-        throw new Error(explainSolariError(err));
+        return packToolFailure(err);
       }
     }
   );
   server2.registerTool(
     "auspex_desktop",
     {
-      description: "Minimal Solari GUI desktop: boot, screenshot, kill. Always returns an append-only ASCII log (:: booting \u2026 ==> ok=true path=\u2026) as the tool text so Grok/Codex/Claude can show it without a TTY. Optional PNG. No VNC. Desktops need Starter or higher.",
-      inputSchema: {}
+      description: DESKTOP_DESCRIPTION,
+      inputSchema: auspexDesktopInputSchema
     },
-    async () => {
+    async ({ open, type, clickX, clickY }, extra) => {
       try {
-        const result = await runDesktopReview();
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_desktop");
+        const result = await runDesktopReview({
+          ...defaultDesktopDeps(),
+          task: {
+            open,
+            type,
+            click: clickX !== void 0 && clickY !== void 0 ? { x: clickX, y: clickY } : void 0
+          },
+          status: process.stderr
+        });
         const packed = await buildReceiptToolContent(
-          { ok: result.ok, ready: result.ready, screenshotPath: result.screenshotPath, errors: result.errors },
+          {
+            ok: result.ok,
+            ready: result.ready,
+            screenshotPath: result.screenshotPath,
+            errors: result.errors,
+            desktopId: result.desktopId,
+            overview: result.overview
+          },
           result.screenshotPath
         );
-        packed.content[0] = { type: "text", text: result.log };
+        packed.content.unshift({ type: "text", text: result.log });
         return packed;
       } catch (err) {
-        throw new Error(explainSolariError(err));
+        return packToolFailure(err);
       }
     }
   );
   server2.registerTool(
     "auspex_verify",
     {
-      description: "After auspex_check, upload the receipt (PNG + JSON) into a headless Solari sandbox, assert it, and kill the VM. Login stays on the browser profile editor. Optional runDir; default is the latest .auspex/runs stamp.",
+      description: VERIFY_DESCRIPTION,
       inputSchema: {
         runDir: z5.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory")
       }
     },
-    async ({ runDir: runDir2 }) => {
+    async ({ runDir: runDir2 }, extra) => {
       try {
-        const result = await verifyReceipt(runDir2);
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_verify");
+        const result = await verifyReceipt(runDir2, { ...defaultVerifyDeps(), onProgress });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
-        throw new Error(explainSolariError(err));
+        return packToolFailure(err);
       }
     }
   );

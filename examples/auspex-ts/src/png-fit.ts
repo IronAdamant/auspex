@@ -180,3 +180,18 @@ export function fitPngUnderCap(png: Buffer, cap: number): Buffer {
   if (tiny.length > cap) throw new Error("PNG could not be scaled under cap")
   return tiny
 }
+
+export const MCP_ATTACH_MAX_SIDE = 1024
+export const MCP_ATTACH_MAX_BYTES = 180 * 1024
+
+/** Smaller MCP attach: a real downscaled PNG. Does not mutate the on-disk full-page shot. */
+export function fitMcpAttach(png: Buffer, cap = MCP_ATTACH_MAX_BYTES): { buf: Buffer; mimeType: "image/png" } {
+  const decoded = decodePng(png)
+  const scale = Math.min(0.9, MCP_ATTACH_MAX_SIDE / Math.max(decoded.width, decoded.height, 1))
+  const dw = Math.max(1, Math.floor(decoded.width * scale))
+  const dh = Math.max(1, Math.floor(decoded.height * scale))
+  const pixels = resize(decoded.pixels, decoded.width, decoded.height, dw, dh, decoded.bpp)
+  const pngOut = fitPngUnderCap(encodePng(dw, dh, pixels, decoded.bpp), cap)
+  decodePng(pngOut)
+  return { buf: pngOut, mimeType: "image/png" }
+}

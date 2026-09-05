@@ -76,6 +76,34 @@ test("ReadyRelease closes a late-assigned session after the timer wins", async (
   assert.equal(closed, true)
 })
 
+test("launchBrowser aborts sessions.create and still releases a late session", async () => {
+  const { launchBrowser } = await import("../src/solari.ts")
+  let released = false
+  const ac = new AbortController()
+  const fake = {} as import("@solarisdk/browser").Solari
+  const start = Date.now()
+  setTimeout(() => ac.abort(), 15)
+  await assert.rejects(
+    () =>
+      launchBrowser(fake, {}, ac.signal, {
+        create: async () => {
+          await new Promise((r) => setTimeout(r, 80))
+          return { id: "late", wsEndpoint: "ws://example" }
+        },
+        connect: async () => ({}),
+        wrap: () => ({ close: async () => undefined }),
+        releaseAndWait: async () => {
+          released = true
+        },
+        closeTimeoutMs: 40,
+      }),
+    /aborted/,
+  )
+  await new Promise((r) => setTimeout(r, 120))
+  assert.equal(released, true)
+  assert.ok(Date.now() - start < 500)
+})
+
 test("launchBrowser passes timeout>0 to connect and releases on connect throw", async () => {
   const { launchBrowser } = await import("../src/solari.ts")
   let connectOpts: { timeout: number } | undefined
