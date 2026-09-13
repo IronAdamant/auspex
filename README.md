@@ -1,19 +1,56 @@
-# Solari Cookbook
+# Auspex
 
-Short, runnable examples for [Solari](https://getsolari.com) — cloud browsers,
-sandboxes, and desktops behind one API key.
+Agent-only **web eyes** on [Solari](https://getsolari.com) cloud Chrome, plus a sandbox receipt audit and a real desktop computer-use check.
 
-Every example in this repo is a complete program you can run in under a minute.
-They are deliberately small: one idea each, no framework, no scaffolding to read
-past. Copy one into your project and change the parts you care about.
+This is a public fork of the Solari cookbook built for Pinetree Research’s intern challenge: a coding agent launches a throwaway cloud browser, snapshots a live page, independently verifies the claim in a headless VM, and tears everything down. You never sit in that browser.
+
+## What we shipped for the intern challenge
+
+- **`auspex_check`** — cloud Chrome: goto, optional click/fill/wait-for, optional stealth/proxy/captcha, snapshot, claim check, close. `--record` waits for replay (no presigned URL on JSON).
+- **`auspex_verify`** — headless sandbox re-checks the PNG + JSON. Integrity (`ok`) is separate from **claim** (`claimOk`), which re-fetches the URL / OCRs the PNG instead of echoing `manifest.ok`.
+- **`auspex_desktop`** — GUI VM: wait for X11, open Mousepad, click **inside** the editor (320,300 — not screen center), screenshot, kill. `streamUrl` is the live VNC.
+- **`auspex_reap`** — list/kill leftover sessions and VMs after `429 ConcurrencyLimitExceeded` without loading the official 33-tool Solari MCP.
+- **MCP first** — Cursor, Claude, and Grok configs. Auspex tools are the product; official Solari MCP is an optional gated sibling (`SOLARI_API_KEY` or it does not start).
+
+```bash
+git clone https://github.com/IronAdamant/auspex.git
+cd auspex/examples/auspex-ts
+npm install
+printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env   # console.getsolari.com
+npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
+npx tsx src/cli.ts verify
+```
+
+![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
+
+Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html) (open the HTML after clone, or via [jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html)).
+
+Full agent notes: [examples/auspex-ts](examples/auspex-ts) · [AGENTS.md](examples/auspex-ts/AGENTS.md).
+
+## MCP (Cursor / Claude / Grok)
+
+Auspex is the check → verify → kill loop. Copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) to `.cursor/mcp.json`, or [mcp.claude.example.json](examples/auspex-ts/mcp.claude.example.json) into Claude Desktop. Grok still uses [grok.mcp.example.toml](examples/auspex-ts/grok.mcp.example.toml) (Content-Length stdio).
+
+```bash
+# from examples/auspex-ts after npm install
+npx tsx src/mcp.ts
+```
+
+Official `@solarisdk/mcp` (33 tools) is **optional**. `dist/solari-mcp.mjs` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
 
 ## Examples
 
-- **[auspex-ts](examples/auspex-ts)** — agent-only: Solari boots a remote Chrome (not a window on your Mac), snapshot + claim check, then close. `verify` re-checks that receipt in a headless Solari sandbox and kills the VM. Optional Grok MCP sibling: official Solari 33 tools, **gated** so they only start when `SOLARI_API_KEY` is set. Built with Grok Build; see that example’s README. Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html).
+| Example | What it shows |
+| --- | --- |
+| **[auspex-ts](examples/auspex-ts)** | The intern-challenge product: check, verify, desktop, login profiles, MCP |
+| [auspex-ts](examples/auspex-ts) `verify` | Headless VM independently audits a cloud-browser receipt, then kill |
+| [auspex-ts](examples/auspex-ts) `desktop` | Mousepad computer-use (interior click + expect), screenshot, kill |
 
-  ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
+### Upstream cookbook (unmodified Solari samples)
 
-### Cloud browser
+These are the original cookbook programs. They are not the intern submission; they have no Auspex CI.
+
+#### Cloud browser
 
 | Example | Language | What it shows |
 | --- | --- | --- |
@@ -23,74 +60,55 @@ past. Copy one into your project and change the parts you care about.
 | [browser-profiles-ts](examples/browser-profiles-ts) | TypeScript | Log in once, reuse the session forever |
 | [browser-session-recording-py](examples/browser-session-recording-py) | Python | Record a session, download the replay |
 
-### Sandbox
+#### Sandbox
 
 | Example | Language | What it shows |
 | --- | --- | --- |
 | [sandbox-quickstart-ts](examples/sandbox-quickstart-ts) | TypeScript | Run a command, write and read files |
 | [sandbox-code-interpreter-py](examples/sandbox-code-interpreter-py) | Python | Stateful Python kernel for agent loops |
 | [sandbox-port-preview-ts](examples/sandbox-port-preview-ts) | TypeScript | Expose a server in the VM on a public URL |
-| [auspex-ts](examples/auspex-ts) `verify` | TypeScript | Headless VM re-checks a cloud-browser PNG + JSON receipt, then kill |
 
-### Desktop
+#### Desktop
 
 | Example | Language | What it shows |
 | --- | --- | --- |
-| [desktop-computer-use-py](examples/desktop-computer-use-py) | Python | Screenshot, click, and type on a Linux GUI |
+| [auspex-ts](examples/auspex-ts) `desktop` | TypeScript | Mousepad computer-use, `streamUrl`, expect, kill |
+| [desktop-computer-use-py](examples/desktop-computer-use-py) | Python | Upstream screenshot/click/type sample (center-click warning) |
 
-## Running an example
+## Running an upstream example
 
-Each directory is self-contained.
+Each cookbook directory is still self-contained.
 
 ```bash
 git clone https://github.com/IronAdamant/auspex.git
-cd auspex/examples/browser-quickstart-ts
+cd auspex/examples/auspex-ts
 
-npm install                          # or: pip install -r requirements.txt
+npm install
 export SOLARI_API_KEY=slr_live_...   # grab one at console.getsolari.com
-npm start                            # or: python main.py
+npx tsx src/cli.ts check https://example.com --expect "Example Domain"
 ```
 
-One `slr_live_` key works across browsers, sandboxes, and desktops, and every
-product bills to the same balance.
+One `slr_live_` key works across browsers, sandboxes, and desktops.
 
 ## Which product do I want?
 
-- **Cloud browser** — you need a *web page*: scraping, testing, filling forms,
-  anything Playwright or Puppeteer would do locally. Adds stealth, managed
-  proxies, captcha solving, profiles, and session recording.
-- **Sandbox** — you need to *run code*: an LLM's Python, an untrusted build, a
-  data job. A headless microVM that boots from a snapshot in about a second.
-- **Desktop** — you need a *screen*: computer-use agents, GUI apps, anything
-  that has to be clicked. A sandbox plus X11 and a live VNC stream.
+- **Cloud browser** — a *web page*: scraping, testing, filling forms. Adds stealth, managed proxies, captcha solving, profiles, and session recording.
+- **Sandbox** — *run code*: an LLM's Python, an untrusted build. Headless microVM.
+- **Desktop** — a *screen*: computer-use agents, GUI apps. A sandbox plus X11 and a live VNC stream.
 
 ## Gotchas the examples encode
 
-Things that cost you an afternoon if you meet them cold:
-
-- **TypeScript: call `await solari.close()`.** The browser client keeps a
-  loopback proxy open for connection retries. Skip the close and your script
-  prints its output and then hangs forever instead of exiting.
-- **Recording is per session, not per account.** Pass `recording: true` when you
-  create the session; without it the replay endpoint 404s forever. The upload is
-  async after release, so poll for ~30s before giving up.
-- **Sandbox commands are not shell-interpreted.** `run("ls -la")` looks for a
-  binary named `ls -la`. Put argv in `args`, or run `sh -c` explicitly.
-- **`kill()`, not `close()`, ends a VM.** `close()` drops your local control
-  channel; the VM keeps running until its idle timeout.
-- **`timeoutMs` is a rolling idle window**, not a hard deadline — it resets on
-  every use.
+- **TypeScript: call `await solari.close()`.** The browser client keeps a loopback proxy open. Skip the close and the process hangs.
+- **Recording is per session.** Pass `recording: true` at create; poll ~30s after release. Auspex `--record` sets `replayReady` and may write `replay.ndjson` — it never puts a presigned `replayUrl` on stdout.
+- **Sandbox commands are not shell-interpreted.** `run("ls -la")` looks for a binary named `ls -la`.
+- **`kill()`, not `close()`, ends a VM.**
+- **`timeoutMs` is a rolling idle window**, not a hard deadline.
+- **429 is not retryable.** Call `auspex_reap` (or official `solari_kill`) to free leftover sessions.
 
 ## Links
 
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Changelog — [changelog.getsolari.com](https://changelog.getsolari.com)
-- Questions — [hello@getsolari.com](mailto:hello@getsolari.com)
-
-## Contributing
-
-New examples are welcome. Keep them small, make them run end-to-end against the
-real API, and put anything surprising in a comment right where it bites.
 
 MIT licensed.

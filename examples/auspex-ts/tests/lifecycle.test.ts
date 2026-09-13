@@ -123,10 +123,10 @@ test("checkThenVerify overlaps sandbox create with the browser check", async () 
   assert.equal(both.verify.ok, true)
 })
 
-test("check source no longer waits networkidle after DCL", () => {
+test("check source waits for networkidle after DCL", () => {
   const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  assert.equal(src.includes("waitForLoadState(\"networkidle\""), false)
-  assert.equal(src.includes("waitNetworkIdle"), false)
+  assert.match(src, /waitForLoadState\("networkidle"/)
+  assert.match(src, /NETWORKIDLE_TIMEOUT_MS/)
 })
 
 test("sso source has no extra fail-open networkidle or DCL waits", () => {
@@ -135,6 +135,12 @@ test("sso source has no extra fail-open networkidle or DCL waits", () => {
   assert.equal(src.includes("domcontentloaded"), false)
 })
 
+test("check source fits PNG under the verify cap and attaches replay on record", () => {
+  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
+  assert.match(src, /fitPngUnderCap/)
+  assert.match(src, /attachRecordedReplay/)
+  assert.match(src, /sessionCreateFromCheck/)
+})
 test("sandbox verify uploads files in parallel", () => {
   const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
   assert.match(src, /Promise\.all\(/)

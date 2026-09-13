@@ -8,7 +8,11 @@ import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BrowserSession, Solari, SolariError } from "@solarisdk/browser";
+import {
+  BrowserSession,
+  Solari,
+  SolariError
+} from "@solarisdk/browser";
 import { chromium } from "patchright-core";
 var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
 function loadDotEnv(file = DOTENV_PATH) {

@@ -3,6 +3,7 @@ import { runCheck, runDirFromResult, type CheckOptions, type CheckResult } from 
 import { MAX_IMAGE_BYTES } from "./content.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
+import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
 import { fetchWithIdempotencyKey, OVERALL_TIMEOUT_MS, requireApiKey } from "./solari.ts"
 import { boundPromise, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout } from "./timeout.ts"
@@ -158,6 +159,7 @@ export async function verifyReceipt(
           await sandbox.kill().catch(() => undefined)
           throw new Error(`sandbox verify timed out after ${overallMs}ms`)
         }
+        if (sandbox.sandboxId) await rememberLive("sandbox", sandbox.sandboxId).catch(() => undefined)
         onProgress("sandbox-upload")
         await sandbox.connect()
         await sandbox.files.mkdir("/work")
@@ -180,7 +182,9 @@ export async function verifyReceipt(
         const result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
         onProgress("sandbox-kill")
         try {
+          const killedId = sandbox.sandboxId
           await sandbox.kill()
+          if (killedId) await forgetLive("sandbox", killedId).catch(() => undefined)
           sandbox = undefined
         } catch (killErr) {
           const msg = `sandbox kill failed: ${explainSolariError(killErr)}`
@@ -194,7 +198,9 @@ export async function verifyReceipt(
   } catch (err) {
     if (sandbox) {
       try {
+        const killedId = sandbox.sandboxId
         await sandbox.kill()
+        if (killedId) await forgetLive("sandbox", killedId).catch(() => undefined)
       } catch {
         /* original error wins */
       }

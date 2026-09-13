@@ -35,7 +35,24 @@ export const auspexCheckInputObject = z.object({
   sso: z
     .boolean()
     .optional()
-    .describe("Click Sign in with Microsoft and the signed-in account picker if they appear"),
+    .describe("Click Sign in with Microsoft/Google (or another Sign in with … button) if they appear"),
+  ssoProvider: z
+    .enum(["microsoft", "google", "auto"])
+    .optional()
+    .describe("SSO vendor. Default auto tries Microsoft, then Google, then a generic Sign in with button"),
+  waitFor: z.string().optional().describe("CSS selector to wait until visible before extract"),
+  fill: z.string().optional().describe("CSS selector to fill; requires value"),
+  value: z.string().optional().describe("Text to type into fill"),
+  click: z.string().optional().describe("CSS selector to click after wait/fill"),
+  proxy: z
+    .string()
+    .optional()
+    .describe("Managed proxy: 2-letter country, smart, or off. Implies stealth. Starter+ (402 on Free)"),
+  proxySticky: z.string().optional().describe("Sticky proxy session id (with proxy country)"),
+  captcha: z
+    .boolean()
+    .optional()
+    .describe("Managed captcha solving. Implies stealth. Starter+ (402 on Free)"),
   verify: z
     .boolean()
     .optional()
@@ -53,6 +70,12 @@ export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, c
   if (val.record && val.profile && !val.allowRecordProfile) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] })
   }
+  if (val.fill && val.value === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "fill requires value", path: ["value"] })
+  }
+  if (val.value !== undefined && !val.fill) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "value requires fill", path: ["fill"] })
+  }
 })
 
 export const auspexLoginInputSchema = z.object({
@@ -61,8 +84,15 @@ export const auspexLoginInputSchema = z.object({
 })
 
 export const auspexDesktopInputSchema = z.object({
-  open: z.string().optional().describe("Optional app name to open on the desktop before screenshot"),
-  type: z.string().optional().describe("Optional text to type after open"),
-  clickX: z.number().optional().describe("Click X (default 640)"),
-  clickY: z.number().optional().describe("Click Y (default 360)"),
+  open: z.string().optional().describe("App to open (default mousepad)"),
+  type: z.string().optional().describe("Optional text to type after focusing the window"),
+  clickX: z.number().optional().describe("Click X. Default 320 when opening mousepad; no silent center-click"),
+  clickY: z.number().optional().describe("Click Y. Default 300 when opening mousepad"),
+  expect: z.string().optional().describe("Substring that must appear in desktop process list after the task"),
+})
+
+export const auspexReapInputSchema = z.object({
+  dryRun: z.boolean().optional().describe("List leftover sessions/VMs without closing them"),
+  sessionId: z.string().optional().describe("Extra browser session id to release"),
+  vmId: z.string().optional().describe("Extra sandbox/desktop id to kill"),
 })

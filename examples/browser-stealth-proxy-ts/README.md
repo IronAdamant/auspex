@@ -1,5 +1,6 @@
 # Stealth + managed proxy (TypeScript)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 Reach a site that blocks datacenter traffic: `stealth: true` for the fingerprint patches, `proxy: "us"` for residential egress. Prints the IP the target actually sees.
 
 `proxy` and `captcha` both require `stealth: true`.

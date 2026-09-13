@@ -1,16 +1,22 @@
 import { existsSync } from "node:fs"
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { BrowserSession } from "@solarisdk/browser"
 import { requireCheckUrl } from "./http-url.ts"
+import { sessionCreateFromCheck } from "./launch-options.ts"
+import { runPageActions } from "./page-actions.ts"
+import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import { requireProfileName } from "./profiles.ts"
+import { attachRecordedReplay } from "./replay-save.ts"
+import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
 import { assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   createClient,
   GOTO_TIMEOUT_MS,
   launchBrowser,
+  NETWORKIDLE_TIMEOUT_MS,
   OVERALL_TIMEOUT_MS,
   pageForSession,
   resolveProfileId,
@@ -18,7 +24,7 @@ import {
 } from "./solari.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
-import { completeMicrosoftSso, shouldFailClosedAuth } from "./sso.ts"
+import { completeSso, shouldFailClosedAuth, type SsoProvider } from "./sso.ts"
 import {
   boundPromise,
   closeThenRelease,
@@ -39,7 +45,15 @@ export type CheckOptions = {
   stealth?: boolean
   record?: boolean
   sso?: boolean
+  ssoProvider?: SsoProvider
   allowRecordProfile?: boolean
+  waitFor?: string
+  fill?: string
+  value?: string
+  click?: string
+  proxy?: string
+  proxySticky?: string
+  captcha?: boolean
   onProgress?: ProgressFn
 }
 
@@ -53,6 +67,10 @@ export type CheckResult = {
   screenshotPath: string
   sessionId: string
   networkIdle: boolean
+  replayReady?: boolean
+  waitedFor?: string
+  filled?: string
+  clicked?: string
 }
 
 export const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -91,6 +109,12 @@ async function extractPage(
   )
 }
 
+async function writeFittedScreenshot(abs: string): Promise<void> {
+  const png = await readFile(abs)
+  const fitted = fitPngUnderCap(png, MAX_IMAGE_BYTES)
+  if (fitted !== png) await writeFile(abs, fitted)
+}
+
 export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   requireExpect(opts.expect)
   requireCheckUrl(opts.url, "url")
@@ -110,6 +134,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let excerpt = ""
   let matched = false
   let networkIdle = false
+  let replayReady = false
+  let waitedFor: string | undefined
+  let filled: string | undefined
+  let clicked: string | undefined
   let workError: unknown
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
@@ -118,15 +146,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
       const browser = await observeAbort(
-        launchBrowser(
-          solari,
-          {
-            stealth: opts.stealth === true,
-            recording: opts.record === true,
-            profileId,
-          },
-          signal,
-        ),
+        launchBrowser(solari, sessionCreateFromCheck({ ...opts, profileId }), signal),
         signal,
       )
       closer.set(async () => {
@@ -141,6 +161,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         )
       })
       sessionId = browser.id
+      await rememberLive("browser", sessionId).catch(() => undefined)
       if (isCancelled()) return
       const page = await pageForSession(browser)
       if (isCancelled()) return
@@ -153,7 +174,19 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (isCancelled()) return
       if (opts.sso) {
         onProgress("sso")
-        await completeMicrosoftSso(page, { isCancelled, signal })
+        await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal })
+      }
+      if (isCancelled()) return
+      const actions = await runPageActions(page, opts, signal)
+      waitedFor = actions.waitedFor
+      filled = actions.filled
+      clicked = actions.clicked
+      onProgress("settle")
+      try {
+        await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal })
+        networkIdle = true
+      } catch {
+        networkIdle = false
       }
       if (isCancelled()) return
       onProgress("extract")
@@ -189,8 +222,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         signal,
         timeout: SCREENSHOT_TIMEOUT_MS,
       })
-      // Never auto-save: a check of the public login page would overwrite a
-      // console-editor login (empty ~150 byte v4). Save only via the editor.
+      await writeFittedScreenshot(screenshotAbs)
     } finally {
       closer.skip()
     }
@@ -208,6 +240,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     } finally {
       try {
         await closer.release()
+        if (sessionId) await forgetLive("browser", sessionId).catch(() => undefined)
       } catch (closeErr) {
         const closeMsg = `session close failed: ${explainSolariError(closeErr)}`
         if (workError) throw new Error(`${explainSolariError(workError)}; ${closeMsg}`)
@@ -223,16 +256,27 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       })
     }
 
+    if (opts.record && sessionId) {
+      onProgress("replay")
+      replayReady = await attachRecordedReplay(solari, sessionId, outDir)
+    }
+
+    const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts))
+    const protocolOk = Boolean(finalUrl && existsSync(screenshotAbs) && !authFail)
     const result: CheckResult = {
       title,
       finalUrl,
-      ok: matched,
+      ok: protocolOk,
       expect: opts.expect,
       matched,
       excerpt,
       screenshotPath,
       sessionId,
       networkIdle,
+      replayReady: opts.record ? replayReady : undefined,
+      waitedFor,
+      filled,
+      clicked,
     }
     await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}\n`)
     return result

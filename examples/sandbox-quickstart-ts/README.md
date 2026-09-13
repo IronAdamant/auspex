@@ -1,5 +1,6 @@
 # Sandbox quickstart (TypeScript)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 Run untrusted code in a fresh microVM: execute a command, write a file, read it back.
 
 Commands are not shell-interpreted — argv goes in `args`. For pipes or redirection run a shell explicitly: `run("sh", { args: ["-c", "..."] })`.

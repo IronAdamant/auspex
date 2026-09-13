@@ -5,26 +5,32 @@ import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
+import { parseProxyFlag } from "./launch-options.ts"
+import { assertFillPair } from "./page-actions.ts"
+import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
+import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--record] [--allow-record-profile] [--sso] [--verify]
+  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--verify]
   npx tsx src/cli.ts verify [runDir]
-  npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>]
+  npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
+  npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
   npx tsx src/cli.ts login --profile <name> [--url <hint>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
-verify uploads that receipt into a headless Solari sandbox, asserts integrity (ok) vs claim (claimOk), and kills the VM.
---verify on check is one-shot check-then-sandbox (do not also run verify). A missed expect can still be a valid receipt.
-desktop boots a Solari GUI VM, performs one computer-use action (default click center), screenshots, and kills it. Stderr is an append-only log; stdout is JSON. No VNC.
+verify uploads that receipt into a headless Solari sandbox, independently re-checks expect (fetch/OCR), and kills the VM.
+--verify on check is one-shot check-then-sandbox (do not also run verify). ok is protocol success; matched is the expect substring.
+desktop boots a Solari GUI VM, opens mousepad by default (click 320,300 inside the editor), screenshots, and kills it. streamUrl is the live VNC. Stderr is an append-only log; stdout is JSON.
+reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery without official Solari MCP).
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password).
 profiles lists profile names and ids.
 
-402 FeatureRequiresPlan (stealth/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
-429: solari_browser_close / solari_kill leftover sessions, then retry — do not only use the Solari console.
+402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
+429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
 Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
 Never commit .env or .auspex/ run artifacts.
 `
@@ -35,7 +41,8 @@ export type CliCommand =
   | { cmd: "login"; profile: string; url?: string }
   | { cmd: "profiles" }
   | { cmd: "verify"; runDir?: string }
-  | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number } }
+  | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
+  | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -62,6 +69,13 @@ function takeOption(
   return value
 }
 
+function parseSsoProvider(raw: string | undefined): SsoProvider | undefined {
+  if (!raw) return undefined
+  const v = raw.trim().toLowerCase()
+  if (v === "microsoft" || v === "google" || v === "auto") return v
+  return undefined
+}
+
 export function parseArgv(argv: string[]): ParseResult {
   const args = [...argv]
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
@@ -84,6 +98,14 @@ export function parseArgv(argv: string[]): ParseResult {
     const record = takeFlag(args, "--record")
     const allowRecordProfile = takeFlag(args, "--allow-record-profile")
     const sso = takeFlag(args, "--sso")
+    const ssoProviderRaw = takeOption(args, "--sso-provider")
+    const waitFor = takeOption(args, "--wait-for", { rejectHttp: true })
+    const fill = takeOption(args, "--fill", { rejectHttp: true })
+    const value = takeOption(args, "--value")
+    const click = takeOption(args, "--click", { rejectHttp: true })
+    const proxy = takeOption(args, "--proxy", { rejectHttp: true })
+    const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
+    const captcha = takeFlag(args, "--captcha")
     const verifyAfter = takeFlag(args, "--verify")
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
@@ -92,6 +114,10 @@ export function parseArgv(argv: string[]): ParseResult {
     if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
     if (!expect || !isNonEmptyExpect(expect)) {
       return { status: "error", message: "check requires --expect <string>" }
+    }
+    const ssoProvider = parseSsoProvider(ssoProviderRaw)
+    if (ssoProviderRaw && !ssoProvider) {
+      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
     }
     let profileName = profile
     if (profileName !== undefined) {
@@ -104,6 +130,12 @@ export function parseArgv(argv: string[]): ParseResult {
     if (record && profileName && !allowRecordProfile) {
       return { status: "error", message: RECORD_PROFILE_ERROR }
     }
+    try {
+      parseProxyFlag(proxy, proxySticky)
+      assertFillPair({ fill, value })
+    } catch (err) {
+      return { status: "error", message: err instanceof Error ? err.message : String(err) }
+    }
     return {
       status: "ok",
       command: {
@@ -115,8 +147,16 @@ export function parseArgv(argv: string[]): ParseResult {
           profile: profileName,
           stealth,
           record,
-          sso,
+          sso: sso || Boolean(ssoProvider),
+          ssoProvider,
           allowRecordProfile,
+          waitFor,
+          fill,
+          value,
+          click,
+          proxy,
+          proxySticky,
+          captcha,
         },
         verifyAfter,
       },
@@ -157,12 +197,23 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     return { status: "ok", command: { cmd: "profiles" } }
   }
+  if (cmd === "reap") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const dryRun = takeFlag(args, "--dry-run")
+    const sessionId = takeOption(args, "--session")
+    const vmId = takeOption(args, "--vm")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId } }
+  }
   if (cmd === "desktop") {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
     }
     const open = takeOption(args, "--open")
     const type = takeOption(args, "--type")
+    const expect = takeOption(args, "--expect")
     const clickRaw = takeOption(args, "--click")
     let click: { x: number; y: number } | undefined
     if (clickRaw) {
@@ -173,7 +224,7 @@ export function parseArgv(argv: string[]): ParseResult {
       click = { x: parts[0]!, y: parts[1]! }
     }
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "desktop", open, type, click } }
+    return { status: "ok", command: { cmd: "desktop", open, type, click, expect } }
   }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
@@ -193,11 +244,11 @@ export async function main(argv: string[]): Promise<number> {
       if (parsed.command.verifyAfter) {
         const both = await checkThenVerify(parsed.command.opts)
         process.stdout.write(`${JSON.stringify(both, null, 2)}\n`)
-        return both.check.ok && both.verify.ok ? 0 : 1
+        return both.check.ok && both.check.matched && both.verify.ok ? 0 : 1
       }
       const result = await runCheck(parsed.command.opts)
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok ? 0 : 1
+      return result.ok && result.matched ? 0 : 1
     }
     if (parsed.command.cmd === "login") {
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
@@ -209,6 +260,15 @@ export async function main(argv: string[]): Promise<number> {
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1
     }
+    if (parsed.command.cmd === "reap") {
+      const result = await reapLeftovers({
+        dryRun: parsed.command.dryRun,
+        sessionId: parsed.command.sessionId,
+        vmId: parsed.command.vmId,
+      })
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+      return result.ok ? 0 : 1
+    }
     if (parsed.command.cmd === "desktop") {
       const result = await runDesktopReview({
         ...defaultDesktopDeps(),
@@ -216,6 +276,7 @@ export async function main(argv: string[]): Promise<number> {
           open: parsed.command.open,
           type: parsed.command.type,
           click: parsed.command.click,
+          expect: parsed.command.expect,
         },
       })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)

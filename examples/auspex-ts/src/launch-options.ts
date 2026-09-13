@@ -1,0 +1,41 @@
+import type { CreateSessionOptions } from "@solarisdk/browser"
+
+export const PROXY_FLAG_ERROR = "--proxy must be a 2-letter country code, smart, or off"
+
+export type ProxySticky = { country: string; session: string }
+
+export function parseProxyFlag(raw: string | undefined, sticky?: string): CreateSessionOptions["proxy"] {
+  const pin = sticky?.trim()
+  if (!raw) {
+    if (!pin) return undefined
+    return { country: "us", session: pin }
+  }
+  const v = raw.trim().toLowerCase()
+  if (v === "off") return "off"
+  if (v === "smart") {
+    if (pin) throw new Error("--proxy-sticky cannot be used with --proxy smart")
+    return "smart"
+  }
+  if (!/^[a-z]{2}$/.test(v)) throw new Error(PROXY_FLAG_ERROR)
+  return pin ? { country: v, session: pin } : v
+}
+
+export function sessionCreateFromCheck(opts: {
+  stealth?: boolean
+  record?: boolean
+  captcha?: boolean
+  proxy?: string
+  proxySticky?: string
+  profileId?: string
+}): CreateSessionOptions {
+  const proxy = parseProxyFlag(opts.proxy, opts.proxySticky)
+  const captcha = opts.captcha === true
+  const proxyOn = proxy !== undefined && proxy !== "off"
+  return {
+    stealth: opts.stealth === true || proxyOn || captcha,
+    recording: opts.record === true,
+    profileId: opts.profileId,
+    captcha: captcha || undefined,
+    proxy: proxyOn ? proxy : undefined,
+  }
+}

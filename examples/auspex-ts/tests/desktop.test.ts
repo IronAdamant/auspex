@@ -63,12 +63,39 @@ test("runDesktopReview writes terminal overview, screenshots, and kills", async 
   assert.equal(log.includes("\x1b["), false)
 })
 
-test("runDesktopReview performs a computer-use click before screenshot", async () => {
+test("runDesktopReview performs a mousepad interior click, not screen center", async () => {
+  const { stream } = capture()
+  const clicks: { x: number; y: number }[] = []
+  const opened: string[] = []
+  await runDesktopReview({
+    create: async () => ({
+      sessionId: "desk-click",
+      connect: async () => undefined,
+      health: async () => ({ ready: true }),
+      screenshot: async () => fakePng(),
+      kill: async () => undefined,
+      openApp: async (name) => {
+        opened.push(name)
+      },
+      click: async (x, y) => {
+        clicks.push({ x, y })
+      },
+    }),
+    sleep: async () => undefined,
+    status: stream,
+  })
+  assert.deepEqual(opened, ["mousepad"])
+  assert.equal(clicks.length, 1)
+  assert.equal(clicks[0]?.x, 320)
+  assert.equal(clicks[0]?.y, 300)
+})
+
+test("runDesktopReview honors an explicit click and skips a silent center click", async () => {
   const { stream } = capture()
   const clicks: { x: number; y: number }[] = []
   await runDesktopReview({
     create: async () => ({
-      sessionId: "desk-click",
+      sessionId: "desk-explicit",
       connect: async () => undefined,
       health: async () => ({ ready: true }),
       screenshot: async () => fakePng(),
@@ -79,10 +106,75 @@ test("runDesktopReview performs a computer-use click before screenshot", async (
     }),
     sleep: async () => undefined,
     status: stream,
+    task: { click: { x: 10, y: 20 } },
   })
-  assert.equal(clicks.length, 1)
-  assert.equal(clicks[0]?.x, 640)
-  assert.equal(clicks[0]?.y, 360)
+  assert.deepEqual(clicks, [{ x: 10, y: 20 }])
+})
+
+test("runDesktopReview is not ok when expect misses, even if kill succeeds", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () => ({
+      sessionId: "desk-expect",
+      connect: async () => undefined,
+      health: async () => ({ ready: true }),
+      screenshot: async () => fakePng(),
+      kill: async () => undefined,
+      click: async () => undefined,
+      processList: async () => [{ pid: 1, name: "xfce4-session" }],
+    }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", expect: "mousepad" },
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.matched, false)
+  assert.ok(result.errors.some((e) => /expect/i.test(e)))
+})
+
+test("runDesktopReview matches expect from process list and exposes streamUrl", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () => ({
+      sessionId: "desk-vnc",
+      streamUrl: "wss://api.getsolari.com/stream/desk-vnc",
+      connect: async () => undefined,
+      health: async () => ({ ready: true }),
+      screenshot: async () => fakePng(),
+      kill: async () => undefined,
+      openApp: async () => undefined,
+      click: async () => undefined,
+      processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+    }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", expect: "mousepad" },
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.matched, true)
+  assert.equal(result.windowReady, true)
+  assert.equal(result.streamUrl, "wss://api.getsolari.com/stream/desk-vnc")
+})
+
+test("runDesktopReview is not ok when X11 never becomes ready", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () => ({
+      sessionId: "desk-unready",
+      connect: async () => undefined,
+      health: async () => ({ ready: false }),
+      screenshot: async () => fakePng(),
+      kill: async () => undefined,
+      click: async () => undefined,
+    }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { click: { x: 1, y: 1 } },
+    healthMs: 5,
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.ready, false)
+  assert.ok(result.errors.some((e) => /not ready/i.test(e)))
 })
 
 test("runDesktopReview is not ok:true when kill fails after a screenshot", async () => {

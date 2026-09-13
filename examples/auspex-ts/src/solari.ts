@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { BrowserSession, Solari, SolariError, type StorageState } from "@solarisdk/browser"
+import {
+  BrowserSession,
+  Solari,
+  SolariError,
+  type CreateSessionOptions,
+  type StorageState,
+} from "@solarisdk/browser"
 import { chromium } from "patchright-core"
 import {
   boundPromise,
@@ -16,11 +22,7 @@ export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as
 
 export type LaunchSession = { id: string; wsEndpoint: string }
 export type LaunchDeps = {
-  create: (opts: {
-    stealth?: boolean
-    recording?: boolean
-    profileId?: string
-  }) => Promise<LaunchSession>
+  create: (opts: CreateSessionOptions) => Promise<LaunchSession>
   connect: (wsEndpoint: string, opts: { timeout: number }) => Promise<unknown>
   wrap: (session: LaunchSession, browser: unknown) => { close: () => Promise<void> }
   releaseAndWait: (id: string) => Promise<void>
@@ -202,16 +204,12 @@ export function createClient(): Solari {
 /** sessions.create then chromium.connect with a real timeout; release if connect fails or abort fires. */
 export async function launchBrowser(
   solari: Solari,
-  options: { stealth?: boolean; recording?: boolean; profileId?: string } = {},
+  options: CreateSessionOptions = {},
   signal?: AbortSignal,
   deps: LaunchDeps = defaultLaunchDeps(solari),
 ): Promise<BrowserSession> {
   const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS
-  const createP = deps.create({
-    stealth: options.stealth,
-    recording: options.recording,
-    profileId: options.profileId,
-  })
+  const createP = deps.create(options)
   let session: LaunchSession
   if (signal) {
     try {

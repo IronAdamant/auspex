@@ -181,6 +181,7 @@ export function fitPngUnderCap(png: Buffer, cap: number): Buffer {
   return tiny
 }
 
+export const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 export const MCP_ATTACH_MAX_SIDE = 1024
 export const MCP_ATTACH_MAX_BYTES = 180 * 1024
 
