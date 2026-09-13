@@ -30,7 +30,10 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     const props = check.inputSchema.properties ?? {}
     assert.ok("url" in props, `advertised properties: ${Object.keys(props).join(",")}`)
     assert.ok("expect" in props, `advertised properties: ${Object.keys(props).join(",")}`)
-    assert.ok("verify" in props)
+    assert.ok("waitFor" in props)
+    assert.ok("click" in props)
+    assert.ok("proxy" in props)
+    assert.ok("captcha" in props)
     const required = check.inputSchema.required ?? []
     assert.ok(required.includes("url"))
     assert.ok(required.includes("expect"))
@@ -41,7 +44,10 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.match(check.description ?? "", /record\+profile|allowRecordProfile/)
     assert.match(check.description ?? "", /402|FeatureRequiresPlan/)
     assert.match(check.description ?? "", /429/)
-    assert.match(check.description ?? "", /solari_kill|solari_browser_close/)
+    assert.match(check.description ?? "", /auspex_reap|429/)
+    const reap = listed.tools.find((t) => t.name === "auspex_reap")
+    assert.ok(reap, "auspex_reap missing from ListTools")
+    assert.match(reap.description ?? "", /429|leftover|kill/i)
     const verify = listed.tools.find((t) => t.name === "auspex_verify")
     assert.ok(verify)
     assert.match(verify.description ?? "", /claimOk|ok/)
@@ -50,6 +56,7 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.match(login.description ?? "", /handoff/)
     const deskProps = desktop.inputSchema.properties ?? {}
     assert.ok("open" in deskProps || "type" in deskProps)
+    assert.ok("expect" in deskProps)
   } finally {
     await client.close()
     await mcp.close()

@@ -3,6 +3,9 @@ name: auspex-ts
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * *"
 
 jobs:
   test:
@@ -22,3 +25,28 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build:mcp
       - run: git diff --exit-code -- dist/
+
+  live:
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/auspex-ts
+    env:
+      SOLARI_API_KEY: ${{ secrets.SOLARI_API_KEY }}
+      AUSPEX_LIVE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: examples/auspex-ts/package-lock.json
+      - run: npm ci
+      - name: Live Solari smoke
+        run: |
+          if [ -z "$SOLARI_API_KEY" ]; then
+            echo "Skipping live smoke: SOLARI_API_KEY secret is not set"
+            exit 0
+          fi
+          npx tsx src/cli.ts check https://example.com --expect "Example Domain"

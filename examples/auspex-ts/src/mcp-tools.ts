@@ -2,26 +2,35 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
 import { runCheck } from "./check.ts"
 import { buildCheckToolContent, buildReceiptToolContent, packToolFailure } from "./content.ts"
-import { runDesktopReview } from "./desktop.ts"
+import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
+import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
-import { defaultDesktopDeps } from "./desktop.ts"
-import { assertRecordProfileAllowed, auspexCheckInputObject, auspexDesktopInputSchema, auspexLoginInputSchema } from "./tool-schema.ts"
+import {
+  assertRecordProfileAllowed,
+  auspexCheckInputObject,
+  auspexDesktopInputSchema,
+  auspexLoginInputSchema,
+  auspexReapInputSchema,
+} from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
-  "Open a live URL in a Solari cloud browser (fast pool by default), snapshot the page, and check that expected text is present. Always closes/releases the session. Returns JSON plus a downscaled JPEG attach; the on-disk shot stays full-page PNG. Set verify=true for one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate: a missed expect can still be a valid receipt. stealth is Starter+ (402 FeatureRequiresPlan, not retryable). record+profile is forbidden unless allowRecordProfile. 429 ConcurrencyLimitExceeded is not retryable — solari_browser_close / solari_kill leftover sessions, then retry."
+  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. 429: call auspex_reap, then retry."
 
 const VERIFY_DESCRIPTION =
-  "After auspex_check without verify=true, upload the on-disk receipt (PNG + JSON) into a headless Solari sandbox, assert integrity (ok) vs claim (claimOk), and kill the VM. Do not call this if you already passed verify=true on auspex_check. 429 is not retryable: solari_kill leftover VMs first."
+  "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
   "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, wait for them to Save, then pass this profile to auspex_check."
 
 const DESKTOP_DESCRIPTION =
-  "Solari GUI desktop: boot, one computer-use action (default click center; optional open/type), screenshot, kill. Returns ASCII log plus structured JSON and optional PNG. Desktops may 402 FeatureRequiresPlan on Free (not retryable). 429: solari_kill leftovers, do not retry create."
+  "Solari GUI desktop: boot, wait for X11, open mousepad by default (click inside the editor at 320,300 — not screen center), optional type/expect, screenshot, kill. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
 
 const PROFILES_DESCRIPTION = "List Solari browser profile names and ids on this account."
+
+const REAP_DESCRIPTION =
+  "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing."
 
 function progressFromExtra(extra: unknown) {
   return createProgress({ extra: extra as ProgressExtra })
@@ -34,11 +43,12 @@ export function registerAuspexTools(server: McpServer): void {
       description: CHECK_DESCRIPTION,
       inputSchema: auspexCheckInputObject,
     },
-    async ({ url, expect, selector, profile, stealth, record, sso, verify, allowRecordProfile }, extra) => {
+    async (args, extra) => {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_check")
-        const opts = { url, expect, selector, profile, stealth, record, sso, allowRecordProfile, onProgress }
+        const { verify, ...rest } = args
+        const opts = { ...rest, onProgress }
         assertRecordProfileAllowed(opts)
         if (verify) {
           const both = await checkThenVerify(opts)
@@ -92,7 +102,7 @@ export function registerAuspexTools(server: McpServer): void {
       description: DESKTOP_DESCRIPTION,
       inputSchema: auspexDesktopInputSchema,
     },
-    async ({ open, type, clickX, clickY }, extra) => {
+    async ({ open, type, clickX, clickY, expect }, extra) => {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_desktop")
@@ -101,6 +111,7 @@ export function registerAuspexTools(server: McpServer): void {
           task: {
             open,
             type,
+            expect,
             click: clickX !== undefined && clickY !== undefined ? { x: clickX, y: clickY } : undefined,
           },
           status: process.stderr,
@@ -109,9 +120,12 @@ export function registerAuspexTools(server: McpServer): void {
           {
             ok: result.ok,
             ready: result.ready,
+            windowReady: result.windowReady,
+            matched: result.matched,
             screenshotPath: result.screenshotPath,
             errors: result.errors,
             desktopId: result.desktopId,
+            streamUrl: result.streamUrl,
             overview: result.overview,
           },
           result.screenshotPath,
@@ -137,6 +151,22 @@ export function registerAuspexTools(server: McpServer): void {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_verify")
         const result = await verifyReceipt(runDir, { ...defaultVerifyDeps(), onProgress })
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_reap",
+    {
+      description: REAP_DESCRIPTION,
+      inputSchema: auspexReapInputSchema,
+    },
+    async (args) => {
+      try {
+        const result = await reapLeftovers(args)
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
       } catch (err) {
         return packToolFailure(err)

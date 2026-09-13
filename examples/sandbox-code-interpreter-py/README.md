@@ -1,5 +1,6 @@
 # Code interpreter (Python)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 A stateful Python kernel inside a sandbox: variables and imports persist between `run_code` calls, like a notebook. This is the shape of an LLM agent's execution loop.
 
 Output arrives as a list of result items (`stdout`/`stderr`/`result`), not a single `.stdout` string.

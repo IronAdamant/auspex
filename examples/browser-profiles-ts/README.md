@@ -1,5 +1,6 @@
 # Persistent profiles (TypeScript)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 Log in once, reuse the session forever. A profile stores cookies + localStorage server-side; attach it with `profileId` and the browser starts already logged in.
 
 Run it twice — the visit counter survives because the profile is saved between runs. Attaching a profile does not auto-save it; you must call `profiles.save()`.

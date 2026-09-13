@@ -3,15 +3,15 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { CheckResult } from "./check.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
-import { fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
+import { MAX_IMAGE_BYTES, fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
+
+export { MAX_IMAGE_BYTES }
 
 export type ToolTextContent = { type: "text"; text: string }
 export type ToolImageContent = { type: "image"; mimeType: "image/png" | "image/jpeg"; data: string }
 export type ToolContent = ToolTextContent | ToolImageContent
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-
-export const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
 export function resolveScreenshotPath(p: string): string {
   return path.isAbsolute(p) ? p : path.join(packageRoot, p)

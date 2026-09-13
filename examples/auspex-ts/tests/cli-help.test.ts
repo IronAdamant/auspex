@@ -25,7 +25,9 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /handoff/)
   assert.match(USAGE, /--verify/)
   assert.match(USAGE, /not retryable/)
-  assert.match(USAGE, /solari_kill|solari_browser_close/)
+  assert.match(USAGE, /auspex_reap/)
+  assert.match(USAGE, /--wait-for/)
+  assert.match(USAGE, /--captcha/)
   assert.equal(USAGE.includes("kill leftover sessions in the console"), false)
 })
 
@@ -125,7 +127,7 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /verify/)
   assert.match(help.stdout, /--verify/)
   assert.match(help.stdout, /desktop/)
-  assert.match(help.stdout, /solari_kill|solari_browser_close/)
+  assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
   assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
 })
 
@@ -256,6 +258,55 @@ test("shipped CLI rejects whitespace-only --profile", () => {
   assert.match(`${login.stderr}${login.stdout}`, /profile name/i)
 })
 
+test("parseArgv check click/fill/wait-for and proxy", () => {
+  const parsed = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--wait-for",
+    "#main",
+    "--fill",
+    "#q",
+    "--value",
+    "hello",
+    "--click",
+    "button.submit",
+    "--proxy",
+    "us",
+    "--captcha",
+  ])
+  assert.equal(parsed.status, "ok")
+  if (parsed.status === "ok" && parsed.command.cmd === "check") {
+    assert.equal(parsed.command.opts.waitFor, "#main")
+    assert.equal(parsed.command.opts.fill, "#q")
+    assert.equal(parsed.command.opts.value, "hello")
+    assert.equal(parsed.command.opts.click, "button.submit")
+    assert.equal(parsed.command.opts.proxy, "us")
+    assert.equal(parsed.command.opts.captcha, true)
+    assert.equal(parsed.command.opts.stealth, false)
+  }
+})
+
+test("parseArgv check --fill without --value is an error", () => {
+  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", "x", "--fill", "#q"])
+  assert.equal(parsed.status, "error")
+})
+
+test("parseArgv reap and desktop --expect", () => {
+  const reap = parseArgv(["reap", "--dry-run", "--session", "sess-1"])
+  assert.equal(reap.status, "ok")
+  if (reap.status === "ok" && reap.command.cmd === "reap") {
+    assert.equal(reap.command.dryRun, true)
+    assert.equal(reap.command.sessionId, "sess-1")
+  }
+  const desk = parseArgv(["desktop", "--open", "mousepad", "--expect", "mousepad"])
+  assert.equal(desk.status, "ok")
+  if (desk.status === "ok" && desk.command.cmd === "desktop") {
+    assert.equal(desk.command.expect, "mousepad")
+    assert.equal(desk.command.open, "mousepad")
+  }
+})
 test("parseArgv desktop takes no extra args", () => {
   const a = parseArgv(["desktop"])
   assert.equal(a.status, "ok")

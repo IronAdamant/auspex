@@ -1,5 +1,6 @@
 # Browser quickstart (Python)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 Launch a cloud browser, open a page, read the title, close. The smallest complete Solari program.
 
 ## Run

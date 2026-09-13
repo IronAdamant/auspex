@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
+import { createServer, type Server } from "node:http"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -8,7 +9,7 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { MAX_IMAGE_BYTES } from "../src/content.ts"
 import { parseArgv } from "../src/cli.ts"
-import { assertRunDirUnderRuns, findLatestRun, RECEIPT_ASSERT_PY, RUNS_DIR } from "../src/receipt.ts"
+import { ASSERT_RECEIPT_PY_PATH, assertRunDirUnderRuns, findLatestRun, RECEIPT_ASSERT_PY, RUNS_DIR } from "../src/receipt.ts"
 import { encodePng } from "../src/png-fit.ts"
 import { assertReceiptUploadSize, parseAssertStdout, verifyReceipt } from "../src/sandbox.ts"
 
@@ -51,59 +52,106 @@ function forgedPngIhdr(width: number, height: number): Buffer {
 }
 
 function runAssert(work: string) {
-  return spawnSync("python3", ["-c", RECEIPT_ASSERT_PY, work], { encoding: "utf8" })
+  return spawnSync("python3", [ASSERT_RECEIPT_PY_PATH, work], { encoding: "utf8" })
 }
 
-test("RECEIPT_ASSERT_PY accepts a good public receipt", () => {
+function runAssertAsync(work: string): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("python3", [ASSERT_RECEIPT_PY_PATH, work])
+    let stdout = ""
+    let stderr = ""
+    child.stdout.on("data", (d: Buffer) => {
+      stdout += d.toString("utf8")
+    })
+    child.stderr.on("data", (d: Buffer) => {
+      stderr += d.toString("utf8")
+    })
+    child.on("close", (status) => resolve({ status, stdout, stderr }))
+  })
+}
+
+async function serveHtml(html: string): Promise<{ url: string; close: () => Promise<void> }> {
+  const server: Server = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    res.end(html)
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const addr = server.address()
+  if (!addr || typeof addr === "string") throw new Error("no listen port")
+  return {
+    url: `http://127.0.0.1:${addr.port}/`,
+    close: () => new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+  }
+}
+
+test("RECEIPT_ASSERT_PY does not echo manifest ok/matched for the claim", () => {
+  assert.equal(RECEIPT_ASSERT_PY.includes('man.get("ok")'), false)
+  assert.equal(RECEIPT_ASSERT_PY.includes('man.get("matched")'), false)
+  assert.match(RECEIPT_ASSERT_PY, /fetch_url|tesseract/)
+})
+
+test("RECEIPT_ASSERT_PY accepts a good public receipt", async () => {
+  const page = await serveHtml("<html><body>Build it. Ship it.</body></html>")
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
   writeFileSync(
     path.join(dir, "manifest.json"),
     `${JSON.stringify({
       ok: true,
       matched: true,
+      expect: "Build it.",
       screenshotPath: ".auspex/runs/stamp/screenshot.png",
-      finalUrl: "https://ironadamant.com/",
+      finalUrl: page.url,
     })}\n`,
   )
   writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
-  const out = runAssert(dir)
-  assert.equal(out.status, 0, out.stderr + out.stdout)
-  const parsed = JSON.parse(out.stdout) as {
-    ok: boolean
-    errors: string[]
-    claimOk: boolean
-    claimErrors: string[]
+  try {
+    const out = await runAssertAsync(dir)
+    assert.equal(out.status, 0, out.stderr + out.stdout)
+    const parsed = JSON.parse(out.stdout) as {
+      ok: boolean
+      errors: string[]
+      claimOk: boolean
+      claimErrors: string[]
+    }
+    assert.equal(parsed.ok, true)
+    assert.deepEqual(parsed.errors, [])
+    assert.equal(parsed.claimOk, true)
+    assert.deepEqual(parsed.claimErrors, [])
+  } finally {
+    await page.close()
   }
-  assert.equal(parsed.ok, true)
-  assert.deepEqual(parsed.errors, [])
-  assert.equal(parsed.claimOk, true)
-  assert.deepEqual(parsed.claimErrors, [])
 })
 
-test("RECEIPT_ASSERT_PY separates claim miss from receipt junk", () => {
+test("RECEIPT_ASSERT_PY claim is independent of manifest ok/matched", async () => {
+  const page = await serveHtml("<html><body>hello world</body></html>")
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
   writeFileSync(
     path.join(dir, "manifest.json"),
     `${JSON.stringify({
-      ok: false,
-      matched: false,
+      ok: true,
+      matched: true,
+      expect: "this-string-is-not-on-the-page-xyz",
       screenshotPath: ".auspex/runs/stamp/screenshot.png",
-      finalUrl: "https://ironadamant.com/",
+      finalUrl: page.url,
     })}\n`,
   )
   writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
-  const out = runAssert(dir)
-  assert.equal(out.status, 0, out.stderr + out.stdout)
-  const parsed = JSON.parse(out.stdout) as {
-    ok: boolean
-    errors: string[]
-    claimOk: boolean
-    claimErrors: string[]
+  try {
+    const out = await runAssertAsync(dir)
+    assert.equal(out.status, 0, out.stderr + out.stdout)
+    const parsed = JSON.parse(out.stdout) as {
+      ok: boolean
+      errors: string[]
+      claimOk: boolean
+      claimErrors: string[]
+    }
+    assert.equal(parsed.ok, true)
+    assert.deepEqual(parsed.errors, [])
+    assert.equal(parsed.claimOk, false)
+    assert.ok(parsed.claimErrors.some((e) => /expect/i.test(e)))
+  } finally {
+    await page.close()
   }
-  assert.equal(parsed.ok, true)
-  assert.deepEqual(parsed.errors, [])
-  assert.equal(parsed.claimOk, false)
-  assert.ok(parsed.claimErrors.some((e) => /ok is not true/i.test(e)))
 })
 
 test("RECEIPT_ASSERT_PY fails a tiny PNG even when the manifest claims ok", () => {

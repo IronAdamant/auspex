@@ -1,7 +1,7 @@
 import { SolariError } from "@solarisdk/browser"
 
 export const CLOSE_KILL_RECOVERY =
-  "Not retryable. Free the slot with solari_browser_close / solari_kill (or let Auspex check/verify/desktop finish teardown), then retry."
+  "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry."
 
 export type SolariIssue = {
   message: string

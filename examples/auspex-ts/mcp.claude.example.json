@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "auspex": {
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/auspex/examples/auspex-ts/src/mcp.ts"],
+      "cwd": "/absolute/path/to/auspex/examples/auspex-ts"
+    }
+  }
+}

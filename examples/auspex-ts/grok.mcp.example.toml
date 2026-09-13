@@ -1,7 +1,7 @@
-# Mirror of [mcp_servers.auspex] in ~/.grok/config.toml.
+# Auspex MCP (check → verify → reap → kill). Copy into ~/.grok/config.toml.
+# Cursor/Claude reviewers: see mcp.cursor.example.json and mcp.claude.example.json.
 # Keep the live key in gitignored examples/auspex-ts/.env — Auspex loads it.
 # Restart Grok after changing MCP config.
-# This is a remote Solari Chrome for the agent — not Browser Use, not a window on the Mac.
 
 # Use an absolute node binary. Grok's MCP spawn PATH often lacks `node`,
 # so the tsx shebang (`#!/usr/bin/env node`) dies with "node: No such file or directory".

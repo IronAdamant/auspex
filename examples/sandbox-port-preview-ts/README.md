@@ -1,5 +1,6 @@
 # Port preview (TypeScript)
 
+> Unmodified Solari cookbook sample. The intern-challenge product is [auspex-ts](../auspex-ts).
 Serve something from inside the sandbox on a public URL. Starts an HTTP server in the VM, gets a `*.preview.getsolari.com` URL, then fetches it from the open internet to prove it is reachable.
 
 ## Run
