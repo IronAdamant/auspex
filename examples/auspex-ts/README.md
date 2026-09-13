@@ -30,7 +30,7 @@ cd examples/auspex-ts
 npm install
 # Persist the key for CLI *and* MCP hosts (this file is gitignored).
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env
-npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
+npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 npx tsx src/cli.ts verify
 ```
 
@@ -81,6 +81,6 @@ Tools:
 - `auspex_login` / `auspex_profiles`
 - `auspex_desktop` — Mousepad computer-use, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC.
 
-Live: ironadamant.com (`Build it.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
+Live: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 
 See [AGENTS.md](AGENTS.md) and [DEMO.md](DEMO.md).

@@ -17,7 +17,7 @@ git clone https://github.com/IronAdamant/auspex.git
 cd auspex/examples/auspex-ts
 npm install
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env   # console.getsolari.com
-npx tsx src/cli.ts check https://ironadamant.com --expect "Build it."
+npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 npx tsx src/cli.ts verify
 ```
 
