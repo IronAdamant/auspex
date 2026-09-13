@@ -71,8 +71,8 @@ export function replayHtmlFromNdjson(ndjson: string): string {
 }
 
 /** Check's default replay poll is ~3s; replay upload is often still in flight then. */
-const DEMO_REPLAY_DEADLINE_MS = 90_000
-const DEMO_REPLAY_POLL_MS = 2_000
+const DEMO_REPLAY_DEADLINE_MS = 180_000
+const DEMO_REPLAY_POLL_MS = 3_000
 
 function replayHttpStatus(err: unknown): number | undefined {
   if (err && typeof err === "object" && "status" in err) {
@@ -107,11 +107,13 @@ async function downloadDemoReplay(
 export async function saveDemoReceipt(): Promise<void> {
   const result = await runCheck({
     url: "https://ironadamant.com",
-    expect: "Build it.",
+    expect: "One office job.",
     record: true,
   })
-  if (!result.ok || !result.sessionId) {
-    throw new Error(`demo check failed: ok=${result.ok} sessionId=${result.sessionId}`)
+  if (!result.ok || !result.matched || !result.sessionId) {
+    throw new Error(
+      `demo check failed: ok=${result.ok} matched=${result.matched} sessionId=${result.sessionId}`,
+    )
   }
 
   await mkdir(demoDir, { recursive: true })
@@ -123,8 +125,11 @@ export async function saveDemoReceipt(): Promise<void> {
   try {
     const blob = await downloadDemoReplay(result.sessionId, solari)
     const verify = await verifyReceipt(runDirFromResult(result))
-    if (!verify.ok) {
-      throw new Error(`demo verify failed: ${verify.errors.join("; ") || "integrity ok was false"}`)
+    if (!verify.ok || !verify.claimOk) {
+      throw new Error(
+        `demo verify failed: verifyOk=${verify.ok} claimOk=${verify.claimOk} ` +
+          `${[...verify.errors, ...verify.claimErrors].join("; ")}`.trim(),
+      )
     }
     const ndjson = asNdjson(blob)
     const text = ndjson.endsWith("\n") ? ndjson : `${ndjson}\n`

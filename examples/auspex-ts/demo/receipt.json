@@ -1,16 +1,14 @@
 {
   "ok": true,
-  "expect": "Build it.",
-  "matched": false,
+  "expect": "One office job.",
+  "matched": true,
   "title": "One office job. You run it. | Iron Adamant",
   "finalUrl": "https://ironadamant.com/",
   "excerpt": "Skip to main content Iron Adamant Home Work For owners Contact Home Work For owners Contact AUSTRALIA · REMOTE · WRITE FIRST One office job. Your accounts. You run it. I leave. Quotes, invoices, chasing people: the bit that eats your week. Written plan, set price, about two weeks after the plan. No new package. $0 a month unless you ask. Tell me what’s eating your week I need something built View shipped work SERVICES What I can help with One office job you can run. Custom software when you need…",
-  "sessionId": "ApV9FcuiYqayuSqWxRyi8VHAj1FZU_SDlB6fYv635IBRTDfrhZ3YqpVO1tmcCyAQ7KNd2r2QXPkPe9BUT7wKzrB_xwr6_3mLPr4Wt0PfrjgKagifKaYBzR2ChX5uYTxVx4PPTHl17Z4Li2FltpIv4exfraJxxm-BT65bNYjpS7N8MnBQHvzMXM44DYqkd4fIRFJdSIxB.NkX6jDQr6VhD0xpPRXL5kA",
+  "sessionId": "Ailur0tX0LnHSMbRXXNTze2BUfUbXb9XjEfv8ce4raYA1sAvE7fRC-CtlfuRcbY_H3Sl1FNL4nPiXKA4nC7McmHfy9qEg_Dh9hlSat08N56AtrqlqBUEfHxGDOdb86e2sSi7nsf_F3_EKn04Ebm2qs4fiastXAWRD25GxIySv66W5o1LDhIGGLK5HQaKONncY3Wrc_fJ.bJd-rH2R_34YUGMLeTlX5w",
   "networkIdle": true,
-  "claimOk": false,
+  "claimOk": true,
   "verifyOk": true,
-  "claimErrors": [
-    "fetched page text does not contain expect"
-  ],
+  "claimErrors": [],
   "note": "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html."
 }
