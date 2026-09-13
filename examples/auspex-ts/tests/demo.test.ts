@@ -14,12 +14,19 @@ test("demo receipt has sessionId and no replayUrl", () => {
     replayUrl?: string
     finalUrl: string
     networkIdle?: boolean
+    matched?: boolean
+    claimOk?: boolean
+    verifyOk?: boolean
   }
   assert.equal(receipt.ok, true)
-  assert.match(receipt.sessionId, /:/)
+  assert.equal(typeof receipt.sessionId, "string")
+  assert.ok(receipt.sessionId.length > 20)
   assert.equal(receipt.replayUrl, undefined)
   assert.equal(receipt.finalUrl, "https://ironadamant.com/")
-  assert.equal(receipt.networkIdle, false)
+  assert.equal(receipt.networkIdle, true)
+  assert.equal(receipt.matched, false)
+  assert.equal(receipt.verifyOk, true)
+  assert.equal(receipt.claimOk, false)
 })
 
 test("demo PNG is a real PNG", () => {

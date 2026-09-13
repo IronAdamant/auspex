@@ -6,8 +6,9 @@ import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path"
 import { gunzipSync } from "node:zlib"
 import { fileURLToPath } from "node:url"
-import { runCheck, packageRoot } from "../src/check.ts"
-import { createClient, downloadReplayWhenReady } from "../src/solari.ts"
+import { runCheck, packageRoot, runDirFromResult } from "../src/check.ts"
+import { verifyReceipt } from "../src/sandbox.ts"
+import { createClient } from "../src/solari.ts"
 
 const RRWEB_CSS =
   "https://cdn.jsdelivr.net/npm/rrweb-player@1.0.0-alpha.4/dist/style.css"
@@ -69,6 +70,40 @@ export function replayHtmlFromNdjson(ndjson: string): string {
 `
 }
 
+/** Check's default replay poll is ~3s; replay upload is often still in flight then. */
+const DEMO_REPLAY_DEADLINE_MS = 90_000
+const DEMO_REPLAY_POLL_MS = 2_000
+
+function replayHttpStatus(err: unknown): number | undefined {
+  if (err && typeof err === "object" && "status" in err) {
+    const status = (err as { status?: unknown }).status
+    return typeof status === "number" ? status : undefined
+  }
+  return undefined
+}
+
+async function downloadDemoReplay(
+  sessionId: string,
+  solari: ReturnType<typeof createClient>,
+): Promise<Uint8Array> {
+  const deadline = Date.now() + DEMO_REPLAY_DEADLINE_MS
+  let lastErr: unknown
+  while (Date.now() < deadline) {
+    try {
+      return await solari.sessions.downloadReplay(sessionId)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // ReplayUnavailable is also HTTP 404 but is not retryable.
+      if (msg.includes("ReplayUnavailable") || replayHttpStatus(err) !== 404) throw err
+      lastErr = err
+      const remain = deadline - Date.now()
+      if (remain <= 0) break
+      await new Promise((resolve) => setTimeout(resolve, Math.min(DEMO_REPLAY_POLL_MS, remain)))
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("demo replay was not ready before deadline")
+}
+
 export async function saveDemoReceipt(): Promise<void> {
   const result = await runCheck({
     url: "https://ironadamant.com",
@@ -86,10 +121,11 @@ export async function saveDemoReceipt(): Promise<void> {
   const staging = await mkdtemp(path.join(packageRoot, ".demo-staging-"))
   const solari = createClient()
   try {
-    const blob = await downloadReplayWhenReady(
-      (id) => solari.sessions.downloadReplay(id),
-      result.sessionId,
-    )
+    const blob = await downloadDemoReplay(result.sessionId, solari)
+    const verify = await verifyReceipt(runDirFromResult(result))
+    if (!verify.ok) {
+      throw new Error(`demo verify failed: ${verify.errors.join("; ") || "integrity ok was false"}`)
+    }
     const ndjson = asNdjson(blob)
     const text = ndjson.endsWith("\n") ? ndjson : `${ndjson}\n`
     const receipt = {
@@ -101,6 +137,9 @@ export async function saveDemoReceipt(): Promise<void> {
       excerpt: result.excerpt,
       sessionId: result.sessionId,
       networkIdle: result.networkIdle,
+      claimOk: verify.claimOk,
+      verifyOk: verify.ok,
+      claimErrors: verify.claimErrors,
       note: "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html.",
     }
     await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
