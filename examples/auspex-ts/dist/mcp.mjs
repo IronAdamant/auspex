@@ -667,40 +667,23 @@ function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFI
   };
   return mergeStorageStates(state, extra);
 }
-function sessionRestoreInitFn() {
-  return (data) => {
-    try {
-      const baked = data?.baked ?? {};
-      const prefix = data?.prefix ?? "";
-      const items = baked[location.origin];
-      if (items) {
-        for (const k of Object.keys(items)) {
-          if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(items[k]));
-        }
-      }
-      if (!prefix) return;
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (!key || !key.startsWith(prefix)) continue;
-        const name = key.slice(prefix.length);
-        if (name && sessionStorage.getItem(name) == null) {
-          sessionStorage.setItem(name, localStorage.getItem(key) ?? "");
-        }
-      }
-    } catch {
-    }
-  };
+function hydrateSessionStorageSource(itemsByOrigin = {}, prefix = SESSION_STORAGE_PREFIX) {
+  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
 }
 async function installSessionStorageRestore(ctx, state, page) {
   const payload = {
     baked: state ? sessionItemsByOrigin(state) : {},
     prefix: SESSION_STORAGE_PREFIX
   };
-  const fn = sessionRestoreInitFn();
+  const content = hydrateSessionStorageSource(payload.baked, payload.prefix);
   const ctxInstall = ctx.addInitScript;
-  if (typeof ctxInstall === "function") await ctxInstall(fn, payload);
+  if (typeof ctxInstall === "function") {
+    await ctxInstall({ content }).catch(() => void 0);
+  }
   const pageInstall = page?.addInitScript;
-  if (typeof pageInstall === "function") await pageInstall(fn, payload);
+  if (typeof pageInstall === "function") {
+    await pageInstall({ content }).catch(() => void 0);
+  }
   return payload;
 }
 async function hydrateSessionStorage(page) {

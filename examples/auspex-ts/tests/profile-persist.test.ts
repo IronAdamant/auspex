@@ -224,8 +224,9 @@ test("pageForSession applies storageState when connect exposes no default contex
     newContext: async (opts: { storageState?: { origins?: Array<{ localStorage?: Array<{ name: string }> }> } }) => {
       assert.equal(opts.storageState?.origins?.[0]?.localStorage?.[0]?.name, "__auspex_ss__:accessToken")
       return {
-        addInitScript: async (_script: unknown, arg?: { baked?: Record<string, Record<string, string>> }) => {
-          baked = JSON.stringify(arg ?? {})
+        addInitScript: async (script: { content?: string } | string, arg?: { baked?: Record<string, Record<string, string>> }) => {
+          if (typeof script === "object" && script.content) baked = script.content
+          else baked = JSON.stringify(arg ?? {})
         },
         pages: () => [createdPage],
         newPage: async () => ({ id: "new" }),

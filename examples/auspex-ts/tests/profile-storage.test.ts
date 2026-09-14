@@ -57,7 +57,7 @@ test("hydrateSessionStorageSource copies prefixed keys", () => {
   assert.match(src, /sessionStorage.setItem/)
 })
 
-test("installSessionStorageRestore registers a function init script with baked keys", async () => {
+test("installSessionStorageRestore registers a content init script with baked keys", async () => {
   const calls: unknown[] = []
   const payload = await installSessionStorageRestore(
     {
@@ -77,7 +77,8 @@ test("installSessionStorageRestore registers a function init script with baked k
   )
   assert.equal(payload.baked["https://consistencyhub.io"]?.accessToken, "tok")
   assert.equal(calls.length, 1)
-  assert.equal((calls[0] as { fn: string }).fn, "function")
+  const first = calls[0] as { fn: string; arg?: unknown }
+  assert.equal(first.fn, "object")
 })
 
 test("hydrateSessionStorageSource bakes sessionStorage for restore before navigation", () => {

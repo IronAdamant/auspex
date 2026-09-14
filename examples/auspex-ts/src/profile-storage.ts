@@ -210,33 +210,6 @@ export type SessionRestorePayload = {
   prefix: string
 }
 
-/** Runs in the page before document scripts. No closures — Playwright serializes this. */
-export function sessionRestoreInitFn(): (data: SessionRestorePayload) => void {
-  return (data) => {
-    try {
-      const baked = data?.baked ?? {}
-      const prefix = data?.prefix ?? ""
-      const items = baked[location.origin]
-      if (items) {
-        for (const k of Object.keys(items)) {
-          if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(items[k]))
-        }
-      }
-      if (!prefix) return
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (!key || !key.startsWith(prefix)) continue
-        const name = key.slice(prefix.length)
-        if (name && sessionStorage.getItem(name) == null) {
-          sessionStorage.setItem(name, localStorage.getItem(key) ?? "")
-        }
-      }
-    } catch {
-      /* opaque origins */
-    }
-  }
-}
-
 export async function installSessionStorageRestore(
   ctx: object,
   state: StorageState | null | undefined,
@@ -246,11 +219,16 @@ export async function installSessionStorageRestore(
     baked: state ? sessionItemsByOrigin(state) : {},
     prefix: SESSION_STORAGE_PREFIX,
   }
-  const fn = sessionRestoreInitFn()
-  const ctxInstall = (ctx as { addInitScript?: (script: (data: SessionRestorePayload) => void, arg?: SessionRestorePayload) => Promise<unknown> }).addInitScript
-  if (typeof ctxInstall === "function") await ctxInstall(fn, payload)
-  const pageInstall = (page as { addInitScript?: (script: (data: SessionRestorePayload) => void, arg?: SessionRestorePayload) => Promise<unknown> } | undefined)?.addInitScript
-  if (typeof pageInstall === "function") await pageInstall(fn, payload)
+  const content = hydrateSessionStorageSource(payload.baked, payload.prefix)
+  const ctxInstall = (ctx as { addInitScript?: (script: { content: string }) => Promise<unknown> }).addInitScript
+  if (typeof ctxInstall === "function") {
+    await ctxInstall({ content }).catch(() => undefined)
+  }
+  const pageInstall = (page as { addInitScript?: (script: { content: string }) => Promise<unknown> } | undefined)
+    ?.addInitScript
+  if (typeof pageInstall === "function") {
+    await pageInstall({ content }).catch(() => undefined)
+  }
   return payload
 }
 
