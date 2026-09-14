@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type { BrowserSession, StorageState } from "@solarisdk/browser"
+import type { BrowserSession } from "@solarisdk/browser"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
@@ -15,6 +15,12 @@ import {
   type ProfileSaveResult,
   type ProfileSeed,
 } from "./profile-persist.ts"
+import {
+  captureStorageState,
+  hydrateSessionStorage,
+  isPersistableAppUrl,
+  PUBLIC_PROFILE_SAVE_ERROR,
+} from "./profile-storage.ts"
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
@@ -22,10 +28,10 @@ import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./
 import { assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   createClient,
+  checkOverallTimeoutMs,
   GOTO_TIMEOUT_MS,
   launchBrowser,
   NETWORKIDLE_TIMEOUT_MS,
-  OVERALL_TIMEOUT_MS,
   pageForSession,
   resolveProfileId,
   waitUntilReleased,
@@ -189,6 +195,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         signal,
       })
       if (isCancelled()) return
+      const restored = await hydrateSessionStorage(page)
+      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+        await page.goto(opts.url, {
+          timeout: GOTO_TIMEOUT_MS,
+          waitUntil: "domcontentloaded",
+          signal,
+        })
+      }
+      if (isCancelled()) return
       if (opts.sso) {
         onProgress("sso")
         await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal })
@@ -204,6 +219,11 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         networkIdle = true
       } catch {
         networkIdle = false
+      }
+      if (opts.profile) {
+        await page
+          .waitForURL((url) => isPersistableAppUrl(url.toString()), { timeout: 20_000, signal })
+          .catch(() => undefined)
       }
       if (isCancelled()) return
       onProgress("extract")
@@ -242,13 +262,23 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       await writeFittedScreenshot(screenshotAbs)
       if (opts.saveProfile && profileId && !isCancelled()) {
         onProgress("save-profile")
-        const state = (await page.context().storageState()) as StorageState
-        profileSaved = await persistLiveProfile({
-          solari,
-          profileId,
-          sessionId,
-          state,
-        })
+        const liveUrl = finalUrl || page.url()
+        if (!isPersistableAppUrl(liveUrl)) {
+          profileSaved = {
+            ok: false,
+            cookies: 0,
+            origins: 0,
+            error: PUBLIC_PROFILE_SAVE_ERROR,
+          }
+        } else {
+          const state = await captureStorageState(browser)
+          profileSaved = await persistLiveProfile({
+            solari,
+            profileId,
+            sessionId,
+            state,
+          })
+        }
       }
     } finally {
       closer.skip()
@@ -259,8 +289,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     try {
       await raceWithTimeout(
         work,
-        OVERALL_TIMEOUT_MS,
-        `auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`,
+        checkOverallTimeoutMs(opts),
+        `auspex check timed out after ${checkOverallTimeoutMs(opts)}ms`,
       )
     } catch (err) {
       workError = err

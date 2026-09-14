@@ -67,7 +67,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the check, persist this session into the named profile via Solari save-profile. Refuses an empty seed so a 0-cookie Save cannot wipe a login.",
+      "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed or a public /landing session so a 0-cookie Save cannot wipe a login.",
     ),
 })
 

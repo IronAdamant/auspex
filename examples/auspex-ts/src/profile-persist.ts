@@ -1,11 +1,14 @@
 import type { Solari, StorageState } from "@solarisdk/browser"
-import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
+import { createClient } from "./solari.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
 
 export const EMPTY_PROFILE_SAVE_ERROR =
   "refusing to save an empty storage state over a Solari profile (would wipe cookies)"
+
+export const PROFILE_EDITOR_OPEN_ERROR =
+  "profile editor is open; close it, then --save-profile with the live session"
 
 export const HANDOFF_POLL_MS = 2_000
 export const AWAIT_LOGIN_DEFAULT_MS = 300_000
@@ -15,17 +18,13 @@ export type ProfileSeed = {
   origins: number
 }
 
-export type PersistHttp = {
-  post: (path: string, body: unknown) => Promise<Record<string, unknown>>
-}
-
 export type ProfileSaveResult = {
   ok: boolean
   version?: number
   sizeBytes?: number
   cookies: number
   origins: number
-  via?: "save-profile" | "profiles.save"
+  via?: "profiles.save"
   error?: string
 }
 
@@ -73,39 +72,22 @@ export function asFiniteNumber(value: unknown): number | undefined {
   return undefined
 }
 
-function seedFromSaveBody(json: Record<string, unknown>, fallback: ProfileSeed): ProfileSeed {
-  const cookies =
-    asFiniteNumber(json.cookies) ?? asFiniteNumber(json.cookieCount) ?? fallback.cookies
-  const origins = asFiniteNumber(json.origins) ?? asFiniteNumber(json.originCount) ?? fallback.origins
-  return { cookies, origins }
-}
-
-function saveProfileFallbackAllowed(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err)
-  return /\b404\b|\b501\b|not found/i.test(msg)
-}
-
 export async function persistLiveProfile(opts: {
   solari: Solari
   profileId: string
-  sessionId: string
   state: StorageState
-  http?: PersistHttp
+  sessionId?: string
 }): Promise<ProfileSaveResult> {
   return persistProfileState({
     profileId: opts.profileId,
-    sessionId: opts.sessionId,
     state: opts.state,
-    http: opts.http ?? (await defaultSaveProfileHttp()),
     save: (id, state) => opts.solari.profiles.save(id, state),
   })
 }
 
 export async function persistProfileState(opts: {
   profileId: string
-  sessionId: string
   state: StorageState
-  http: PersistHttp
   save: (id: string, state: StorageState) => Promise<{ version: number; sizeBytes: number }>
 }): Promise<ProfileSaveResult> {
   const seed = seedFromStorageState(opts.state)
@@ -113,24 +95,6 @@ export async function persistProfileState(opts: {
     return { ok: false, cookies: 0, origins: 0, error: EMPTY_PROFILE_SAVE_ERROR }
   }
   try {
-    const json = await opts.http.post(
-      `/sessions/${encodeURIComponent(opts.sessionId)}/save-profile`,
-      { profileId: opts.profileId },
-    )
-    const saved = seedFromSaveBody(json, seed)
-    if (isEmptySeed(saved)) {
-      return { ok: false, ...saved, via: "save-profile", error: EMPTY_PROFILE_SAVE_ERROR }
-    }
-    return {
-      ok: true,
-      version: asFiniteNumber(json.version),
-      sizeBytes: asFiniteNumber(json.sizeBytes),
-      cookies: saved.cookies,
-      origins: saved.origins,
-      via: "save-profile",
-    }
-  } catch (err) {
-    if (!saveProfileFallbackAllowed(err)) throw err
     const written = await opts.save(opts.profileId, opts.state)
     return {
       ok: true,
@@ -140,6 +104,12 @@ export async function persistProfileState(opts: {
       origins: seed.origins,
       via: "profiles.save",
     }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/\b409\b|editor is open/i.test(msg)) {
+      return { ok: false, ...seed, error: PROFILE_EDITOR_OPEN_ERROR }
+    }
+    throw err
   }
 }
 
@@ -209,28 +179,6 @@ export async function waitForProfileSave(
     cookies: seed.cookies,
     origins: seed.origins,
     next: awaitNext(status, profile, version, seed),
-  }
-}
-
-export async function defaultSaveProfileHttp(): Promise<PersistHttp> {
-  const key = requireApiKey()
-  return {
-    post: async (path, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body ?? {}),
-      })
-      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
-      if (!res.ok) {
-        const err = typeof json.error === "string" ? json.error : `save-profile ${res.status}`
-        throw new Error(err)
-      }
-      return json
-    },
   }
 }
 
