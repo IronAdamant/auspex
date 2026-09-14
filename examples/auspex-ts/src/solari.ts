@@ -125,21 +125,23 @@ export type PlaywrightStorageState = {
   }>
 }
 
-/** Fill Playwright-required cookie fields; drop cookies that have no domain. */
+/** Fill Playwright cookie fields. Keep httpOnly/secure as stored (do not force true). */
 export function toPlaywrightStorageState(state: StorageState): PlaywrightStorageState {
   const cookies: PlaywrightStorageState["cookies"] = []
   for (const c of state.cookies ?? []) {
-    if (!c.domain || !c.name) continue
+    if (!c.name) continue
+    const domain = c.domain
+    if (!domain) continue
     const sameSite =
       c.sameSite === "Strict" || c.sameSite === "Lax" || c.sameSite === "None" ? c.sameSite : "Lax"
     cookies.push({
       name: c.name,
       value: c.value,
-      domain: c.domain,
+      domain,
       path: c.path ?? "/",
       expires: c.expires ?? -1,
-      httpOnly: c.httpOnly ?? true,
-      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      secure: c.secure ?? false,
       sameSite,
     })
   }
@@ -261,14 +263,18 @@ export async function resolveProfileId(solari: Solari, name: string): Promise<st
   return findProfileId(await solari.profiles.list(), name)
 }
 
-/** Profile cookies live on session.storageState, not the default context. */
+/**
+ * Solari seeds the default context when profileId is set. A fresh
+ * `newContext({ storageState })` drops that pool seed (and can miss
+ * localStorage), which is why `--profile` reuse used to hit a public /landing.
+ */
 export async function pageForSession(browser: BrowserSession) {
+  const existing = browser.contexts()[0]
+  if (existing) return existing.pages()[0] ?? existing.newPage()
   const state = browser.session.storageState
   const pw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] }
   const hasState = pw.cookies.length > 0 || pw.origins.length > 0
-  const ctx = hasState
-    ? await browser.newContext({ storageState: pw })
-    : (browser.contexts()[0] ?? (await browser.newContext()))
+  const ctx = await browser.newContext(hasState ? { storageState: pw } : {})
   return ctx.pages()[0] ?? ctx.newPage()
 }
 

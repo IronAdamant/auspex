@@ -11,13 +11,15 @@ test("loginInstructions with handoff includes url not only Open editor", () => {
   const result = loginInstructions(
     { id: "prof_test_id", name: "auspex-goal-test" },
     "https://example.com/login",
-    { url: "https://console.getsolari.com/handoff/abc", handoffId: "h1", expiresAt: "soon" },
+    { url: "https://console.getsolari.com/handoff/abc", handoffId: "h1", expiresAt: "soon", version: 7 },
   )
   assert.equal(result.profileId, "prof_test_id")
   assert.equal(result.name, "auspex-goal-test")
   assert.equal(result.url, "https://console.getsolari.com/handoff/abc")
   assert.equal(result.handoffId, "h1")
+  assert.equal(result.sinceVersion, 7)
   assert.match(result.next, /handoff|url/i)
+  assert.match(result.next, /await_login|await-login|cookies or origins/)
   assert.equal(result.next.includes("Open editor"), false)
   const printed = formatLogin(result)
   assert.match(printed, /handoff\/abc/)

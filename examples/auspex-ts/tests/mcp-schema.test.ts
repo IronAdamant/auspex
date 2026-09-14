@@ -34,6 +34,7 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.ok("click" in props)
     assert.ok("proxy" in props)
     assert.ok("captcha" in props)
+    assert.ok("saveProfile" in props)
     const required = check.inputSchema.required ?? []
     assert.ok(required.includes("url"))
     assert.ok(required.includes("expect"))
@@ -54,6 +55,9 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     const login = listed.tools.find((t) => t.name === "auspex_login")
     assert.ok(login)
     assert.match(login.description ?? "", /handoff/)
+    const awaitLogin = listed.tools.find((t) => t.name === "auspex_await_login")
+    assert.ok(awaitLogin, "auspex_await_login missing from ListTools")
+    assert.match(awaitLogin.description ?? "", /empty-save|cookies or origins/i)
     const deskProps = desktop.inputSchema.properties ?? {}
     assert.ok("open" in deskProps || "type" in deskProps)
     assert.ok("expect" in deskProps)

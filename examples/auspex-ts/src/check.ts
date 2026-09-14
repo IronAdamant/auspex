@@ -2,11 +2,19 @@ import { existsSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type { BrowserSession } from "@solarisdk/browser"
+import type { BrowserSession, StorageState } from "@solarisdk/browser"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
+import {
+  emptyProfileSeedError,
+  isEmptySeed,
+  persistLiveProfile,
+  seedFromStorageState,
+  type ProfileSaveResult,
+  type ProfileSeed,
+} from "./profile-persist.ts"
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
@@ -54,6 +62,7 @@ export type CheckOptions = {
   proxy?: string
   proxySticky?: string
   captcha?: boolean
+  saveProfile?: boolean
   onProgress?: ProgressFn
 }
 
@@ -71,6 +80,8 @@ export type CheckResult = {
   waitedFor?: string
   filled?: string
   clicked?: string
+  profileSeed?: ProfileSeed
+  profileSaved?: ProfileSaveResult
 }
 
 export const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -138,6 +149,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let waitedFor: string | undefined
   let filled: string | undefined
   let clicked: string | undefined
+  let profileSeed: ProfileSeed | undefined
+  let profileSaved: ProfileSaveResult | undefined
   let workError: unknown
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
@@ -163,6 +176,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       sessionId = browser.id
       await rememberLive("browser", sessionId).catch(() => undefined)
       if (isCancelled()) return
+      profileSeed = seedFromStorageState(browser.session.storageState)
+      if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
+        throw new Error(emptyProfileSeedError(opts.profile))
+      }
       const page = await pageForSession(browser)
       if (isCancelled()) return
       onProgress("goto")
@@ -223,6 +240,16 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         timeout: SCREENSHOT_TIMEOUT_MS,
       })
       await writeFittedScreenshot(screenshotAbs)
+      if (opts.saveProfile && profileId && !isCancelled()) {
+        onProgress("save-profile")
+        const state = (await page.context().storageState()) as StorageState
+        profileSaved = await persistLiveProfile({
+          solari,
+          profileId,
+          sessionId,
+          state,
+        })
+      }
     } finally {
       closer.skip()
     }
@@ -262,7 +289,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     }
 
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts))
-    const protocolOk = Boolean(finalUrl && existsSync(screenshotAbs) && !authFail)
+    const savedOk = !opts.saveProfile || profileSaved?.ok === true
+    const protocolOk = Boolean(finalUrl && existsSync(screenshotAbs) && !authFail && savedOk)
     const result: CheckResult = {
       title,
       finalUrl,
@@ -277,6 +305,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       waitedFor,
       filled,
       clicked,
+      profileSeed,
+      profileSaved,
     }
     await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}\n`)
     return result

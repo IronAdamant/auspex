@@ -260,6 +260,7 @@ test("RECEIPT_ASSERT_PY does not treat a suffix host as Microsoft", () => {
 
 test("runCheck source does not auto-save Solari profiles", () => {
   const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
+  assert.match(src, /opts\.saveProfile/)
   assert.equal(src.includes("profiles.save"), false)
   assert.equal(src.includes(".save("), false)
 })

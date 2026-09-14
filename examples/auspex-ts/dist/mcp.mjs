@@ -283,9 +283,6 @@ function fitMcpAttach(png, cap = MCP_ATTACH_MAX_BYTES) {
   return { buf: pngOut, mimeType: "image/png" };
 }
 
-// src/profiles.ts
-import { z as z2 } from "zod";
-
 // src/solari.ts
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -444,16 +441,18 @@ var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 function toPlaywrightStorageState(state) {
   const cookies = [];
   for (const c of state.cookies ?? []) {
-    if (!c.domain || !c.name) continue;
+    if (!c.name) continue;
+    const domain = c.domain;
+    if (!domain) continue;
     const sameSite = c.sameSite === "Strict" || c.sameSite === "Lax" || c.sameSite === "None" ? c.sameSite : "Lax";
     cookies.push({
       name: c.name,
       value: c.value,
-      domain: c.domain,
+      domain,
       path: c.path ?? "/",
       expires: c.expires ?? -1,
-      httpOnly: c.httpOnly ?? true,
-      secure: c.secure ?? true,
+      httpOnly: c.httpOnly ?? false,
+      secure: c.secure ?? false,
       sameSite
     });
   }
@@ -559,10 +558,12 @@ async function resolveProfileId(solari, name) {
   return findProfileId(await solari.profiles.list(), name);
 }
 async function pageForSession(browser) {
+  const existing = browser.contexts()[0];
+  if (existing) return existing.pages()[0] ?? existing.newPage();
   const state = browser.session.storageState;
   const pw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
   const hasState = pw.cookies.length > 0 || pw.origins.length > 0;
-  const ctx = hasState ? await browser.newContext({ storageState: pw }) : browser.contexts()[0] ?? await browser.newContext();
+  const ctx = await browser.newContext(hasState ? { storageState: pw } : {});
   return ctx.pages()[0] ?? ctx.newPage();
 }
 function sleep(ms) {
@@ -611,7 +612,182 @@ async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REP
   }
 }
 
+// src/profile-persist.ts
+var EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
+var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
+var HANDOFF_POLL_MS = 2e3;
+var AWAIT_LOGIN_DEFAULT_MS = 3e5;
+function seedFromStorageState(state) {
+  return {
+    cookies: (state?.cookies ?? []).filter((c) => Boolean(c?.name)).length,
+    origins: (state?.origins ?? []).filter((o) => Boolean(o?.origin)).length
+  };
+}
+function isEmptySeed(seed) {
+  return seed.cookies === 0 && seed.origins === 0;
+}
+function emptyProfileSeedError(name) {
+  const n = name.trim();
+  return `profile ${n} ${EMPTY_PROFILE_SEED_ERROR}`;
+}
+function asFiniteNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return void 0;
+}
+function seedFromSaveBody(json, fallback) {
+  const cookies = asFiniteNumber(json.cookies) ?? asFiniteNumber(json.cookieCount) ?? fallback.cookies;
+  const origins = asFiniteNumber(json.origins) ?? asFiniteNumber(json.originCount) ?? fallback.origins;
+  return { cookies, origins };
+}
+function saveProfileFallbackAllowed(err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b404\b|\b501\b|not found/i.test(msg);
+}
+async function persistLiveProfile(opts) {
+  return persistProfileState({
+    profileId: opts.profileId,
+    sessionId: opts.sessionId,
+    state: opts.state,
+    http: opts.http ?? await defaultSaveProfileHttp(),
+    save: (id, state) => opts.solari.profiles.save(id, state)
+  });
+}
+async function persistProfileState(opts) {
+  const seed = seedFromStorageState(opts.state);
+  if (isEmptySeed(seed)) {
+    return { ok: false, cookies: 0, origins: 0, error: EMPTY_PROFILE_SAVE_ERROR };
+  }
+  try {
+    const json = await opts.http.post(
+      `/sessions/${encodeURIComponent(opts.sessionId)}/save-profile`,
+      { profileId: opts.profileId }
+    );
+    const saved = seedFromSaveBody(json, seed);
+    if (isEmptySeed(saved)) {
+      return { ok: false, ...saved, via: "save-profile", error: EMPTY_PROFILE_SAVE_ERROR };
+    }
+    return {
+      ok: true,
+      version: asFiniteNumber(json.version),
+      sizeBytes: asFiniteNumber(json.sizeBytes),
+      cookies: saved.cookies,
+      origins: saved.origins,
+      via: "save-profile"
+    };
+  } catch (err) {
+    if (!saveProfileFallbackAllowed(err)) throw err;
+    const written = await opts.save(opts.profileId, opts.state);
+    return {
+      ok: true,
+      version: written.version,
+      sizeBytes: written.sizeBytes,
+      cookies: seed.cookies,
+      origins: seed.origins,
+      via: "profiles.save"
+    };
+  }
+}
+async function inspectProfileSeed(solari, profileId) {
+  const session = await solari.sessions.create({ profileId });
+  try {
+    return seedFromStorageState(session.storageState);
+  } finally {
+    await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
+  }
+}
+function awaitNext(status, profile, version, seed) {
+  if (status === "completed") {
+    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
+  }
+  if (status === "empty-save") {
+    return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
+  }
+  return `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`;
+}
+async function waitForProfileSave(name, opts) {
+  const want = name.trim();
+  if (!want) throw new Error("profile name must be non-empty");
+  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? AWAIT_LOGIN_DEFAULT_MS, 5e3), 6e5);
+  const sleepFn = opts.deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const now = opts.deps.now ?? Date.now;
+  const deadline = now() + timeoutMs;
+  let profile = (await opts.deps.list()).find((p) => p.name.trim() === want);
+  if (!profile) throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`);
+  const since = opts.sinceVersion ?? profile.version ?? 0;
+  let version = profile.version ?? since;
+  let seed = { cookies: 0, origins: 0 };
+  let status = "timeout";
+  while (now() < deadline) {
+    const rows = await opts.deps.list();
+    profile = rows.find((p) => p.name.trim() === want);
+    if (!profile) throw new Error(`profile ${want} no longer exists`);
+    version = profile.version ?? since;
+    if (version > since) {
+      seed = await opts.deps.inspect(profile.id);
+      status = isEmptySeed(seed) ? "empty-save" : "completed";
+      break;
+    }
+    const remain = deadline - now();
+    if (remain <= 0) break;
+    await sleepFn(Math.min(HANDOFF_POLL_MS, remain));
+  }
+  return {
+    status,
+    profileId: profile.id,
+    name: profile.name,
+    version,
+    cookies: seed.cookies,
+    origins: seed.origins,
+    next: awaitNext(status, profile, version, seed)
+  };
+}
+async function defaultSaveProfileHttp() {
+  const key = requireApiKey();
+  return {
+    post: async (path8, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path8}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body ?? {})
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = typeof json.error === "string" ? json.error : `save-profile ${res.status}`;
+        throw new Error(err);
+      }
+      return json;
+    }
+  };
+}
+async function liveAwaitLogin(name, opts = {}) {
+  const solari = createClient();
+  try {
+    return await waitForProfileSave(name, {
+      sinceVersion: opts.sinceVersion,
+      timeoutMs: opts.timeoutMs,
+      deps: {
+        list: async () => (await solari.profiles.list()).map((p) => ({
+          id: p.id,
+          name: p.name,
+          version: asFiniteNumber(p.version)
+        })),
+        inspect: (id) => inspectProfileSeed(solari, id)
+      }
+    });
+  } finally {
+    await solari.close().catch(() => void 0);
+  }
+}
+
 // src/profiles.ts
+import { z as z2 } from "zod";
 var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
 var PROFILE_NAME_ERROR = "profile name must be non-empty";
 function requireProfileName(value) {
@@ -630,14 +806,16 @@ function loginInstructions(profile, urlHint, handoff) {
       url: handoff.url,
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done, then run auspex check with --profile ${profile.name}`
+      sinceVersion: handoff.version,
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
     };
   }
   return {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save, then run auspex check with --profile ${profile.name}`
+    sinceVersion: handoff?.version,
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
   };
 }
 async function defaultProfileHttp() {
@@ -696,7 +874,18 @@ async function loginProfile(name, urlHint, http) {
 async function listProfiles() {
   const solari = createClient();
   try {
-    return (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name }));
+    return (await solari.profiles.list()).map((p) => {
+      const version = asFiniteNumber(p.version);
+      const sizeBytes = asFiniteNumber(p.sizeBytes);
+      const s3 = p.storageStateS3Key;
+      return {
+        id: p.id,
+        name: p.name,
+        version,
+        sizeBytes,
+        populated: Boolean(s3) || sizeBytes !== void 0 && sizeBytes > 0
+      };
+    });
   } finally {
     await solari.close();
   }
@@ -807,7 +996,10 @@ var auspexCheckInputObject = z4.object({
   verify: z4.boolean().optional().describe(
     "One-shot: after check, audit the receipt in a headless sandbox and kill that VM. Do not also call auspex_verify"
   ),
-  allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)")
+  allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)"),
+  saveProfile: z4.boolean().optional().describe(
+    "After the check, persist this session into the named profile via Solari save-profile. Refuses an empty seed so a 0-cookie Save cannot wipe a login."
+  )
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (val.record && val.profile && !val.allowRecordProfile) {
@@ -822,7 +1014,13 @@ var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
 });
 var auspexLoginInputSchema = z4.object({
   profile: profileNameSchema.describe("Profile name to create or reuse"),
-  url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human")
+  url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
+  wait: z4.boolean().optional().describe("If true, block until Save stores cookies or origins (empty Save is not success)")
+});
+var auspexAwaitLoginInputSchema = z4.object({
+  profile: profileNameSchema.describe("Profile name from auspex_login"),
+  sinceVersion: z4.number().optional().describe("Version from auspex_login; completion is a newer version with cookies or origins"),
+  timeoutMs: z4.number().optional().describe("Cap wait in ms (default 300000, max 600000)")
 });
 var auspexDesktopInputSchema = z4.object({
   open: z4.string().optional().describe("App to open (default mousepad)"),
@@ -1097,6 +1295,8 @@ async function runCheck(opts) {
   let waitedFor;
   let filled;
   let clicked;
+  let profileSeed;
+  let profileSaved;
   let workError;
   const work = async (isCancelled, signal) => {
     try {
@@ -1121,6 +1321,10 @@ async function runCheck(opts) {
       sessionId = browser.id;
       await rememberLive("browser", sessionId).catch(() => void 0);
       if (isCancelled()) return;
+      profileSeed = seedFromStorageState(browser.session.storageState);
+      if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
+        throw new Error(emptyProfileSeedError(opts.profile));
+      }
       const page = await pageForSession(browser);
       if (isCancelled()) return;
       onProgress("goto");
@@ -1181,6 +1385,16 @@ async function runCheck(opts) {
         timeout: SCREENSHOT_TIMEOUT_MS
       });
       await writeFittedScreenshot(screenshotAbs);
+      if (opts.saveProfile && profileId && !isCancelled()) {
+        onProgress("save-profile");
+        const state = await page.context().storageState();
+        profileSaved = await persistLiveProfile({
+          solari,
+          profileId,
+          sessionId,
+          state
+        });
+      }
     } finally {
       closer.skip();
     }
@@ -1217,7 +1431,8 @@ async function runCheck(opts) {
       replayReady = await attachRecordedReplay(solari, sessionId, outDir);
     }
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts));
-    const protocolOk = Boolean(finalUrl && existsSync2(screenshotAbs) && !authFail);
+    const savedOk = !opts.saveProfile || profileSaved?.ok === true;
+    const protocolOk = Boolean(finalUrl && existsSync2(screenshotAbs) && !authFail && savedOk);
     const result = {
       title,
       finalUrl,
@@ -1231,7 +1446,9 @@ async function runCheck(opts) {
       replayReady: opts.record ? replayReady : void 0,
       waitedFor,
       filled,
-      clicked
+      clicked,
+      profileSeed,
+      profileSaved
     };
     await writeFile3(path4.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}
 `);
@@ -1892,11 +2109,11 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. saveProfile persists a non-empty seed only. 429: call auspex_reap, then retry.";
 var VERIFY_DESCRIPTION = "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, wait for them to Save, then pass this profile to auspex_check.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success.";
 var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, wait for X11, open mousepad by default (click inside the editor at 320,300 \u2014 not screen center), optional type/expect, screenshot, kill. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
-var PROFILES_DESCRIPTION = "List Solari browser profile names and ids on this account.";
+var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing.";
 function progressFromExtra(extra) {
   return createProgress({ extra });
@@ -1934,9 +2151,30 @@ function registerAuspexTools(server2) {
       description: LOGIN_DESCRIPTION,
       inputSchema: auspexLoginInputSchema
     },
-    async ({ profile, url }) => {
+    async ({ profile, url, wait }) => {
       try {
         const result = await loginProfile(profile, url);
+        if (!wait) {
+          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        }
+        const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion });
+        return {
+          content: [{ type: "text", text: JSON.stringify({ ...result, wait: waited }, null, 2) }]
+        };
+      } catch (err) {
+        return packToolFailure(err);
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_await_login",
+    {
+      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Then pass this profile to auspex_check.",
+      inputSchema: auspexAwaitLoginInputSchema
+    },
+    async ({ profile, sinceVersion, timeoutMs }) => {
+      try {
+        const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs });
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return packToolFailure(err);

@@ -19,6 +19,9 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /check/)
   assert.match(USAGE, /login/)
   assert.match(USAGE, /profiles/)
+  assert.match(USAGE, /await-login/)
+  assert.match(USAGE, /--save-profile/)
+  assert.match(USAGE, /--wait/)
   assert.match(USAGE, /verify/)
   assert.match(USAGE, /--verify/)
   assert.match(USAGE, /desktop/)
@@ -116,6 +119,15 @@ test("parseArgv login and profiles", () => {
   const profiles = parseArgv(["profiles"])
   assert.equal(profiles.status, "ok")
   if (profiles.status === "ok") assert.equal(profiles.command.cmd, "profiles")
+  const wait = parseArgv(["login", "--profile", "auspex-demo", "--wait"])
+  assert.equal(wait.status, "ok")
+  if (wait.status === "ok" && wait.command.cmd === "login") assert.equal(wait.command.wait, true)
+  const awaitLogin = parseArgv(["await-login", "--profile", "auspex-demo", "--since-version", "10"])
+  assert.equal(awaitLogin.status, "ok")
+  if (awaitLogin.status === "ok" && awaitLogin.command.cmd === "await-login") {
+    assert.equal(awaitLogin.command.profile, "auspex-demo")
+    assert.equal(awaitLogin.command.sinceVersion, 10)
+  }
 })
 
 test("shipped CLI --help lists check, login, profiles", () => {
@@ -128,6 +140,8 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /--verify/)
   assert.match(help.stdout, /desktop/)
   assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
+  assert.match(help.stdout, /await-login/)
+  assert.match(help.stdout, /--save-profile/)
   assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
 })
 
@@ -285,12 +299,30 @@ test("parseArgv check click/fill/wait-for and proxy", () => {
     assert.equal(parsed.command.opts.proxy, "us")
     assert.equal(parsed.command.opts.captcha, true)
     assert.equal(parsed.command.opts.stealth, false)
+    assert.equal(parsed.command.opts.saveProfile, false)
   }
 })
 
 test("parseArgv check --fill without --value is an error", () => {
   const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", "x", "--fill", "#q"])
   assert.equal(parsed.status, "error")
+})
+
+test("parseArgv check --save-profile", () => {
+  const parsed = parseArgv([
+    "check",
+    "https://example.com",
+    "--expect",
+    "Example Domain",
+    "--profile",
+    "auspex-demo",
+    "--save-profile",
+  ])
+  assert.equal(parsed.status, "ok")
+  if (parsed.status === "ok" && parsed.command.cmd === "check") {
+    assert.equal(parsed.command.opts.saveProfile, true)
+    assert.equal(parsed.command.opts.profile, "auspex-demo")
+  }
 })
 
 test("parseArgv reap and desktop --expect", () => {
