@@ -1433,19 +1433,20 @@ async function listCompleteRunDirs(runsDir = RUNS_DIR) {
     return [];
   }
   const dirs = [];
-  for (const name of names.sort().reverse()) {
+  for (const name of names) {
     const dir = path5.join(runsDir, name);
     const st = await stat(dir).catch(() => void 0);
     if (!st?.isDirectory()) continue;
     try {
       await stat(path5.join(dir, "manifest.json"));
       await stat(path5.join(dir, "screenshot.png"));
-      dirs.push(dir);
+      dirs.push({ dir, mtime: st.mtimeMs, name });
     } catch {
       continue;
     }
   }
-  return dirs;
+  dirs.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name));
+  return dirs.map((d) => d.dir);
 }
 async function findLatestRun(runsDir = RUNS_DIR) {
   const dirs = await listCompleteRunDirs(runsDir);
@@ -2737,7 +2738,8 @@ async function packLastReceipts(opts) {
     } catch {
       manifest = {};
     }
-    const key = receiptUrlKey(manifest) ?? dir;
+    const key = receiptUrlKey(manifest);
+    if (!key) continue;
     if (seenUrl.has(key)) continue;
     seenUrl.add(key);
     chosen.push(dir);

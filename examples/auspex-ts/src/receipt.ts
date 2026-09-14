@@ -24,20 +24,21 @@ export async function listCompleteRunDirs(runsDir = RUNS_DIR): Promise<string[]>
   } catch {
     return []
   }
-  const dirs: string[] = []
-  for (const name of names.sort().reverse()) {
+  const dirs: { dir: string; mtime: number; name: string }[] = []
+  for (const name of names) {
     const dir = path.join(runsDir, name)
     const st = await stat(dir).catch(() => undefined)
     if (!st?.isDirectory()) continue
     try {
       await stat(path.join(dir, "manifest.json"))
       await stat(path.join(dir, "screenshot.png"))
-      dirs.push(dir)
+      dirs.push({ dir, mtime: st.mtimeMs, name })
     } catch {
       continue
     }
   }
-  return dirs
+  dirs.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name))
+  return dirs.map((d) => d.dir)
 }
 
 export async function findLatestRun(runsDir = RUNS_DIR): Promise<string> {

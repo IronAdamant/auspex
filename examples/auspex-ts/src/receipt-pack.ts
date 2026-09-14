@@ -41,7 +41,8 @@ export async function packLastReceipts(opts?: {
     } catch {
       manifest = {}
     }
-    const key = receiptUrlKey(manifest) ?? dir
+    const key = receiptUrlKey(manifest)
+    if (!key) continue
     if (seenUrl.has(key)) continue
     seenUrl.add(key)
     chosen.push(dir)

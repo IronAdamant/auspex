@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, writeFileSync, utimesSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { listCompleteRunDirs } from "../src/receipt.ts"
 import { canonicalCheckUrl, diffAgainstLastReceipt } from "../src/receipt-diff.ts"
 import { packLastReceipts } from "../src/receipt-pack.ts"
 
@@ -12,6 +13,22 @@ test("canonicalCheckUrl strips trailing slash and lowercases host", () => {
     canonicalCheckUrl("https://checkpointprojects.com/foo/"),
     "https://checkpointprojects.com/foo",
   )
+})
+
+test("listCompleteRunDirs orders complete runs by mtime, not directory name", async () => {
+  const runs = mkdtempSync(path.join(tmpdir(), "auspex-mtime-runs-"))
+  const alpha = path.join(runs, "zzzz-old-name")
+  const iso = path.join(runs, "2026-09-14T00-00-00-000Z")
+  for (const dir of [alpha, iso]) {
+    mkdirSync(dir)
+    writeFileSync(path.join(dir, "manifest.json"), "{}")
+    writeFileSync(path.join(dir, "screenshot.png"), Buffer.from("x"))
+  }
+  const now = Date.now() / 1000
+  utimesSync(alpha, now - 60, now - 60)
+  utimesSync(iso, now, now)
+  const dirs = await listCompleteRunDirs(runs)
+  assert.equal(dirs[0], iso)
 })
 
 test("diffAgainstLastReceipt compares excerpt and url for the same site", async () => {
@@ -73,6 +90,7 @@ test("packLastReceipts copies last receipt per URL", async () => {
   }
   const packed = await packLastReceipts({ destDir: dest, runsDir: runs })
   assert.equal(packed.packed.length, 2)
+  assert.ok(packed.packed.every((p) => p.url))
   const urls = packed.packed.map((p) => p.url).sort()
   assert.deepEqual(urls, ["https://checkpointprojects.com", "https://ironadamant.com"])
   const iron = packed.packed.find((p) => p.url.includes("ironadamant"))
