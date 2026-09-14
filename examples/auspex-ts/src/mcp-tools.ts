@@ -10,6 +10,7 @@ import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
+import { assertPageActionsAllowed } from "./page-actions.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
 import { stampSchema } from "./schema-version.ts"
 import {
@@ -24,7 +25,7 @@ import {
 } from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
-  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, …) stay optional. loggedOut/needsHuman skip verify and are not retried. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
+  "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, …) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
 
 const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
@@ -39,10 +40,10 @@ const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
 
 const PROFILE_STATUS_DESCRIPTION =
-  "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft password/OTP wall is needsHuman — skip live, do not ping the user."
+  "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft or Google password/OTP wall is needsHuman — skip live, do not ping the user. Path / is loggedOut unless expect matched."
 
 const REAP_DESCRIPTION =
-  "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
+  "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
 
 function toolJson(obj: object): string {
   return JSON.stringify(stampSchema(obj), null, 2)
@@ -69,9 +70,10 @@ export function registerAuspexTools(server: McpServer): void {
         if (!url || !expect) {
           throw new Error("auspex_check requires name or url+expect")
         }
-        const { verify, name: _savedName, ...rest } = merged
+        const { verify, name, ...rest } = merged
         const opts = { ...rest, url, expect, onProgress }
-        assertRecordProfileAllowed(opts)
+        assertPageActionsAllowed({ ...opts, name })
+        assertRecordProfileAllowed({ ...opts, name })
         assertRecordNotLoggedIn(opts)
         const shouldVerify = verify !== false
         if (shouldVerify) {

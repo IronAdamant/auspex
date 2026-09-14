@@ -98,11 +98,12 @@ export async function profileStatus(
     }
   }
   const check = deps?.runCheck ?? runCheck
+  const claim = expect?.trim()
   let result: CheckResult
   try {
     result = await check({
       url,
-      expect: expect && expect.trim() ? expect : ".",
+      expect: claim || "AuspexLiveProbe",
       profile,
     })
   } catch (err) {
@@ -130,7 +131,7 @@ export async function profileStatus(
       populated: true,
       live: true,
       skippedLive: true,
-      skipReason: "Microsoft password/OTP wall. Skip live; human SSO once. Agent never types a password.",
+      skipReason: "password/OTP wall. Skip live; human SSO once. Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -143,7 +144,8 @@ export async function profileStatus(
   } catch {
     auth = false
   }
-  if (result.reason === "loggedOut" || (landed && isLoggedOutLanding(landed)) || auth) {
+  const matchedClaim = Boolean(claim) && result.matched === true
+  if (result.reason === "loggedOut" || (landed && isLoggedOutLanding(landed, { matched: matchedClaim })) || auth) {
     return {
       ok: false,
       reason: "loggedOut",

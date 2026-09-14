@@ -1,4 +1,5 @@
 import type { CreateSessionOptions } from "@solarisdk/browser"
+import { isPublicMarketingUrl } from "./saved-checks.ts"
 
 export const PROXY_FLAG_ERROR = "--proxy must be a 2-letter country code, smart, or off"
 
@@ -27,13 +28,16 @@ export function sessionCreateFromCheck(opts: {
   proxy?: string
   proxySticky?: string
   profileId?: string
+  url?: string
 }): CreateSessionOptions {
   const proxy = parseProxyFlag(opts.proxy, opts.proxySticky)
   const captcha = opts.captcha === true
   const proxyOn = proxy !== undefined && proxy !== "off"
+  const recordAtCreate =
+    opts.record === true && (!opts.profileId || Boolean(opts.url && isPublicMarketingUrl(opts.url)))
   return {
     stealth: opts.stealth === true || proxyOn || captcha,
-    recording: opts.record === true,
+    recording: recordAtCreate,
     profileId: opts.profileId,
     captcha: captcha || undefined,
     proxy: proxyOn ? proxy : undefined,

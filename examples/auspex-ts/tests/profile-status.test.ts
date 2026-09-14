@@ -123,3 +123,29 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
   assert.equal(human.skippedLive, true)
   assert.match(human.skipReason ?? "", /never types a password/i)
 })
+
+test("profileStatus treats unmatched / as loggedOut even if check reason is mismatch", async () => {
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      runCheck: async () =>
+        ({
+          ok: false,
+          reason: "mismatch",
+          url: "https://consistencyhub.io",
+          expect: "Document Editor",
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Hub",
+          finalUrl: "https://consistencyhub.io/",
+          matched: false,
+          excerpt: "Sign in",
+          sessionId: "s",
+          networkIdle: true,
+        }) satisfies CheckResult,
+    },
+  )
+  assert.equal(result.reason, "loggedOut")
+  assert.equal(result.ok, false)
+})

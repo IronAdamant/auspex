@@ -6,11 +6,11 @@ This is a public fork of the Solari cookbook built for Pinetree Research’s int
 
 ## What we shipped for the intern challenge
 
-- **`auspex_check`** — cloud Chrome: goto, optional click/fill/wait-for, optional stealth/proxy/captcha, snapshot, claim check, close. Verifies by default (HTTP + OCR). `--record` waits for replay (no presigned URL on JSON). Saved checks: `--name ironadamant` / `checkpoint` / `consistencyhub`.
+- **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), optional stealth/proxy/captcha, snapshot, claim check, close. Verifies by default (HTTP + OCR). `--record` waits for replay (no presigned URL on JSON). Saved checks: `--name ironadamant` / `checkpoint` / `consistencyhub`.
 - **`auspex_verify`** — only if you passed `verify=false`. Headless sandbox re-checks the PNG + JSON. Integrity (`ok`) is separate from **claim** (`claimOk`), which re-fetches the URL / OCRs the PNG instead of echoing `manifest.ok`.
 - **`auspex_desktop`** — named sandbox desktop demo: wait for X11, open Mousepad. Not the user's Mac. Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC.
 - **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman`. Human SSO once; the agent never types a password.
-- **`auspex_reap`** — list/kill leftover sessions and VMs after `429 ConcurrencyLimitExceeded`. `packReceipts` copies last receipts for a PR attach.
+- **`auspex_reap`** — list/kill leftover **ledger** sessions after `429 ConcurrencyLimitExceeded`. Default does not wipe every VM on the key (`--account-wide` does). `packReceipts` copies last receipts for a PR attach.
 - **MCP first** — Cursor, Claude, and Grok configs. Auspex tools are the product; official Solari MCP is an optional gated sibling (`SOLARI_API_KEY` or it does not start).
 
 ```bash

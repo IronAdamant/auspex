@@ -43,7 +43,7 @@ test("completeSso source covers Google and a generic Sign in with button", () =>
   assert.match(ssoSrc, /input\[type="password"\]/)
 })
 
-test("describeAuthWall fail-closes Microsoft password and OTP without typing", () => {
+test("describeAuthWall fail-closes Microsoft and Google password and OTP without typing", () => {
   const password = describeAuthWall({
     url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     hasPasswordInput: true,
@@ -67,4 +67,10 @@ test("describeAuthWall fail-closes Microsoft password and OTP without typing", (
     text: "Document Editor",
   })
   assert.equal(app.needsHuman, false)
+  const google = describeAuthWall({
+    url: "https://accounts.google.com/signin/v2/challenge/pwd",
+    hasPasswordInput: true,
+    text: "Enter your password",
+  })
+  assert.equal(google.needsHuman, true)
 })

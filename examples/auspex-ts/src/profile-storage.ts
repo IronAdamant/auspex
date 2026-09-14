@@ -65,8 +65,8 @@ export function isPersistableAppUrl(url: string): boolean {
   return true
 }
 
-/** /landing or a login page — profile reuse did not stay signed in. */
-export function isLoggedOutLanding(url: string): boolean {
+/** /landing, login, or `/` unless expect matched (e.g. Document Editor). */
+export function isLoggedOutLanding(url: string, opts?: { matched?: boolean }): boolean {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -75,7 +75,9 @@ export function isLoggedOutLanding(url: string): boolean {
   }
   if (stillOnAuth(parsed)) return true
   const path = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase()
-  return path === "/landing" || path.startsWith("/landing/")
+  if (path === "/landing" || path.startsWith("/landing/")) return true
+  if (path === "/") return opts?.matched !== true
+  return false
 }
 
 export function cookiesForOrigin(cookies: CookieRecord[] | undefined, origin: string): CookieRecord[] {

@@ -22,8 +22,15 @@ test("sessionCreateFromCheck implies stealth for proxy and captcha", () => {
   const off = sessionCreateFromCheck({ stealth: false, proxy: "off" })
   assert.equal(off.stealth, false)
   assert.equal(off.proxy, undefined)
-  const stealth = sessionCreateFromCheck({ stealth: true, record: true, profileId: "p1" })
+  const stealth = sessionCreateFromCheck({
+    stealth: true,
+    record: true,
+    profileId: "p1",
+    url: "https://ironadamant.com",
+  })
   assert.equal(stealth.stealth, true)
   assert.equal(stealth.recording, true)
   assert.equal(stealth.profileId, "p1")
+  const hub = sessionCreateFromCheck({ record: true, profileId: "p1", url: "https://consistencyhub.io" })
+  assert.equal(hub.recording, false)
 })

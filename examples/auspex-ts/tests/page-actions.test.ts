@@ -1,12 +1,20 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { assertFillPair, runPageActions } from "../src/page-actions.ts"
+import { assertFillPair, assertPageActionsAllowed, runPageActions } from "../src/page-actions.ts"
 
 test("assertFillPair requires fill and value together", () => {
   assert.throws(() => assertFillPair({ fill: "#q" }), /--value/)
   assert.throws(() => assertFillPair({ value: "x" }), /--fill/)
   assert.doesNotThrow(() => assertFillPair({ fill: "#q", value: "x" }))
   assert.doesNotThrow(() => assertFillPair({}))
+})
+
+test("assertPageActionsAllowed refuses profile fill/click without the opt-in flag", () => {
+  assert.throws(() => assertPageActionsAllowed({ profile: "hub", click: "a" }), /allow-page-actions/)
+  assert.doesNotThrow(() => assertPageActionsAllowed({ click: "a" }))
+  assert.doesNotThrow(() =>
+    assertPageActionsAllowed({ profile: "hub", click: "a", allowPageActions: true }),
+  )
 })
 
 test("runPageActions waits, fills, then clicks in order", async () => {

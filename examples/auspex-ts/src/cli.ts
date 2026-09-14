@@ -9,13 +9,13 @@ import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { parseProxyFlag } from "./launch-options.ts"
-import { assertFillPair } from "./page-actions.ts"
+import { assertPageActionsAllowed } from "./page-actions.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
-import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, RECORD_PROFILE_ERROR } from "./tool-schema.ts"
+import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   exitFromOk,
   failureReceipt,
@@ -25,10 +25,10 @@ import {
 } from "./cli-json.ts"
 
 export const USAGE = `Usage:
-  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
   npx auspex verify [runDir]
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-  npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
+  npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login --profile <name> [--url <hint>] [--wait]
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
   npx auspex profiles
@@ -39,19 +39,19 @@ export const USAGE = `Usage:
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
 CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
-Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record).
-check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried.
-Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional.
+Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
+Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
 ok is protocol success; matched is the expect substring; reason is always set. CLI exit 0 requires agent ok (matched, and verify claim if verifying).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
-reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery). --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
-profile-status reports loggedIn | loggedOut | needsHuman. Re-seed is human SSO once; the agent never types a password and does not ping the user.
+reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
+profile-status reports loggedIn | loggedOut | needsHuman. Re-seed is human SSO once; the agent never types a password and does not ping the user. Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
 await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
 profiles lists names, ids, version, and whether storage is populated.
 --save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
-Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile (public pages only).
-SSO is human-once then reuse. Microsoft password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing or a login page is ok: false reason: loggedOut.
+Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile on a public marketing host. --allow-record-profile is refused for consistencyhub. Recording is not started at session create when a profile is attached unless the URL is ironadamant.com or checkpointprojects.com.
+SSO is human-once then reuse. Microsoft and Google password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing, /login, or / without a matched expect is ok: false reason: loggedOut.
 
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
@@ -69,7 +69,7 @@ export type CliCommand =
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
-  | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean }
+  | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -132,6 +132,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const stealth = takeFlag(args, "--stealth")
     const record = takeFlag(args, "--record")
     const allowRecordProfile = takeFlag(args, "--allow-record-profile")
+    const allowPageActions = takeFlag(args, "--allow-page-actions")
     const sso = takeFlag(args, "--sso")
     const ssoProviderRaw = takeOption(args, "--sso-provider")
     const waitFor = takeOption(args, "--wait-for", { rejectHttp: true })
@@ -184,15 +185,26 @@ export function parseArgv(argv: string[]): ParseResult {
     if (ssoProviderRaw && !ssoProvider) {
       return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
     }
-    if (record && profileName && !allowRecordProfile) {
-      return { status: "error", message: RECORD_PROFILE_ERROR }
-    }
     if (record && (sso || Boolean(ssoProvider) || saveProfile || isDashboardLandingUrl(url))) {
       return { status: "error", message: RECORD_LOGGED_IN_ERROR }
     }
     try {
       parseProxyFlag(proxy, proxySticky)
-      assertFillPair({ fill, value })
+      assertPageActionsAllowed({
+        profile: profileName,
+        name,
+        fill,
+        value,
+        click,
+        allowPageActions,
+      })
+      assertRecordProfileAllowed({
+        record,
+        profile: profileName,
+        name,
+        url,
+        allowRecordProfile,
+      })
     } catch (err) {
       return { status: "error", message: err instanceof Error ? err.message : String(err) }
     }
@@ -210,6 +222,7 @@ export function parseArgv(argv: string[]): ParseResult {
           sso: sso || Boolean(ssoProvider),
           ssoProvider,
           allowRecordProfile,
+          allowPageActions,
           waitFor,
           fill,
           value,
@@ -320,8 +333,9 @@ export function parseArgv(argv: string[]): ParseResult {
     const sessionId = takeOption(args, "--session")
     const vmId = takeOption(args, "--vm")
     const packReceipts = takeFlag(args, "--pack-receipts")
+    const accountWide = takeFlag(args, "--account-wide")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId, packReceipts } }
+    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId, packReceipts, accountWide } }
   }
   if (cmd === "desktop") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -407,6 +421,7 @@ export async function main(argv: string[]): Promise<number> {
           sessionId: parsed.command.sessionId,
           vmId: parsed.command.vmId,
           packReceipts: parsed.command.packReceipts,
+          accountWide: parsed.command.accountWide,
         }),
       )
       writeStdoutJson(result)

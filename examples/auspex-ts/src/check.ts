@@ -27,10 +27,11 @@ import {
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
-import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
+import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
 import { packageRoot } from "./paths.ts"
 import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
+import { assertPageActionsAllowed } from "./page-actions.ts"
 import {
   createClient,
   checkOverallTimeoutMs,
@@ -43,7 +44,7 @@ import {
 } from "./solari.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
-import { completeSso, shouldFailClosedAuth, type SsoProvider } from "./sso.ts"
+import { completeSso, describeAuthWall, shouldFailClosedAuth, type SsoProvider } from "./sso.ts"
 import {
   boundPromise,
   closeThenRelease,
@@ -66,6 +67,7 @@ export type CheckOptions = {
   sso?: boolean
   ssoProvider?: SsoProvider
   allowRecordProfile?: boolean
+  allowPageActions?: boolean
   waitFor?: string
   fill?: string
   value?: string
@@ -123,7 +125,7 @@ async function extractPage(
   page: Page,
   selector: string | undefined,
   signal: AbortSignal,
-): Promise<{ title: string; finalUrl: string; raw: string }> {
+): Promise<{ title: string; finalUrl: string; raw: string; hasPassword: boolean }> {
   return observeAbort(
     page.evaluate((sel: string | null) => {
       const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
@@ -131,6 +133,7 @@ async function extractPage(
         title: document.title,
         finalUrl: location.href,
         raw: el?.innerText ?? "",
+        hasPassword: Boolean(document.querySelector('input[type="password"]')),
       }
     }, selector ?? null),
     signal,
@@ -148,6 +151,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   requireCheckUrl(opts.url, "url")
   assertRecordProfileAllowed(opts)
   assertRecordNotLoggedIn(opts)
+  assertPageActionsAllowed(opts)
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
   const onProgress = opts.onProgress ?? noopProgress
   const solari = createClient()
@@ -248,11 +252,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (isCancelled()) return
       onProgress("extract")
       let raw = ""
+      let hasPassword = false
       try {
         const extracted = await extractPage(page, opts.selector, signal)
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
+        hasPassword = extracted.hasPassword
         const haystack = normalizeHaystack(raw)
         excerpt = excerptOf(haystack)
         matched = haystackMatches(raw, opts.expect)
@@ -271,23 +277,42 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         matched = false
         excerpt = `still on ${finalUrl}. ${excerpt}`
       }
+      if (!needsHuman && finalUrl) {
+        const wall = describeAuthWall({ url: finalUrl, hasPasswordInput: hasPassword, text: raw || excerpt })
+        if (wall.needsHuman) {
+          needsHuman = true
+          special = "needsHuman"
+          matched = false
+        }
+      }
       if (needsHuman) {
         matched = false
-        excerpt = `needsHuman: Microsoft password or OTP wall at ${finalUrl || page.url()}. ${excerpt}`
-      } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl)) {
+        excerpt = prepareCheckExcerpt({
+          raw: raw || excerpt,
+          needsHuman: true,
+          prefix: `needsHuman: password or OTP wall at ${finalUrl || page.url()}.`,
+        })
+      } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl, { matched })) {
         special = "loggedOut"
         matched = false
-        excerpt = `loggedOut: landed on ${finalUrl}. ${excerpt}`
+        excerpt = prepareCheckExcerpt({
+          raw: raw || excerpt,
+          prefix: `loggedOut: landed on ${finalUrl}.`,
+        })
+      } else {
+        excerpt = prepareCheckExcerpt({ raw: raw || excerpt })
       }
-      onProgress("screenshot")
-      await page.screenshot({
-        path: screenshotAbs,
-        type: "png",
-        fullPage: true,
-        signal,
-        timeout: SCREENSHOT_TIMEOUT_MS,
-      })
-      await writeFittedScreenshot(screenshotAbs)
+      if (!needsHuman) {
+        onProgress("screenshot")
+        await page.screenshot({
+          path: screenshotAbs,
+          type: "png",
+          fullPage: true,
+          signal,
+          timeout: SCREENSHOT_TIMEOUT_MS,
+        })
+        await writeFittedScreenshot(screenshotAbs)
+      }
       if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
         onProgress("save-profile")
         const liveUrl = finalUrl || page.url()

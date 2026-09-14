@@ -28,4 +28,6 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /parseReceiptV1|RECEIPT_V1_REQUIRED_KEYS/)
   assert.match(dist, /schemaVersion 1 is frozen/)
   assert.match(dist, /ProfileBusy/)
+  assert.match(dist, /allowPageActions/)
+  assert.match(dist, /accountWide/)
 })

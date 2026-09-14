@@ -1,4 +1,5 @@
-import { open, mkdir, readFile, stat, unlink } from "node:fs/promises"
+import { randomBytes } from "node:crypto"
+import { open, mkdir, readFile, rename, stat, unlink } from "node:fs/promises"
 import type { FileHandle } from "node:fs/promises"
 import path from "node:path"
 import { packageRoot } from "./paths.ts"
@@ -40,10 +41,17 @@ function pidAlive(pid: number): boolean {
 
 async function stealIfDead(lockPath: string): Promise<boolean> {
   try {
+    const st1 = await stat(lockPath)
     const raw = await readFile(lockPath, "utf8")
     const pid = Number((raw.split("\n")[0] ?? "").trim())
     if (pidAlive(pid)) return false
-    await unlink(lockPath)
+    const st2 = await stat(lockPath)
+    if (st1.ino !== st2.ino || st1.mtimeMs !== st2.mtimeMs || st1.size !== st2.size) {
+      return false
+    }
+    const trash = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}`
+    await rename(lockPath, trash)
+    await unlink(trash).catch(() => undefined)
     return true
   } catch (err) {
     const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code) : ""

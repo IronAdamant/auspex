@@ -39,6 +39,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "captcha", flag: "--captcha", kind: "boolean" },
       { json: "verify", flag: "--no-verify", kind: "boolean" },
       { json: "allowRecordProfile", flag: "--allow-record-profile", kind: "boolean" },
+      { json: "allowPageActions", flag: "--allow-page-actions", kind: "boolean" },
       { json: "saveProfile", flag: "--save-profile", kind: "boolean" },
     ],
   },
@@ -98,6 +99,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "sessionId", flag: "--session", kind: "string" },
       { json: "vmId", flag: "--vm", kind: "string" },
       { json: "packReceipts", flag: "--pack-receipts", kind: "boolean" },
+      { json: "accountWide", flag: "--account-wide", kind: "boolean" },
     ],
   },
 ]

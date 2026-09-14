@@ -38,6 +38,9 @@ test("checkUrlSchema rejects loopback hosts that Solari cloud Chrome cannot see"
   }
   assert.equal(checkUrlSchema.safeParse("https://ironadamant.com").success, true)
   assert.equal(httpUrlSchema.safeParse("http://localhost:3000").success, true)
+  assert.equal(checkUrlSchema.safeParse("http://0.0.0.0/").success, false)
+  assert.equal(checkUrlSchema.safeParse("http://127.1/").success, false)
+  assert.equal(checkUrlSchema.safeParse("http://169.254.169.254/").success, false)
 })
 
 test("MCP auspex_check schema rejects loopback, record+profile, and whitespace profile", () => {
@@ -59,7 +62,14 @@ test("MCP auspex_check schema rejects loopback, record+profile, and whitespace p
     profile: "consistencyhub",
     allowRecordProfile: true,
   })
-  assert.equal(recAllowed.success, true)
+  assert.equal(recAllowed.success, false)
+  const recMarketing = auspexCheckInputSchema.safeParse({
+    ...base,
+    record: true,
+    profile: "demo",
+    allowRecordProfile: true,
+  })
+  assert.equal(recMarketing.success, true)
   const recSso = auspexCheckInputSchema.safeParse({
     ...base,
     record: true,
