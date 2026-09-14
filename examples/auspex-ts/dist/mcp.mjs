@@ -667,8 +667,58 @@ function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFI
   };
   return mergeStorageStates(state, extra);
 }
-function hydrateSessionStorageSource(itemsByOrigin = {}, prefix = SESSION_STORAGE_PREFIX) {
-  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
+function sessionRestoreInitFn() {
+  return (data) => {
+    try {
+      const baked = data?.baked ?? {};
+      const prefix = data?.prefix ?? "";
+      const items = baked[location.origin];
+      if (items) {
+        for (const k of Object.keys(items)) {
+          if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(items[k]));
+        }
+      }
+      if (!prefix) return;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith(prefix)) continue;
+        const name = key.slice(prefix.length);
+        if (name && sessionStorage.getItem(name) == null) {
+          sessionStorage.setItem(name, localStorage.getItem(key) ?? "");
+        }
+      }
+    } catch {
+    }
+  };
+}
+async function installSessionStorageRestore(ctx, state, page) {
+  const payload = {
+    baked: state ? sessionItemsByOrigin(state) : {},
+    prefix: SESSION_STORAGE_PREFIX
+  };
+  const fn = sessionRestoreInitFn();
+  const ctxInstall = ctx.addInitScript;
+  if (typeof ctxInstall === "function") await ctxInstall(fn, payload);
+  const pageInstall = page?.addInitScript;
+  if (typeof pageInstall === "function") await pageInstall(fn, payload);
+  return payload;
+}
+async function hydrateSessionStorage(page) {
+  return page.evaluate((prefix) => {
+    let n = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        const name = k.slice(prefix.length);
+        if (!name || sessionStorage.getItem(name) != null) continue;
+        sessionStorage.setItem(name, localStorage.getItem(k) ?? "");
+        n += 1;
+      }
+    } catch {
+    }
+    return n;
+  }, SESSION_STORAGE_PREFIX);
 }
 async function readSessionItems(frame) {
   try {
@@ -930,11 +980,9 @@ async function pageForSession(browser) {
   if (!ctx) {
     ctx = await browser.newContext(hasState ? { storageState: pw } : {});
   }
-  if (typeof ctx.addInitScript === "function") {
-    const baked = state ? sessionItemsByOrigin(state) : {};
-    await ctx.addInitScript({ content: hydrateSessionStorageSource(baked) });
-  }
-  return ctx.pages()[0] ?? ctx.newPage();
+  const page = ctx.pages()[0] ?? await ctx.newPage();
+  await installSessionStorageRestore(ctx, state, page);
+  return page;
 }
 function sleep2(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1602,6 +1650,15 @@ async function runCheck(opts) {
         waitUntil: "domcontentloaded",
         signal
       });
+      if (isCancelled()) return;
+      const restored = await hydrateSessionStorage(page);
+      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+        await page.goto(opts.url, {
+          timeout: GOTO_TIMEOUT_MS,
+          waitUntil: "domcontentloaded",
+          signal
+        });
+      }
       if (isCancelled()) return;
       if (opts.sso) {
         onProgress("sso");

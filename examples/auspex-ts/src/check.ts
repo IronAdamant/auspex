@@ -17,6 +17,7 @@ import {
 } from "./profile-persist.ts"
 import {
   captureStorageState,
+  hydrateSessionStorage,
   isLoggedOutLanding,
   isPersistableAppUrl,
   originOf,
@@ -202,6 +203,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         waitUntil: "domcontentloaded",
         signal,
       })
+      if (isCancelled()) return
+      const restored = await hydrateSessionStorage(page)
+      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+        await page.goto(opts.url, {
+          timeout: GOTO_TIMEOUT_MS,
+          waitUntil: "domcontentloaded",
+          signal,
+        })
+      }
       if (isCancelled()) return
       if (opts.sso) {
         onProgress("sso")

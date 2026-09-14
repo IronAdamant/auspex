@@ -206,7 +206,7 @@ test("pageForSession uses the default context even when storageState has cookies
 })
 
 test("pageForSession applies storageState when connect exposes no default context", async () => {
-  let init = ""
+  let baked = ""
   const createdPage = { id: "from-new" }
   const browser = {
     session: {
@@ -224,8 +224,8 @@ test("pageForSession applies storageState when connect exposes no default contex
     newContext: async (opts: { storageState?: { origins?: Array<{ localStorage?: Array<{ name: string }> }> } }) => {
       assert.equal(opts.storageState?.origins?.[0]?.localStorage?.[0]?.name, "__auspex_ss__:accessToken")
       return {
-        addInitScript: async (script: { content?: string } | string) => {
-          init = typeof script === "string" ? script : (script.content ?? "")
+        addInitScript: async (_script: unknown, arg?: { baked?: Record<string, Record<string, string>> }) => {
+          baked = JSON.stringify(arg ?? {})
         },
         pages: () => [createdPage],
         newPage: async () => ({ id: "new" }),
@@ -234,8 +234,8 @@ test("pageForSession applies storageState when connect exposes no default contex
   }
   const page = await pageForSession(browser as never)
   assert.equal(page, createdPage)
-  assert.match(init, /__auspex_ss__:/)
-  assert.match(init, /accessToken/)
+  assert.match(baked, /accessToken/)
+  assert.match(baked, /consistencyhub\.io/)
 })
 
 test("toPlaywrightStorageState does not force httpOnly or secure true", () => {

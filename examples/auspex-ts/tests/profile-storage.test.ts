@@ -6,6 +6,7 @@ import {
   foldSessionStorage,
   hydrateSessionStorageInMemory,
   hydrateSessionStorageSource,
+  installSessionStorageRestore,
   isLoggedOutLanding,
   isPersistableAppUrl,
   mergeStorageStates,
@@ -54,6 +55,29 @@ test("hydrateSessionStorageSource copies prefixed keys", () => {
   const src = hydrateSessionStorageSource()
   assert.match(src, /__auspex_ss__:/)
   assert.match(src, /sessionStorage.setItem/)
+})
+
+test("installSessionStorageRestore registers a function init script with baked keys", async () => {
+  const calls: unknown[] = []
+  const payload = await installSessionStorageRestore(
+    {
+      addInitScript: async (script: unknown, arg?: unknown) => {
+        calls.push({ fn: typeof script, arg })
+      },
+    },
+    {
+      cookies: [],
+      origins: [
+        {
+          origin: "https://consistencyhub.io",
+          localStorage: [{ name: `${SESSION_STORAGE_PREFIX}accessToken`, value: "tok" }],
+        },
+      ],
+    },
+  )
+  assert.equal(payload.baked["https://consistencyhub.io"]?.accessToken, "tok")
+  assert.equal(calls.length, 1)
+  assert.equal((calls[0] as { fn: string }).fn, "function")
 })
 
 test("hydrateSessionStorageSource bakes sessionStorage for restore before navigation", () => {

@@ -265,6 +265,7 @@ test("runCheck source does not auto-save Solari profiles", () => {
   assert.equal(src.includes(".save("), false)
   assert.match(src, /loggedOut/)
   assert.match(src, /needsHuman/)
+  assert.match(src, /hydrateSessionStorage\(page\)/)
 })
 
 test("assertReceiptUploadSize rejects oversized PNG+JSON", () => {

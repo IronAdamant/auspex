@@ -205,6 +205,55 @@ export function hydrateSessionStorageSource(
   return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`
 }
 
+export type SessionRestorePayload = {
+  baked: Record<string, Record<string, string>>
+  prefix: string
+}
+
+/** Runs in the page before document scripts. No closures — Playwright serializes this. */
+export function sessionRestoreInitFn(): (data: SessionRestorePayload) => void {
+  return (data) => {
+    try {
+      const baked = data?.baked ?? {}
+      const prefix = data?.prefix ?? ""
+      const items = baked[location.origin]
+      if (items) {
+        for (const k of Object.keys(items)) {
+          if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(items[k]))
+        }
+      }
+      if (!prefix) return
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (!key || !key.startsWith(prefix)) continue
+        const name = key.slice(prefix.length)
+        if (name && sessionStorage.getItem(name) == null) {
+          sessionStorage.setItem(name, localStorage.getItem(key) ?? "")
+        }
+      }
+    } catch {
+      /* opaque origins */
+    }
+  }
+}
+
+export async function installSessionStorageRestore(
+  ctx: object,
+  state: StorageState | null | undefined,
+  page?: object,
+): Promise<SessionRestorePayload> {
+  const payload: SessionRestorePayload = {
+    baked: state ? sessionItemsByOrigin(state) : {},
+    prefix: SESSION_STORAGE_PREFIX,
+  }
+  const fn = sessionRestoreInitFn()
+  const ctxInstall = (ctx as { addInitScript?: (script: (data: SessionRestorePayload) => void, arg?: SessionRestorePayload) => Promise<unknown> }).addInitScript
+  if (typeof ctxInstall === "function") await ctxInstall(fn, payload)
+  const pageInstall = (page as { addInitScript?: (script: (data: SessionRestorePayload) => void, arg?: SessionRestorePayload) => Promise<unknown> } | undefined)?.addInitScript
+  if (typeof pageInstall === "function") await pageInstall(fn, payload)
+  return payload
+}
+
 /** Copy prefixed localStorage into sessionStorage after Playwright has restored origins. */
 export async function hydrateSessionStorage(page: {
   evaluate: (fn: (prefix: string) => number, arg: string) => Promise<number>

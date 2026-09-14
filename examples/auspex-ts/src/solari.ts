@@ -16,10 +16,7 @@ import {
   closeThenRelease,
   observeAbort,
 } from "./timeout.ts"
-import {
-  hydrateSessionStorageSource,
-  sessionItemsByOrigin,
-} from "./profile-storage.ts"
+import { installSessionStorageRestore } from "./profile-storage.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -305,11 +302,9 @@ export async function pageForSession(browser: BrowserSession) {
   if (!ctx) {
     ctx = await browser.newContext(hasState ? { storageState: pw } : {})
   }
-  if (typeof ctx.addInitScript === "function") {
-    const baked = state ? sessionItemsByOrigin(state) : {}
-    await ctx.addInitScript({ content: hydrateSessionStorageSource(baked) })
-  }
-  return ctx.pages()[0] ?? ctx.newPage()
+  const page = ctx.pages()[0] ?? (await ctx.newPage())
+  await installSessionStorageRestore(ctx, state, page)
+  return page
 }
 
 function sleep(ms: number): Promise<void> {
