@@ -65,6 +65,76 @@ export function isPersistableAppUrl(url: string): boolean {
   return true
 }
 
+/** /landing or a login page — profile reuse did not stay signed in. */
+export function isLoggedOutLanding(url: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (stillOnAuth(parsed)) return true
+  const path = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase()
+  return path === "/landing" || path.startsWith("/landing/")
+}
+
+export function cookiesForOrigin(cookies: CookieRecord[] | undefined, origin: string): CookieRecord[] {
+  let host: string
+  try {
+    host = new URL(origin).hostname.toLowerCase()
+  } catch {
+    return []
+  }
+  return (cookies ?? []).filter((c) => {
+    if (!c?.name) return false
+    const d = (c.domain ?? "").replace(/^\./, "").toLowerCase()
+    if (!d) return false
+    return host === d || host.endsWith(`.${d}`)
+  })
+}
+
+export type OriginStoreCounts = {
+  cookies: number
+  localStorage: number
+  sessionStorage: number
+}
+
+export function originStoreCounts(state: StorageState, origin: string): OriginStoreCounts {
+  const cookies = cookiesForOrigin(state.cookies as CookieRecord[] | undefined, origin).length
+  const rec = ((state.origins ?? []) as OriginRecord[]).find((o) => o.origin === origin)
+  let localStorage = 0
+  let sessionStorage = 0
+  for (const row of rec?.localStorage ?? []) {
+    if (!row?.name) continue
+    if (row.name.startsWith(SESSION_STORAGE_PREFIX)) sessionStorage += 1
+    else localStorage += 1
+  }
+  return { cookies, localStorage, sessionStorage }
+}
+
+export function originHasLandedBytes(state: StorageState, origin: string): boolean {
+  const c = originStoreCounts(state, origin)
+  return c.cookies + c.localStorage + c.sessionStorage > 0
+}
+
+export function sessionItemsByOrigin(
+  state: StorageState,
+  prefix = SESSION_STORAGE_PREFIX,
+): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {}
+  for (const o of (state.origins ?? []) as OriginRecord[]) {
+    if (!o?.origin) continue
+    const items: Record<string, string> = {}
+    for (const row of o.localStorage ?? []) {
+      if (!row?.name?.startsWith(prefix)) continue
+      const name = row.name.slice(prefix.length)
+      if (name) items[name] = row.value ?? ""
+    }
+    if (Object.keys(items).length) out[o.origin] = items
+  }
+  return out
+}
+
 export function cookieKey(c: CookieRecord): string {
   return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`
 }
@@ -128,8 +198,11 @@ export function hydrateSessionStorageInMemory(
   return out
 }
 
-export function hydrateSessionStorageSource(prefix = SESSION_STORAGE_PREFIX): string {
-  return `(() => { try { const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`
+export function hydrateSessionStorageSource(
+  itemsByOrigin: Record<string, Record<string, string>> = {},
+  prefix = SESSION_STORAGE_PREFIX,
+): string {
+  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`
 }
 
 /** Copy prefixed localStorage into sessionStorage after Playwright has restored origins. */

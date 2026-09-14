@@ -8,7 +8,7 @@ This is a public fork of the Solari cookbook built for Pinetree Research’s int
 
 - **`auspex_check`** — cloud Chrome: goto, optional click/fill/wait-for, optional stealth/proxy/captcha, snapshot, claim check, close. `--record` waits for replay (no presigned URL on JSON).
 - **`auspex_verify`** — headless sandbox re-checks the PNG + JSON. Integrity (`ok`) is separate from **claim** (`claimOk`), which re-fetches the URL / OCRs the PNG instead of echoing `manifest.ok`.
-- **`auspex_desktop`** — GUI VM: wait for X11, open Mousepad, click **inside** the editor (320,300 — not screen center), screenshot, kill. `streamUrl` is the live VNC.
+- **`auspex_desktop`** — GUI VM: wait for X11, open Mousepad (the demo). Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC.
 - **`auspex_reap`** — list/kill leftover sessions and VMs after `429 ConcurrencyLimitExceeded` without loading the official 33-tool Solari MCP.
 - **MCP first** — Cursor, Claude, and Grok configs. Auspex tools are the product; official Solari MCP is an optional gated sibling (`SOLARI_API_KEY` or it does not start).
 
@@ -45,7 +45,7 @@ Official `@solarisdk/mcp` (33 tools) is **optional**. `dist/solari-mcp.mjs` exit
 | --- | --- |
 | **[auspex-ts](examples/auspex-ts)** | The intern-challenge product: check, verify, desktop, login profiles, MCP |
 | [auspex-ts](examples/auspex-ts) `verify` | Headless VM independently audits a cloud-browser receipt, then kill |
-| [auspex-ts](examples/auspex-ts) `desktop` | Mousepad computer-use (interior click + expect), screenshot, kill |
+| [auspex-ts](examples/auspex-ts) `desktop` | Mousepad sandbox demo (open app + process evidence), screenshot, kill |
 
 ### Upstream cookbook (unmodified Solari samples)
 
@@ -73,7 +73,7 @@ These are the original cookbook programs. They are not the intern submission; th
 
 | Example | Language | What it shows |
 | --- | --- | --- |
-| [auspex-ts](examples/auspex-ts) `desktop` | TypeScript | Mousepad computer-use, `streamUrl`, expect, kill |
+| [auspex-ts](examples/auspex-ts) `desktop` | TypeScript | Mousepad sandbox demo, `streamUrl`, process expect, kill |
 | [desktop-computer-use-py](examples/desktop-computer-use-py) | Python | Upstream screenshot/click/type sample (center-click warning) |
 
 ## Running an upstream example

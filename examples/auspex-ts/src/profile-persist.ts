@@ -1,11 +1,15 @@
 import type { Solari, StorageState } from "@solarisdk/browser"
 import { createClient } from "./solari.ts"
+import { originHasLandedBytes } from "./profile-storage.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
 
 export const EMPTY_PROFILE_SAVE_ERROR =
   "refusing to save an empty storage state over a Solari profile (would wipe cookies)"
+
+export const EMPTY_ORIGIN_SAVE_ERROR =
+  "refusing to save: no cookies, localStorage, or sessionStorage landed for the page origin"
 
 export const PROFILE_EDITOR_OPEN_ERROR =
   "profile editor is open; close it, then --save-profile with the live session"
@@ -77,10 +81,12 @@ export async function persistLiveProfile(opts: {
   profileId: string
   state: StorageState
   sessionId?: string
+  origin?: string
 }): Promise<ProfileSaveResult> {
   return persistProfileState({
     profileId: opts.profileId,
     state: opts.state,
+    origin: opts.origin,
     save: (id, state) => opts.solari.profiles.save(id, state),
   })
 }
@@ -89,13 +95,28 @@ export async function persistProfileState(opts: {
   profileId: string
   state: StorageState
   save: (id: string, state: StorageState) => Promise<{ version: number; sizeBytes: number }>
+  origin?: string
 }): Promise<ProfileSaveResult> {
   const seed = seedFromStorageState(opts.state)
   if (isEmptySeed(seed)) {
     return { ok: false, cookies: 0, origins: 0, error: EMPTY_PROFILE_SAVE_ERROR }
   }
+  if (opts.origin && !originHasLandedBytes(opts.state, opts.origin)) {
+    return { ok: false, ...seed, error: EMPTY_ORIGIN_SAVE_ERROR }
+  }
   try {
     const written = await opts.save(opts.profileId, opts.state)
+    if (!written.sizeBytes) {
+      return {
+        ok: false,
+        version: written.version,
+        sizeBytes: written.sizeBytes,
+        cookies: seed.cookies,
+        origins: seed.origins,
+        via: "profiles.save",
+        error: EMPTY_PROFILE_SAVE_ERROR,
+      }
+    }
     return {
       ok: true,
       version: written.version,

@@ -197,6 +197,32 @@ test("parseArgv rejects loopback check URLs", () => {
   }
 })
 
+test("parseArgv rejects --record with --sso or --save-profile", () => {
+  const sso = parseArgv([
+    "check",
+    "https://consistencyhub.io",
+    "--expect",
+    "Document Editor",
+    "--sso",
+    "--record",
+  ])
+  assert.equal(sso.status, "error")
+  if (sso.status === "error") assert.match(sso.message, /logged-in|record/i)
+  const save = parseArgv([
+    "check",
+    "https://consistencyhub.io",
+    "--expect",
+    "Document Editor",
+    "--profile",
+    "consistencyhub",
+    "--save-profile",
+    "--record",
+    "--allow-record-profile",
+  ])
+  assert.equal(save.status, "error")
+  if (save.status === "error") assert.match(save.message, /logged-in|record/i)
+})
+
 test("parseArgv rejects --record with --profile unless override is set", () => {
   const blocked = parseArgv([
     "check",

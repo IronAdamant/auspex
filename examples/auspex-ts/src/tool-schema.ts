@@ -6,6 +6,9 @@ import { expectSchema } from "./text.ts"
 export const RECORD_PROFILE_ERROR =
   "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile to override."
 
+export const RECORD_LOGGED_IN_ERROR =
+  "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record."
+
 export function assertRecordProfileAllowed(opts: {
   record?: boolean
   profile?: string
@@ -13,6 +16,16 @@ export function assertRecordProfileAllowed(opts: {
 }): void {
   if (opts.record && opts.profile && !opts.allowRecordProfile) {
     throw new Error(RECORD_PROFILE_ERROR)
+  }
+}
+
+export function assertRecordNotLoggedIn(opts: {
+  record?: boolean
+  sso?: boolean
+  saveProfile?: boolean
+}): void {
+  if (opts.record && (opts.sso || opts.saveProfile)) {
+    throw new Error(RECORD_LOGGED_IN_ERROR)
   }
 }
 
@@ -30,7 +43,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile",
+      "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a logged-in landing.",
     ),
   sso: z
     .boolean()
@@ -67,7 +80,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed or a public /landing session so a 0-cookie Save cannot wipe a login.",
+      "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed, a public /landing session, or a save with no bytes for the page origin.",
     ),
 })
 
@@ -75,6 +88,9 @@ export const auspexCheckInputObject = z.object({
 export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (val.record && val.profile && !val.allowRecordProfile) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] })
+  }
+  if (val.record && (val.sso || val.saveProfile)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] })
   }
   if (val.fill && val.value === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "fill requires value", path: ["value"] })
@@ -105,9 +121,9 @@ export const auspexAwaitLoginInputSchema = z.object({
 export const auspexDesktopInputSchema = z.object({
   open: z.string().optional().describe("App to open (default mousepad)"),
   type: z.string().optional().describe("Optional text to type after focusing the window"),
-  clickX: z.number().optional().describe("Click X. Default 320 when opening mousepad; no silent center-click"),
-  clickY: z.number().optional().describe("Click Y. Default 300 when opening mousepad"),
-  expect: z.string().optional().describe("Substring that must appear in desktop process list after the task"),
+  clickX: z.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
+  clickY: z.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
+  expect: z.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name."),
 })
 
 export const auspexReapInputSchema = z.object({

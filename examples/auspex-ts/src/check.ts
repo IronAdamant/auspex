@@ -17,15 +17,16 @@ import {
 } from "./profile-persist.ts"
 import {
   captureStorageState,
-  hydrateSessionStorage,
+  isLoggedOutLanding,
   isPersistableAppUrl,
+  originOf,
   PUBLIC_PROFILE_SAVE_ERROR,
 } from "./profile-storage.ts"
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
-import { assertRecordProfileAllowed } from "./tool-schema.ts"
+import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   createClient,
   checkOverallTimeoutMs,
@@ -72,6 +73,8 @@ export type CheckOptions = {
   onProgress?: ProgressFn
 }
 
+export type CheckReason = "loggedOut" | "needsHuman" | "recordedLoggedIn"
+
 export type CheckResult = {
   title: string
   finalUrl: string
@@ -86,6 +89,8 @@ export type CheckResult = {
   waitedFor?: string
   filled?: string
   clicked?: string
+  reason?: CheckReason
+  needsHuman?: boolean
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
 }
@@ -136,6 +141,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   requireExpect(opts.expect)
   requireCheckUrl(opts.url, "url")
   assertRecordProfileAllowed(opts)
+  assertRecordNotLoggedIn(opts)
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
   const onProgress = opts.onProgress ?? noopProgress
   const solari = createClient()
@@ -157,6 +163,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let clicked: string | undefined
   let profileSeed: ProfileSeed | undefined
   let profileSaved: ProfileSaveResult | undefined
+  let needsHuman = false
+  let reason: CheckReason | undefined
   let workError: unknown
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
@@ -195,24 +203,21 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         signal,
       })
       if (isCancelled()) return
-      const restored = await hydrateSessionStorage(page)
-      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
-        await page.goto(opts.url, {
-          timeout: GOTO_TIMEOUT_MS,
-          waitUntil: "domcontentloaded",
-          signal,
-        })
-      }
-      if (isCancelled()) return
       if (opts.sso) {
         onProgress("sso")
-        await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal })
+        const sso = await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal })
+        if (sso.needsHuman) {
+          needsHuman = true
+          reason = "needsHuman"
+        }
       }
       if (isCancelled()) return
-      const actions = await runPageActions(page, opts, signal)
-      waitedFor = actions.waitedFor
-      filled = actions.filled
-      clicked = actions.clicked
+      if (!needsHuman) {
+        const actions = await runPageActions(page, opts, signal)
+        waitedFor = actions.waitedFor
+        filled = actions.filled
+        clicked = actions.clicked
+      }
       onProgress("settle")
       try {
         await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal })
@@ -220,7 +225,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       } catch {
         networkIdle = false
       }
-      if (opts.profile) {
+      if (opts.profile && !needsHuman) {
         await page
           .waitForURL((url) => isPersistableAppUrl(url.toString()), { timeout: 20_000, signal })
           .catch(() => undefined)
@@ -251,6 +256,14 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         matched = false
         excerpt = `still on ${finalUrl}. ${excerpt}`
       }
+      if (needsHuman) {
+        matched = false
+        excerpt = `needsHuman: Microsoft password or OTP wall at ${finalUrl || page.url()}. ${excerpt}`
+      } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl)) {
+        reason = "loggedOut"
+        matched = false
+        excerpt = `loggedOut: landed on ${finalUrl}. ${excerpt}`
+      }
       onProgress("screenshot")
       await page.screenshot({
         path: screenshotAbs,
@@ -260,7 +273,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         timeout: SCREENSHOT_TIMEOUT_MS,
       })
       await writeFittedScreenshot(screenshotAbs)
-      if (opts.saveProfile && profileId && !isCancelled()) {
+      if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
         onProgress("save-profile")
         const liveUrl = finalUrl || page.url()
         if (!isPersistableAppUrl(liveUrl)) {
@@ -272,11 +285,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           }
         } else {
           const state = await captureStorageState(browser)
+          const origin = originOf(liveUrl)
           profileSaved = await persistLiveProfile({
             solari,
             profileId,
             sessionId,
             state,
+            origin,
           })
         }
       }
@@ -313,14 +328,26 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       })
     }
 
-    if (opts.record && sessionId) {
+    if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
+      reason = "recordedLoggedIn"
+    } else if (opts.record && sessionId) {
       onProgress("replay")
       replayReady = await attachRecordedReplay(solari, sessionId, outDir)
     }
 
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts))
+    const loggedOut = reason === "loggedOut"
+    const blockedHuman = reason === "needsHuman" || needsHuman
     const savedOk = !opts.saveProfile || profileSaved?.ok === true
-    const protocolOk = Boolean(finalUrl && existsSync(screenshotAbs) && !authFail && savedOk)
+    const protocolOk = Boolean(
+      finalUrl &&
+        existsSync(screenshotAbs) &&
+        !authFail &&
+        savedOk &&
+        !loggedOut &&
+        !blockedHuman &&
+        reason !== "recordedLoggedIn",
+    )
     const result: CheckResult = {
       title,
       finalUrl,
@@ -335,6 +362,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       waitedFor,
       filled,
       clicked,
+      reason,
+      needsHuman: needsHuman || undefined,
       profileSeed,
       profileSaved,
     }

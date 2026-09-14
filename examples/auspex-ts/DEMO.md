@@ -20,7 +20,7 @@ Optional recording (polls replay; no presigned URL on JSON):
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --record
 ```
 
-Desktop computer-use (Mousepad interior click, not screen center):
+Desktop sandbox demo (open Mousepad; process list is the evidence):
 
 ```bash
 npx tsx src/cli.ts desktop --open mousepad --type "hello from auspex" --expect mousepad

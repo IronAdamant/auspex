@@ -32,11 +32,15 @@ export function desktopLogHeader(): string {
 export function desktopSummary(opts: {
   ok: boolean
   ready: boolean
+  processOk?: boolean
+  windowOk?: boolean
   screenshotPath: string
   errors: string[]
 }): string {
+  const proc = opts.processOk === undefined ? "" : ` processOk=${opts.processOk}`
+  const win = opts.windowOk === undefined ? "" : ` windowOk=${opts.windowOk}`
   const err = opts.errors.length ? ` errors=${opts.errors.join("; ")}` : ""
-  return `==> ok=${opts.ok} ready=${opts.ready}${err}\n==> path=${opts.screenshotPath}`
+  return `==> ok=${opts.ok} ready=${opts.ready}${proc}${win}${err}\n==> path=${opts.screenshotPath}`
 }
 
 export function createDesktopTui(stream: NodeJS.WritableStream): DesktopTui {

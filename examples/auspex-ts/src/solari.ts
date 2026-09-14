@@ -16,7 +16,10 @@ import {
   closeThenRelease,
   observeAbort,
 } from "./timeout.ts"
-import { hydrateSessionStorageSource } from "./profile-storage.ts"
+import {
+  hydrateSessionStorageSource,
+  sessionItemsByOrigin,
+} from "./profile-storage.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -282,8 +285,8 @@ export async function resolveProfileId(solari: Solari, name: string): Promise<st
 /**
  * Solari's Playwright wire does not expose a default context after
  * `chromium.connect` (contexts() is empty). Apply the profile JSON onto a
- * new context, then hydrate sessionStorage from `__auspex_ss__:` keys so
- * SPAs that keep access tokens out of localStorage still round-trip.
+ * new context and register sessionStorage restore (baked `__auspex_ss__:`
+ * keys plus a localStorage copy) before the caller navigates.
  */
 export async function pageForSession(browser: BrowserSession) {
   const existing = browser.contexts()[0]
@@ -291,7 +294,11 @@ export async function pageForSession(browser: BrowserSession) {
   const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] }
   const pw = {
     cookies: raw.cookies,
-    origins: raw.origins.map((o) => ({ origin: o.origin, localStorage: o.localStorage })),
+    origins: raw.origins.map((o) => ({
+      origin: o.origin,
+      localStorage: o.localStorage,
+      ...(o.indexedDB !== undefined ? { indexedDB: o.indexedDB } : {}),
+    })),
   }
   const hasState = storageStateIsPopulated(pw)
   let ctx = existing
@@ -299,7 +306,8 @@ export async function pageForSession(browser: BrowserSession) {
     ctx = await browser.newContext(hasState ? { storageState: pw } : {})
   }
   if (typeof ctx.addInitScript === "function") {
-    await ctx.addInitScript({ content: hydrateSessionStorageSource() })
+    const baked = state ? sessionItemsByOrigin(state) : {}
+    await ctx.addInitScript({ content: hydrateSessionStorageSource(baked) })
   }
   return ctx.pages()[0] ?? ctx.newPage()
 }

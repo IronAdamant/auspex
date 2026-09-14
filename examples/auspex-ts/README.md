@@ -51,7 +51,7 @@ npx tsx src/cli.ts profiles
 
 `login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login prefer `check --profile <name> --sso --save-profile`. Then `check --profile <name>` in a new session. Login does not hold an Auspex check session open.
 
-`--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` applies the saved storage state onto a new Playwright context (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite or a public `/landing` session. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). `record`+`profile` is forbidden unless `--allow-record-profile`.
+`--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing` or a login page is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile`. Never `--record` a logged-in session.
 
 `--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. CLI exit 0 requires both.
 
@@ -59,9 +59,9 @@ npx tsx src/cli.ts profiles
 
 **Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}` (PNG scaled under 2 MiB so verify can upload it). `verify` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt, independently re-checks `expect` (HTTP fetch + optional Tesseract OCR of the PNG — not `manifest.ok`), and **kills** the VM. Integrity (`ok`/`errors`) is separate from claim (`claimOk`/`claimErrors`). `--verify` on check is one-shot — do not also run `verify`. Optional `[runDir]`; default is the latest run.
 
-Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`, optional `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
+Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`, optional `reason` (`loggedOut` / `needsHuman` / `recordedLoggedIn`) / `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
-`desktop` defaults to opening Mousepad and clicking **320,300** (the editor). Screen-center 640,360 misses that window. `--expect` checks the process list. `streamUrl` is the live VNC; Auspex still kills after the shot.
+`desktop` defaults to opening Mousepad. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. `streamUrl` is the live VNC; Auspex still kills after the shot.
 
 ## MCP
 
@@ -83,7 +83,7 @@ Tools:
 - `auspex_verify` — headless VM independently audits expect, then **kill**
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs
 - `auspex_login` / `auspex_await_login` / `auspex_profiles`
-- `auspex_desktop` — Mousepad computer-use, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC.
+- `auspex_desktop` — Mousepad sandbox demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC.
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. Do not `--record` a logged-in ConsistencyHub session.
 

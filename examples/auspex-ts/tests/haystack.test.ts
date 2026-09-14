@@ -60,6 +60,20 @@ test("MCP auspex_check schema rejects loopback, record+profile, and whitespace p
     allowRecordProfile: true,
   })
   assert.equal(recAllowed.success, true)
+  const recSso = auspexCheckInputSchema.safeParse({
+    ...base,
+    record: true,
+    sso: true,
+  })
+  assert.equal(recSso.success, false)
+  const recSave = auspexCheckInputSchema.safeParse({
+    ...base,
+    record: true,
+    saveProfile: true,
+    profile: "consistencyhub",
+    allowRecordProfile: true,
+  })
+  assert.equal(recSave.success, false)
   const recOk = auspexCheckInputSchema.safeParse({
     ...base,
     waitFor: "#main",
