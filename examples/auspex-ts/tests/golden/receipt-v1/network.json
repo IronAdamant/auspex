@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "reason": "network",
+  "url": "",
+  "expect": "One office job.",
+  "screenshotPath": ""
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://ironadamant.com",
+  "expect": "One office job.",
+  "screenshotPath": ".auspex/runs/stamp/screenshot.png"
+}

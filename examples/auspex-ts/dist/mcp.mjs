@@ -5,7 +5,23 @@ import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js
 import "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as z5 } from "zod";
 
+// src/schema-version.ts
+var SCHEMA_VERSION = 1;
+function stampSchema(obj) {
+  const rest = { ...obj };
+  delete rest.schemaVersion;
+  return { schemaVersion: SCHEMA_VERSION, ...rest };
+}
+
 // src/check-reason.ts
+var CHECK_REASONS = [
+  "matched",
+  "loggedOut",
+  "needsHuman",
+  "mismatch",
+  "network",
+  "recordedLoggedIn"
+];
 function deriveCheckReason(input) {
   if (input.needsHuman || input.special === "needsHuman") return "needsHuman";
   if (input.special === "loggedOut") return "loggedOut";
@@ -33,12 +49,81 @@ function agentReceiptOk(opts) {
   return true;
 }
 
-// src/schema-version.ts
-var SCHEMA_VERSION = 1;
-function stampSchema(obj) {
-  const rest = { ...obj };
-  delete rest.schemaVersion;
-  return { schemaVersion: SCHEMA_VERSION, ...rest };
+// src/receipt-schema.ts
+var RECEIPT_V1_REQUIRED_KEYS = [
+  "schemaVersion",
+  "ok",
+  "reason",
+  "url",
+  "expect",
+  "screenshotPath"
+];
+var RECEIPT_V1_OPTIONAL_STRING_KEYS = [
+  "title",
+  "finalUrl",
+  "excerpt",
+  "sessionId",
+  "waitedFor",
+  "filled",
+  "clicked"
+];
+var RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
+  "matched",
+  "networkIdle",
+  "replayReady",
+  "needsHuman"
+];
+var RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
+  "diff",
+  "verify",
+  "profileSeed",
+  "profileSaved"
+];
+var RECEIPT_V1_OPTIONAL_KEYS = [
+  ...RECEIPT_V1_OPTIONAL_STRING_KEYS,
+  ...RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS,
+  ...RECEIPT_V1_OPTIONAL_OBJECT_KEYS
+];
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isCheckReason(value) {
+  return typeof value === "string" && CHECK_REASONS.includes(value);
+}
+function parseReceiptV1(input) {
+  if (!isPlainObject(input)) throw new Error("receipt must be a JSON object");
+  for (const key of RECEIPT_V1_REQUIRED_KEYS) {
+    if (input[key] === void 0) throw new Error(`receipt missing required ${key}`);
+  }
+  if (input.schemaVersion !== SCHEMA_VERSION) {
+    throw new Error(`receipt schemaVersion must be ${SCHEMA_VERSION}`);
+  }
+  if (typeof input.ok !== "boolean") throw new Error("receipt ok must be a boolean");
+  if (!isCheckReason(input.reason)) {
+    throw new Error("receipt reason must be a known CheckReason");
+  }
+  for (const key of ["url", "expect", "screenshotPath"]) {
+    if (typeof input[key] !== "string") throw new Error(`receipt ${key} must be a string`);
+  }
+  for (const key of RECEIPT_V1_OPTIONAL_STRING_KEYS) {
+    const value = input[key];
+    if (value !== void 0 && typeof value !== "string") {
+      throw new Error(`receipt ${key} must be a string`);
+    }
+  }
+  for (const key of RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS) {
+    const value = input[key];
+    if (value !== void 0 && typeof value !== "boolean") {
+      throw new Error(`receipt ${key} must be a boolean`);
+    }
+  }
+  for (const key of RECEIPT_V1_OPTIONAL_OBJECT_KEYS) {
+    const value = input[key];
+    if (value !== void 0 && !isPlainObject(value)) {
+      throw new Error(`receipt ${key} must be an object`);
+    }
+  }
+  return input;
 }
 
 // src/agent-receipt.ts
@@ -50,7 +135,7 @@ function toAgentReceipt(check, extras) {
     reason,
     verify
   });
-  return {
+  const receipt = {
     schemaVersion: SCHEMA_VERSION,
     ok,
     reason,
@@ -62,17 +147,23 @@ function toAgentReceipt(check, extras) {
     matched: check.matched,
     excerpt: check.excerpt,
     sessionId: check.sessionId,
-    networkIdle: check.networkIdle,
+    networkIdle: check.networkIdle
+  };
+  const optional = {
     replayReady: check.replayReady,
     waitedFor: check.waitedFor,
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
     diff: check.diff,
-    verify: extras?.verify,
+    verify,
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved
   };
+  for (const [key, value] of Object.entries(optional)) {
+    if (value !== void 0) receipt[key] = value;
+  }
+  return parseReceiptV1(receipt);
 }
 
 // src/check.ts
@@ -3172,7 +3263,7 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. loggedOut/needsHuman skip verify and are not retried. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. loggedOut/needsHuman skip verify and are not retried. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";

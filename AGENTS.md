@@ -29,9 +29,48 @@ Equivalent from the package directory: `npx tsx src/cli.ts …` or `npx auspex �
 
 CLI and MCP are the **same contract**: every MCP tool is a CLI command; every flag is a JSON field (`--wait-for` ↔ `waitFor`, `--pack-receipts` ↔ `packReceipts`, `--no-verify` ↔ `verify: false`). Stdout is **one JSON object** with `schemaVersion`. Exit `0` only when `ok` is true. `--help` is human text.
 
+## Receipt schema v1 (frozen)
+
+Check stdout (CLI and MCP) is one JSON object. **`schemaVersion` is `1`.** Do not add required keys. Extra keys may appear; they stay optional. Exit `0` only when `ok` is true (`--help` is human text and also exits 0).
+
+### Required
+
+| Key | Type | Meaning |
+|---|---|---|
+| `schemaVersion` | `1` | Frozen contract version |
+| `ok` | boolean | Agent success: `reason` is `matched`, and sandbox verify passed when it ran |
+| `reason` | string | `matched` \| `loggedOut` \| `needsHuman` \| `mismatch` \| `network` \| `recordedLoggedIn` |
+| `url` | string | Requested URL, or landed URL if request was empty |
+| `expect` | string | Claim substring |
+| `screenshotPath` | string | On-disk PNG under `.auspex/runs/` |
+
+### Optional
+
+Omit or ignore. Never required. Unknown extra fields are also optional.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `title` | string | Page title |
+| `finalUrl` | string | Landed URL |
+| `matched` | boolean | Expect substring found (not the same as `ok`) |
+| `excerpt` | string | Text excerpt |
+| `sessionId` | string | Solari session id |
+| `networkIdle` | boolean | `networkidle` succeeded |
+| `replayReady` | boolean | Recording replay is ready |
+| `waitedFor` | string | CSS wait-for that ran |
+| `filled` | string | Fill selector that ran |
+| `clicked` | string | Click selector that ran |
+| `needsHuman` | boolean | Microsoft password/OTP wall |
+| `diff` | object | Vs last same-URL receipt (`urlChanged`, `excerptChanged`, `sameUrl`, …) |
+| `verify` | object | Sandbox result (`ok`, `claimOk`, `errors`, `claimErrors`, `runDir`; `skipped` on `loggedOut` / `needsHuman`) |
+| `profileSeed` | object | `{ cookies, origins }` when a profile was attached |
+| `profileSaved` | object | Save result when `--save-profile` ran |
+
+Usage/failure JSON (`error`, `code`) is **not** this receipt; it still has `schemaVersion` and `ok: false`.
+
 ## Tools
 
-- `auspex_check` / `auspex check` — launch → goto → optional wait-for/fill/click → assert → screenshot (≤2 MiB) → close. **Verifies by default** (headless sandbox HTTP fetch + OCR). Returns a parseable receipt: `schemaVersion`, `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`, plus `diff` vs the last same-URL receipt. JSON plus a downscaled JPEG attach. Pass **`verify=false`** / `--no-verify` to skip the sandbox. Do **not** also call `auspex_verify` after a default check. `loggedOut` / `needsHuman` skip verify and are **not retried**. Saved checks: **`name=ironadamant`** (expect `One office job.`), **`name=checkpoint`** (expect `Checkpoint`), **`name=consistencyhub`** (`profile=consistencyhub`, expect `Document Editor`, no sso, no record).
+- `auspex_check` / `auspex check` — launch → goto → optional wait-for/fill/click → assert → screenshot (≤2 MiB) → close. **Verifies by default** (headless sandbox HTTP fetch + OCR). Returns a parseable **schema v1** receipt (required: `schemaVersion`, `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`; `diff` / `verify` optional). JSON plus a downscaled JPEG attach. Pass **`verify=false`** / `--no-verify` to skip the sandbox. Do **not** also call `auspex_verify` after a default check. `loggedOut` / `needsHuman` skip verify and are **not retried**. Saved checks: **`name=ironadamant`** (expect `One office job.`), **`name=checkpoint`** (expect `Checkpoint`), **`name=consistencyhub`** (`profile=consistencyhub`, expect `Document Editor`, no sso, no record).
 - `auspex_login` / `auspex login` — create/reuse a named profile and return a **single-use login-handoff URL**. Show `url` to the human; they sign in (agent never handles the password). Do not ping the user. Then call `auspex_await_login` (a version bump with 0 cookies is **not** success). Then pass `profile` to `auspex_check`.
 - `auspex_await_login` / `auspex await-login` — wait until Save stored cookies or origins. Empty Save is not success.
 - `auspex_profiles` / `auspex profiles` — list names/ids, version, and whether storage is populated. Stdout is `{ ok, schemaVersion, profiles }`.

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "reason": "mismatch",
+  "url": "https://ironadamant.com",
+  "expect": "One office job.",
+  "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+  "title": "Iron Adamant",
+  "finalUrl": "https://ironadamant.com/",
+  "matched": true,
+  "excerpt": "One office job.",
+  "sessionId": "sess",
+  "networkIdle": true,
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": ["expect missing"],
+    "runDir": ".auspex/runs/stamp"
+  }
+}
