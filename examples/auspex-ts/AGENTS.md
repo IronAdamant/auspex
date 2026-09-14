@@ -1,6 +1,6 @@
 # Auspex — for agents
 
-Canonical any-host instructions: [AGENTS.md](../../AGENTS.md) at the repository root. This copy stays next to the package so a host that only opens `examples/auspex-ts` still has the contract.
+Canonical any-host instructions: [AGENTS.md](../../AGENTS.md) at the repository root. Receipt field list (schema v1 frozen): [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen). This copy stays next to the package so a host that only opens `examples/auspex-ts` still has the contract.
 
 Use Auspex when you need **evidence from a live web page**. You drive a **Solari cloud Chrome** (its own remote instance, not the human’s local browser). Snapshot text + PNG, check a claim, close. The human does not watch that window.
 
@@ -12,7 +12,7 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 
 ## Tools
 
-- `auspex_check` — launch → goto → optional wait-for/fill/click → assert → screenshot (≤2 MiB) → close. **Verifies by default** (headless sandbox HTTP fetch + OCR). Returns a parseable receipt: `schemaVersion`, `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`, plus `diff` vs the last same-URL receipt. JSON plus a downscaled JPEG attach. Pass **`verify=false`** to skip the sandbox. Do **not** also call `auspex_verify` after a default check. `loggedOut` / `needsHuman` skip verify and are not retried. Saved checks: **`name=ironadamant`** (expect `One office job.`), **`name=checkpoint`** (expect `Checkpoint`), **`name=consistencyhub`** (`profile=consistencyhub`, expect `Document Editor`, no sso, no record).
+- `auspex_check` — launch → goto → optional wait-for/fill/click → assert → screenshot (≤2 MiB) → close. **Verifies by default** (headless sandbox HTTP fetch + OCR). Returns a parseable **schema v1** receipt (required: `schemaVersion`, `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`; extra keys optional). See root AGENTS.md. JSON plus a downscaled JPEG attach. Pass **`verify=false`** to skip the sandbox. Do **not** also call `auspex_verify` after a default check. `loggedOut` / `needsHuman` skip verify and are not retried. Saved checks: **`name=ironadamant`** (expect `One office job.`), **`name=checkpoint`** (expect `Checkpoint`), **`name=consistencyhub`** (`profile=consistencyhub`, expect `Document Editor`, no sso, no record).
 - `auspex_login` — create/reuse a named profile and return a **single-use login-handoff URL**. Show `url` to the human; they sign in (agent never handles the password). Do not ping the user. Then call `auspex_await_login` (a version bump with 0 cookies is **not** success). Then pass `profile` to `auspex_check`.
 - `auspex_await_login` — wait until Save stored cookies or origins. Empty Save is not success.
 - `auspex_profiles` — list names/ids, version, and whether storage is populated.

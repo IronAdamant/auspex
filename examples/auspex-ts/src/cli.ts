@@ -41,7 +41,7 @@ CLI and MCP are the same contract: every MCP tool is a CLI command; every flag i
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record).
 check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried.
-Stdout receipt fields: schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath, plus diff vs the last same-URL receipt.
+Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional.
 ok is protocol success; matched is the expect substring; reason is always set. CLI exit 0 requires agent ok (matched, and verify claim if verifying).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
 reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery). --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.

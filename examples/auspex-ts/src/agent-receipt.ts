@@ -1,50 +1,24 @@
-import type { CheckResult } from "./check.ts"
-import {
-  agentReceiptOk,
-  overlayVerifyReason,
-  type CheckReason,
-} from "./check-reason.ts"
-import type { ReceiptDiff } from "./receipt-diff.ts"
-import type { VerifyResult } from "./sandbox.ts"
 import { SCHEMA_VERSION } from "./schema-version.ts"
+import { parseReceiptV1, type ReceiptV1 } from "./receipt-schema.ts"
+import type { CheckResult } from "./check.ts"
+import { agentReceiptOk, overlayVerifyReason, type CheckReason } from "./check-reason.ts"
+import type { VerifyResult } from "./sandbox.ts"
 
-export type AgentReceipt = {
-  schemaVersion: number
-  ok: boolean
-  reason: CheckReason
-  url: string
-  expect: string
-  screenshotPath: string
-  title: string
-  finalUrl: string
-  matched: boolean
-  excerpt: string
-  sessionId: string
-  networkIdle: boolean
-  replayReady?: boolean
-  waitedFor?: string
-  filled?: string
-  clicked?: string
-  needsHuman?: boolean
-  diff?: ReceiptDiff
-  verify?: VerifyResult
-  profileSeed?: CheckResult["profileSeed"]
-  profileSaved?: CheckResult["profileSaved"]
-}
+export type AgentReceipt = ReceiptV1
 
 export function toAgentReceipt(
   check: CheckResult,
   extras?: { verify?: VerifyResult },
 ): AgentReceipt {
   const verify = extras?.verify
-  const reason =
+  const reason: CheckReason =
     verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason
   const ok = agentReceiptOk({
     protocolOk: check.ok,
     reason,
     verify,
   })
-  return {
+  const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
     ok,
     reason,
@@ -57,14 +31,20 @@ export function toAgentReceipt(
     excerpt: check.excerpt,
     sessionId: check.sessionId,
     networkIdle: check.networkIdle,
+  }
+  const optional: Record<string, unknown> = {
     replayReady: check.replayReady,
     waitedFor: check.waitedFor,
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
     diff: check.diff,
-    verify: extras?.verify,
+    verify,
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved,
   }
+  for (const [key, value] of Object.entries(optional)) {
+    if (value !== undefined) receipt[key] = value
+  }
+  return parseReceiptV1(receipt)
 }

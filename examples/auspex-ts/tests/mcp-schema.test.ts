@@ -46,6 +46,7 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.match(desktop.description ?? "", /sandbox demo|mousepad|named Solari sandbox/i)
     assert.match(check.description ?? "", /verify=false|default true|Verifies by default|HTTP \+ OCR|HTTP fetch/i)
     assert.match(check.description ?? "", /schemaVersion/)
+    assert.match(check.description ?? "", /schemaVersion 1 is frozen/)
     assert.match(check.description ?? "", /matched\|loggedOut|reason/)
     assert.match(check.description ?? "", /ironadamant|checkpoint|consistencyhub/)
     assert.match(check.description ?? "", /record\+profile|allowRecordProfile/)

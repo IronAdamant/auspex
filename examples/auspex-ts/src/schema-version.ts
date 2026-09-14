@@ -1,4 +1,4 @@
-/** Agent receipt schema. Bump when adding required fields; never remove ok/reason/url/expect/screenshotPath. */
+/** Frozen at 1. Adding a required receipt field needs a new schemaVersion and goldens. */
 export const SCHEMA_VERSION = 1 as const
 
 export type SchemaVersion = typeof SCHEMA_VERSION

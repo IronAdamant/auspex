@@ -37,6 +37,7 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /--pack-receipts/)
   assert.match(USAGE, /matched/)
   assert.match(USAGE, /schemaVersion/)
+  assert.match(USAGE, /frozen/)
   assert.match(USAGE, /\bmcp\b/)
   assert.match(USAGE, /SOLARI_API_KEY/)
   assert.match(USAGE, /npx auspex/)
