@@ -53,6 +53,9 @@ jobs:
           npx tsx src/cli.ts check https://example.com --expect "Example Domain"
 
   public:
+    # Repo secret SOLARI_API_KEY is required for this job to run live checks.
+    # This workflow does not add that secret. Without it the step skips (exit 0)
+    # so pull requests are not blocked.
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '42 6 * * 1'
     runs-on: ubuntu-latest
     defaults:

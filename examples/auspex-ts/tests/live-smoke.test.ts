@@ -39,7 +39,7 @@ test("live ConsistencyHub --profile without --sso or --record", { skip: !live },
     t.skip("ConsistencyHub needs a human Microsoft sign-in; not typing password/OTP")
     return
   }
-  assert.equal(result.reason, undefined)
+  assert.equal(result.reason, "matched")
   assert.equal(result.ok, true)
   assert.equal(result.matched, true)
   assert.match(result.finalUrl, /consistencyhub\.io/)

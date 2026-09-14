@@ -7,7 +7,21 @@ export const RECORD_PROFILE_ERROR =
   "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile to override."
 
 export const RECORD_LOGGED_IN_ERROR =
-  "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record."
+  "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+
+export function isDashboardLandingUrl(url: string): boolean {
+  try {
+    const pathName = (new URL(url).pathname.replace(/\/+$/, "") || "/").toLowerCase()
+    return (
+      pathName === "/dashboard" ||
+      pathName.startsWith("/dashboard/") ||
+      pathName === "/landing" ||
+      pathName.startsWith("/landing/")
+    )
+  } catch {
+    return false
+  }
+}
 
 export function assertRecordProfileAllowed(opts: {
   record?: boolean
@@ -23,16 +37,29 @@ export function assertRecordNotLoggedIn(opts: {
   record?: boolean
   sso?: boolean
   saveProfile?: boolean
+  url?: string
 }): void {
-  if (opts.record && (opts.sso || opts.saveProfile)) {
+  if (!opts.record) return
+  if (opts.sso || opts.saveProfile) {
+    throw new Error(RECORD_LOGGED_IN_ERROR)
+  }
+  if (opts.url && isDashboardLandingUrl(opts.url)) {
     throw new Error(RECORD_LOGGED_IN_ERROR)
   }
 }
 
-/** ZodObject (has .shape) so MCP ListTools advertises url/expect. Do not wrap this in superRefine. */
+/** ZodObject (has .shape) so MCP ListTools advertises fields. Do not wrap this in superRefine. */
 export const auspexCheckInputObject = z.object({
-  url: checkUrlSchema.describe("http or https URL to open (not loopback)"),
-  expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Saved check name from auspex.yml (ironadamant, checkpoint, consistencyhub). Supplies url/expect/profile so the agent does not reconstruct flags.",
+    ),
+  url: checkUrlSchema.optional().describe("http or https URL to open (not loopback). Required unless name is set."),
+  expect: expectSchema.optional().describe("Non-empty substring that must appear in the page text. Required unless name is set."),
   selector: z.string().optional().describe("Optional CSS selector to extract instead of body"),
   profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
   stealth: z
@@ -43,7 +70,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a logged-in landing.",
+      "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a dashboard landing.",
     ),
   sso: z
     .boolean()
@@ -70,7 +97,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "One-shot: after check, audit the receipt in a headless sandbox and kill that VM. Do not also call auspex_verify",
+      "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true.",
     ),
   allowRecordProfile: z
     .boolean()
@@ -86,10 +113,20 @@ export const auspexCheckInputObject = z.object({
 
 /** Full parse including record+profile combination. MCP registerTool must use auspexCheckInputObject. */
 export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
+  if (!val.name && (!val.url || !val.expect)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "auspex_check requires name or url+expect",
+      path: ["url"],
+    })
+  }
   if (val.record && val.profile && !val.allowRecordProfile) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] })
   }
   if (val.record && (val.sso || val.saveProfile)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] })
+  }
+  if (val.record && val.url && isDashboardLandingUrl(val.url)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] })
   }
   if (val.fill && val.value === undefined) {
@@ -119,7 +156,7 @@ export const auspexAwaitLoginInputSchema = z.object({
 })
 
 export const auspexDesktopInputSchema = z.object({
-  open: z.string().optional().describe("App to open (default mousepad)"),
+  open: z.string().optional().describe("App to open on the named Solari sandbox desktop demo (default mousepad). Not the user's Mac."),
   type: z.string().optional().describe("Optional text to type after focusing the window"),
   clickX: z.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
   clickY: z.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
@@ -130,4 +167,19 @@ export const auspexReapInputSchema = z.object({
   dryRun: z.boolean().optional().describe("List leftover sessions/VMs without closing them"),
   sessionId: z.string().optional().describe("Extra browser session id to release"),
   vmId: z.string().optional().describe("Extra sandbox/desktop id to kill"),
+  packReceipts: z
+    .boolean()
+    .optional()
+    .describe("Copy last receipts per URL into .auspex/pack for an agent to attach to a PR"),
+})
+
+export const auspexProfileStatusInputSchema = z.object({
+  profile: profileNameSchema.optional().describe("Solari profile name"),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
+  url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
 })

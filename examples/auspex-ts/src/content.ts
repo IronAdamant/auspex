@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type { CheckResult } from "./check.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { MAX_IMAGE_BYTES, fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
 
@@ -62,7 +61,7 @@ export async function buildReceiptToolContent(
 }
 
 export async function buildCheckToolContent(
-  result: CheckResult,
+  result: { screenshotPath: string },
 ): Promise<{ content: ToolContent[] }> {
   return buildReceiptToolContent(result, result.screenshotPath)
 }

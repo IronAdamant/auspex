@@ -6,12 +6,15 @@
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { runCheck, type CheckResult } from "../src/check.ts"
+import { resolveSavedCheck } from "../src/saved-checks.ts"
 import { loadDotEnv } from "../src/solari.ts"
 
-export const PUBLIC_CHECKS = [
-  { url: "https://ironadamant.com", expect: "One office job." },
-  { url: "https://checkpointprojects.com", expect: "Checkpoint" },
-] as const
+export const PUBLIC_CHECK_NAMES = ["ironadamant", "checkpoint"] as const
+
+export const PUBLIC_CHECKS = PUBLIC_CHECK_NAMES.map((name) => {
+  const saved = resolveSavedCheck(name)
+  return { name: saved.name, url: saved.url, expect: saved.expect }
+})
 
 export type PublicCheckSummary = {
   skipped?: boolean

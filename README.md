@@ -1,15 +1,16 @@
 # Auspex
 
-Agent-only **web eyes** on [Solari](https://getsolari.com) cloud Chrome, plus a sandbox receipt audit and a real desktop computer-use check.
+Agent-only **web eyes** on [Solari](https://getsolari.com) cloud Chrome, plus a sandbox receipt audit and a named sandbox desktop demo.
 
 This is a public fork of the Solari cookbook built for Pinetree Research’s intern challenge: a coding agent launches a throwaway cloud browser, snapshots a live page, independently verifies the claim in a headless VM, and tears everything down. You never sit in that browser.
 
 ## What we shipped for the intern challenge
 
-- **`auspex_check`** — cloud Chrome: goto, optional click/fill/wait-for, optional stealth/proxy/captcha, snapshot, claim check, close. `--record` waits for replay (no presigned URL on JSON).
-- **`auspex_verify`** — headless sandbox re-checks the PNG + JSON. Integrity (`ok`) is separate from **claim** (`claimOk`), which re-fetches the URL / OCRs the PNG instead of echoing `manifest.ok`.
-- **`auspex_desktop`** — GUI VM: wait for X11, open Mousepad (the demo). Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC.
-- **`auspex_reap`** — list/kill leftover sessions and VMs after `429 ConcurrencyLimitExceeded` without loading the official 33-tool Solari MCP.
+- **`auspex_check`** — cloud Chrome: goto, optional click/fill/wait-for, optional stealth/proxy/captcha, snapshot, claim check, close. Verifies by default (HTTP + OCR). `--record` waits for replay (no presigned URL on JSON). Saved checks: `--name ironadamant` / `checkpoint` / `consistencyhub`.
+- **`auspex_verify`** — only if you passed `verify=false`. Headless sandbox re-checks the PNG + JSON. Integrity (`ok`) is separate from **claim** (`claimOk`), which re-fetches the URL / OCRs the PNG instead of echoing `manifest.ok`.
+- **`auspex_desktop`** — named sandbox desktop demo: wait for X11, open Mousepad. Not the user's Mac. Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC.
+- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman`. Human SSO once; the agent never types a password.
+- **`auspex_reap`** — list/kill leftover sessions and VMs after `429 ConcurrencyLimitExceeded`. `packReceipts` copies last receipts for a PR attach.
 - **MCP first** — Cursor, Claude, and Grok configs. Auspex tools are the product; official Solari MCP is an optional gated sibling (`SOLARI_API_KEY` or it does not start).
 
 ```bash
@@ -18,6 +19,7 @@ cd auspex/examples/auspex-ts
 npm install
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env   # console.getsolari.com
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
+npx tsx src/cli.ts check --name ironadamant
 npx tsx src/cli.ts verify
 cd examples/auspex-ts && npm run public-check
 ```
@@ -30,7 +32,7 @@ Full agent notes: [examples/auspex-ts](examples/auspex-ts) · [AGENTS.md](exampl
 
 ## MCP (Cursor / Claude / Grok)
 
-Auspex is the check → verify → kill loop. `.cursor/mcp.json` is committed (copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) if you need it elsewhere). Weekly public pages: from `examples/auspex-ts`, `npm run public-check` (ironadamant.com `One office job.` + checkpointprojects.com `Checkpoint`). The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without `SOLARI_API_KEY`.
+Auspex is the check → verify → kill loop. `.cursor/mcp.json` is committed (copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) if you need it elsewhere). Weekly public pages: from `examples/auspex-ts`, `npm run public-check` (ironadamant.com `One office job.` + checkpointprojects.com `Checkpoint`). The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without `SOLARI_API_KEY`. A **repo** secret named `SOLARI_API_KEY` is required for that job to run; this repository does not add the secret, and missing it does not fail pull requests.
 
 ```bash
 # from examples/auspex-ts after npm install
@@ -45,7 +47,7 @@ Official `@solarisdk/mcp` (33 tools) is **optional**. `dist/solari-mcp.mjs` exit
 | --- | --- |
 | **[auspex-ts](examples/auspex-ts)** | The intern-challenge product: check, verify, desktop, login profiles, MCP |
 | [auspex-ts](examples/auspex-ts) `verify` | Headless VM independently audits a cloud-browser receipt, then kill |
-| [auspex-ts](examples/auspex-ts) `desktop` | Mousepad sandbox demo (open app + process evidence), screenshot, kill |
+| [auspex-ts](examples/auspex-ts) `desktop` | Named sandbox demo (open Mousepad + process evidence), screenshot, kill |
 
 ### Upstream cookbook (unmodified Solari samples)
 

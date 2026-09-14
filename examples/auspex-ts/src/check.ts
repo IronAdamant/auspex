@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
 import type { BrowserSession } from "@solarisdk/browser"
+import { deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
@@ -27,6 +27,8 @@ import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, requireExpect } from "./text.ts"
+import { packageRoot } from "./paths.ts"
+import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import {
   createClient,
@@ -74,29 +76,31 @@ export type CheckOptions = {
   onProgress?: ProgressFn
 }
 
-export type CheckReason = "loggedOut" | "needsHuman" | "recordedLoggedIn"
+export type { CheckReason } from "./check-reason.ts"
 
 export type CheckResult = {
+  ok: boolean
+  reason: CheckReason
+  url: string
+  expect: string
+  screenshotPath: string
   title: string
   finalUrl: string
-  ok: boolean
-  expect: string
   matched: boolean
   excerpt: string
-  screenshotPath: string
   sessionId: string
   networkIdle: boolean
   replayReady?: boolean
   waitedFor?: string
   filled?: string
   clicked?: string
-  reason?: CheckReason
   needsHuman?: boolean
+  diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
 }
 
-export const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+export { packageRoot } from "./paths.ts"
 
 export function toReceiptPath(absPath: string): string {
   return path.relative(packageRoot, absPath).replaceAll("\\", "/")
@@ -165,7 +169,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let profileSeed: ProfileSeed | undefined
   let profileSaved: ProfileSaveResult | undefined
   let needsHuman = false
-  let reason: CheckReason | undefined
+  let special: SpecialCheckReason | undefined
   let workError: unknown
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
@@ -218,7 +222,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         const sso = await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal })
         if (sso.needsHuman) {
           needsHuman = true
-          reason = "needsHuman"
+          special = "needsHuman"
         }
       }
       if (isCancelled()) return
@@ -270,7 +274,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         matched = false
         excerpt = `needsHuman: Microsoft password or OTP wall at ${finalUrl || page.url()}. ${excerpt}`
       } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl)) {
-        reason = "loggedOut"
+        special = "loggedOut"
         matched = false
         excerpt = `loggedOut: landed on ${finalUrl}. ${excerpt}`
       }
@@ -339,15 +343,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     }
 
     if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
-      reason = "recordedLoggedIn"
+      special = "recordedLoggedIn"
     } else if (opts.record && sessionId) {
       onProgress("replay")
       replayReady = await attachRecordedReplay(solari, sessionId, outDir)
     }
 
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts))
-    const loggedOut = reason === "loggedOut"
-    const blockedHuman = reason === "needsHuman" || needsHuman
+    const loggedOut = special === "loggedOut"
+    const blockedHuman = special === "needsHuman" || needsHuman
     const savedOk = !opts.saveProfile || profileSaved?.ok === true
     const protocolOk = Boolean(
       finalUrl &&
@@ -356,24 +360,41 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         savedOk &&
         !loggedOut &&
         !blockedHuman &&
-        reason !== "recordedLoggedIn",
+        special !== "recordedLoggedIn",
     )
+    const reason = deriveCheckReason({
+      special,
+      needsHuman,
+      matched,
+      networkIdle,
+      finalUrl,
+      excerpt,
+      screenshotOk: existsSync(screenshotAbs),
+    })
+    const diff = await diffAgainstLastReceipt({
+      url: opts.url,
+      excerpt,
+      finalUrl,
+      excludeDir: outDir,
+    })
     const result: CheckResult = {
+      ok: protocolOk,
+      reason,
+      url: opts.url,
+      expect: opts.expect,
+      screenshotPath,
       title,
       finalUrl,
-      ok: protocolOk,
-      expect: opts.expect,
       matched,
       excerpt,
-      screenshotPath,
       sessionId,
       networkIdle,
       replayReady: opts.record ? replayReady : undefined,
       waitedFor,
       filled,
       clicked,
-      reason,
       needsHuman: needsHuman || undefined,
+      diff,
       profileSeed,
       profileSaved,
     }

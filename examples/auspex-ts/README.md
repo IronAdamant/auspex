@@ -31,6 +31,10 @@ npm install
 # Persist the key for CLI *and* MCP hosts (this file is gitignored).
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
+npx tsx src/cli.ts check --name ironadamant
+npx tsx src/cli.ts check --name checkpoint
+npx tsx src/cli.ts check --name consistencyhub
+npx tsx src/cli.ts profile-status --name consistencyhub
 npx tsx src/cli.ts verify
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
@@ -40,28 +44,31 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify]
+npx tsx src/cli.ts check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
 npx tsx src/cli.ts verify [runDir]
 npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
+npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
 npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
 npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
 npx tsx src/cli.ts profiles
+npx tsx src/cli.ts profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
 `login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login prefer `check --profile <name> --sso --save-profile`. Then `check --profile <name>` in a new session. Login does not hold an Auspex check session open.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing` or a login page is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile`. Never `--record` a logged-in session.
 
-`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. CLI exit 0 requires both.
+`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. `reason` is always set (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`). CLI stdout is that parseable receipt (`ok`, `reason`, `url`, `expect`, `screenshotPath`) plus a `diff` vs the last same-URL receipt. Check verifies by default (sandbox HTTP + OCR); `--no-verify` skips. CLI exit 0 requires agent ok (matched, and verify claim when verifying).
 
-**429 ConcurrencyLimitExceeded is not retryable.** Call `auspex_reap` (or `solari_browser_close` / `solari_kill` if that MCP started) to free leftover sessions, then retry.
+**429 ConcurrencyLimitExceeded is not retryable.** Call `auspex_reap` (or `solari_browser_close` / `solari_kill` if that MCP started) to free leftover sessions, then retry. `reap --pack-receipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 
-**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}` (PNG scaled under 2 MiB so verify can upload it). `verify` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt, independently re-checks `expect` (HTTP fetch + optional Tesseract OCR of the PNG — not `manifest.ok`), and **kills** the VM. Integrity (`ok`/`errors`) is separate from claim (`claimOk`/`claimErrors`). `--verify` on check is one-shot — do not also run `verify`. Optional `[runDir]`; default is the latest run.
+**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}` (PNG scaled under 2 MiB so verify can upload it). Default `check` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt, independently re-checks `expect` (HTTP fetch + optional Tesseract OCR of the PNG — not `manifest.ok`), and **kills** the VM. Integrity (`ok`/`errors`) is separate from claim (`claimOk`/`claimErrors`). Do not also run `verify` after a default check. `--no-verify` leaves a check-only receipt. Optional `[runDir]`; default is the latest run.
 
-Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `excerpt`, `screenshotPath`, `sessionId`, `networkIdle`, optional `reason` (`loggedOut` / `needsHuman` / `recordedLoggedIn`) / `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
+Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, then `title`, `finalUrl`, `matched`, `excerpt`, `sessionId`, `networkIdle`, optional `diff` / `verify` / `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
-`desktop` defaults to opening Mousepad. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. `streamUrl` is the live VNC; Auspex still kills after the shot.
+`desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. `streamUrl` is the live VNC; Auspex still kills after the shot.
+
+`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman`. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
 
 ## MCP
 
@@ -79,13 +86,13 @@ Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
 
 Tools:
 
-- `auspex_check` — JSON + JPEG attach (optional `verify=true` is one-shot check-then-sandbox; `saveProfile` persists a non-empty seed)
-- `auspex_verify` — headless VM independently audits expect, then **kill**
-- `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs
-- `auspex_login` / `auspex_await_login` / `auspex_profiles`
-- `auspex_desktop` — Mousepad sandbox demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC.
+- `auspex_check` — JSON + JPEG attach (verifies by default via sandbox HTTP + OCR; `verify=false` skips; `name` runs a saved check; `saveProfile` persists a non-empty seed)
+- `auspex_verify` — only after `verify=false`. Headless VM independently audits expect, then **kill**
+- `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs; `packReceipts` for PR attach
+- `auspex_login` / `auspex_await_login` / `auspex_profiles` / `auspex_profile_status`
+- `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. Not the user's Mac.
 
-The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. Do not `--record` a logged-in ConsistencyHub session.
+The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.
 
 Live: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 
