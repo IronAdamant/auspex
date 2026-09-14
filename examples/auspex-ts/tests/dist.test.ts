@@ -24,4 +24,6 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /packReceipts/)
   assert.match(dist, /ironadamant/)
   assert.match(dist, /toAgentReceipt|reason \(matched/)
+  assert.match(dist, /schemaVersion/)
+  assert.match(dist, /ProfileBusy/)
 })

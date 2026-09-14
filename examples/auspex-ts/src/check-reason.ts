@@ -48,10 +48,10 @@ export function overlayVerifyReason(
 export function agentReceiptOk(opts: {
   protocolOk: boolean
   reason: CheckReason
-  verify?: { ok: boolean; claimOk: boolean }
+  verify?: { ok: boolean; claimOk: boolean; skipped?: boolean }
 }): boolean {
   if (!opts.protocolOk) return false
   if (opts.reason !== "matched") return false
-  if (opts.verify) return opts.verify.ok && opts.verify.claimOk
+  if (opts.verify && !opts.verify.skipped) return opts.verify.ok && opts.verify.claimOk
   return true
 }

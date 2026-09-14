@@ -1,7 +1,7 @@
 # Auspex MCP (check → verify → reap → kill). Copy into ~/.grok/config.toml.
+# Any-host door from the repo root: node /absolute/path/to/auspex/bin/auspex-mcp.mjs
 # Cursor/Claude reviewers: see mcp.cursor.example.json and mcp.claude.example.json.
-# Keep the live key in gitignored examples/auspex-ts/.env — Auspex loads it.
-# Restart Grok after changing MCP config.
+# Secret is env SOLARI_API_KEY only (optional gitignored .env). Restart Grok after changing MCP config.
 
 # Use an absolute node binary. Grok's MCP spawn PATH often lacks `node`,
 # so the tsx shebang (`#!/usr/bin/env node`) dies with "node: No such file or directory".

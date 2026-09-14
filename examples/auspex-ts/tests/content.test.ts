@@ -184,4 +184,5 @@ test("packToolFailure includes structured 429 and receipt sessionId", async () =
   const text = packed.content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("\n")
   assert.match(text, /sess-fail/)
   assert.match(text, /ConcurrencyLimitExceeded|"retryable": false/)
+  assert.match(text, /schemaVersion/)
 })

@@ -6,8 +6,10 @@ import {
 } from "./check-reason.ts"
 import type { ReceiptDiff } from "./receipt-diff.ts"
 import type { VerifyResult } from "./sandbox.ts"
+import { SCHEMA_VERSION } from "./schema-version.ts"
 
 export type AgentReceipt = {
+  schemaVersion: number
   ok: boolean
   reason: CheckReason
   url: string
@@ -34,13 +36,16 @@ export function toAgentReceipt(
   check: CheckResult,
   extras?: { verify?: VerifyResult },
 ): AgentReceipt {
-  const reason = extras?.verify ? overlayVerifyReason(check.reason, extras.verify) : check.reason
+  const verify = extras?.verify
+  const reason =
+    verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason
   const ok = agentReceiptOk({
     protocolOk: check.ok,
     reason,
-    verify: extras?.verify,
+    verify,
   })
   return {
+    schemaVersion: SCHEMA_VERSION,
     ok,
     reason,
     url: check.url || check.finalUrl,

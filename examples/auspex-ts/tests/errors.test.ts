@@ -7,6 +7,7 @@ import {
   CLOSE_KILL_RECOVERY,
   explainSolariError,
 } from "../src/errors.ts"
+import { ProfileBusyError } from "../src/profile-lock.ts"
 
 test("explainSolariError maps 402 and 429", () => {
   assert.match(
@@ -44,6 +45,9 @@ test("classifySolariError is structured, 402/429 not retryable, recovery names c
   assert.match(b.recovery ?? "", /solari_browser_close/)
   assert.match(b.recovery ?? "", /solari_kill/)
   assert.equal((b.recovery ?? "").includes("in the console"), false)
+  const busy = classifySolariError(new ProfileBusyError("consistencyhub"))
+  assert.equal(busy.code, "ProfileBusy")
+  assert.equal(busy.retryable, false)
 })
 
 test("AuspexError preserves receipt fields", () => {

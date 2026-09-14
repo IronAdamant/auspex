@@ -1,4 +1,5 @@
 import type { Solari, StorageState } from "@solarisdk/browser"
+import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { originHasLandedBytes } from "./profile-storage.ts"
 
@@ -82,13 +83,28 @@ export async function persistLiveProfile(opts: {
   state: StorageState
   sessionId?: string
   origin?: string
+  lockName?: string
+  lockDir?: string
 }): Promise<ProfileSaveResult> {
-  return persistProfileState({
-    profileId: opts.profileId,
-    state: opts.state,
-    origin: opts.origin,
-    save: (id, state) => opts.solari.profiles.save(id, state),
-  })
+  const seed = seedFromStorageState(opts.state)
+  try {
+    return await withProfileLock(
+      opts.lockName ?? opts.profileId,
+      () =>
+        persistProfileState({
+          profileId: opts.profileId,
+          state: opts.state,
+          origin: opts.origin,
+          save: (id, state) => opts.solari.profiles.save(id, state),
+        }),
+      { lockDir: opts.lockDir },
+    )
+  } catch (err) {
+    if (err instanceof ProfileBusyError) {
+      return { ok: false, cookies: seed.cookies, origins: seed.origins, error: err.message }
+    }
+    throw err
+  }
 }
 
 export async function persistProfileState(opts: {

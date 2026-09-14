@@ -2,6 +2,7 @@ import { SolariClient } from "@solarisdk/sdk"
 import { runCheck, runDirFromResult, type CheckOptions, type CheckResult } from "./check.ts"
 import { MAX_IMAGE_BYTES } from "./content.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
+import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
@@ -29,6 +30,8 @@ export type VerifyResult = {
   finalUrl?: string
   runDir: string
   sandboxId?: string
+  skipped?: boolean
+  skipReason?: string
 }
 
 export type SandboxHandle = {
@@ -224,51 +227,41 @@ export async function checkThenVerify(
   deps?: CheckThenVerifyDeps,
 ): Promise<{ check: CheckResult; verify: VerifyResult }> {
   const onProgress = deps?.onProgress ?? opts.onProgress ?? noopProgress
-  const overlap = !deps?.verify
-  const createFn = overlap ? (deps?.create ?? defaultVerifyDeps().create) : undefined
-  let created: SandboxHandle | undefined
-  const pending = createFn
-    ? createFn().then((s) => {
-        created = s
-        return s
-      })
-    : undefined
+  onProgress("check")
+  const check = deps?.check ? await deps.check({ ...opts, onProgress }) : await runCheck({ ...opts, onProgress })
+  const dir = runDirFromResult(check)
+  if (!shouldVerifyAfterCheck(check.reason)) {
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir,
+        skipped: true,
+        skipReason: check.reason,
+      },
+    }
+  }
   try {
-    onProgress("check")
-    const check = deps?.check ? await deps.check({ ...opts, onProgress }) : await runCheck({ ...opts, onProgress })
-    const dir = runDirFromResult(check)
-    try {
-      const verify = deps?.verify
-        ? await deps.verify(dir)
-        : await verifyReceipt(dir, {
-            create: async () => {
-              if (pending) return pending
-              return (deps?.create ?? defaultVerifyDeps().create)()
-            },
-            onProgress,
-          })
-      return { check, verify }
-    } catch (err) {
-      return {
-        check,
-        verify: {
-          ok: false,
-          errors: [explainSolariError(err)],
-          claimOk: false,
-          claimErrors: [],
-          runDir: dir,
-        },
-      }
-    }
+    const verify = deps?.verify
+      ? await deps.verify(dir)
+      : await verifyReceipt(dir, {
+          create: deps?.create ?? defaultVerifyDeps().create,
+          onProgress,
+        })
+    return { check, verify }
   } catch (err) {
-    if (pending) {
-      try {
-        const s = created ?? (await pending.catch(() => undefined))
-        if (s) await s.kill()
-      } catch {
-        /* check error wins */
-      }
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [explainSolariError(err)],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir,
+      },
     }
-    throw err
   }
 }

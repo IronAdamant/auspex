@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "auspex": {
-      "command": "npx",
-      "args": ["tsx", "src/mcp.ts"],
-      "cwd": "${workspaceFolder}/examples/auspex-ts"
+      "command": "node",
+      "args": ["bin/auspex-mcp.mjs"],
+      "cwd": "${workspaceFolder}"
     }
   }
 }

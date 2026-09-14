@@ -7,6 +7,7 @@ import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
+import { stampSchema } from "./schema-version.ts"
 import {
   emptyProfileSeedError,
   isEmptySeed,
@@ -306,6 +307,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
             sessionId,
             state,
             origin,
+            lockName: opts.profile,
           })
         }
       }
@@ -398,7 +400,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       profileSeed,
       profileSaved,
     }
-    await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}\n`)
+    await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(stampSchema(result), null, 2)}\n`)
     return result
   } finally {
     try {
