@@ -33,11 +33,17 @@ npx tsx src/cli.ts reap --dry-run
 npx tsx src/cli.ts reap
 ```
 
-Login-once (human Save in the Solari console; no check session held open):
+Login-once (human Save in the Solari console; no check session held open). Wait until the Save actually stored cookies/origins:
 
 ```bash
-npx tsx src/cli.ts login --profile auspex-demo
+npx tsx src/cli.ts login --profile auspex-demo --wait
 npx tsx src/cli.ts profiles
+```
+
+Weekly public loop (ironadamant.com `One office job.` + Checkpoint; skips without a key):
+
+```bash
+npm run public-check
 ```
 
 MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok toml. Ask the agent to verify https://ironadamant.com for `"One office job."` via `auspex_check`.

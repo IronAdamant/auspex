@@ -63,6 +63,12 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe("Override: allow record together with a profile (recordings capture input)"),
+  saveProfile: z
+    .boolean()
+    .optional()
+    .describe(
+      "After the check, persist this session into the named profile via Solari save-profile. Refuses an empty seed so a 0-cookie Save cannot wipe a login.",
+    ),
 })
 
 /** Full parse including record+profile combination. MCP registerTool must use auspexCheckInputObject. */
@@ -81,6 +87,19 @@ export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, c
 export const auspexLoginInputSchema = z.object({
   profile: profileNameSchema.describe("Profile name to create or reuse"),
   url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
+  wait: z
+    .boolean()
+    .optional()
+    .describe("If true, block until Save stores cookies or origins (empty Save is not success)"),
+})
+
+export const auspexAwaitLoginInputSchema = z.object({
+  profile: profileNameSchema.describe("Profile name from auspex_login"),
+  sinceVersion: z
+    .number()
+    .optional()
+    .describe("Version from auspex_login; completion is a newer version with cookies or origins"),
+  timeoutMs: z.number().optional().describe("Cap wait in ms (default 300000, max 600000)"),
 })
 
 export const auspexDesktopInputSchema = z.object({

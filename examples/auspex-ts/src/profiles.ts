@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { asFiniteNumber } from "./profile-persist.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
@@ -15,6 +16,9 @@ export const profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAM
 export type ProfileInfo = {
   id: string
   name: string
+  version?: number
+  sizeBytes?: number
+  populated?: boolean
 }
 
 export type LoginHandoff = {
@@ -32,6 +36,7 @@ export type LoginResult = {
   url?: string
   handoffId?: string
   expiresAt?: string
+  sinceVersion?: number
 }
 
 export type ProfileHttp = {
@@ -52,14 +57,16 @@ export function loginInstructions(
       url: handoff.url,
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done, then run auspex check with --profile ${profile.name}`,
+      sinceVersion: handoff.version,
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`,
     }
   }
   return {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
-    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save, then run auspex check with --profile ${profile.name}`,
+    sinceVersion: handoff?.version,
+    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`,
   }
 }
 
@@ -135,7 +142,18 @@ export async function loginProfile(
 export async function listProfiles(): Promise<ProfileInfo[]> {
   const solari = createClient()
   try {
-    return (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name }))
+    return (await solari.profiles.list()).map((p) => {
+      const version = asFiniteNumber((p as { version?: unknown }).version)
+      const sizeBytes = asFiniteNumber((p as { sizeBytes?: unknown }).sizeBytes)
+      const s3 = (p as { storageStateS3Key?: unknown }).storageStateS3Key
+      return {
+        id: p.id,
+        name: p.name,
+        version,
+        sizeBytes,
+        populated: Boolean(s3) || (sizeBytes !== undefined && sizeBytes > 0),
+      }
+    })
   } finally {
     await solari.close()
   }

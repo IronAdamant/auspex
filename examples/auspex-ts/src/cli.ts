@@ -4,6 +4,7 @@ import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
+import { liveAwaitLogin } from "./profile-persist.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { parseProxyFlag } from "./launch-options.ts"
 import { assertFillPair } from "./page-actions.ts"
@@ -14,11 +15,12 @@ import { isNonEmptyExpect } from "./text.ts"
 import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--verify]
+  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify]
   npx tsx src/cli.ts verify [runDir]
   npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
-  npx tsx src/cli.ts login --profile <name> [--url <hint>]
+  npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
+  npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
   npx tsx src/cli.ts profiles
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
@@ -26,8 +28,10 @@ verify uploads that receipt into a headless Solari sandbox, independently re-che
 --verify on check is one-shot check-then-sandbox (do not also run verify). ok is protocol success; matched is the expect substring.
 desktop boots a Solari GUI VM, opens mousepad by default (click 320,300 inside the editor), screenshots, and kills it. streamUrl is the live VNC. Stderr is an append-only log; stdout is JSON.
 reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery without official Solari MCP).
-login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password).
-profiles lists profile names and ids.
+login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
+await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
+profiles lists names, ids, version, and whether storage is populated.
+--save-profile writes the live session into the named profile via Solari save-profile (never overwrites with an empty seed).
 
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
@@ -38,7 +42,8 @@ Never commit .env or .auspex/ run artifacts.
 export type CliCommand =
   | { cmd: "help" }
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
-  | { cmd: "login"; profile: string; url?: string }
+  | { cmd: "login"; profile: string; url?: string; wait?: boolean }
+  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
   | { cmd: "profiles" }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
@@ -106,6 +111,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const proxy = takeOption(args, "--proxy", { rejectHttp: true })
     const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
     const captcha = takeFlag(args, "--captcha")
+    const saveProfile = takeFlag(args, "--save-profile")
     const verifyAfter = takeFlag(args, "--verify")
     const url = args.shift()
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
@@ -157,6 +163,7 @@ export function parseArgv(argv: string[]): ParseResult {
           proxy,
           proxySticky,
           captcha,
+          saveProfile,
         },
         verifyAfter,
       },
@@ -168,6 +175,7 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const profile = takeOption(args, "--profile")
     const url = takeOption(args, "--url")
+    const wait = takeFlag(args, "--wait")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profile) return { status: "error", message: "login requires --profile <name>" }
     let profileName: string
@@ -179,7 +187,36 @@ export function parseArgv(argv: string[]): ParseResult {
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
     }
-    return { status: "ok", command: { cmd: "login", profile: profileName, url } }
+    return { status: "ok", command: { cmd: "login", profile: profileName, url, wait } }
+  }
+  if (cmd === "await-login") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const profile = takeOption(args, "--profile")
+    const sinceRaw = takeOption(args, "--since-version")
+    const timeoutRaw = takeOption(args, "--timeout-ms")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    if (!profile) return { status: "error", message: "await-login requires --profile <name>" }
+    let profileName: string
+    try {
+      profileName = requireProfileName(profile)
+    } catch (err) {
+      return { status: "error", message: err instanceof Error ? err.message : String(err) }
+    }
+    let sinceVersion: number | undefined
+    if (sinceRaw !== undefined) {
+      const n = Number(sinceRaw)
+      if (!Number.isFinite(n)) return { status: "error", message: "--since-version must be a number" }
+      sinceVersion = n
+    }
+    let timeoutMs: number | undefined
+    if (timeoutRaw !== undefined) {
+      const n = Number(timeoutRaw)
+      if (!Number.isFinite(n)) return { status: "error", message: "--timeout-ms must be a number" }
+      timeoutMs = n
+    }
+    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs } }
   }
   if (cmd === "verify") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -252,8 +289,23 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (parsed.command.cmd === "login") {
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
-      process.stdout.write(formatLogin(result))
-      return 0
+      if (!parsed.command.wait) {
+        process.stdout.write(formatLogin(result))
+        return 0
+      }
+      const waited = await liveAwaitLogin(parsed.command.profile, {
+        sinceVersion: result.sinceVersion,
+      })
+      process.stdout.write(`${JSON.stringify({ ...result, wait: waited }, null, 2)}\n`)
+      return waited.status === "completed" ? 0 : 1
+    }
+    if (parsed.command.cmd === "await-login") {
+      const waited = await liveAwaitLogin(parsed.command.profile, {
+        sinceVersion: parsed.command.sinceVersion,
+        timeoutMs: parsed.command.timeoutMs,
+      })
+      process.stdout.write(`${JSON.stringify(waited, null, 2)}\n`)
+      return waited.status === "completed" ? 0 : 1
     }
     if (parsed.command.cmd === "verify") {
       const result = await verifyReceipt(parsed.command.runDir)

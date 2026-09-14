@@ -8,6 +8,7 @@
     "build:mcp": "esbuild src/mcp.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp.mjs && esbuild src/solari-mcp-entry.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/solari-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "public-check": "tsx scripts/public-check.ts",
     "start": "tsx src/cli.ts"
   },
   "dependencies": {

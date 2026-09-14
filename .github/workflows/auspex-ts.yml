@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "17 6 * * *"
+    - cron: "42 6 * * 1"
 
 jobs:
   test:
@@ -27,7 +28,7 @@ jobs:
       - run: git diff --exit-code -- dist/
 
   live:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 6 * * *'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -50,3 +51,27 @@ jobs:
             exit 0
           fi
           npx tsx src/cli.ts check https://example.com --expect "Example Domain"
+
+  public:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '42 6 * * 1'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/auspex-ts
+    env:
+      SOLARI_API_KEY: ${{ secrets.SOLARI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: examples/auspex-ts/package-lock.json
+      - run: npm ci
+      - name: Weekly public Checkpoint / ironadamant check
+        run: |
+          if [ -z "$SOLARI_API_KEY" ]; then
+            echo "Skipping public check: SOLARI_API_KEY secret is not set"
+            exit 0
+          fi
+          npx tsx scripts/public-check.ts

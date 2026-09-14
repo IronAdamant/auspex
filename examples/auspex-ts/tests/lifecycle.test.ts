@@ -140,6 +140,8 @@ test("check source fits PNG under the verify cap and attaches replay on record",
   assert.match(src, /fitPngUnderCap/)
   assert.match(src, /attachRecordedReplay/)
   assert.match(src, /sessionCreateFromCheck/)
+  assert.match(src, /persistLiveProfile/)
+  assert.match(src, /emptyProfileSeedError/)
 })
 test("sandbox verify uploads files in parallel", () => {
   const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")

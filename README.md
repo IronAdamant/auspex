@@ -19,6 +19,7 @@ npm install
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env   # console.getsolari.com
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 npx tsx src/cli.ts verify
+cd examples/auspex-ts && npm run public-check
 ```
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
@@ -29,7 +30,7 @@ Full agent notes: [examples/auspex-ts](examples/auspex-ts) · [AGENTS.md](exampl
 
 ## MCP (Cursor / Claude / Grok)
 
-Auspex is the check → verify → kill loop. Copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) to `.cursor/mcp.json`, or [mcp.claude.example.json](examples/auspex-ts/mcp.claude.example.json) into Claude Desktop. Grok still uses [grok.mcp.example.toml](examples/auspex-ts/grok.mcp.example.toml) (Content-Length stdio).
+Auspex is the check → verify → kill loop. `.cursor/mcp.json` is committed (copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) if you need it elsewhere). Weekly public pages: from `examples/auspex-ts`, `npm run public-check` (ironadamant.com `One office job.` + checkpointprojects.com `Checkpoint`). The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without `SOLARI_API_KEY`.
 
 ```bash
 # from examples/auspex-ts after npm install

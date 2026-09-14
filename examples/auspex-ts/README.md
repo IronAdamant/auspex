@@ -32,6 +32,7 @@ npm install
 printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 npx tsx src/cli.ts verify
+npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 
 Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
@@ -39,17 +40,18 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--verify]
+npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify]
 npx tsx src/cli.ts verify [runDir]
 npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
-npx tsx src/cli.ts login --profile <name> [--url <hint>]
+npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
+npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
 npx tsx src/cli.ts profiles
 ```
 
-`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `check --profile <name>`. Login does not hold an Auspex check session open.
+`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Then `check --profile <name>`. Login does not hold an Auspex check session open.
 
-`--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` loads the Solari profile into the page context. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Checks do not overwrite the profile. `record`+`profile` is forbidden unless `--allow-record-profile`.
+`--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` loads the Solari profile on the default page context (a new context drops the seed). Empty seeds fail closed unless `--sso`. `--save-profile` persists the live session and refuses an empty overwrite. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). `record`+`profile` is forbidden unless `--allow-record-profile`.
 
 `--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. CLI exit 0 requires both.
 
@@ -65,7 +67,9 @@ Stdout for `check` is JSON: `title`, `finalUrl`, `ok`, `expect`, `matched`, `exc
 
 Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
 
-**Cursor** — copy [mcp.cursor.example.json](mcp.cursor.example.json) to the repo `.cursor/mcp.json` (already the same shape as the committed example). Restart Cursor.
+**Cursor** — `.cursor/mcp.json` in this repo is the drop-in (same shape as [mcp.cursor.example.json](mcp.cursor.example.json)). Restart Cursor. That plus `npm run public-check` is the loop: MCP tools for agents, weekly public pages for CI.
+
+**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
 
 **Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
 
@@ -75,11 +79,13 @@ Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
 
 Tools:
 
-- `auspex_check` — JSON + JPEG attach (optional `verify=true` is one-shot check-then-sandbox)
+- `auspex_check` — JSON + JPEG attach (optional `verify=true` is one-shot check-then-sandbox; `saveProfile` persists a non-empty seed)
 - `auspex_verify` — headless VM independently audits expect, then **kill**
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs
-- `auspex_login` / `auspex_profiles`
+- `auspex_login` / `auspex_await_login` / `auspex_profiles`
 - `auspex_desktop` — Mousepad computer-use, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC.
+
+The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. Do not `--record` a logged-in ConsistencyHub session.
 
 Live: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 
