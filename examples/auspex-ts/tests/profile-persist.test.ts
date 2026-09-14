@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { pageForSession, toPlaywrightStorageState } from "../src/solari.ts"
 import {
+  EMPTY_ORIGIN_SAVE_ERROR,
   EMPTY_PROFILE_SAVE_ERROR,
   persistProfileState,
   seedFromStorageState,
@@ -55,6 +56,55 @@ test("persistProfileState writes via profiles.save and skips empty seeds", async
   assert.equal(written.cookies, 1)
   assert.equal(written.origins, 1)
   assert.equal(saved, 1)
+})
+
+test("persistProfileState fails when the page origin has no landed bytes", async () => {
+  let saved = 0
+  const emptyOrigin = await persistProfileState({
+    profileId: "prof_1",
+    origin: "https://consistencyhub.io",
+    state: {
+      cookies: [{ name: "ESTSAUTH", value: "x", domain: "login.microsoftonline.com" }],
+      origins: [{ origin: "https://consistencyhub.io", localStorage: [] }],
+    },
+    save: async () => {
+      saved += 1
+      return { version: 2, sizeBytes: 40 }
+    },
+  })
+  assert.equal(emptyOrigin.ok, false)
+  assert.equal(emptyOrigin.error, EMPTY_ORIGIN_SAVE_ERROR)
+  assert.equal(saved, 0)
+
+  const landed = await persistProfileState({
+    profileId: "prof_1",
+    origin: "https://consistencyhub.io",
+    state: {
+      cookies: [{ name: "ESTSAUTH", value: "x", domain: "login.microsoftonline.com" }],
+      origins: [
+        {
+          origin: "https://consistencyhub.io",
+          localStorage: [{ name: "__auspex_ss__:accessToken", value: "t" }],
+        },
+      ],
+    },
+    save: async () => {
+      saved += 1
+      return { version: 7, sizeBytes: 80 }
+    },
+  })
+  assert.equal(landed.ok, true)
+  assert.equal(saved, 1)
+})
+
+test("persistProfileState fails when save writes 0 bytes", async () => {
+  const emptyBytes = await persistProfileState({
+    profileId: "prof_1",
+    state: { cookies: [{ name: "a", value: "1", domain: "example.com" }] },
+    save: async () => ({ version: 3, sizeBytes: 0 }),
+  })
+  assert.equal(emptyBytes.ok, false)
+  assert.equal(emptyBytes.error, EMPTY_PROFILE_SAVE_ERROR)
 })
 
 test("persistProfileState maps 409 editor lock without throwing", async () => {
@@ -156,7 +206,7 @@ test("pageForSession uses the default context even when storageState has cookies
 })
 
 test("pageForSession applies storageState when connect exposes no default context", async () => {
-  let init = ""
+  let baked = ""
   const createdPage = { id: "from-new" }
   const browser = {
     session: {
@@ -174,8 +224,9 @@ test("pageForSession applies storageState when connect exposes no default contex
     newContext: async (opts: { storageState?: { origins?: Array<{ localStorage?: Array<{ name: string }> }> } }) => {
       assert.equal(opts.storageState?.origins?.[0]?.localStorage?.[0]?.name, "__auspex_ss__:accessToken")
       return {
-        addInitScript: async (script: { content?: string } | string) => {
-          init = typeof script === "string" ? script : (script.content ?? "")
+        addInitScript: async (script: { content?: string } | string, arg?: { baked?: Record<string, Record<string, string>> }) => {
+          if (typeof script === "object" && script.content) baked = script.content
+          else baked = JSON.stringify(arg ?? {})
         },
         pages: () => [createdPage],
         newPage: async () => ({ id: "new" }),
@@ -184,7 +235,8 @@ test("pageForSession applies storageState when connect exposes no default contex
   }
   const page = await pageForSession(browser as never)
   assert.equal(page, createdPage)
-  assert.match(init, /__auspex_ss__:/)
+  assert.match(baked, /accessToken/)
+  assert.match(baked, /consistencyhub\.io/)
 })
 
 test("toPlaywrightStorageState does not force httpOnly or secure true", () => {

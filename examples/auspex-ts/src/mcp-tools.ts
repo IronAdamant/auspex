@@ -18,7 +18,7 @@ import {
 } from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
-  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session). 429: call auspex_reap, then retry."
+  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
 
 const VERIFY_DESCRIPTION =
   "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first."
@@ -27,7 +27,7 @@ const LOGIN_DESCRIPTION =
   "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success."
 
 const DESKTOP_DESCRIPTION =
-  "Solari GUI desktop: boot, wait for X11, open mousepad by default (click inside the editor at 320,300 — not screen center), optional type/expect, screenshot, kill. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
+  "Solari GUI desktop: boot, wait for X11, open mousepad by default (the demo is opening the app). Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified (coordinate clicks are not). Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
 
 const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
@@ -146,7 +146,10 @@ export function registerAuspexTools(server: McpServer): void {
           {
             ok: result.ok,
             ready: result.ready,
-            windowReady: result.windowReady,
+            processOk: result.processOk,
+            windowOk: result.windowOk,
+            clicked: result.clicked,
+            click: result.click,
             matched: result.matched,
             screenshotPath: result.screenshotPath,
             errors: result.errors,

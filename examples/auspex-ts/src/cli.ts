@@ -12,7 +12,7 @@ import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
-import { RECORD_PROFILE_ERROR } from "./tool-schema.ts"
+import { RECORD_LOGGED_IN_ERROR, RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 
 export const USAGE = `Usage:
   npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify]
@@ -26,12 +26,14 @@ export const USAGE = `Usage:
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
 verify uploads that receipt into a headless Solari sandbox, independently re-checks expect (fetch/OCR), and kills the VM.
 --verify on check is one-shot check-then-sandbox (do not also run verify). ok is protocol success; matched is the expect substring.
-desktop boots a Solari GUI VM, opens mousepad by default (click 320,300 inside the editor), screenshots, and kills it. streamUrl is the live VNC. Stderr is an append-only log; stdout is JSON.
+desktop boots a Solari GUI VM and opens mousepad by default. Evidence is the process list (processList + ps, same haystack for wait/expect/ok). A coordinate click is unverified and not the default. streamUrl is the live VNC. Stderr is an append-only log; stdout is JSON.
 reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery without official Solari MCP).
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
 await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
 profiles lists names, ids, version, and whether storage is populated.
---save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, and never saves a public /landing session).
+--save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin).
+Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile (public pages only).
+SSO is human-once then reuse. Microsoft password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing or a login page is ok: false reason: loggedOut.
 
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
@@ -135,6 +137,9 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     if (record && profileName && !allowRecordProfile) {
       return { status: "error", message: RECORD_PROFILE_ERROR }
+    }
+    if (record && (sso || Boolean(ssoProvider) || saveProfile)) {
+      return { status: "error", message: RECORD_LOGGED_IN_ERROR }
     }
     try {
       parseProxyFlag(proxy, proxySticky)

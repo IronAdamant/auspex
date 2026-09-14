@@ -380,13 +380,19 @@ async function raceWithTimeout(work, ms, message) {
 
 // src/sso.ts
 var SSO_RETURN_TIMEOUT_MS = 12e4;
+var SSO_POLL_MS = 500;
+var PASSWORD_WALL = /enter (your )?password/i;
+var OTP_WALL = /enter (the )?code|one-time|authenticator app|approve a sign[- ]in|approve sign[- ]in|verify your identity|texted a code/i;
 function hostIs(hostname, domain) {
   const h = hostname.toLowerCase();
   const d = domain.toLowerCase();
   return h === d || h.endsWith(`.${d}`);
 }
+function microsoftAuthHost(hostname) {
+  return hostIs(hostname, "login.microsoftonline.com") || hostIs(hostname, "login.live.com");
+}
 function stillOnAuth(url) {
-  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
+  if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
     return true;
   }
   const path8 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
@@ -397,13 +403,61 @@ function stillOnAuth(url) {
 }
 function shouldFailClosedAuth(url, opts) {
   if (!stillOnAuth(url)) return false;
-  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
+  if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
     return true;
   }
   return Boolean(opts.sso || opts.profile);
 }
+function describeAuthWall(opts) {
+  let parsed;
+  try {
+    parsed = new URL(opts.url);
+  } catch {
+    return { needsHuman: false };
+  }
+  const text = opts.text ?? "";
+  const ms = microsoftAuthHost(parsed.hostname);
+  if (ms && (opts.hasPasswordInput || PASSWORD_WALL.test(text))) {
+    return { needsHuman: true, wall: "password", url: opts.url };
+  }
+  if (ms && OTP_WALL.test(text)) {
+    return { needsHuman: true, wall: "otp", url: opts.url };
+  }
+  return { needsHuman: false };
+}
 function stopped(cancel) {
   return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
+}
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("aborted"));
+      return;
+    }
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(signal.reason ?? new Error("aborted"));
+      },
+      { once: true }
+    );
+  });
+}
+async function probeSsoWall(page) {
+  let hasPassword = false;
+  let text = "";
+  try {
+    const snap = await page.evaluate(() => ({
+      hasPassword: Boolean(document.querySelector('input[type="password"]')),
+      text: document.body?.innerText ?? ""
+    }));
+    hasPassword = Boolean(snap.hasPassword);
+    text = snap.text ?? "";
+  } catch {
+  }
+  return describeAuthWall({ url: page.url(), hasPasswordInput: hasPassword, text });
 }
 async function clickFirst(page, name, signal) {
   const btn = page.getByRole("button", { name });
@@ -413,26 +467,31 @@ async function clickFirst(page, name, signal) {
 }
 async function finishMicrosoftPicker(page, cancel) {
   const signal = cancel.signal;
-  await page.waitForURL(
-    (url) => hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com"),
-    { timeout: 3e4, signal }
-  ).catch(() => void 0);
-  if (stopped(cancel)) return;
+  await page.waitForURL((url) => microsoftAuthHost(url.hostname), { timeout: 3e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return { needsHuman: false };
+  const wallNow = await probeSsoWall(page);
+  if (wallNow.needsHuman) return wallNow;
   const picker = page.getByText(/pick an account/i);
   await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return;
+  if (stopped(cancel)) return { needsHuman: false };
   const signedIn = page.getByText(/^Signed in$/i);
   const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
   if (await signedIn.count() > 0) {
     await signedIn.first().click({ timeout: 1e4, signal });
   } else if (await tile.count() > 0) {
     await tile.first().click({ timeout: 1e4, signal });
+  } else {
+    const blocked = await probeSsoWall(page);
+    if (blocked.needsHuman) return blocked;
   }
-  if (stopped(cancel)) return;
+  if (stopped(cancel)) return { needsHuman: false };
+  const afterPick = await probeSsoWall(page);
+  if (afterPick.needsHuman) return afterPick;
   const yes = page.getByRole("button", { name: /^yes$/i });
   if (await yes.count() > 0) {
     await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
   }
+  return probeSsoWall(page);
 }
 async function finishGooglePicker(page, cancel) {
   const signal = cancel.signal;
@@ -443,8 +502,29 @@ async function finishGooglePicker(page, cancel) {
     await account.first().click({ timeout: 1e4, signal }).catch(() => void 0);
   }
 }
+async function waitForSsoReturn(page, cancel) {
+  const deadline = Date.now() + SSO_RETURN_TIMEOUT_MS;
+  while (!stopped(cancel) && Date.now() < deadline) {
+    const wall2 = await probeSsoWall(page);
+    if (wall2.needsHuman) return wall2;
+    try {
+      if (!stillOnAuth(new URL(page.url()))) return { needsHuman: false };
+    } catch {
+    }
+    try {
+      await sleep(SSO_POLL_MS, cancel.signal);
+    } catch {
+      return { needsHuman: false };
+    }
+  }
+  const wall = await probeSsoWall(page);
+  if (wall.needsHuman) return wall;
+  return { needsHuman: false };
+}
 async function completeSso(page, opts = {}) {
-  if (stopped(opts)) return;
+  if (stopped(opts)) return { needsHuman: false };
+  const already = await probeSsoWall(page);
+  if (already.needsHuman) return already;
   const provider = opts.provider ?? "auto";
   const signal = opts.signal;
   const tryMs = provider === "auto" || provider === "microsoft";
@@ -452,17 +532,19 @@ async function completeSso(page, opts = {}) {
   let clicked = false;
   if (tryMs && await clickFirst(page, /sign in with microsoft/i, signal)) {
     clicked = true;
-    if (stopped(opts)) return;
-    await finishMicrosoftPicker(page, opts);
+    if (stopped(opts)) return { needsHuman: false };
+    const wall = await finishMicrosoftPicker(page, opts);
+    if (wall.needsHuman) return wall;
   } else if (tryGoogle && await clickFirst(page, /sign in with google/i, signal)) {
     clicked = true;
-    if (stopped(opts)) return;
+    if (stopped(opts)) return { needsHuman: false };
     await finishGooglePicker(page, opts);
   } else if (provider === "auto" && await clickFirst(page, /sign in with /i, signal)) {
     clicked = true;
   }
-  if (!clicked || stopped(opts)) return;
-  await page.waitForURL((url) => !stillOnAuth(url), { timeout: SSO_RETURN_TIMEOUT_MS, signal }).catch(() => void 0);
+  if (!clicked) return probeSsoWall(page);
+  if (stopped(opts)) return { needsHuman: false };
+  return waitForSsoReturn(page, opts);
 }
 
 // src/profile-storage.ts
@@ -490,6 +572,61 @@ function isPersistableAppUrl(url) {
     return false;
   }
   return true;
+}
+function isLoggedOutLanding(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (stillOnAuth(parsed)) return true;
+  const path8 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  return path8 === "/landing" || path8.startsWith("/landing/");
+}
+function cookiesForOrigin(cookies, origin) {
+  let host;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+  return (cookies ?? []).filter((c) => {
+    if (!c?.name) return false;
+    const d = (c.domain ?? "").replace(/^\./, "").toLowerCase();
+    if (!d) return false;
+    return host === d || host.endsWith(`.${d}`);
+  });
+}
+function originStoreCounts(state, origin) {
+  const cookies = cookiesForOrigin(state.cookies, origin).length;
+  const rec = (state.origins ?? []).find((o) => o.origin === origin);
+  let localStorage2 = 0;
+  let sessionStorage2 = 0;
+  for (const row of rec?.localStorage ?? []) {
+    if (!row?.name) continue;
+    if (row.name.startsWith(SESSION_STORAGE_PREFIX)) sessionStorage2 += 1;
+    else localStorage2 += 1;
+  }
+  return { cookies, localStorage: localStorage2, sessionStorage: sessionStorage2 };
+}
+function originHasLandedBytes(state, origin) {
+  const c = originStoreCounts(state, origin);
+  return c.cookies + c.localStorage + c.sessionStorage > 0;
+}
+function sessionItemsByOrigin(state, prefix = SESSION_STORAGE_PREFIX) {
+  const out = {};
+  for (const o of state.origins ?? []) {
+    if (!o?.origin) continue;
+    const items = {};
+    for (const row of o.localStorage ?? []) {
+      if (!row?.name?.startsWith(prefix)) continue;
+      const name = row.name.slice(prefix.length);
+      if (name) items[name] = row.value ?? "";
+    }
+    if (Object.keys(items).length) out[o.origin] = items;
+  }
+  return out;
 }
 function cookieKey(c) {
   return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`;
@@ -530,8 +667,24 @@ function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFI
   };
   return mergeStorageStates(state, extra);
 }
-function hydrateSessionStorageSource(prefix = SESSION_STORAGE_PREFIX) {
-  return `(() => { try { const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
+function hydrateSessionStorageSource(itemsByOrigin = {}, prefix = SESSION_STORAGE_PREFIX) {
+  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
+}
+async function installSessionStorageRestore(ctx, state, page) {
+  const payload = {
+    baked: state ? sessionItemsByOrigin(state) : {},
+    prefix: SESSION_STORAGE_PREFIX
+  };
+  const content = hydrateSessionStorageSource(payload.baked, payload.prefix);
+  const ctxInstall = ctx.addInitScript;
+  if (typeof ctxInstall === "function") {
+    await ctxInstall({ content }).catch(() => void 0);
+  }
+  const pageInstall = page?.addInitScript;
+  if (typeof pageInstall === "function") {
+    await pageInstall({ content }).catch(() => void 0);
+  }
+  return payload;
 }
 async function hydrateSessionStorage(page) {
   return page.evaluate((prefix) => {
@@ -799,19 +952,22 @@ async function pageForSession(browser) {
   const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
   const pw = {
     cookies: raw.cookies,
-    origins: raw.origins.map((o) => ({ origin: o.origin, localStorage: o.localStorage }))
+    origins: raw.origins.map((o) => ({
+      origin: o.origin,
+      localStorage: o.localStorage,
+      ...o.indexedDB !== void 0 ? { indexedDB: o.indexedDB } : {}
+    }))
   };
   const hasState = storageStateIsPopulated(pw);
   let ctx = existing;
   if (!ctx) {
     ctx = await browser.newContext(hasState ? { storageState: pw } : {});
   }
-  if (typeof ctx.addInitScript === "function") {
-    await ctx.addInitScript({ content: hydrateSessionStorageSource() });
-  }
-  return ctx.pages()[0] ?? ctx.newPage();
+  const page = ctx.pages()[0] ?? await ctx.newPage();
+  await installSessionStorageRestore(ctx, state, page);
+  return page;
 }
-function sleep(ms) {
+function sleep2(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function replayStatus(err) {
@@ -824,7 +980,7 @@ function replayStatus(err) {
 }
 async function retryReplay404(op, opts = {}) {
   const now = opts.now ?? Date.now;
-  const sleepFn = opts.sleep ?? sleep;
+  const sleepFn = opts.sleep ?? sleep2;
   const deadlineMs = opts.deadlineMs ?? now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS;
   let lastErr;
   for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
@@ -860,6 +1016,7 @@ async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REP
 // src/profile-persist.ts
 var EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
 var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
+var EMPTY_ORIGIN_SAVE_ERROR = "refusing to save: no cookies, localStorage, or sessionStorage landed for the page origin";
 var PROFILE_EDITOR_OPEN_ERROR = "profile editor is open; close it, then --save-profile with the live session";
 var HANDOFF_POLL_MS = 2e3;
 var AWAIT_LOGIN_DEFAULT_MS = 3e5;
@@ -888,6 +1045,7 @@ async function persistLiveProfile(opts) {
   return persistProfileState({
     profileId: opts.profileId,
     state: opts.state,
+    origin: opts.origin,
     save: (id, state) => opts.solari.profiles.save(id, state)
   });
 }
@@ -896,8 +1054,22 @@ async function persistProfileState(opts) {
   if (isEmptySeed(seed)) {
     return { ok: false, cookies: 0, origins: 0, error: EMPTY_PROFILE_SAVE_ERROR };
   }
+  if (opts.origin && !originHasLandedBytes(opts.state, opts.origin)) {
+    return { ok: false, ...seed, error: EMPTY_ORIGIN_SAVE_ERROR };
+  }
   try {
     const written = await opts.save(opts.profileId, opts.state);
+    if (!written.sizeBytes) {
+      return {
+        ok: false,
+        version: written.version,
+        sizeBytes: written.sizeBytes,
+        cookies: seed.cookies,
+        origins: seed.origins,
+        via: "profiles.save",
+        error: EMPTY_PROFILE_SAVE_ERROR
+      };
+    }
     return {
       ok: true,
       version: written.version,
@@ -1172,9 +1344,15 @@ var expectSchema = z3.string().refine(isNonEmptyExpect, { message: "check requir
 // src/tool-schema.ts
 import { z as z4 } from "zod";
 var RECORD_PROFILE_ERROR = "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile to override.";
+var RECORD_LOGGED_IN_ERROR = "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record.";
 function assertRecordProfileAllowed(opts) {
   if (opts.record && opts.profile && !opts.allowRecordProfile) {
     throw new Error(RECORD_PROFILE_ERROR);
+  }
+}
+function assertRecordNotLoggedIn(opts) {
+  if (opts.record && (opts.sso || opts.saveProfile)) {
+    throw new Error(RECORD_LOGGED_IN_ERROR);
   }
 }
 var auspexCheckInputObject = z4.object({
@@ -1184,7 +1362,7 @@ var auspexCheckInputObject = z4.object({
   profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
   stealth: z4.boolean().optional().describe("Solari stealth pool. Starter+; Free returns 402 FeatureRequiresPlan (not retryable)"),
   record: z4.boolean().optional().describe(
-    "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile"
+    "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a logged-in landing."
   ),
   sso: z4.boolean().optional().describe("Click Sign in with Microsoft/Google (or another Sign in with \u2026 button) if they appear"),
   ssoProvider: z4.enum(["microsoft", "google", "auto"]).optional().describe("SSO vendor. Default auto tries Microsoft, then Google, then a generic Sign in with button"),
@@ -1200,12 +1378,15 @@ var auspexCheckInputObject = z4.object({
   ),
   allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)"),
   saveProfile: z4.boolean().optional().describe(
-    "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed or a public /landing session so a 0-cookie Save cannot wipe a login."
+    "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed, a public /landing session, or a save with no bytes for the page origin."
   )
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (val.record && val.profile && !val.allowRecordProfile) {
     ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] });
+  }
+  if (val.record && (val.sso || val.saveProfile)) {
+    ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] });
   }
   if (val.fill && val.value === void 0) {
     ctx.addIssue({ code: z4.ZodIssueCode.custom, message: "fill requires value", path: ["value"] });
@@ -1227,9 +1408,9 @@ var auspexAwaitLoginInputSchema = z4.object({
 var auspexDesktopInputSchema = z4.object({
   open: z4.string().optional().describe("App to open (default mousepad)"),
   type: z4.string().optional().describe("Optional text to type after focusing the window"),
-  clickX: z4.number().optional().describe("Click X. Default 320 when opening mousepad; no silent center-click"),
-  clickY: z4.number().optional().describe("Click Y. Default 300 when opening mousepad"),
-  expect: z4.string().optional().describe("Substring that must appear in desktop process list after the task")
+  clickX: z4.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
+  clickY: z4.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
+  expect: z4.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name.")
 });
 var auspexReapInputSchema = z4.object({
   dryRun: z4.boolean().optional().describe("List leftover sessions/VMs without closing them"),
@@ -1393,6 +1574,7 @@ async function runCheck(opts) {
   requireExpect(opts.expect);
   requireCheckUrl(opts.url, "url");
   assertRecordProfileAllowed(opts);
+  assertRecordNotLoggedIn(opts);
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) };
   const onProgress = opts.onProgress ?? noopProgress;
   const solari = createClient();
@@ -1413,6 +1595,8 @@ async function runCheck(opts) {
   let clicked;
   let profileSeed;
   let profileSaved;
+  let needsHuman = false;
+  let reason;
   let workError;
   const work = async (isCancelled, signal) => {
     try {
@@ -1461,13 +1645,19 @@ async function runCheck(opts) {
       if (isCancelled()) return;
       if (opts.sso) {
         onProgress("sso");
-        await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal });
+        const sso = await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal });
+        if (sso.needsHuman) {
+          needsHuman = true;
+          reason = "needsHuman";
+        }
       }
       if (isCancelled()) return;
-      const actions = await runPageActions(page, opts, signal);
-      waitedFor = actions.waitedFor;
-      filled = actions.filled;
-      clicked = actions.clicked;
+      if (!needsHuman) {
+        const actions = await runPageActions(page, opts, signal);
+        waitedFor = actions.waitedFor;
+        filled = actions.filled;
+        clicked = actions.clicked;
+      }
       onProgress("settle");
       try {
         await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal });
@@ -1475,7 +1665,7 @@ async function runCheck(opts) {
       } catch {
         networkIdle = false;
       }
-      if (opts.profile) {
+      if (opts.profile && !needsHuman) {
         await page.waitForURL((url) => isPersistableAppUrl(url.toString()), { timeout: 2e4, signal }).catch(() => void 0);
       }
       if (isCancelled()) return;
@@ -1504,6 +1694,14 @@ async function runCheck(opts) {
         matched = false;
         excerpt = `still on ${finalUrl}. ${excerpt}`;
       }
+      if (needsHuman) {
+        matched = false;
+        excerpt = `needsHuman: Microsoft password or OTP wall at ${finalUrl || page.url()}. ${excerpt}`;
+      } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl)) {
+        reason = "loggedOut";
+        matched = false;
+        excerpt = `loggedOut: landed on ${finalUrl}. ${excerpt}`;
+      }
       onProgress("screenshot");
       await page.screenshot({
         path: screenshotAbs,
@@ -1513,7 +1711,7 @@ async function runCheck(opts) {
         timeout: SCREENSHOT_TIMEOUT_MS
       });
       await writeFittedScreenshot(screenshotAbs);
-      if (opts.saveProfile && profileId && !isCancelled()) {
+      if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
         onProgress("save-profile");
         const liveUrl = finalUrl || page.url();
         if (!isPersistableAppUrl(liveUrl)) {
@@ -1525,11 +1723,13 @@ async function runCheck(opts) {
           };
         } else {
           const state = await captureStorageState(browser);
+          const origin = originOf(liveUrl);
           profileSaved = await persistLiveProfile({
             solari,
             profileId,
             sessionId,
-            state
+            state,
+            origin
           });
         }
       }
@@ -1564,13 +1764,19 @@ async function runCheck(opts) {
         cause: workError
       });
     }
-    if (opts.record && sessionId) {
+    if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
+      reason = "recordedLoggedIn";
+    } else if (opts.record && sessionId) {
       onProgress("replay");
       replayReady = await attachRecordedReplay(solari, sessionId, outDir);
     }
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts));
+    const loggedOut = reason === "loggedOut";
+    const blockedHuman = reason === "needsHuman" || needsHuman;
     const savedOk = !opts.saveProfile || profileSaved?.ok === true;
-    const protocolOk = Boolean(finalUrl && existsSync2(screenshotAbs) && !authFail && savedOk);
+    const protocolOk = Boolean(
+      finalUrl && existsSync2(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && reason !== "recordedLoggedIn"
+    );
     const result = {
       title,
       finalUrl,
@@ -1585,6 +1791,8 @@ async function runCheck(opts) {
       waitedFor,
       filled,
       clicked,
+      reason,
+      needsHuman: needsHuman || void 0,
       profileSeed,
       profileSaved
     };
@@ -1678,6 +1886,81 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path6 from "node:path";
 import { SolariClient } from "@solarisdk/sdk";
 
+// src/desktop-probe.ts
+var PS_ARGS = ["-c", "ps -A -o args="];
+var WMCTRL_ARGS = ["-c", "wmctrl -l"];
+var XDOTOOL_ARGS = ["-c", "xdotool search --onlyvisible --name ."];
+function desktopNeedleMatches(haystack, needle) {
+  return haystackMatches(haystack.toLowerCase(), needle.toLowerCase());
+}
+function processHaystack(procs) {
+  return procs.map((p) => `${p.name} ${p.cmd ?? ""}`).join("\n");
+}
+async function collectProcessSignal(desktop) {
+  const chunks = [];
+  const via = [];
+  if (desktop.processList) {
+    try {
+      chunks.push(processHaystack(await desktop.processList()));
+      via.push("processList");
+    } catch {
+    }
+  }
+  if (desktop.exec) {
+    try {
+      const out = await desktop.exec("sh", { args: PS_ARGS });
+      chunks.push(out.stdout || "");
+      via.push("ps");
+    } catch {
+    }
+  }
+  return { haystack: chunks.join("\n"), via };
+}
+async function collectWindowSignal(desktop) {
+  if (desktop.windowList) {
+    try {
+      const names = await desktop.windowList();
+      if (Array.isArray(names)) return { haystack: names.join("\n"), via: "windowList" };
+    } catch {
+    }
+  }
+  if (!desktop.exec) return null;
+  for (const [via, args] of [
+    ["wmctrl", WMCTRL_ARGS],
+    ["xdotool", XDOTOOL_ARGS]
+  ]) {
+    try {
+      const out = await desktop.exec("sh", { args: [...args] });
+      if (out.exitCode === 0 && (out.stdout || "").trim()) {
+        return { haystack: out.stdout || "", via };
+      }
+    } catch {
+    }
+  }
+  return null;
+}
+async function waitForProcess(desktop, needle, sleepFn, windowMs) {
+  const deadline = Date.now() + windowMs;
+  let signal = await collectProcessSignal(desktop);
+  if (signal.via.length > 0 && desktopNeedleMatches(signal.haystack, needle)) {
+    return { processOk: true, signal };
+  }
+  while (Date.now() < deadline) {
+    await sleepFn(500);
+    signal = await collectProcessSignal(desktop);
+    if (signal.via.length === 0) continue;
+    if (desktopNeedleMatches(signal.haystack, needle)) return { processOk: true, signal };
+  }
+  signal = await collectProcessSignal(desktop);
+  return {
+    processOk: signal.via.length > 0 && desktopNeedleMatches(signal.haystack, needle),
+    signal
+  };
+}
+function expectOnProcessSignal(signal, expect) {
+  return signal.via.length > 0 && desktopNeedleMatches(signal.haystack, expect);
+}
+
 // src/banner.ts
 var REVIEW_START = "Agent is using Solari to review";
 var REVIEW_DONE = "Solari closed, all operations completed per request. Agent sending output...";
@@ -1697,8 +1980,10 @@ function desktopLogHeader() {
 ==> ${REVIEW_START}`;
 }
 function desktopSummary(opts) {
+  const proc = opts.processOk === void 0 ? "" : ` processOk=${opts.processOk}`;
+  const win = opts.windowOk === void 0 ? "" : ` windowOk=${opts.windowOk}`;
   const err = opts.errors.length ? ` errors=${opts.errors.join("; ")}` : "";
-  return `==> ok=${opts.ok} ready=${opts.ready}${err}
+  return `==> ok=${opts.ok} ready=${opts.ready}${proc}${win}${err}
 ==> path=${opts.screenshotPath}`;
 }
 function createDesktopTui(stream) {
@@ -1732,9 +2017,8 @@ function createDesktopTui(stream) {
 var DESKTOP_OVERALL_MS = 9e4;
 var DESKTOP_HEALTH_MS = 3e4;
 var WINDOW_MAP_MS = 8e3;
-var MOUSEPAD_CLICK = { x: 320, y: 300 };
-var DEFAULT_DESKTOP_TASK = { open: "mousepad", click: MOUSEPAD_CLICK };
-function sleep2(ms) {
+var DEFAULT_DESKTOP_TASK = { open: "mousepad" };
+function sleep3(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 var DESKTOP_CREATE_OPTS = {
@@ -1750,9 +2034,12 @@ function resolveDesktopTask(task) {
   return { ...DEFAULT_DESKTOP_TASK };
 }
 function clickForTask(task) {
-  if (task.click) return task.click;
-  if ((task.open ?? "").toLowerCase() === "mousepad") return MOUSEPAD_CLICK;
-  return void 0;
+  return task.click;
+}
+function desktopNeedle(task) {
+  const open = task.open?.trim();
+  const expect = task.expect?.trim();
+  return open || expect || void 0;
 }
 function defaultDesktopDeps() {
   return {
@@ -1791,49 +2078,14 @@ async function waitReady(desktop, sleepFn, healthMs = DESKTOP_HEALTH_MS) {
   }
   return false;
 }
-function processHaystack(procs) {
-  return procs.map((p) => `${p.name} ${p.cmd ?? ""}`).join("\n");
-}
-async function waitForWindow(desktop, open, sleepFn, windowMs = WINDOW_MAP_MS) {
-  if (!desktop.processList && !desktop.exec) {
-    await sleepFn(windowMs);
-    return true;
-  }
-  const deadline = Date.now() + windowMs;
-  const needle = open.toLowerCase();
-  while (Date.now() < deadline) {
-    try {
-      if (desktop.processList) {
-        const hay = processHaystack(await desktop.processList());
-        if (haystackMatches(hay, needle)) return true;
-      } else if (desktop.exec) {
-        const out = await desktop.exec("sh", { args: ["-c", "ps -A -o args="] });
-        if (haystackMatches(out.stdout || "", needle)) return true;
-      }
-    } catch {
-    }
-    await sleepFn(500);
-  }
-  return false;
-}
-async function expectOnDesktop(desktop, expect) {
-  if (desktop.processList) {
-    const hay = processHaystack(await desktop.processList());
-    if (haystackMatches(hay, expect)) return true;
-  }
-  if (desktop.exec) {
-    const out = await desktop.exec("sh", { args: ["-c", "ps -A -o args="] });
-    if (haystackMatches(out.stdout || "", expect)) return true;
-  }
-  return false;
-}
 async function runDesktopReview(deps = defaultDesktopDeps()) {
   const status = deps.status ?? process.stderr;
-  const sleepFn = deps.sleep ?? sleep2;
+  const sleepFn = deps.sleep ?? sleep3;
   const tui = deps.tui ?? createDesktopTui(status);
   const overview = desktopOverviewText();
   const overallMs = deps.overallMs ?? DESKTOP_OVERALL_MS;
   const task = resolveDesktopTask(deps.task);
+  const needle = desktopNeedle(task);
   tui.setPhase("booting");
   let desktop;
   const createP = deps.create();
@@ -1856,19 +2108,26 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         tui.setPhase("waiting");
         const ready = await waitReady(desktop, sleepFn, deps.healthMs);
         tui.setPhase("task");
-        let windowReady = true;
+        let processOk;
+        let windowOk;
+        let processSignal = { haystack: "", via: [] };
         if (task.open && desktop.openApp) {
           await desktop.openApp(task.open);
-          windowReady = await waitForWindow(desktop, task.open, sleepFn, deps.windowMs);
+        }
+        if (needle) {
+          const waited = await waitForProcess(desktop, needle, sleepFn, deps.windowMs ?? WINDOW_MAP_MS);
+          processOk = waited.processOk;
+          processSignal = waited.signal;
+          const windows = await collectWindowSignal(desktop);
+          if (windows) windowOk = desktopNeedleMatches(windows.haystack, needle);
         }
         const clickAt = clickForTask(task);
-        if (task.type && desktop.typeText && clickAt && desktop.click) {
+        let click;
+        if (clickAt && desktop.click) {
           await desktop.click(clickAt.x, clickAt.y);
-          await desktop.typeText(task.type);
-        } else {
-          if (clickAt && desktop.click) await desktop.click(clickAt.x, clickAt.y);
-          if (task.type && desktop.typeText) await desktop.typeText(task.type);
+          click = { x: clickAt.x, y: clickAt.y, verified: false };
         }
+        if (task.type && desktop.typeText) await desktop.typeText(task.type);
         tui.setPhase("screenshot");
         const png = await desktop.screenshot();
         const dir = newRunDir();
@@ -1880,10 +2139,13 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         let matched = true;
         const errors = [];
         if (!ready) errors.push("desktop X11 was not ready");
-        if (task.open && !windowReady) errors.push(`window for ${task.open} did not appear`);
+        if (needle && processOk === false) errors.push(`process for ${needle} did not appear`);
+        if (windowOk === false) errors.push(`window for ${needle} did not appear`);
         if (task.expect) {
-          matched = await expectOnDesktop(desktop, task.expect);
+          matched = expectOnProcessSignal(processSignal, task.expect);
           if (!matched) errors.push(`expect not found on desktop: ${task.expect}`);
+        } else if (needle) {
+          matched = processOk === true;
         }
         tui.setPhase("killing");
         try {
@@ -1896,7 +2158,7 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         tui.close();
         const screenshotPath = toReceiptPath(abs);
         const ok = errors.length === 0;
-        const summary = desktopSummary({ ok, ready, screenshotPath, errors });
+        const summary = desktopSummary({ ok, ready, processOk, windowOk, screenshotPath, errors });
         status.write(`${summary}
 `);
         const log = `${tui.transcript()}
@@ -1907,9 +2169,11 @@ ${summary}`;
           desktopId,
           screenshotPath,
           ready,
-          windowReady,
+          processOk,
+          windowOk,
+          click,
           matched,
-          expect: task.expect,
+          expect: task.expect ?? needle,
           streamUrl,
           overview,
           log
@@ -2247,10 +2511,10 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session). 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
 var VERIFY_DESCRIPTION = "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success.";
-var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, wait for X11, open mousepad by default (click inside the editor at 320,300 \u2014 not screen center), optional type/expect, screenshot, kill. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
+var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, wait for X11, open mousepad by default (the demo is opening the app). Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified (coordinate clicks are not). Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing.";
 function progressFromExtra(extra) {
@@ -2358,7 +2622,10 @@ function registerAuspexTools(server2) {
           {
             ok: result.ok,
             ready: result.ready,
-            windowReady: result.windowReady,
+            processOk: result.processOk,
+            windowOk: result.windowOk,
+            clicked: result.clicked,
+            click: result.click,
             matched: result.matched,
             screenshotPath: result.screenshotPath,
             errors: result.errors,

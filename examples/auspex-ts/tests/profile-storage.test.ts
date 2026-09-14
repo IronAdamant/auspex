@@ -6,8 +6,13 @@ import {
   foldSessionStorage,
   hydrateSessionStorageInMemory,
   hydrateSessionStorageSource,
+  installSessionStorageRestore,
+  isLoggedOutLanding,
   isPersistableAppUrl,
   mergeStorageStates,
+  originHasLandedBytes,
+  originStoreCounts,
+  sessionItemsByOrigin,
 } from "../src/profile-storage.ts"
 
 test("foldSessionStorage stores session keys under the Auspex prefix", () => {
@@ -52,6 +57,61 @@ test("hydrateSessionStorageSource copies prefixed keys", () => {
   assert.match(src, /sessionStorage.setItem/)
 })
 
+test("installSessionStorageRestore registers a content init script with baked keys", async () => {
+  const calls: unknown[] = []
+  const payload = await installSessionStorageRestore(
+    {
+      addInitScript: async (script: unknown, arg?: unknown) => {
+        calls.push({ fn: typeof script, arg })
+      },
+    },
+    {
+      cookies: [],
+      origins: [
+        {
+          origin: "https://consistencyhub.io",
+          localStorage: [{ name: `${SESSION_STORAGE_PREFIX}accessToken`, value: "tok" }],
+        },
+      ],
+    },
+  )
+  assert.equal(payload.baked["https://consistencyhub.io"]?.accessToken, "tok")
+  assert.equal(calls.length, 1)
+  const first = calls[0] as { fn: string; arg?: unknown }
+  assert.equal(first.fn, "object")
+})
+
+test("hydrateSessionStorageSource bakes sessionStorage for restore before navigation", () => {
+  const baked = sessionItemsByOrigin({
+    cookies: [],
+    origins: [
+      {
+        origin: "https://consistencyhub.io",
+        localStorage: [{ name: `${SESSION_STORAGE_PREFIX}accessToken`, value: "tok" }],
+      },
+    ],
+  })
+  assert.equal(baked["https://consistencyhub.io"]?.accessToken, "tok")
+  const src = hydrateSessionStorageSource(baked)
+  assert.match(src, /accessToken/)
+  assert.match(src, /tok/)
+  assert.match(src, /sessionStorage.setItem/)
+})
+
+test("originHasLandedBytes requires cookies or storage for that origin", () => {
+  const msOnly = {
+    cookies: [{ name: "ESTSAUTH", value: "x", domain: "login.microsoftonline.com" }],
+    origins: [{ origin: "https://consistencyhub.io", localStorage: [] }],
+  }
+  assert.equal(originHasLandedBytes(msOnly, "https://consistencyhub.io"), false)
+  assert.equal(originStoreCounts(msOnly, "https://consistencyhub.io").cookies, 0)
+  const landed = foldSessionStorage(msOnly, "https://consistencyhub.io", [
+    { name: "accessToken", value: "tok" },
+  ])
+  assert.equal(originHasLandedBytes(landed, "https://consistencyhub.io"), true)
+  assert.equal(originStoreCounts(landed, "https://consistencyhub.io").sessionStorage, 1)
+})
+
 test("isPersistableAppUrl rejects landing and auth, allows dashboard", () => {
   assert.equal(isPersistableAppUrl("https://consistencyhub.io/landing"), false)
   assert.equal(isPersistableAppUrl("https://consistencyhub.io/"), false)
@@ -59,6 +119,15 @@ test("isPersistableAppUrl rejects landing and auth, allows dashboard", () => {
   assert.equal(isPersistableAppUrl("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"), false)
   assert.equal(isPersistableAppUrl("https://consistencyhub.io/dashboard"), true)
   assert.equal(isPersistableAppUrl("https://consistencyhub.io/document-editor"), true)
+})
+
+test("isLoggedOutLanding is /landing or a login page, not a generic mismatch", () => {
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/landing"), true)
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/landing/"), true)
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/login"), true)
+  assert.equal(isLoggedOutLanding("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"), true)
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/dashboard"), false)
+  assert.equal(isLoggedOutLanding("https://ironadamant.com/"), false)
 })
 
 test("captureStorageState folds sessionStorage from open pages", async () => {

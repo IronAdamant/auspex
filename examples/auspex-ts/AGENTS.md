@@ -14,14 +14,14 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 - `auspex_profiles` — list names/ids, version, and whether storage is populated.
 - `auspex_verify` — only if you already ran `auspex_check` **without** `verify=true`. Uploads the on-disk PNG + JSON, asserts **integrity `ok`** vs **claim `claimOk`** (fetch/OCR of expect — not JSON echo), kills the VM.
 - `auspex_reap` — list leftover browser sessions (Auspex live ledger) and kill holding sandboxes/desktops. Use after **429**. `dryRun` lists only.
-- `auspex_desktop` — boot a Solari GUI desktop, wait for X11, open Mousepad by default, click **inside the editor (320,300)**, optional `type`/`expect`, screenshot, kill. Tool text is the ASCII log **plus** JSON. `streamUrl` is live VNC.
+- `auspex_desktop` — boot a Solari GUI desktop, wait for X11, open Mousepad by default (the demo is opening the app). Wait/expect/`ok` share one process haystack. `windowOk` only if a real window list exists. `clicked` only if verified. Tool text is the ASCII log **plus** JSON. `streamUrl` is live VNC.
 
 ## Rules
 
 - Always let Auspex **close** the Solari check session. A leaked session burns concurrency until you `auspex_reap`.
 - **402 FeatureRequiresPlan** (stealth, proxy, captcha, desktops on a plan that lacks them) is **not retryable**. Drop the gated option or upgrade. `proxy`/`captcha` imply stealth.
 - **429 ConcurrencyLimitExceeded** is **not retryable**. Call `auspex_reap`, then retry. Do not only use the Solari console. Do not retry create while the slot is held.
-- `record` + `profile` is forbidden unless `allowRecordProfile` (recordings capture input).
+- `record` + `profile` is forbidden unless `allowRecordProfile` (recordings capture input). Never `--record` a logged-in session (`sso`, `saveProfile`, or a dashboard landing).
 - Never commit `SOLARI_API_KEY`, `.env`, or `.auspex/` artifacts.
 - Prefer `auspex_check` over driving raw CDP.
 - `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + `demo/replay.html`. Refresh with `npx tsx scripts/save-demo-receipt.ts`. Never record a logged-in ConsistencyHub session.
@@ -39,4 +39,4 @@ npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--exp
 npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
 ```
 
-`--sso` clicks Microsoft, then Google, then a generic Sign in with … button. Use with `--profile`. `--sso-provider` pins a vendor. `--profile` applies the saved Playwright storage state onto a new context (`chromium.connect` does not expose Solari's default context). Empty seeds (0 cookies and 0 origins) fail closed unless `--sso`. `--save-profile` writes cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and **refuses an empty overwrite or a public /landing session**. `record`+`profile` is forbidden unless `--allow-record-profile`.
+`--sso` clicks Microsoft, then Google, then a generic Sign in with … button. Use with `--profile`. `--sso-provider` pins a vendor. Microsoft password/OTP walls return `needsHuman: true` and are never typed. `--profile` applies the saved Playwright storage state onto a new context **before first navigation** (`chromium.connect` does not expose Solari's default context). Empty seeds (0 cookies and 0 origins) fail closed unless `--sso`. `--save-profile` writes cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and **refuses an empty overwrite, a public /landing session, or a save with no bytes for the page origin**. A later `--profile` check that lands on `/landing` or a login page is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile`. Never `--record` with `--sso` or `--save-profile`.

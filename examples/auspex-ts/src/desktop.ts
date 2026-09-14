@@ -2,19 +2,29 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { SolariClient } from "@solarisdk/sdk"
 import { packageRoot, toReceiptPath } from "./check.ts"
+import {
+  collectProcessSignal,
+  collectWindowSignal,
+  desktopNeedleMatches,
+  expectOnProcessSignal,
+  waitForProcess,
+  type DesktopProcess,
+  type DesktopProbeHandle,
+} from "./desktop-probe.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
-import { haystackMatches } from "./text.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { fetchWithIdempotencyKey, requireApiKey } from "./solari.ts"
 import { observeAbort, raceWithTimeout } from "./timeout.ts"
 import { createDesktopTui, desktopOverviewText, desktopSummary, type DesktopTui } from "./tui.ts"
 
+export type { DesktopProcess }
+
 export const DESKTOP_OVERALL_MS = 90_000
 export const DESKTOP_HEALTH_MS = 30_000
 export const WINDOW_MAP_MS = 8_000
-/** Mousepad's editor, not screen center (640,360 misses the window). */
+/** Old Mousepad layout guess. Unverified; not the default demo. Pass --click to attempt it. */
 export const MOUSEPAD_CLICK = { x: 320, y: 300 }
-export const DEFAULT_DESKTOP_TASK = { open: "mousepad", click: MOUSEPAD_CLICK }
+export const DEFAULT_DESKTOP_TASK: DesktopTask = { open: "mousepad" }
 
 export type DesktopResult = {
   ok: boolean
@@ -22,7 +32,10 @@ export type DesktopResult = {
   desktopId: string
   screenshotPath: string
   ready: boolean
-  windowReady: boolean
+  processOk?: boolean
+  windowOk?: boolean
+  clicked?: boolean
+  click?: { x: number; y: number; verified: false }
   matched: boolean
   expect?: string
   streamUrl?: string
@@ -37,9 +50,7 @@ export type DesktopTask = {
   expect?: string
 }
 
-export type DesktopProcess = { pid: number; name: string; cmd?: string }
-
-export type DesktopHandle = {
+export type DesktopHandle = DesktopProbeHandle & {
   sessionId: string
   streamUrl?: string
   connect: () => Promise<void>
@@ -49,8 +60,6 @@ export type DesktopHandle = {
   click?: (x: number, y: number) => Promise<void>
   typeText?: (text: string) => Promise<void>
   openApp?: (name: string) => Promise<void>
-  exec?: (cmd: string, opts?: { args?: string[] }) => Promise<{ stdout?: string; exitCode: number }>
-  processList?: () => Promise<DesktopProcess[]>
 }
 
 export type DesktopDeps = {
@@ -83,9 +92,13 @@ export function resolveDesktopTask(task?: DesktopTask): DesktopTask {
 }
 
 export function clickForTask(task: DesktopTask): { x: number; y: number } | undefined {
-  if (task.click) return task.click
-  if ((task.open ?? "").toLowerCase() === "mousepad") return MOUSEPAD_CLICK
-  return undefined
+  return task.click
+}
+
+export function desktopNeedle(task: DesktopTask): string | undefined {
+  const open = task.open?.trim()
+  const expect = task.expect?.trim()
+  return open || expect || undefined
 }
 
 export function defaultDesktopDeps(): DesktopDeps {
@@ -133,49 +146,8 @@ async function waitReady(
   return false
 }
 
-function processHaystack(procs: DesktopProcess[]): string {
-  return procs.map((p) => `${p.name} ${p.cmd ?? ""}`).join("\n")
-}
-
-async function waitForWindow(
-  desktop: DesktopHandle,
-  open: string,
-  sleepFn: (ms: number) => Promise<void>,
-  windowMs = WINDOW_MAP_MS,
-): Promise<boolean> {
-  if (!desktop.processList && !desktop.exec) {
-    await sleepFn(windowMs)
-    return true
-  }
-  const deadline = Date.now() + windowMs
-  const needle = open.toLowerCase()
-  while (Date.now() < deadline) {
-    try {
-      if (desktop.processList) {
-        const hay = processHaystack(await desktop.processList())
-        if (haystackMatches(hay, needle)) return true
-      } else if (desktop.exec) {
-        const out = await desktop.exec("sh", { args: ["-c", "ps -A -o args="] })
-        if (haystackMatches(out.stdout || "", needle)) return true
-      }
-    } catch {
-      /* window list can lag */
-    }
-    await sleepFn(500)
-  }
-  return false
-}
-
 export async function expectOnDesktop(desktop: DesktopHandle, expect: string): Promise<boolean> {
-  if (desktop.processList) {
-    const hay = processHaystack(await desktop.processList())
-    if (haystackMatches(hay, expect)) return true
-  }
-  if (desktop.exec) {
-    const out = await desktop.exec("sh", { args: ["-c", "ps -A -o args="] })
-    if (haystackMatches(out.stdout || "", expect)) return true
-  }
-  return false
+  return expectOnProcessSignal(await collectProcessSignal(desktop), expect)
 }
 
 export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps()): Promise<DesktopResult> {
@@ -185,6 +157,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
   const overview = desktopOverviewText()
   const overallMs = deps.overallMs ?? DESKTOP_OVERALL_MS
   const task = resolveDesktopTask(deps.task)
+  const needle = desktopNeedle(task)
   tui.setPhase("booting")
   let desktop: DesktopHandle | undefined
   const createP = deps.create()
@@ -207,19 +180,26 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         tui.setPhase("waiting")
         const ready = await waitReady(desktop, sleepFn, deps.healthMs)
         tui.setPhase("task")
-        let windowReady = true
+        let processOk: boolean | undefined
+        let windowOk: boolean | undefined
+        let processSignal = { haystack: "", via: [] as Array<"processList" | "ps"> }
         if (task.open && desktop.openApp) {
           await desktop.openApp(task.open)
-          windowReady = await waitForWindow(desktop, task.open, sleepFn, deps.windowMs)
+        }
+        if (needle) {
+          const waited = await waitForProcess(desktop, needle, sleepFn, deps.windowMs ?? WINDOW_MAP_MS)
+          processOk = waited.processOk
+          processSignal = waited.signal
+          const windows = await collectWindowSignal(desktop)
+          if (windows) windowOk = desktopNeedleMatches(windows.haystack, needle)
         }
         const clickAt = clickForTask(task)
-        if (task.type && desktop.typeText && clickAt && desktop.click) {
+        let click: DesktopResult["click"]
+        if (clickAt && desktop.click) {
           await desktop.click(clickAt.x, clickAt.y)
-          await desktop.typeText(task.type)
-        } else {
-          if (clickAt && desktop.click) await desktop.click(clickAt.x, clickAt.y)
-          if (task.type && desktop.typeText) await desktop.typeText(task.type)
+          click = { x: clickAt.x, y: clickAt.y, verified: false }
         }
+        if (task.type && desktop.typeText) await desktop.typeText(task.type)
         tui.setPhase("screenshot")
         const png = await desktop.screenshot()
         const dir = newRunDir()
@@ -231,10 +211,13 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         let matched = true
         const errors: string[] = []
         if (!ready) errors.push("desktop X11 was not ready")
-        if (task.open && !windowReady) errors.push(`window for ${task.open} did not appear`)
+        if (needle && processOk === false) errors.push(`process for ${needle} did not appear`)
+        if (windowOk === false) errors.push(`window for ${needle} did not appear`)
         if (task.expect) {
-          matched = await expectOnDesktop(desktop, task.expect)
+          matched = expectOnProcessSignal(processSignal, task.expect)
           if (!matched) errors.push(`expect not found on desktop: ${task.expect}`)
+        } else if (needle) {
+          matched = processOk === true
         }
         tui.setPhase("killing")
         try {
@@ -247,7 +230,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         tui.close()
         const screenshotPath = toReceiptPath(abs)
         const ok = errors.length === 0
-        const summary = desktopSummary({ ok, ready, screenshotPath, errors })
+        const summary = desktopSummary({ ok, ready, processOk, windowOk, screenshotPath, errors })
         status.write(`${summary}\n`)
         const log = `${tui.transcript()}\n${summary}`
         return {
@@ -256,9 +239,11 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
           desktopId,
           screenshotPath,
           ready,
-          windowReady,
+          processOk,
+          windowOk,
+          click,
           matched,
-          expect: task.expect,
+          expect: task.expect ?? needle,
           streamUrl,
           overview,
           log,
