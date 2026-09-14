@@ -59,9 +59,42 @@ test("waitUntilReleased resolves on status released", async () => {
   assert.ok(n >= 2)
 })
 
-test("checkThenVerify overlaps sandbox create with the browser check", async () => {
-  const started: number[] = []
-  const stamp = `ovl-${Date.now()}`
+test("checkThenVerify skips sandbox create after loggedOut and needsHuman", async () => {
+  const { checkThenVerify } = await import("../src/sandbox.ts")
+  for (const reason of ["loggedOut", "needsHuman"] as const) {
+    let creates = 0
+    const check = {
+      title: "t",
+      finalUrl: "https://consistencyhub.io/landing",
+      ok: false,
+      reason,
+      url: "https://consistencyhub.io",
+      expect: "Document Editor",
+      matched: false,
+      excerpt: reason,
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      sessionId: "sess",
+      networkIdle: true,
+    }
+    const both = await checkThenVerify(
+      { url: "https://consistencyhub.io", expect: "Document Editor" },
+      {
+        check: async () => check,
+        create: async () => {
+          creates += 1
+          throw new Error("must not create a sandbox")
+        },
+      },
+    )
+    assert.equal(creates, 0, reason)
+    assert.equal(both.verify.skipped, true)
+    assert.equal(both.verify.skipReason, reason)
+    assert.equal(both.check.reason, reason)
+  }
+})
+
+test("checkThenVerify verifies after matched and starts sandbox only after check", async () => {
+  const stamp = `seq-${Date.now()}`
   const dir = path.join(RUNS_DIR, stamp)
   mkdirSync(dir, { recursive: true })
   writeFileSync(
@@ -87,19 +120,16 @@ test("checkThenVerify overlaps sandbox create with the browser check", async () 
     sessionId: "sess",
     networkIdle: false,
   }
-  let creates = 0
+  const order: string[] = []
   const both = await checkThenVerify(
     { url: "https://ironadamant.com", expect: "Build it." },
     {
       check: async () => {
-        started.push(Date.now())
-        await new Promise((r) => setTimeout(r, 40))
+        order.push("check")
         return check
       },
       create: async () => {
-        creates += 1
-        started.push(Date.now())
-        await new Promise((r) => setTimeout(r, 40))
+        order.push("create")
         return {
           connect: async () => undefined,
           files: {
@@ -113,16 +143,15 @@ test("checkThenVerify overlaps sandbox create with the browser check", async () 
             }),
           },
           kill: async () => undefined,
-          sandboxId: "sbx-overlap",
+          sandboxId: "sbx-seq",
         }
       },
     },
   )
-  assert.equal(creates, 1)
-  assert.equal(started.length, 2)
-  assert.ok(Math.abs(started[0]! - started[1]!) < 30)
+  assert.deepEqual(order, ["check", "create"])
   assert.equal(both.check.sessionId, "sess")
   assert.equal(both.verify.ok, true)
+  assert.equal(both.verify.skipped, undefined)
 })
 
 test("check source waits for networkidle after DCL", () => {

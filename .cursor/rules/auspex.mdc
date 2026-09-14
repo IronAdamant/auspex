@@ -5,13 +5,15 @@ alwaysApply: true
 
 # Auspex — default web eyes in this repo
 
-For **ironadamant.com**, **checkpointprojects.com**, and **consistencyhub.io**, use **Auspex** (MCP tools in `.cursor/mcp.json`, CLI in `examples/auspex-ts`). Do not reconstruct ad-hoc browser flags when a saved check exists. Three primitives only: browser check, sandbox verify, named sandbox desktop demo. No fourth primitive. Desktop is not the user's Mac and not computer-use on a local machine.
+Canonical how-to-run: **[AGENTS.md](AGENTS.md)** at the repo root (any host). This rule is not the only instructions.
+
+For **ironadamant.com**, **checkpointprojects.com**, and **consistencyhub.io**, use **Auspex**. Do not reconstruct ad-hoc browser flags when a saved check exists. Three primitives only: browser check, sandbox verify, named sandbox desktop demo. No fourth primitive. Desktop is not the user's Mac and not computer-use on a local machine.
 
 ## Tools
 
-- `auspex_check` — default path. Verifies by default (HTTP fetch + OCR). Parseable receipt: `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`. Diff vs last same-URL receipt is on the check (not a new primitive).
+- `auspex_check` — default path. Verifies by default (HTTP fetch + OCR). Parseable receipt: `schemaVersion`, `ok`, `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`), `url`, `expect`, `screenshotPath`. Diff vs last same-URL receipt is on the check (not a new primitive). `loggedOut` / `needsHuman` are not retried.
 - Saved checks (do not rebuild flags): `name=ironadamant` (expect `One office job.`), `name=checkpoint` (expect `Checkpoint`), `name=consistencyhub` (`--profile consistencyhub`, expect `Document Editor`, **no `--sso`**, **no `--record`**).
-- CLI: `npx tsx src/cli.ts check --name ironadamant` (from `examples/auspex-ts`). `--no-verify` skips the sandbox.
+- CLI: `npx auspex check --name ironadamant` from the repo root (or `npx tsx src/cli.ts` from `examples/auspex-ts`). `--no-verify` skips the sandbox. MCP: `npx auspex-mcp`.
 - `auspex_profile_status` — `loggedIn` vs `loggedOut` vs `needsHuman`. Re-seed is **human SSO once**. Never type a Microsoft password or OTP. Never ping the user to sign in. If ConsistencyHub is logged out, report `loggedOut` and skip the live path.
 - `auspex_reap` — 429 leftovers. `packReceipts` copies last receipts for a PR attach.
 - `auspex_desktop` — named Solari sandbox demo (Mousepad), not "use the Mac."
@@ -19,5 +21,5 @@ For **ironadamant.com**, **checkpointprojects.com**, and **consistencyhub.io**, 
 ## Hard bans
 
 - Never `--record` with `--sso`, `--save-profile`, or a dashboard landing. Never `--record` a logged-in ConsistencyHub session.
-- Never commit `.env` or `SOLARI_API_KEY`. Never print secrets.
+- Never commit `.env` or `SOLARI_API_KEY`. Never print secrets. Document `SOLARI_API_KEY` only.
 - Do not intern-ping. Do not clone Solari's 33-tool MCP as the product.

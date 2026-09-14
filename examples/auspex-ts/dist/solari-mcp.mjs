@@ -15,9 +15,9 @@ import {
 } from "@solarisdk/browser";
 import { chromium } from "patchright-core";
 var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
-function loadDotEnv(file = DOTENV_PATH) {
-  if (process.env.SOLARI_API_KEY) return;
-  if (!existsSync(file)) return;
+var REPO_DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..", ".env");
+function readSolariKeyFromFile(file) {
+  if (!existsSync(file)) return void 0;
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
@@ -31,7 +31,16 @@ function loadDotEnv(file = DOTENV_PATH) {
     if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
       value = value.slice(1, -1);
     }
-    if (name === "SOLARI_API_KEY" && value) {
+    if (name === "SOLARI_API_KEY" && value) return value;
+  }
+  return void 0;
+}
+function loadDotEnv(file = DOTENV_PATH) {
+  if (process.env.SOLARI_API_KEY) return;
+  const files = file === DOTENV_PATH ? [DOTENV_PATH, REPO_DOTENV_PATH] : [file];
+  for (const f of files) {
+    const value = readSolariKeyFromFile(f);
+    if (value) {
       process.env.SOLARI_API_KEY = value;
       return;
     }

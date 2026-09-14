@@ -29,19 +29,29 @@ function overlayVerifyReason(reason, verify) {
 function agentReceiptOk(opts) {
   if (!opts.protocolOk) return false;
   if (opts.reason !== "matched") return false;
-  if (opts.verify) return opts.verify.ok && opts.verify.claimOk;
+  if (opts.verify && !opts.verify.skipped) return opts.verify.ok && opts.verify.claimOk;
   return true;
+}
+
+// src/schema-version.ts
+var SCHEMA_VERSION = 1;
+function stampSchema(obj) {
+  const rest = { ...obj };
+  delete rest.schemaVersion;
+  return { schemaVersion: SCHEMA_VERSION, ...rest };
 }
 
 // src/agent-receipt.ts
 function toAgentReceipt(check, extras) {
-  const reason = extras?.verify ? overlayVerifyReason(check.reason, extras.verify) : check.reason;
+  const verify = extras?.verify;
+  const reason = verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason;
   const ok = agentReceiptOk({
     protocolOk: check.ok,
     reason,
-    verify: extras?.verify
+    verify
   });
   return {
+    schemaVersion: SCHEMA_VERSION,
     ok,
     reason,
     url: check.url || check.finalUrl,
@@ -67,8 +77,8 @@ function toAgentReceipt(check, extras) {
 
 // src/check.ts
 import { existsSync as existsSync2 } from "node:fs";
-import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
-import path7 from "node:path";
+import { mkdir as mkdir3, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
+import path8 from "node:path";
 
 // src/http-url.ts
 import { z } from "zod";
@@ -342,10 +352,22 @@ function fitMcpAttach(png, cap = MCP_ATTACH_MAX_BYTES) {
   return { buf: pngOut, mimeType: "image/png" };
 }
 
-// src/solari.ts
-import { existsSync, readFileSync } from "node:fs";
+// src/profile-lock.ts
+import { open, mkdir, readFile, stat, unlink } from "node:fs/promises";
+import path3 from "node:path";
+
+// src/paths.ts
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+var packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// src/profiles.ts
+import { z as z2 } from "zod";
+
+// src/solari.ts
+import { existsSync, readFileSync } from "node:fs";
+import path2 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 import {
   BrowserSession,
   Solari,
@@ -454,8 +476,8 @@ function stillOnAuth(url) {
   if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
     return true;
   }
-  const path12 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path12 === "/login" || path12.startsWith("/login/") || path12 === "/auth" || path12.startsWith("/auth/")) {
+  const path13 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path13 === "/login" || path13.startsWith("/login/") || path13 === "/auth" || path13.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -626,8 +648,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path12 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path12 === "/" || path12 === "/landing" || path12 === "/login" || path12 === "/signup" || path12.startsWith("/auth")) {
+  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path13 === "/" || path13 === "/landing" || path13 === "/login" || path13 === "/signup" || path13.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -640,8 +662,8 @@ function isLoggedOutLanding(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path12 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  return path12 === "/landing" || path12.startsWith("/landing/");
+  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  return path13 === "/landing" || path13.startsWith("/landing/");
 }
 function cookiesForOrigin(cookies, origin) {
   let host;
@@ -831,12 +853,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path12 = url;
+    let path13 = url;
     try {
-      path12 = new URL(url, BROWSER_API_BASE).pathname;
+      path13 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path12);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path13);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -878,7 +900,8 @@ function checkOverallTimeoutMs(opts) {
 var REPLAY_ATTEMPTS = 6;
 var REPLAY_DELAY_MS = 500;
 var BROWSER_API_BASE = "https://api.getsolari.com";
-var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
+var DOTENV_PATH = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
+var REPO_DOTENV_PATH = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
 function toPlaywrightStorageState(state) {
   const cookies = [];
   for (const c of state.cookies ?? []) {
@@ -918,9 +941,8 @@ function findProfileId(profiles, name) {
   }
   return existing.id;
 }
-function loadDotEnv(file = DOTENV_PATH) {
-  if (process.env.SOLARI_API_KEY) return;
-  if (!existsSync(file)) return;
+function readSolariKeyFromFile(file) {
+  if (!existsSync(file)) return void 0;
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
@@ -934,7 +956,16 @@ function loadDotEnv(file = DOTENV_PATH) {
     if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
       value = value.slice(1, -1);
     }
-    if (name === "SOLARI_API_KEY" && value) {
+    if (name === "SOLARI_API_KEY" && value) return value;
+  }
+  return void 0;
+}
+function loadDotEnv(file = DOTENV_PATH) {
+  if (process.env.SOLARI_API_KEY) return;
+  const files = file === DOTENV_PATH ? [DOTENV_PATH, REPO_DOTENV_PATH] : [file];
+  for (const f of files) {
+    const value = readSolariKeyFromFile(f);
+    if (value) {
       process.env.SOLARI_API_KEY = value;
       return;
     }
@@ -945,7 +976,7 @@ function requireApiKey() {
   const key = process.env.SOLARI_API_KEY;
   if (!key) {
     throw new Error(
-      "SOLARI_API_KEY is not set. Put slr_live_\u2026 in examples/auspex-ts/.env (gitignored) or export it in the same process that runs Auspex/Grok."
+      "SOLARI_API_KEY is not set. Export SOLARI_API_KEY (https://console.getsolari.com) in the process that runs Auspex. Never commit the key."
     );
   }
   return key;
@@ -1072,6 +1103,186 @@ async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REP
   }
 }
 
+// src/profiles.ts
+var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
+var PROFILE_NAME_ERROR = "profile name must be non-empty";
+function requireProfileName(value) {
+  const name = value.trim();
+  if (!name) throw new Error(PROFILE_NAME_ERROR);
+  return name;
+}
+var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
+function loginInstructions(profile, urlHint, handoff) {
+  const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
+  if (handoff?.url) {
+    return {
+      profileId: profile.id,
+      name: profile.name,
+      consoleUrl: CONSOLE_PROFILES_URL,
+      url: handoff.url,
+      handoffId: handoff.handoffId,
+      expiresAt: handoff.expiresAt,
+      sinceVersion: handoff.version,
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
+    };
+  }
+  return {
+    profileId: profile.id,
+    name: profile.name,
+    consoleUrl: CONSOLE_PROFILES_URL,
+    sinceVersion: handoff?.version,
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
+  };
+}
+async function defaultProfileHttp() {
+  const key = requireApiKey();
+  return {
+    post: async (path13, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path13}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body ?? {})
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`;
+        throw new Error(err);
+      }
+      return json;
+    }
+  };
+}
+async function requestLoginHandoff(profileId, reason, http) {
+  const json = await http.post(`/profiles/${encodeURIComponent(profileId)}/login-handoff`, { reason });
+  const url = typeof json.url === "string" ? json.url : "";
+  if (!url) throw new Error("login-handoff returned no url");
+  return {
+    url,
+    handoffId: typeof json.handoffId === "string" ? json.handoffId : void 0,
+    expiresAt: typeof json.expiresAt === "string" ? json.expiresAt : void 0,
+    version: typeof json.version === "number" ? json.version : void 0
+  };
+}
+async function ensureProfile(name) {
+  const want = requireProfileName(name);
+  const solari = createClient();
+  try {
+    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === want);
+    const profile = existing ?? await solari.profiles.create({ name: want });
+    return { id: profile.id, name: profile.name };
+  } finally {
+    await solari.close();
+  }
+}
+async function loginProfile(name, urlHint, http) {
+  const profile = await ensureProfile(name);
+  const client = http ?? await defaultProfileHttp();
+  const handoff = await requestLoginHandoff(
+    profile.id,
+    `Auspex login for profile ${profile.name}`,
+    client
+  );
+  return loginInstructions(profile, urlHint, handoff);
+}
+async function listProfiles() {
+  const solari = createClient();
+  try {
+    return (await solari.profiles.list()).map((p) => {
+      const version = asFiniteNumber(p.version);
+      const sizeBytes = asFiniteNumber(p.sizeBytes);
+      const s3 = p.storageStateS3Key;
+      return {
+        id: p.id,
+        name: p.name,
+        version,
+        sizeBytes,
+        populated: Boolean(s3) || sizeBytes !== void 0 && sizeBytes > 0
+      };
+    });
+  } finally {
+    await solari.close();
+  }
+}
+
+// src/profile-lock.ts
+var PROFILE_BUSY_CODE = "ProfileBusy";
+var ProfileBusyError = class extends Error {
+  code = PROFILE_BUSY_CODE;
+  profile;
+  constructor(profile) {
+    super(
+      `profile ${profile} is locked by another Auspex process (refusing to save over it). Do not retry in a loop.`
+    );
+    this.name = "ProfileBusyError";
+    this.profile = profile;
+  }
+};
+function defaultLockDir() {
+  return path3.join(packageRoot, ".auspex", "locks");
+}
+function lockFileName(profile) {
+  const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_");
+  return `${safe}.lock`;
+}
+function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function stealIfDead(lockPath) {
+  try {
+    const raw = await readFile(lockPath, "utf8");
+    const pid = Number((raw.split("\n")[0] ?? "").trim());
+    if (pidAlive(pid)) return false;
+    await unlink(lockPath);
+    return true;
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+    if (code === "ENOENT") return true;
+    return false;
+  }
+}
+async function withProfileLock(profile, work, opts = {}) {
+  const name = requireProfileName(profile);
+  const dir = opts.lockDir ?? defaultLockDir();
+  await mkdir(dir, { recursive: true });
+  const lockPath = path3.join(dir, lockFileName(name));
+  let fh;
+  try {
+    fh = await open(lockPath, "wx");
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+    if (code !== "EEXIST") throw err;
+    if (await stealIfDead(lockPath)) {
+      try {
+        fh = await open(lockPath, "wx");
+      } catch (retryErr) {
+        const retryCode = retryErr && typeof retryErr === "object" && "code" in retryErr ? String(retryErr.code) : "";
+        if (retryCode === "EEXIST") throw new ProfileBusyError(name);
+        throw retryErr;
+      }
+    } else {
+      throw new ProfileBusyError(name);
+    }
+  }
+  try {
+    await fh.writeFile(`${process.pid}
+${Date.now()}
+`);
+    return await work();
+  } finally {
+    await fh.close().catch(() => void 0);
+    await unlink(lockPath).catch(() => void 0);
+  }
+}
+
 // src/profile-persist.ts
 var EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
 var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
@@ -1101,12 +1312,24 @@ function asFiniteNumber(value) {
   return void 0;
 }
 async function persistLiveProfile(opts) {
-  return persistProfileState({
-    profileId: opts.profileId,
-    state: opts.state,
-    origin: opts.origin,
-    save: (id, state) => opts.solari.profiles.save(id, state)
-  });
+  const seed = seedFromStorageState(opts.state);
+  try {
+    return await withProfileLock(
+      opts.lockName ?? opts.profileId,
+      () => persistProfileState({
+        profileId: opts.profileId,
+        state: opts.state,
+        origin: opts.origin,
+        save: (id, state) => opts.solari.profiles.save(id, state)
+      }),
+      { lockDir: opts.lockDir }
+    );
+  } catch (err) {
+    if (err instanceof ProfileBusyError) {
+      return { ok: false, cookies: seed.cookies, origins: seed.origins, error: err.message };
+    }
+    throw err;
+  }
 }
 async function persistProfileState(opts) {
   const seed = seedFromStorageState(opts.state);
@@ -1219,137 +1442,32 @@ async function liveAwaitLogin(name, opts = {}) {
   }
 }
 
-// src/profiles.ts
-import { z as z2 } from "zod";
-var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
-var PROFILE_NAME_ERROR = "profile name must be non-empty";
-function requireProfileName(value) {
-  const name = value.trim();
-  if (!name) throw new Error(PROFILE_NAME_ERROR);
-  return name;
-}
-var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
-function loginInstructions(profile, urlHint, handoff) {
-  const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
-  if (handoff?.url) {
-    return {
-      profileId: profile.id,
-      name: profile.name,
-      consoleUrl: CONSOLE_PROFILES_URL,
-      url: handoff.url,
-      handoffId: handoff.handoffId,
-      expiresAt: handoff.expiresAt,
-      sinceVersion: handoff.version,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
-    };
-  }
-  return {
-    profileId: profile.id,
-    name: profile.name,
-    consoleUrl: CONSOLE_PROFILES_URL,
-    sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
-  };
-}
-async function defaultProfileHttp() {
-  const key = requireApiKey();
-  return {
-    post: async (path12, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path12}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body ?? {})
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`;
-        throw new Error(err);
-      }
-      return json;
-    }
-  };
-}
-async function requestLoginHandoff(profileId, reason, http) {
-  const json = await http.post(`/profiles/${encodeURIComponent(profileId)}/login-handoff`, { reason });
-  const url = typeof json.url === "string" ? json.url : "";
-  if (!url) throw new Error("login-handoff returned no url");
-  return {
-    url,
-    handoffId: typeof json.handoffId === "string" ? json.handoffId : void 0,
-    expiresAt: typeof json.expiresAt === "string" ? json.expiresAt : void 0,
-    version: typeof json.version === "number" ? json.version : void 0
-  };
-}
-async function ensureProfile(name) {
-  const want = requireProfileName(name);
-  const solari = createClient();
-  try {
-    const existing = (await solari.profiles.list()).find((p) => p.name.trim() === want);
-    const profile = existing ?? await solari.profiles.create({ name: want });
-    return { id: profile.id, name: profile.name };
-  } finally {
-    await solari.close();
-  }
-}
-async function loginProfile(name, urlHint, http) {
-  const profile = await ensureProfile(name);
-  const client = http ?? await defaultProfileHttp();
-  const handoff = await requestLoginHandoff(
-    profile.id,
-    `Auspex login for profile ${profile.name}`,
-    client
-  );
-  return loginInstructions(profile, urlHint, handoff);
-}
-async function listProfiles() {
-  const solari = createClient();
-  try {
-    return (await solari.profiles.list()).map((p) => {
-      const version = asFiniteNumber(p.version);
-      const sizeBytes = asFiniteNumber(p.sizeBytes);
-      const s3 = p.storageStateS3Key;
-      return {
-        id: p.id,
-        name: p.name,
-        version,
-        sizeBytes,
-        populated: Boolean(s3) || sizeBytes !== void 0 && sizeBytes > 0
-      };
-    });
-  } finally {
-    await solari.close();
-  }
-}
-
 // src/replay-save.ts
 import { writeFile } from "node:fs/promises";
-import path2 from "node:path";
+import path4 from "node:path";
 async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
   const url = await waitForReplayUrl(solari, sessionId, opts.deadlineMs ?? Date.now() + 3e3);
   if (!url) return false;
   try {
     const blob = await downloadReplayWhenReady((id) => solari.sessions.downloadReplay(id), sessionId, opts);
-    await writeFile(path2.join(outDir, "replay.ndjson"), Buffer.from(blob));
+    await writeFile(path4.join(outDir, "replay.ndjson"), Buffer.from(blob));
   } catch {
   }
   return true;
 }
 
 // src/session-ledger.ts
-import { mkdir, readFile, writeFile as writeFile2 } from "node:fs/promises";
-import path3 from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-var packageRoot = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..");
-var LIVE_LEDGER_PATH = path3.join(packageRoot, ".auspex", "live.json");
+import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
+import path5 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+var packageRoot2 = path5.resolve(path5.dirname(fileURLToPath3(import.meta.url)), "..");
+var LIVE_LEDGER_PATH = path5.join(packageRoot2, ".auspex", "live.json");
 function empty() {
   return { browser: [], sandbox: [], desktop: [] };
 }
 async function readLiveLedger(file = LIVE_LEDGER_PATH) {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf8"));
+    const parsed = JSON.parse(await readFile2(file, "utf8"));
     return {
       browser: Array.isArray(parsed.browser) ? parsed.browser.filter(Boolean) : [],
       sandbox: Array.isArray(parsed.sandbox) ? parsed.sandbox.filter(Boolean) : [],
@@ -1360,7 +1478,7 @@ async function readLiveLedger(file = LIVE_LEDGER_PATH) {
   }
 }
 async function writeLiveLedger(ledger, file = LIVE_LEDGER_PATH) {
-  await mkdir(path3.dirname(file), { recursive: true });
+  await mkdir2(path5.dirname(file), { recursive: true });
   await writeFile2(file, `${JSON.stringify(ledger, null, 2)}
 `);
 }
@@ -1400,27 +1518,22 @@ function haystackMatches(raw, expect) {
 }
 var expectSchema = z3.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
 
-// src/paths.ts
-import path4 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
-var packageRoot2 = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..");
-
 // src/receipt-diff.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import path6 from "node:path";
+import { readFile as readFile4 } from "node:fs/promises";
+import path7 from "node:path";
 
 // src/receipt.ts
 import { readFileSync as readFileSync2 } from "node:fs";
-import { readdir, readFile as readFile2, stat } from "node:fs/promises";
-import path5 from "node:path";
+import { readdir, readFile as readFile3, stat as stat2 } from "node:fs/promises";
+import path6 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-var ASSERT_RECEIPT_PY_PATH = path5.join(path5.dirname(fileURLToPath4(import.meta.url)), "assert_receipt.py");
+var ASSERT_RECEIPT_PY_PATH = path6.join(path6.dirname(fileURLToPath4(import.meta.url)), "assert_receipt.py");
 var RECEIPT_ASSERT_PY = readFileSync2(ASSERT_RECEIPT_PY_PATH, "utf8");
-var RUNS_DIR = path5.join(packageRoot2, ".auspex", "runs");
+var RUNS_DIR = path6.join(packageRoot, ".auspex", "runs");
 function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
-  const dir = path5.resolve(runDir2);
-  const root = path5.resolve(runsDir);
-  if (dir !== root && !dir.startsWith(root + path5.sep)) {
+  const dir = path6.resolve(runDir2);
+  const root = path6.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path6.sep)) {
     throw new Error("runDir must be under .auspex/runs");
   }
   return dir;
@@ -1434,12 +1547,12 @@ async function listCompleteRunDirs(runsDir = RUNS_DIR) {
   }
   const dirs = [];
   for (const name of names) {
-    const dir = path5.join(runsDir, name);
-    const st = await stat(dir).catch(() => void 0);
+    const dir = path6.join(runsDir, name);
+    const st = await stat2(dir).catch(() => void 0);
     if (!st?.isDirectory()) continue;
     try {
-      await stat(path5.join(dir, "manifest.json"));
-      await stat(path5.join(dir, "screenshot.png"));
+      await stat2(path6.join(dir, "manifest.json"));
+      await stat2(path6.join(dir, "screenshot.png"));
       dirs.push({ dir, mtime: st.mtimeMs, name });
     } catch {
       continue;
@@ -1455,8 +1568,8 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   return latest;
 }
 async function loadRunFiles(runDir2) {
-  const manifest = await readFile2(path5.join(runDir2, "manifest.json"), "utf8");
-  const png = await readFile2(path5.join(runDir2, "screenshot.png"));
+  const manifest = await readFile3(path6.join(runDir2, "manifest.json"), "utf8");
+  const png = await readFile3(path6.join(runDir2, "screenshot.png"));
   return { manifest, png };
 }
 
@@ -1478,7 +1591,7 @@ function receiptUrlKey(manifest) {
 }
 async function readManifest(dir) {
   try {
-    const raw = await readFile3(path6.join(dir, "manifest.json"), "utf8");
+    const raw = await readFile4(path7.join(dir, "manifest.json"), "utf8");
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : void 0;
   } catch {
@@ -1493,9 +1606,9 @@ async function findPreviousReceiptForUrl(opts) {
     return void 0;
   }
   const dirs = await listCompleteRunDirs(opts.runsDir ?? RUNS_DIR);
-  const exclude = opts.excludeDir ? path6.resolve(opts.excludeDir) : void 0;
+  const exclude = opts.excludeDir ? path7.resolve(opts.excludeDir) : void 0;
   for (const dir of dirs) {
-    if (exclude && path6.resolve(dir) === exclude) continue;
+    if (exclude && path7.resolve(dir) === exclude) continue;
     const manifest = await readManifest(dir);
     if (!manifest) continue;
     const key = receiptUrlKey(manifest);
@@ -1677,6 +1790,14 @@ function codeOf(err) {
 }
 function classifySolariError(err) {
   if (err instanceof AuspexError) return err.issue;
+  if (err instanceof ProfileBusyError) {
+    return {
+      message: redactSecrets(err.message),
+      code: err.code,
+      retryable: false,
+      recovery: "Wait for the other agent to finish. Do not retry in a loop."
+    };
+  }
   if (err instanceof SolariError2) {
     const code = codeOf(err);
     if (code === "FeatureRequiresPlan" || err.status === 402) {
@@ -1763,15 +1884,15 @@ var noopProgress = () => void 0;
 
 // src/check.ts
 function toReceiptPath(absPath) {
-  return path7.relative(packageRoot2, absPath).replaceAll("\\", "/");
+  return path8.relative(packageRoot, absPath).replaceAll("\\", "/");
 }
 function runDirFromResult(result) {
-  const abs = path7.isAbsolute(result.screenshotPath) ? result.screenshotPath : path7.join(packageRoot2, result.screenshotPath);
-  return path7.dirname(abs);
+  const abs = path8.isAbsolute(result.screenshotPath) ? result.screenshotPath : path8.join(packageRoot, result.screenshotPath);
+  return path8.dirname(abs);
 }
 function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path7.join(packageRoot2, ".auspex", "runs", stamp);
+  return path8.join(packageRoot, ".auspex", "runs", stamp);
 }
 async function extractPage(page, selector, signal) {
   return observeAbort(
@@ -1787,7 +1908,7 @@ async function extractPage(page, selector, signal) {
   );
 }
 async function writeFittedScreenshot(abs) {
-  const png = await readFile4(abs);
+  const png = await readFile5(abs);
   const fitted = fitPngUnderCap(png, MAX_IMAGE_BYTES);
   if (fitted !== png) await writeFile3(abs, fitted);
 }
@@ -1802,8 +1923,8 @@ async function runCheck(opts) {
   const closer = new ReadyRelease();
   let sessionId = "";
   const outDir = runDir();
-  await mkdir2(outDir, { recursive: true });
-  const screenshotAbs = path7.join(outDir, "screenshot.png");
+  await mkdir3(outDir, { recursive: true });
+  const screenshotAbs = path8.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
   let finalUrl = "";
@@ -1950,7 +2071,8 @@ async function runCheck(opts) {
             profileId,
             sessionId,
             state,
-            origin
+            origin,
+            lockName: opts.profile
           });
         }
       }
@@ -2034,7 +2156,7 @@ async function runCheck(opts) {
       profileSeed,
       profileSaved
     };
-    await writeFile3(path7.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}
+    await writeFile3(path8.join(outDir, "manifest.json"), `${JSON.stringify(stampSchema(result), null, 2)}
 `);
     return result;
   } finally {
@@ -2050,12 +2172,12 @@ async function runCheck(opts) {
 }
 
 // src/content.ts
-import { readFile as readFile5 } from "node:fs/promises";
-import path8 from "node:path";
+import { readFile as readFile6 } from "node:fs/promises";
+import path9 from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
-var packageRoot3 = path8.resolve(path8.dirname(fileURLToPath5(import.meta.url)), "..");
+var packageRoot3 = path9.resolve(path9.dirname(fileURLToPath5(import.meta.url)), "..");
 function resolveScreenshotPath(p) {
-  return path8.isAbsolute(p) ? p : path8.join(packageRoot3, p);
+  return path9.isAbsolute(p) ? p : path9.join(packageRoot3, p);
 }
 function pngNote(text) {
   return { type: "text", text };
@@ -2064,7 +2186,7 @@ async function buildReceiptToolContent(payload, screenshotPath) {
   const content = [{ type: "text", text: JSON.stringify(payload, null, 2) }];
   if (!screenshotPath) return { content };
   try {
-    const buf = await readFile5(resolveScreenshotPath(screenshotPath));
+    const buf = await readFile6(resolveScreenshotPath(screenshotPath));
     if (buf.length === 0) {
       content.push(pngNote("PNG omitted: screenshot file is empty"));
       return { content };
@@ -2112,7 +2234,7 @@ async function packToolFailure(err) {
   if (extra?.receipt && typeof extra.receipt === "object") {
     Object.assign(payload, extra.receipt);
   }
-  const packed = await buildReceiptToolContent(payload, extra?.screenshotPath);
+  const packed = await buildReceiptToolContent(stampSchema(payload), extra?.screenshotPath);
   if (extra?.log) {
     packed.content.unshift({ type: "text", text: extra.log });
   }
@@ -2121,7 +2243,7 @@ async function packToolFailure(err) {
 
 // src/desktop.ts
 import { mkdirSync, writeFileSync } from "node:fs";
-import path9 from "node:path";
+import path10 from "node:path";
 import { SolariClient } from "@solarisdk/sdk";
 
 // src/desktop-probe.ts
@@ -2275,9 +2397,9 @@ function clickForTask(task) {
   return task.click;
 }
 function desktopNeedle(task) {
-  const open = task.open?.trim();
+  const open2 = task.open?.trim();
   const expect = task.expect?.trim();
-  return open || expect || void 0;
+  return open2 || expect || void 0;
 }
 function defaultDesktopDeps() {
   return {
@@ -2302,7 +2424,7 @@ function defaultDesktopDeps() {
 }
 function newRunDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path9.join(packageRoot2, ".auspex", "runs", stamp);
+  return path10.join(packageRoot, ".auspex", "runs", stamp);
 }
 async function waitReady(desktop, sleepFn, healthMs = DESKTOP_HEALTH_MS) {
   const deadline = Date.now() + healthMs;
@@ -2370,7 +2492,7 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         const png = await desktop.screenshot();
         const dir = newRunDir();
         mkdirSync(dir, { recursive: true });
-        const abs = path9.join(dir, "screenshot.png");
+        const abs = path10.join(dir, "screenshot.png");
         writeFileSync(abs, png);
         const desktopId = desktop.sessionId;
         const streamUrl = desktop.streamUrl;
@@ -2441,9 +2563,9 @@ ${summary}`;
 
 // src/saved-checks.ts
 import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
-import path10 from "node:path";
+import path11 from "node:path";
 import { fileURLToPath as fileURLToPath6 } from "node:url";
-var packageRoot4 = path10.resolve(path10.dirname(fileURLToPath6(import.meta.url)), "..");
+var packageRoot4 = path11.resolve(path11.dirname(fileURLToPath6(import.meta.url)), "..");
 var DEFAULT_SAVED_CHECKS = [
   { name: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
   { name: "checkpoint", url: "https://checkpointprojects.com", expect: "Checkpoint" },
@@ -2462,13 +2584,13 @@ function canonicalSavedCheckName(name) {
   return key;
 }
 function defaultConfigPath() {
-  return path10.join(packageRoot4, "auspex.yml");
+  return path11.join(packageRoot4, "auspex.yml");
 }
 function resolveConfigPath(explicit) {
   if (explicit) return explicit;
   const env = process.env.AUSPEX_CONFIG?.trim();
   if (env) return env;
-  const cwdPath = path10.resolve("auspex.yml");
+  const cwdPath = path11.resolve("auspex.yml");
   if (existsSync3(cwdPath)) return cwdPath;
   const packed = defaultConfigPath();
   if (existsSync3(packed)) return packed;
@@ -2714,24 +2836,24 @@ async function profileStatus(opts, deps) {
 import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 
 // src/receipt-pack.ts
-import { copyFile, mkdir as mkdir3, readFile as readFile6, writeFile as writeFile4 } from "node:fs/promises";
-import path11 from "node:path";
+import { copyFile, mkdir as mkdir4, readFile as readFile7, writeFile as writeFile4 } from "node:fs/promises";
+import path12 from "node:path";
 function relToPackage(abs) {
-  return path11.relative(packageRoot2, abs).replaceAll("\\", "/");
+  return path12.relative(packageRoot, abs).replaceAll("\\", "/");
 }
 function packDirRoot() {
-  return path11.join(packageRoot2, ".auspex", "pack");
+  return path12.join(packageRoot, ".auspex", "pack");
 }
 async function packLastReceipts(opts) {
   const runsDir = opts?.runsDir ?? RUNS_DIR;
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  const packDir = opts?.destDir ?? path11.join(packDirRoot(), stamp);
-  await mkdir3(packDir, { recursive: true });
+  const packDir = opts?.destDir ?? path12.join(packDirRoot(), stamp);
+  await mkdir4(packDir, { recursive: true });
   const dirs = await listCompleteRunDirs(runsDir);
   const chosen = [];
   const seenUrl = /* @__PURE__ */ new Set();
   for (const dir of dirs) {
-    const raw = await readFile6(path11.join(dir, "manifest.json"), "utf8").catch(() => "");
+    const raw = await readFile7(path12.join(dir, "manifest.json"), "utf8").catch(() => "");
     let manifest = {};
     try {
       manifest = JSON.parse(raw);
@@ -2746,13 +2868,13 @@ async function packLastReceipts(opts) {
   }
   const packed = [];
   for (const dir of chosen) {
-    const dest = path11.join(packDir, path11.basename(dir));
-    await mkdir3(dest, { recursive: true });
-    const manifestAbs = path11.join(dest, "manifest.json");
-    const shotAbs = path11.join(dest, "screenshot.png");
-    await copyFile(path11.join(dir, "manifest.json"), manifestAbs);
-    await copyFile(path11.join(dir, "screenshot.png"), shotAbs);
-    const raw = await readFile6(manifestAbs, "utf8");
+    const dest = path12.join(packDir, path12.basename(dir));
+    await mkdir4(dest, { recursive: true });
+    const manifestAbs = path12.join(dest, "manifest.json");
+    const shotAbs = path12.join(dest, "screenshot.png");
+    await copyFile(path12.join(dir, "manifest.json"), manifestAbs);
+    await copyFile(path12.join(dir, "screenshot.png"), shotAbs);
+    const raw = await readFile7(manifestAbs, "utf8");
     let manifest = {};
     try {
       manifest = JSON.parse(raw);
@@ -2768,7 +2890,7 @@ async function packLastReceipts(opts) {
       runDir: relToPackage(dest)
     });
   }
-  await writeFile4(path11.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
+  await writeFile4(path12.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
 `);
   return { packDir: relToPackage(packDir), packed };
 }
@@ -2862,6 +2984,19 @@ async function reapLeftovers(opts = {}, deps) {
 
 // src/sandbox.ts
 import { SolariClient as SolariClient3 } from "@solarisdk/sdk";
+
+// src/fail-closed.ts
+function isNoRetryReason(reason) {
+  return reason === "loggedOut" || reason === "needsHuman";
+}
+function mayRetryCheck(reason) {
+  return !isNoRetryReason(reason);
+}
+function shouldVerifyAfterCheck(reason) {
+  return mayRetryCheck(reason) && reason !== "recordedLoggedIn";
+}
+
+// src/sandbox.ts
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
 var VERIFY_OVERALL_MS = 9e4;
 var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
@@ -2999,58 +3134,54 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
 }
 async function checkThenVerify(opts, deps) {
   const onProgress = deps?.onProgress ?? opts.onProgress ?? noopProgress;
-  const overlap = !deps?.verify;
-  const createFn = overlap ? deps?.create ?? defaultVerifyDeps().create : void 0;
-  let created;
-  const pending = createFn ? createFn().then((s) => {
-    created = s;
-    return s;
-  }) : void 0;
-  try {
-    onProgress("check");
-    const check = deps?.check ? await deps.check({ ...opts, onProgress }) : await runCheck({ ...opts, onProgress });
-    const dir = runDirFromResult(check);
-    try {
-      const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
-        create: async () => {
-          if (pending) return pending;
-          return (deps?.create ?? defaultVerifyDeps().create)();
-        },
-        onProgress
-      });
-      return { check, verify };
-    } catch (err) {
-      return {
-        check,
-        verify: {
-          ok: false,
-          errors: [explainSolariError(err)],
-          claimOk: false,
-          claimErrors: [],
-          runDir: dir
-        }
-      };
-    }
-  } catch (err) {
-    if (pending) {
-      try {
-        const s = created ?? await pending.catch(() => void 0);
-        if (s) await s.kill();
-      } catch {
+  onProgress("check");
+  const check = deps?.check ? await deps.check({ ...opts, onProgress }) : await runCheck({ ...opts, onProgress });
+  const dir = runDirFromResult(check);
+  if (!shouldVerifyAfterCheck(check.reason)) {
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir,
+        skipped: true,
+        skipReason: check.reason
       }
-    }
-    throw err;
+    };
+  }
+  try {
+    const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
+      create: deps?.create ?? defaultVerifyDeps().create,
+      onProgress
+    });
+    return { check, verify };
+  } catch (err) {
+    return {
+      check,
+      verify: {
+        ok: false,
+        errors: [explainSolariError(err)],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir
+      }
+    };
   }
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. loggedOut/needsHuman skip verify and are not retried. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft password/OTP wall is needsHuman \u2014 skip live, do not ping the user.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
+function toolJson(obj) {
+  return JSON.stringify(stampSchema(obj), null, 2);
+}
 function progressFromExtra(extra) {
   return createProgress({ extra });
 }
@@ -3080,13 +3211,13 @@ function registerAuspexTools(server2) {
           const both = await checkThenVerify(opts);
           const receipt2 = toAgentReceipt(both.check, { verify: both.verify });
           const packed2 = await buildCheckToolContent(receipt2);
-          packed2.content[0] = { type: "text", text: JSON.stringify(receipt2, null, 2) };
+          packed2.content[0] = { type: "text", text: toolJson(receipt2) };
           return packed2;
         }
         const result = await runCheck(opts);
         const receipt = toAgentReceipt(result);
         const packed = await buildCheckToolContent(receipt);
-        packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) };
+        packed.content[0] = { type: "text", text: toolJson(receipt) };
         return packed;
       } catch (err) {
         return packToolFailure(err);
@@ -3103,11 +3234,11 @@ function registerAuspexTools(server2) {
       try {
         const result = await loginProfile(profile, url);
         if (!wait) {
-          return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+          return { content: [{ type: "text", text: toolJson({ ok: true, ...result }) }] };
         }
         const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion });
         return {
-          content: [{ type: "text", text: JSON.stringify({ ...result, wait: waited }, null, 2) }]
+          content: [{ type: "text", text: toolJson({ ok: waited.status === "completed", ...result, wait: waited }) }]
         };
       } catch (err) {
         return packToolFailure(err);
@@ -3123,7 +3254,7 @@ function registerAuspexTools(server2) {
     async ({ profile, sinceVersion, timeoutMs }) => {
       try {
         const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs });
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        return { content: [{ type: "text", text: toolJson({ ok: result.status === "completed", ...result }) }] };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -3138,7 +3269,7 @@ function registerAuspexTools(server2) {
     async () => {
       try {
         const profiles = await listProfiles();
-        return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+        return { content: [{ type: "text", text: toolJson({ ok: true, profiles }) }] };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -3153,7 +3284,7 @@ function registerAuspexTools(server2) {
     async (args) => {
       try {
         const result = await profileStatus(args);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        return { content: [{ type: "text", text: toolJson(result) }] };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -3165,14 +3296,14 @@ function registerAuspexTools(server2) {
       description: DESKTOP_DESCRIPTION,
       inputSchema: auspexDesktopInputSchema
     },
-    async ({ open, type, clickX, clickY, expect }, extra) => {
+    async ({ open: open2, type, clickX, clickY, expect }, extra) => {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_desktop");
         const result = await runDesktopReview({
           ...defaultDesktopDeps(),
           task: {
-            open,
+            open: open2,
             type,
             expect,
             click: clickX !== void 0 && clickY !== void 0 ? { x: clickX, y: clickY } : void 0
@@ -3180,7 +3311,7 @@ function registerAuspexTools(server2) {
           status: process.stderr
         });
         const packed = await buildReceiptToolContent(
-          {
+          stampSchema({
             ok: result.ok,
             ready: result.ready,
             processOk: result.processOk,
@@ -3193,7 +3324,7 @@ function registerAuspexTools(server2) {
             desktopId: result.desktopId,
             streamUrl: result.streamUrl,
             overview: result.overview
-          },
+          }),
           result.screenshotPath
         );
         packed.content.unshift({ type: "text", text: result.log });
@@ -3216,7 +3347,7 @@ function registerAuspexTools(server2) {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_verify");
         const result = await verifyReceipt(runDir2, { ...defaultVerifyDeps(), onProgress });
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        return { content: [{ type: "text", text: toolJson(result) }] };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -3231,7 +3362,7 @@ function registerAuspexTools(server2) {
     async (args) => {
       try {
         const result = await reapLeftovers(args);
-        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+        return { content: [{ type: "text", text: toolJson(result) }] };
       } catch (err) {
         return packToolFailure(err);
       }

@@ -2,6 +2,10 @@
   "name": "auspex-ts",
   "private": true,
   "type": "module",
+  "bin": {
+    "auspex": "./bin/auspex.mjs",
+    "auspex-mcp": "./bin/auspex-mcp.mjs"
+  },
   "scripts": {
     "check": "tsx src/cli.ts check",
     "mcp": "node dist/mcp.mjs",

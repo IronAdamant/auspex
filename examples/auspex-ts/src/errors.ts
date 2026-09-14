@@ -1,4 +1,5 @@
 import { SolariError } from "@solarisdk/browser"
+import { ProfileBusyError } from "./profile-lock.ts"
 
 export const CLOSE_KILL_RECOVERY =
   "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry."
@@ -62,6 +63,14 @@ function codeOf(err: SolariError): string | undefined {
 
 export function classifySolariError(err: unknown): SolariIssue {
   if (err instanceof AuspexError) return err.issue
+  if (err instanceof ProfileBusyError) {
+    return {
+      message: redactSecrets(err.message),
+      code: err.code,
+      retryable: false,
+      recovery: "Wait for the other agent to finish. Do not retry in a loop.",
+    }
+  }
   if (err instanceof SolariError) {
     const code = codeOf(err)
     if (code === "FeatureRequiresPlan" || err.status === 402) {

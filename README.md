@@ -15,28 +15,27 @@ This is a public fork of the Solari cookbook built for Pinetree Research’s int
 
 ```bash
 git clone https://github.com/IronAdamant/auspex.git
-cd auspex/examples/auspex-ts
+cd auspex
 npm install
-printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env   # console.getsolari.com
-npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
-npx tsx src/cli.ts check --name ironadamant
-npx tsx src/cli.ts verify
-cd examples/auspex-ts && npm run public-check
+export SOLARI_API_KEY=slr_live_…   # console.getsolari.com — env only, never commit
+npx auspex check --name ironadamant
+npx auspex check --name checkpoint
+npx auspex mcp
 ```
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
 Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html) (open the HTML after clone, or via [jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html)).
 
-Full agent notes: [examples/auspex-ts](examples/auspex-ts) · [AGENTS.md](examples/auspex-ts/AGENTS.md).
+Full agent notes: [AGENTS.md](AGENTS.md) (any host) · [examples/auspex-ts](examples/auspex-ts).
 
 ## MCP (Cursor / Claude / Grok)
 
-Auspex is the check → verify → kill loop. `.cursor/mcp.json` is committed (copy [examples/auspex-ts/mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json) if you need it elsewhere). Weekly public pages: from `examples/auspex-ts`, `npm run public-check` (ironadamant.com `One office job.` + checkpointprojects.com `Checkpoint`). The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without `SOLARI_API_KEY`. A **repo** secret named `SOLARI_API_KEY` is required for that job to run; this repository does not add the secret, and missing it does not fail pull requests.
+Auspex is the check → verify → kill loop. `.cursor/mcp.json` is committed. Weekly public pages: `npx auspex check --name ironadamant` and `--name checkpoint`, or from `examples/auspex-ts`, `npm run public-check`. The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without env `SOLARI_API_KEY`. A **repo** secret named `SOLARI_API_KEY` is required for that job to run; this repository does not add the secret, and missing it does not fail pull requests.
 
 ```bash
-# from examples/auspex-ts after npm install
-npx tsx src/mcp.ts
+npx auspex-mcp
+# or: npx tsx src/mcp.ts   # from examples/auspex-ts
 ```
 
 Official `@solarisdk/mcp` (33 tools) is **optional**. `dist/solari-mcp.mjs` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
@@ -84,11 +83,10 @@ Each cookbook directory is still self-contained.
 
 ```bash
 git clone https://github.com/IronAdamant/auspex.git
-cd auspex/examples/auspex-ts
-
+cd auspex
 npm install
 export SOLARI_API_KEY=slr_live_...   # grab one at console.getsolari.com
-npx tsx src/cli.ts check https://example.com --expect "Example Domain"
+npx auspex check https://example.com --expect "Example Domain"
 ```
 
 One `slr_live_` key works across browsers, sandboxes, and desktops.

@@ -28,14 +28,14 @@ Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a lo
 ```bash
 cd examples/auspex-ts
 npm install
-# Persist the key for CLI *and* MCP hosts (this file is gitignored).
-printf 'SOLARI_API_KEY=%s\n' "$SOLARI_API_KEY" > .env
-npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
-npx tsx src/cli.ts check --name ironadamant
-npx tsx src/cli.ts check --name checkpoint
-npx tsx src/cli.ts check --name consistencyhub
-npx tsx src/cli.ts profile-status --name consistencyhub
-npx tsx src/cli.ts verify
+# Optional: gitignored .env is loaded only if SOLARI_API_KEY is unset. Prefer export.
+export SOLARI_API_KEY
+npx auspex check https://ironadamant.com --expect "One office job."
+npx auspex check --name ironadamant
+npx auspex check --name checkpoint
+npx auspex check --name consistencyhub
+npx auspex profile-status --name consistencyhub
+npx auspex verify
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 
@@ -44,21 +44,21 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx tsx src/cli.ts check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
-npx tsx src/cli.ts verify [runDir]
-npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
-npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
-npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
-npx tsx src/cli.ts profiles
-npx tsx src/cli.ts profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+npx auspex verify [runDir]
+npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
+npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
+npx auspex login --profile <name> [--url <hint>] [--wait]
+npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
+npx auspex profiles
+npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
 `login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login prefer `check --profile <name> --sso --save-profile`. Then `check --profile <name>` in a new session. Login does not hold an Auspex check session open.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing` or a login page is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile`. Never `--record` a logged-in session.
 
-`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. `reason` is always set (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`). CLI stdout is that parseable receipt (`ok`, `reason`, `url`, `expect`, `screenshotPath`) plus a `diff` vs the last same-URL receipt. Check verifies by default (sandbox HTTP + OCR); `--no-verify` skips. CLI exit 0 requires agent ok (matched, and verify claim when verifying).
+`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. `reason` is always set (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`). CLI stdout is one JSON object: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`, plus a `diff` vs the last same-URL receipt. Exit 0 only when `ok` is true. Check verifies by default (sandbox HTTP + OCR); `--no-verify` skips. `loggedOut`/`needsHuman` skip verify and are not retried.
 
 **429 ConcurrencyLimitExceeded is not retryable.** Call `auspex_reap` (or `solari_browser_close` / `solari_kill` if that MCP started) to free leftover sessions, then retry. `reap --pack-receipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 
@@ -80,7 +80,7 @@ Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
 
 **Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
 
-**npx (stdio):** from this directory, `npx tsx src/mcp.ts`.
+**npx (stdio):** from the repo root, `npx auspex-mcp` or `node bin/auspex-mcp.mjs`. From this directory, `npx tsx src/mcp.ts`.
 
 **Grok** — copy both tables from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. Commands are **absolute `node` + absolute paths** under `dist/`. Dual Content-Length transport is Grok-specific.
 
@@ -96,4 +96,4 @@ The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm ru
 
 Live: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
 
-See [AGENTS.md](AGENTS.md) and [DEMO.md](DEMO.md).
+See [AGENTS.md](../../AGENTS.md) (canonical) and [DEMO.md](DEMO.md).

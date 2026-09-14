@@ -1,0 +1,36 @@
+{
+  "name": "auspex",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent web eyes on Solari cloud Chrome. CLI and MCP, same JSON contract.",
+  "type": "module",
+  "bin": {
+    "auspex": "bin/auspex.mjs",
+    "auspex-mcp": "bin/auspex-mcp.mjs"
+  },
+  "files": [
+    "bin/",
+    "AGENTS.md",
+    "README.md",
+    "examples/auspex-ts/bin/",
+    "examples/auspex-ts/src/",
+    "examples/auspex-ts/dist/",
+    "examples/auspex-ts/auspex.yml",
+    "examples/auspex-ts/package.json",
+    "examples/auspex-ts/package-lock.json"
+  ],
+  "scripts": {
+    "postinstall": "npm install --prefix examples/auspex-ts",
+    "test": "npm test --prefix examples/auspex-ts",
+    "typecheck": "npm run typecheck --prefix examples/auspex-ts",
+    "build:mcp": "npm run build:mcp --prefix examples/auspex-ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IronAdamant/auspex.git"
+  }
+}

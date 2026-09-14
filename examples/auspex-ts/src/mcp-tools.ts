@@ -11,6 +11,7 @@ import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
+import { stampSchema } from "./schema-version.ts"
 import {
   assertRecordNotLoggedIn,
   assertRecordProfileAllowed,
@@ -23,7 +24,7 @@ import {
 } from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
-  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
+  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. loggedOut/needsHuman skip verify and are not retried. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
 
 const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
@@ -42,6 +43,10 @@ const PROFILE_STATUS_DESCRIPTION =
 
 const REAP_DESCRIPTION =
   "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
+
+function toolJson(obj: object): string {
+  return JSON.stringify(stampSchema(obj), null, 2)
+}
 
 function progressFromExtra(extra: unknown) {
   return createProgress({ extra: extra as ProgressExtra })
@@ -73,13 +78,13 @@ export function registerAuspexTools(server: McpServer): void {
           const both = await checkThenVerify(opts)
           const receipt = toAgentReceipt(both.check, { verify: both.verify })
           const packed = await buildCheckToolContent(receipt)
-          packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) }
+          packed.content[0] = { type: "text", text: toolJson(receipt) }
           return packed
         }
         const result = await runCheck(opts)
         const receipt = toAgentReceipt(result)
         const packed = await buildCheckToolContent(receipt)
-        packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) }
+        packed.content[0] = { type: "text", text: toolJson(receipt) }
         return packed
       } catch (err) {
         return packToolFailure(err)
@@ -97,11 +102,11 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const result = await loginProfile(profile, url)
         if (!wait) {
-          return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+          return { content: [{ type: "text" as const, text: toolJson({ ok: true, ...result }) }] }
         }
         const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion })
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ ...result, wait: waited }, null, 2) }],
+          content: [{ type: "text" as const, text: toolJson({ ok: waited.status === "completed", ...result, wait: waited }) }],
         }
       } catch (err) {
         return packToolFailure(err)
@@ -119,7 +124,7 @@ export function registerAuspexTools(server: McpServer): void {
     async ({ profile, sinceVersion, timeoutMs }) => {
       try {
         const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs })
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+        return { content: [{ type: "text" as const, text: toolJson({ ok: result.status === "completed", ...result }) }] }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -135,7 +140,7 @@ export function registerAuspexTools(server: McpServer): void {
     async () => {
       try {
         const profiles = await listProfiles()
-        return { content: [{ type: "text" as const, text: JSON.stringify(profiles, null, 2) }] }
+        return { content: [{ type: "text" as const, text: toolJson({ ok: true, profiles }) }] }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -151,7 +156,7 @@ export function registerAuspexTools(server: McpServer): void {
     async (args) => {
       try {
         const result = await profileStatus(args)
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+        return { content: [{ type: "text" as const, text: toolJson(result) }] }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -179,7 +184,7 @@ export function registerAuspexTools(server: McpServer): void {
           status: process.stderr,
         })
         const packed = await buildReceiptToolContent(
-          {
+          stampSchema({
             ok: result.ok,
             ready: result.ready,
             processOk: result.processOk,
@@ -192,7 +197,7 @@ export function registerAuspexTools(server: McpServer): void {
             desktopId: result.desktopId,
             streamUrl: result.streamUrl,
             overview: result.overview,
-          },
+          }),
           result.screenshotPath,
         )
         packed.content.unshift({ type: "text", text: result.log })
@@ -216,7 +221,7 @@ export function registerAuspexTools(server: McpServer): void {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_verify")
         const result = await verifyReceipt(runDir, { ...defaultVerifyDeps(), onProgress })
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+        return { content: [{ type: "text" as const, text: toolJson(result) }] }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -232,7 +237,7 @@ export function registerAuspexTools(server: McpServer): void {
     async (args) => {
       try {
         const result = await reapLeftovers(args)
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
+        return { content: [{ type: "text" as const, text: toolJson(result) }] }
       } catch (err) {
         return packToolFailure(err)
       }

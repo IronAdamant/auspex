@@ -4,7 +4,7 @@ import { toAgentReceipt } from "./agent-receipt.ts"
 import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
-import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
+import { listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
@@ -16,21 +16,32 @@ import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, RECORD_PROFILE_ERROR } from "./tool-schema.ts"
+import {
+  exitFromOk,
+  failureReceipt,
+  stampSchema,
+  usageErrorReceipt,
+  writeStdoutJson,
+} from "./cli-json.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
-  npx tsx src/cli.ts verify [runDir]
-  npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-  npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
-  npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
-  npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
-  npx tsx src/cli.ts profiles
-  npx tsx src/cli.ts profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+  npx auspex verify [runDir]
+  npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
+  npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
+  npx auspex login --profile <name> [--url <hint>] [--wait]
+  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
+  npx auspex profiles
+  npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+  npx auspex mcp
+  npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
+CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
+Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record).
-check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check.
-Stdout is a parseable receipt: ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath, plus diff vs the last same-URL receipt.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried.
+Stdout receipt fields: schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath, plus diff vs the last same-URL receipt.
 ok is protocol success; matched is the expect substring; reason is always set. CLI exit 0 requires agent ok (matched, and verify claim if verifying).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
 reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery). --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
@@ -38,18 +49,19 @@ profile-status reports loggedIn | loggedOut | needsHuman. Re-seed is human SSO o
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
 await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
 profiles lists names, ids, version, and whether storage is populated.
---save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin).
+--save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
 Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile (public pages only).
 SSO is human-once then reuse. Microsoft password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing or a login page is ok: false reason: loggedOut.
 
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
-Requires SOLARI_API_KEY (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
+Requires SOLARI_API_KEY in the environment (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
 Never commit .env or .auspex/ run artifacts.
 `
 
 export type CliCommand =
   | { cmd: "help" }
+  | { cmd: "mcp" }
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
@@ -97,6 +109,13 @@ export function parseArgv(argv: string[]): ParseResult {
     return { status: "ok", command: { cmd: "help" } }
   }
   const cmd = args.shift()
+  if (cmd === "mcp") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    return { status: "ok", command: { cmd: "mcp" } }
+  }
   if (cmd === "check") {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
@@ -330,10 +349,15 @@ export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgv(argv.slice(2))
   if (parsed.status === "error") {
     process.stderr.write(`${parsed.message}\n${USAGE}`)
-    return 2
+    writeStdoutJson(usageErrorReceipt(parsed.message))
+    return 1
   }
   if (parsed.command.cmd === "help") {
     process.stdout.write(USAGE)
+    return 0
+  }
+  if (parsed.command.cmd === "mcp") {
+    await import("./mcp.ts")
     return 0
   }
   try {
@@ -341,77 +365,86 @@ export async function main(argv: string[]): Promise<number> {
       if (parsed.command.verifyAfter !== false) {
         const both = await checkThenVerify(parsed.command.opts)
         const receipt = toAgentReceipt(both.check, { verify: both.verify })
-        process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
-        return receipt.ok ? 0 : 1
+        writeStdoutJson(receipt)
+        return exitFromOk(receipt.ok)
       }
       const result = await runCheck(parsed.command.opts)
       const receipt = toAgentReceipt(result)
-      process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
-      return receipt.ok ? 0 : 1
+      writeStdoutJson(receipt)
+      return exitFromOk(receipt.ok)
     }
     if (parsed.command.cmd === "login") {
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
       if (!parsed.command.wait) {
-        process.stdout.write(formatLogin(result))
+        writeStdoutJson(stampSchema({ ok: true, ...result }))
         return 0
       }
       const waited = await liveAwaitLogin(parsed.command.profile, {
         sinceVersion: result.sinceVersion,
       })
-      process.stdout.write(`${JSON.stringify({ ...result, wait: waited }, null, 2)}\n`)
-      return waited.status === "completed" ? 0 : 1
+      const payload = stampSchema({ ok: waited.status === "completed", ...result, wait: waited })
+      writeStdoutJson(payload)
+      return exitFromOk(payload.ok)
     }
     if (parsed.command.cmd === "await-login") {
       const waited = await liveAwaitLogin(parsed.command.profile, {
         sinceVersion: parsed.command.sinceVersion,
         timeoutMs: parsed.command.timeoutMs,
       })
-      process.stdout.write(`${JSON.stringify(waited, null, 2)}\n`)
-      return waited.status === "completed" ? 0 : 1
+      const payload = stampSchema({ ok: waited.status === "completed", ...waited })
+      writeStdoutJson(payload)
+      return exitFromOk(payload.ok)
     }
     if (parsed.command.cmd === "verify") {
-      const result = await verifyReceipt(parsed.command.runDir)
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok ? 0 : 1
+      const result = stampSchema(await verifyReceipt(parsed.command.runDir))
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
     }
     if (parsed.command.cmd === "reap") {
-      const result = await reapLeftovers({
-        dryRun: parsed.command.dryRun,
-        sessionId: parsed.command.sessionId,
-        vmId: parsed.command.vmId,
-        packReceipts: parsed.command.packReceipts,
-      })
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok ? 0 : 1
+      const result = stampSchema(
+        await reapLeftovers({
+          dryRun: parsed.command.dryRun,
+          sessionId: parsed.command.sessionId,
+          vmId: parsed.command.vmId,
+          packReceipts: parsed.command.packReceipts,
+        }),
+      )
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
     }
     if (parsed.command.cmd === "desktop") {
-      const result = await runDesktopReview({
-        ...defaultDesktopDeps(),
-        task: {
-          open: parsed.command.open,
-          type: parsed.command.type,
-          click: parsed.command.click,
-          expect: parsed.command.expect,
-        },
-      })
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok ? 0 : 1
+      const result = stampSchema(
+        await runDesktopReview({
+          ...defaultDesktopDeps(),
+          task: {
+            open: parsed.command.open,
+            type: parsed.command.type,
+            click: parsed.command.click,
+            expect: parsed.command.expect,
+          },
+        }),
+      )
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
     }
     if (parsed.command.cmd === "profile-status") {
-      const result = await profileStatus({
-        profile: parsed.command.profile,
-        name: parsed.command.name,
-        url: parsed.command.url,
-      })
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok ? 0 : 1
+      const result = stampSchema(
+        await profileStatus({
+          profile: parsed.command.profile,
+          name: parsed.command.name,
+          url: parsed.command.url,
+        }),
+      )
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
     }
     const profiles = await listProfiles()
-    process.stdout.write(`${JSON.stringify(profiles, null, 2)}\n`)
+    writeStdoutJson(stampSchema({ ok: true, profiles }))
     return 0
   } catch (err) {
+    writeStdoutJson(failureReceipt(err))
     process.stderr.write(`${explainSolariError(err)}\n`)
-    return 2
+    return 1
   }
 }
 

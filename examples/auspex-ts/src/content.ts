@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { MAX_IMAGE_BYTES, fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
+import { stampSchema } from "./schema-version.ts"
 
 export { MAX_IMAGE_BYTES }
 
@@ -83,7 +84,7 @@ export async function packToolFailure(err: unknown): Promise<{ content: ToolCont
   if (extra?.receipt && typeof extra.receipt === "object") {
     Object.assign(payload, extra.receipt)
   }
-  const packed = await buildReceiptToolContent(payload, extra?.screenshotPath)
+  const packed = await buildReceiptToolContent(stampSchema(payload), extra?.screenshotPath)
   if (extra?.log) {
     packed.content.unshift({ type: "text", text: extra.log })
   }

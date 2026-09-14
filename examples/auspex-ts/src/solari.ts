@@ -114,6 +114,8 @@ export const REPLAY_DELAY_MS = 500
 export const BROWSER_API_BASE = "https://api.getsolari.com"
 
 export const DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env")
+/** Optional gitignored .env at the repository root (same key name only). */
+export const REPO_DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..", ".env")
 
 export type PlaywrightStorageState = {
   cookies: Array<{
@@ -177,10 +179,8 @@ export function findProfileId(profiles: { id: string; name: string }[], name: st
   return existing.id
 }
 
-/** Load gitignored examples/auspex-ts/.env if the process env has no key. */
-export function loadDotEnv(file = DOTENV_PATH): void {
-  if (process.env.SOLARI_API_KEY) return
-  if (!existsSync(file)) return
+function readSolariKeyFromFile(file: string): string | undefined {
+  if (!existsSync(file)) return undefined
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     let line = raw
     if (line.charCodeAt(0) === 0xfeff) line = line.slice(1)
@@ -197,7 +197,18 @@ export function loadDotEnv(file = DOTENV_PATH): void {
     ) {
       value = value.slice(1, -1)
     }
-    if (name === "SOLARI_API_KEY" && value) {
+    if (name === "SOLARI_API_KEY" && value) return value
+  }
+  return undefined
+}
+
+/** Load gitignored .env if the process env has no key. Env SOLARI_API_KEY wins. */
+export function loadDotEnv(file = DOTENV_PATH): void {
+  if (process.env.SOLARI_API_KEY) return
+  const files = file === DOTENV_PATH ? [DOTENV_PATH, REPO_DOTENV_PATH] : [file]
+  for (const f of files) {
+    const value = readSolariKeyFromFile(f)
+    if (value) {
       process.env.SOLARI_API_KEY = value
       return
     }
@@ -209,7 +220,7 @@ export function requireApiKey(): string {
   const key = process.env.SOLARI_API_KEY
   if (!key) {
     throw new Error(
-      "SOLARI_API_KEY is not set. Put slr_live_… in examples/auspex-ts/.env (gitignored) or export it in the same process that runs Auspex/Grok.",
+      "SOLARI_API_KEY is not set. Export SOLARI_API_KEY (https://console.getsolari.com) in the process that runs Auspex. Never commit the key.",
     )
   }
   return key

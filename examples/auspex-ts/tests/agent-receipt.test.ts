@@ -105,8 +105,9 @@ test("overlayVerifyReason maps claim miss to mismatch and fetch fail to network"
   )
 })
 
-test("toAgentReceipt is parseable: ok, reason, url, expect, screenshotPath", () => {
+test("toAgentReceipt is parseable: schemaVersion, ok, reason, url, expect, screenshotPath", () => {
   const receipt = toAgentReceipt(sampleCheck())
+  assert.equal(receipt.schemaVersion, 1)
   assert.equal(receipt.ok, true)
   assert.equal(receipt.reason, "matched")
   assert.equal(receipt.url, "https://ironadamant.com")
@@ -117,6 +118,23 @@ test("toAgentReceipt is parseable: ok, reason, url, expect, screenshotPath", () 
   assert.equal(failed.reason, "mismatch")
   assert.equal(agentReceiptOk({ protocolOk: true, reason: "matched" }), true)
   assert.equal(agentReceiptOk({ protocolOk: true, reason: "mismatch" }), false)
+})
+
+test("toAgentReceipt does not overlay a skipped verify after loggedOut", () => {
+  const receipt = toAgentReceipt(sampleCheck({ ok: false, matched: false, reason: "loggedOut" }), {
+    verify: {
+      ok: false,
+      errors: [],
+      claimOk: false,
+      claimErrors: [],
+      runDir: ".auspex/runs/stamp",
+      skipped: true,
+      skipReason: "loggedOut",
+    },
+  })
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "loggedOut")
+  assert.equal(receipt.verify?.skipped, true)
 })
 
 test("toAgentReceipt folds sandbox verify into ok/reason", () => {
