@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { requireCheckUrl } from "./http-url.ts"
 import { requireProfileName } from "./profiles.ts"
+import { hostIs } from "./sso.ts"
 import { requireExpect } from "./text.ts"
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -37,15 +38,33 @@ export function defaultConfigPath(): string {
   return path.join(packageRoot, "auspex.yml")
 }
 
+/** Packed package YAML, then AUSPEX_CONFIG. Cwd auspex.yml is not consulted (no silent override). */
 export function resolveConfigPath(explicit?: string): string | undefined {
   if (explicit) return explicit
   const env = process.env.AUSPEX_CONFIG?.trim()
   if (env) return env
-  const cwdPath = path.resolve("auspex.yml")
-  if (existsSync(cwdPath)) return cwdPath
   const packed = defaultConfigPath()
   if (existsSync(packed)) return packed
   return undefined
+}
+
+/** ironadamant.com / checkpointprojects.com (saved checks with no profile). */
+export function isPublicMarketingUrl(url: string): boolean {
+  let host: string
+  try {
+    host = new URL(url).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  for (const row of DEFAULT_SAVED_CHECKS) {
+    if (row.profile) continue
+    try {
+      if (hostIs(host, new URL(row.url).hostname)) return true
+    } catch {
+      /* skip */
+    }
+  }
+  return false
 }
 
 function unquote(value: string): string {

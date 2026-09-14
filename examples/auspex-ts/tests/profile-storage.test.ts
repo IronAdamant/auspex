@@ -121,13 +121,15 @@ test("isPersistableAppUrl rejects landing and auth, allows dashboard", () => {
   assert.equal(isPersistableAppUrl("https://consistencyhub.io/document-editor"), true)
 })
 
-test("isLoggedOutLanding is /landing or a login page, not a generic mismatch", () => {
+test("isLoggedOutLanding is /landing, login, or unmatched /", () => {
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/landing"), true)
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/landing/"), true)
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/login"), true)
   assert.equal(isLoggedOutLanding("https://login.microsoftonline.com/common/oauth2/v2.0/authorize"), true)
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/dashboard"), false)
-  assert.equal(isLoggedOutLanding("https://ironadamant.com/"), false)
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/"), true)
+  assert.equal(isLoggedOutLanding("https://consistencyhub.io/", { matched: true }), false)
+  assert.equal(isLoggedOutLanding("https://ironadamant.com/", { matched: true }), false)
 })
 
 test("captureStorageState folds sessionStorage from open pages", async () => {

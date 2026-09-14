@@ -62,8 +62,13 @@ export async function buildReceiptToolContent(
 }
 
 export async function buildCheckToolContent(
-  result: { screenshotPath: string },
+  result: { screenshotPath: string; reason?: string; needsHuman?: boolean },
 ): Promise<{ content: ToolContent[] }> {
+  if (result.reason === "needsHuman" || result.needsHuman) {
+    const content: ToolContent[] = [{ type: "text", text: JSON.stringify(result, null, 2) }]
+    content.push(pngNote("screenshot omitted: needsHuman (password/OTP wall)"))
+    return { content }
+  }
   return buildReceiptToolContent(result, result.screenshotPath)
 }
 

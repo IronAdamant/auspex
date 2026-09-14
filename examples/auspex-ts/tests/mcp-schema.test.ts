@@ -34,6 +34,8 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.ok("click" in props)
     assert.ok("proxy" in props)
     assert.ok("captcha" in props)
+    assert.ok("allowPageActions" in props)
+    assert.ok("allowRecordProfile" in props)
     assert.ok("saveProfile" in props)
     const required = check.inputSchema.required ?? []
     assert.equal(required.includes("url"), false)
@@ -56,8 +58,11 @@ test("ListTools advertises auspex_check url and expect from the shipped registra
     assert.match(check.description ?? "", /dashboard/)
     const reap = listed.tools.find((t) => t.name === "auspex_reap")
     assert.ok(reap, "auspex_reap missing from ListTools")
+    const reapProps = reap.inputSchema.properties ?? {}
+    assert.ok("accountWide" in reapProps)
     assert.match(reap.description ?? "", /429|leftover|kill/i)
     assert.match(reap.description ?? "", /packReceipts|pack/)
+    assert.match(reap.description ?? "", /accountWide|ledger/i)
     const verify = listed.tools.find((t) => t.name === "auspex_verify")
     assert.ok(verify)
     assert.match(verify.description ?? "", /claimOk|ok/)

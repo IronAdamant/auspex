@@ -35,6 +35,8 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /--no-verify/)
   assert.match(USAGE, /profile-status/)
   assert.match(USAGE, /--pack-receipts/)
+  assert.match(USAGE, /--allow-page-actions/)
+  assert.match(USAGE, /--account-wide/)
   assert.match(USAGE, /matched/)
   assert.match(USAGE, /schemaVersion/)
   assert.match(USAGE, /frozen/)
@@ -243,7 +245,7 @@ test("parseArgv rejects --record with --profile unless override is set", () => {
     "--expect",
     "Build it.",
     "--profile",
-    "consistencyhub",
+    "demo",
     "--record",
   ])
   assert.equal(blocked.status, "error")
@@ -254,7 +256,7 @@ test("parseArgv rejects --record with --profile unless override is set", () => {
     "--expect",
     "Build it.",
     "--profile",
-    "consistencyhub",
+    "demo",
     "--record",
     "--allow-record-profile",
   ])
@@ -262,8 +264,17 @@ test("parseArgv rejects --record with --profile unless override is set", () => {
   if (ok.status === "ok" && ok.command.cmd === "check") {
     assert.equal(ok.command.opts.allowRecordProfile, true)
     assert.equal(ok.command.opts.record, true)
-    assert.equal(ok.command.opts.profile, "consistencyhub")
+    assert.equal(ok.command.opts.profile, "demo")
   }
+  const hub = parseArgv([
+    "check",
+    "--name",
+    "consistencyhub",
+    "--record",
+    "--allow-record-profile",
+  ])
+  assert.equal(hub.status, "error")
+  if (hub.status === "error") assert.match(hub.message, /consistencyhub/i)
 })
 
 test("parseArgv rejects whitespace-only --profile on check and login", () => {
@@ -329,7 +340,7 @@ test("parseArgv check click/fill/wait-for and proxy", () => {
     "us",
     "--captcha",
   ])
-  assert.equal(parsed.status, "ok")
+  assert.equal(parsed.status, "ok", parsed.status === "error" ? parsed.message : "")
   if (parsed.status === "ok" && parsed.command.cmd === "check") {
     assert.equal(parsed.command.opts.waitFor, "#main")
     assert.equal(parsed.command.opts.fill, "#q")
@@ -342,9 +353,29 @@ test("parseArgv check click/fill/wait-for and proxy", () => {
   }
 })
 
-test("parseArgv check --fill without --value is an error", () => {
-  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", "x", "--fill", "#q"])
-  assert.equal(parsed.status, "error")
+test("parseArgv rejects fill/click with a profile unless --allow-page-actions", () => {
+  const blocked = parseArgv([
+    "check",
+    "--name",
+    "consistencyhub",
+    "--click",
+    "button.export",
+  ])
+  assert.equal(blocked.status, "error")
+  if (blocked.status === "error") assert.match(blocked.message, /allow-page-actions/i)
+  const ok = parseArgv([
+    "check",
+    "--name",
+    "consistencyhub",
+    "--click",
+    "button.export",
+    "--allow-page-actions",
+  ])
+  assert.equal(ok.status, "ok")
+  if (ok.status === "ok" && ok.command.cmd === "check") {
+    assert.equal(ok.command.opts.allowPageActions, true)
+    assert.equal(ok.command.opts.click, "button.export")
+  }
 })
 
 test("parseArgv check --save-profile", () => {
@@ -370,6 +401,11 @@ test("parseArgv reap and desktop --expect", () => {
   if (reap.status === "ok" && reap.command.cmd === "reap") {
     assert.equal(reap.command.dryRun, true)
     assert.equal(reap.command.sessionId, "sess-1")
+  }
+  const wide = parseArgv(["reap", "--account-wide"])
+  assert.equal(wide.status, "ok")
+  if (wide.status === "ok" && wide.command.cmd === "reap") {
+    assert.equal(wide.command.accountWide, true)
   }
   const desk = parseArgv(["desktop", "--open", "mousepad", "--expect", "mousepad"])
   assert.equal(desk.status, "ok")

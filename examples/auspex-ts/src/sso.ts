@@ -22,7 +22,7 @@ const SSO_POLL_MS = 500
 
 const PASSWORD_WALL = /enter (your )?password/i
 const OTP_WALL =
-  /enter (the )?code|one-time|authenticator app|approve a sign[- ]in|approve sign[- ]in|verify your identity|texted a code/i
+  /enter (the )?code|one-time|authenticator app|approve a sign[- ]in|approve sign[- ]in|verify your identity|texted a code|2-step verification|verify it['’]s you|google prompt/i
 
 /** True when hostname is exactly `domain` or a subdomain of it (label match, not substring). */
 export function hostIs(hostname: string, domain: string): boolean {
@@ -35,8 +35,16 @@ export function microsoftAuthHost(hostname: string): boolean {
   return hostIs(hostname, "login.microsoftonline.com") || hostIs(hostname, "login.live.com")
 }
 
+export function googleAuthHost(hostname: string): boolean {
+  return hostIs(hostname, "accounts.google.com")
+}
+
+export function idpAuthHost(hostname: string): boolean {
+  return microsoftAuthHost(hostname) || googleAuthHost(hostname)
+}
+
 export function stillOnAuth(url: URL): boolean {
-  if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
+  if (idpAuthHost(url.hostname)) {
     return true
   }
   const path = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase()
@@ -52,7 +60,7 @@ export function shouldFailClosedAuth(
   opts: { sso?: boolean; profile?: string },
 ): boolean {
   if (!stillOnAuth(url)) return false
-  if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
+  if (idpAuthHost(url.hostname)) {
     return true
   }
   return Boolean(opts.sso || opts.profile)
@@ -70,11 +78,11 @@ export function describeAuthWall(opts: {
     return { needsHuman: false }
   }
   const text = opts.text ?? ""
-  const ms = microsoftAuthHost(parsed.hostname)
-  if (ms && (opts.hasPasswordInput || PASSWORD_WALL.test(text))) {
+  const idp = idpAuthHost(parsed.hostname)
+  if (idp && (opts.hasPasswordInput || PASSWORD_WALL.test(text))) {
     return { needsHuman: true, wall: "password", url: opts.url }
   }
-  if (ms && OTP_WALL.test(text)) {
+  if (idp && OTP_WALL.test(text)) {
     return { needsHuman: true, wall: "otp", url: opts.url }
   }
   return { needsHuman: false }
@@ -160,16 +168,19 @@ async function finishMicrosoftPicker(page: Page, cancel: SsoCancel): Promise<Sso
   return probeSsoWall(page)
 }
 
-async function finishGooglePicker(page: Page, cancel: SsoCancel): Promise<void> {
+async function finishGooglePicker(page: Page, cancel: SsoCancel): Promise<SsoResult> {
   const signal = cancel.signal
   await page
-    .waitForURL((url) => hostIs(url.hostname, "accounts.google.com"), { timeout: 30_000, signal })
+    .waitForURL((url) => googleAuthHost(url.hostname), { timeout: 30_000, signal })
     .catch(() => undefined)
-  if (stopped(cancel)) return
+  if (stopped(cancel)) return { needsHuman: false }
+  const wallNow = await probeSsoWall(page)
+  if (wallNow.needsHuman) return wallNow
   const account = page.getByRole("link", { name: /@/ }).or(page.getByRole("button", { name: /@/ }))
   if ((await account.count()) > 0) {
     await account.first().click({ timeout: 10_000, signal }).catch(() => undefined)
   }
+  return probeSsoWall(page)
 }
 
 async function waitForSsoReturn(page: Page, cancel: SsoCancel): Promise<SsoResult> {
@@ -214,7 +225,8 @@ export async function completeSso(
   } else if (tryGoogle && (await clickFirst(page, /sign in with google/i, signal))) {
     clicked = true
     if (stopped(opts)) return { needsHuman: false }
-    await finishGooglePicker(page, opts)
+    const wall = await finishGooglePicker(page, opts)
+    if (wall.needsHuman) return wall
   } else if (provider === "auto" && (await clickFirst(page, /sign in with /i, signal))) {
     clicked = true
   }

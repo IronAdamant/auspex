@@ -22,12 +22,12 @@ test("reapLeftovers dry-run lists without deleting", async () => {
   assert.equal(result.dryRun, true)
   assert.ok(result.browsers.includes("sess-extra"))
   assert.ok(result.browsers.includes("sess-ledger"))
-  assert.equal(result.vms.length, 1)
+  assert.equal(result.vms.length, 0)
   assert.equal(deleted, 0)
   assert.equal(released, 0)
 })
 
-test("reapLeftovers releases browsers and kills holding VMs", async () => {
+test("reapLeftovers default kills ledger ids only, not account-wide VMs", async () => {
   const released: string[] = []
   const killed: string[] = []
   const result = await reapLeftovers(
@@ -44,11 +44,34 @@ test("reapLeftovers releases browsers and kills holding VMs", async () => {
       releaseBrowser: async (id) => {
         released.push(id)
       },
+      ledger: async () => ({ browser: ["b1"], sandbox: ["sbx-ledger"], desktop: ["desk-ledger"] }),
+    },
+  )
+  assert.equal(result.ok, true)
+  assert.equal(result.accountWide, false)
+  assert.deepEqual(released, ["b1"])
+  assert.deepEqual(killed.sort(), ["desk-ledger", "sbx-ledger"])
+})
+
+test("reapLeftovers accountWide kills holding VMs on the key", async () => {
+  const killed: string[] = []
+  const result = await reapLeftovers(
+    { accountWide: true },
+    {
+      listVms: async () => [
+        { id: "sbx-run", kind: "sandbox", state: "running" },
+        { id: "desk-1", kind: "desktop", state: "paused" },
+        { id: "gone", kind: "sandbox", state: "gone" },
+      ],
+      deleteVm: async (id) => {
+        killed.push(id)
+      },
+      releaseBrowser: async () => undefined,
       ledger: async () => ({ browser: ["b1"], sandbox: [], desktop: [] }),
     },
   )
   assert.equal(result.ok, true)
-  assert.deepEqual(released, ["b1"])
+  assert.equal(result.accountWide, true)
   assert.deepEqual(killed.sort(), ["desk-1", "sbx-run"])
 })
 

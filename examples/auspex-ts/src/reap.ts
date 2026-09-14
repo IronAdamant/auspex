@@ -17,6 +17,7 @@ export type ReapResult = {
   errors: string[]
   packed?: PackedReceipt[]
   packDir?: string
+  accountWide?: boolean
 }
 
 export type ReapOpts = {
@@ -24,6 +25,7 @@ export type ReapOpts = {
   sessionId?: string
   vmId?: string
   packReceipts?: boolean
+  accountWide?: boolean
 }
 
 export type ReapDeps = {
@@ -62,20 +64,37 @@ export async function defaultReapDeps(): Promise<ReapDeps> {
   }
 }
 
+function ledgerVms(ledger: LiveLedger, extraVmId?: string): VmRow[] {
+  const rows: VmRow[] = [
+    ...ledger.sandbox.map((id) => ({ id, kind: "sandbox", state: "running" })),
+    ...ledger.desktop.map((id) => ({ id, kind: "desktop", state: "running" })),
+  ]
+  if (extraVmId && !rows.some((v) => v.id === extraVmId)) {
+    rows.push({ id: extraVmId, kind: "sandbox", state: "running" })
+  }
+  return rows
+}
+
 export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promise<ReapResult> {
   const d = deps ?? (await defaultReapDeps())
   const dryRun = opts.dryRun === true
+  const accountWide = opts.accountWide === true
   const errors: string[] = []
   const released: string[] = []
   const killed: string[] = []
   const ledger = d.ledger ? await d.ledger() : { browser: [], sandbox: [], desktop: [] }
   const browsers = [...new Set([...(opts.sessionId ? [opts.sessionId] : []), ...ledger.browser])]
-  let vms = await d.listVms()
-  if (opts.vmId) {
-    const extra = vms.find((v) => v.id === opts.vmId)
-    if (!extra) vms = [...vms, { id: opts.vmId, kind: "sandbox", state: "running" }]
+  let vms: VmRow[]
+  if (accountWide) {
+    vms = await d.listVms()
+    if (opts.vmId) {
+      const extra = vms.find((v) => v.id === opts.vmId)
+      if (!extra) vms = [...vms, { id: opts.vmId, kind: "sandbox", state: "running" }]
+    }
+    vms = vms.filter((v) => HOLDING.has(v.state) || v.id === opts.vmId)
+  } else {
+    vms = ledgerVms(ledger, opts.vmId)
   }
-  vms = vms.filter((v) => HOLDING.has(v.state) || v.id === opts.vmId)
   if (!dryRun) {
     for (const id of browsers) {
       try {
@@ -105,6 +124,7 @@ export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promi
     released,
     killed,
     errors,
+    accountWide,
   }
   if (opts.packReceipts) {
     try {
