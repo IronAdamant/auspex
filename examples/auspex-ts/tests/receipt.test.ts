@@ -395,6 +395,8 @@ test("checkThenVerify keeps the check receipt when verify throws", async () => {
     title: "Software & AI tooling | Iron Adamant",
     finalUrl: "https://ironadamant.com/",
     ok: true,
+    reason: "matched" as const,
+    url: "https://ironadamant.com",
     expect: "Build it.",
     matched: true,
     excerpt: "Build it.",

@@ -31,7 +31,11 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /auspex_reap/)
   assert.match(USAGE, /--wait-for/)
   assert.match(USAGE, /--captcha/)
-  assert.equal(USAGE.includes("kill leftover sessions in the console"), false)
+  assert.match(USAGE, /--name/)
+  assert.match(USAGE, /--no-verify/)
+  assert.match(USAGE, /profile-status/)
+  assert.match(USAGE, /--pack-receipts/)
+  assert.match(USAGE, /matched/)
 })
 
 test("parseArgv --help and check --help request help", () => {
@@ -142,6 +146,9 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
   assert.match(help.stdout, /await-login/)
   assert.match(help.stdout, /--save-profile/)
+  assert.match(help.stdout, /--name/)
+  assert.match(help.stdout, /profile-status/)
+  assert.match(help.stdout, /--pack-receipts/)
   assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
 })
 
@@ -365,6 +372,56 @@ test("parseArgv reap and desktop --expect", () => {
     assert.equal(desk.command.open, "mousepad")
   }
 })
+test("parseArgv check --name uses saved checks and verifies by default", () => {
+  const named = parseArgv(["check", "--name", "ironadamant"])
+  assert.equal(named.status, "ok")
+  if (named.status === "ok" && named.command.cmd === "check") {
+    assert.equal(named.command.opts.url, "https://ironadamant.com")
+    assert.equal(named.command.opts.expect, "One office job.")
+    assert.equal(named.command.verifyAfter, true)
+  }
+  const hub = parseArgv(["check", "--name", "consistencyhub"])
+  assert.equal(hub.status, "ok")
+  if (hub.status === "ok" && hub.command.cmd === "check") {
+    assert.equal(hub.command.opts.profile, "consistencyhub")
+    assert.equal(hub.command.opts.expect, "Document Editor")
+    assert.equal(hub.command.opts.sso, false)
+    assert.equal(hub.command.opts.record, false)
+  }
+  const skip = parseArgv(["check", "--name", "checkpoint", "--no-verify"])
+  assert.equal(skip.status, "ok")
+  if (skip.status === "ok" && skip.command.cmd === "check") {
+    assert.equal(skip.command.verifyAfter, false)
+    assert.equal(skip.command.opts.expect, "Checkpoint")
+  }
+})
+
+test("parseArgv rejects --record with a dashboard landing URL", () => {
+  const parsed = parseArgv([
+    "check",
+    "https://consistencyhub.io/dashboard",
+    "--expect",
+    "Document Editor",
+    "--record",
+  ])
+  assert.equal(parsed.status, "error")
+  if (parsed.status === "error") assert.match(parsed.message, /logged-in|record|dashboard/i)
+})
+
+test("parseArgv profile-status and reap --pack-receipts", () => {
+  const status = parseArgv(["profile-status", "--name", "consistencyhub"])
+  assert.equal(status.status, "ok")
+  if (status.status === "ok" && status.command.cmd === "profile-status") {
+    assert.equal(status.command.name, "consistencyhub")
+  }
+  const reap = parseArgv(["reap", "--dry-run", "--pack-receipts"])
+  assert.equal(reap.status, "ok")
+  if (reap.status === "ok" && reap.command.cmd === "reap") {
+    assert.equal(reap.command.packReceipts, true)
+    assert.equal(reap.command.dryRun, true)
+  }
+})
+
 test("parseArgv desktop takes no extra args", () => {
   const a = parseArgv(["desktop"])
   assert.equal(a.status, "ok")

@@ -1,33 +1,40 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { toAgentReceipt } from "./agent-receipt.ts"
 import { runCheck, type CheckOptions } from "./check.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { formatLogin, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
+import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { parseProxyFlag } from "./launch-options.ts"
 import { assertFillPair } from "./page-actions.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
+import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
-import { RECORD_LOGGED_IN_ERROR, RECORD_PROFILE_ERROR } from "./tool-schema.ts"
+import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, RECORD_PROFILE_ERROR } from "./tool-schema.ts"
 
 export const USAGE = `Usage:
-  npx tsx src/cli.ts check <url> --expect <string> [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify]
+  npx tsx src/cli.ts check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
   npx tsx src/cli.ts verify [runDir]
   npx tsx src/cli.ts desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-  npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>]
+  npx tsx src/cli.ts reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts]
   npx tsx src/cli.ts login --profile <name> [--url <hint>] [--wait]
   npx tsx src/cli.ts await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
   npx tsx src/cli.ts profiles
+  npx tsx src/cli.ts profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 
 Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
-verify uploads that receipt into a headless Solari sandbox, independently re-checks expect (fetch/OCR), and kills the VM.
---verify on check is one-shot check-then-sandbox (do not also run verify). ok is protocol success; matched is the expect substring.
-desktop boots a Solari GUI VM and opens mousepad by default. Evidence is the process list (processList + ps, same haystack for wait/expect/ok). A coordinate click is unverified and not the default. streamUrl is the live VNC. Stderr is an append-only log; stdout is JSON.
-reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery without official Solari MCP).
+Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record).
+check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check.
+Stdout is a parseable receipt: ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath, plus diff vs the last same-URL receipt.
+ok is protocol success; matched is the expect substring; reason is always set. CLI exit 0 requires agent ok (matched, and verify claim if verifying).
+desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
+reap lists/closes leftover browser sessions and kills holding sandboxes/desktops (429 recovery). --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
+profile-status reports loggedIn | loggedOut | needsHuman. Re-seed is human SSO once; the agent never types a password and does not ping the user.
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
 await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
 profiles lists names, ids, version, and whether storage is populated.
@@ -47,9 +54,10 @@ export type CliCommand =
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
   | { cmd: "profiles" }
+  | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
-  | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string }
+  | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -93,7 +101,8 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
     }
-    const expect = takeOption(args, "--expect", { rejectHttp: true })
+    const expectOpt = takeOption(args, "--expect", { rejectHttp: true })
+    const name = takeOption(args, "--name", { rejectHttp: true })
     const selector = takeOption(args, "--selector", { rejectHttp: true })
     const profile = takeOption(args, "--profile", { rejectHttp: true })
     const profileIdx = args.indexOf("--profile")
@@ -114,19 +123,15 @@ export function parseArgv(argv: string[]): ParseResult {
     const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
     const captcha = takeFlag(args, "--captcha")
     const saveProfile = takeFlag(args, "--save-profile")
-    const verifyAfter = takeFlag(args, "--verify")
-    const url = args.shift()
+    const noVerify = takeFlag(args, "--no-verify")
+    const verifyFlag = takeFlag(args, "--verify")
+    if (noVerify && verifyFlag) {
+      return { status: "error", message: "pass only one of --verify or --no-verify" }
+    }
+    const verifyAfter = !noVerify
+    let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL" }
-    if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
-    if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
-    if (!expect || !isNonEmptyExpect(expect)) {
-      return { status: "error", message: "check requires --expect <string>" }
-    }
-    const ssoProvider = parseSsoProvider(ssoProviderRaw)
-    if (ssoProviderRaw && !ssoProvider) {
-      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
-    }
+    let expect = expectOpt
     let profileName = profile
     if (profileName !== undefined) {
       try {
@@ -135,10 +140,35 @@ export function parseArgv(argv: string[]): ParseResult {
         return { status: "error", message: err instanceof Error ? err.message : String(err) }
       }
     }
+    if (name) {
+      try {
+        const merged = applySavedCheckName({
+          name,
+          url,
+          expect,
+          profile: profileName,
+        })
+        url = merged.url
+        expect = merged.expect
+        profileName = merged.profile
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL or --name" }
+    if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
+    if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
+    if (!expect || !isNonEmptyExpect(expect)) {
+      return { status: "error", message: "check requires --expect <string> or --name" }
+    }
+    const ssoProvider = parseSsoProvider(ssoProviderRaw)
+    if (ssoProviderRaw && !ssoProvider) {
+      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
+    }
     if (record && profileName && !allowRecordProfile) {
       return { status: "error", message: RECORD_PROFILE_ERROR }
     }
-    if (record && (sso || Boolean(ssoProvider) || saveProfile)) {
+    if (record && (sso || Boolean(ssoProvider) || saveProfile || isDashboardLandingUrl(url))) {
       return { status: "error", message: RECORD_LOGGED_IN_ERROR }
     }
     try {
@@ -239,6 +269,30 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     return { status: "ok", command: { cmd: "profiles" } }
   }
+  if (cmd === "profile-status") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const profileRaw = takeOption(args, "--profile")
+    const name = takeOption(args, "--name")
+    const url = takeOption(args, "--url")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    if (!profileRaw && !name) {
+      return { status: "error", message: "profile-status requires --profile <name> or --name <saved>" }
+    }
+    let profile: string | undefined
+    if (profileRaw) {
+      try {
+        profile = requireProfileName(profileRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
+      return { status: "error", message: "url must be an http or https URL" }
+    }
+    return { status: "ok", command: { cmd: "profile-status", profile, name, url } }
+  }
   if (cmd === "reap") {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
@@ -246,8 +300,9 @@ export function parseArgv(argv: string[]): ParseResult {
     const dryRun = takeFlag(args, "--dry-run")
     const sessionId = takeOption(args, "--session")
     const vmId = takeOption(args, "--vm")
+    const packReceipts = takeFlag(args, "--pack-receipts")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId } }
+    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId, packReceipts } }
   }
   if (cmd === "desktop") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -283,14 +338,16 @@ export async function main(argv: string[]): Promise<number> {
   }
   try {
     if (parsed.command.cmd === "check") {
-      if (parsed.command.verifyAfter) {
+      if (parsed.command.verifyAfter !== false) {
         const both = await checkThenVerify(parsed.command.opts)
-        process.stdout.write(`${JSON.stringify(both, null, 2)}\n`)
-        return both.check.ok && both.check.matched && both.verify.ok ? 0 : 1
+        const receipt = toAgentReceipt(both.check, { verify: both.verify })
+        process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
+        return receipt.ok ? 0 : 1
       }
       const result = await runCheck(parsed.command.opts)
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return result.ok && result.matched ? 0 : 1
+      const receipt = toAgentReceipt(result)
+      process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
+      return receipt.ok ? 0 : 1
     }
     if (parsed.command.cmd === "login") {
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
@@ -322,6 +379,7 @@ export async function main(argv: string[]): Promise<number> {
         dryRun: parsed.command.dryRun,
         sessionId: parsed.command.sessionId,
         vmId: parsed.command.vmId,
+        packReceipts: parsed.command.packReceipts,
       })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1
@@ -335,6 +393,15 @@ export async function main(argv: string[]): Promise<number> {
           click: parsed.command.click,
           expect: parsed.command.expect,
         },
+      })
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
+      return result.ok ? 0 : 1
+    }
+    if (parsed.command.cmd === "profile-status") {
+      const result = await profileStatus({
+        profile: parsed.command.profile,
+        name: parsed.command.name,
+        url: parsed.command.url,
       })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return result.ok ? 0 : 1

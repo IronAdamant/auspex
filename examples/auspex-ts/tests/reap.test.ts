@@ -70,3 +70,35 @@ test("reapLeftovers records per-id failures without throwing", async () => {
   assert.ok(result.errors.some((e) => /browser boom/))
   assert.ok(result.errors.some((e) => /vm boom/))
 })
+
+test("reapLeftovers packReceipts attaches last receipts without extra deletes", async () => {
+  let deleted = 0
+  const result = await reapLeftovers(
+    { dryRun: true, packReceipts: true },
+    {
+      listVms: async () => [],
+      deleteVm: async () => {
+        deleted += 1
+      },
+      releaseBrowser: async () => undefined,
+      ledger: async () => ({ browser: [], sandbox: [], desktop: [] }),
+      packReceipts: async () => ({
+        packDir: ".auspex/pack/stamp",
+        packed: [
+          {
+            url: "https://ironadamant.com",
+            expect: "One office job.",
+            reason: "matched",
+            screenshotPath: ".auspex/pack/stamp/run/screenshot.png",
+            manifestPath: ".auspex/pack/stamp/run/manifest.json",
+            runDir: ".auspex/pack/stamp/run",
+          },
+        ],
+      }),
+    },
+  )
+  assert.equal(result.ok, true)
+  assert.equal(deleted, 0)
+  assert.equal(result.packDir, ".auspex/pack/stamp")
+  assert.equal(result.packed?.[0]?.url, "https://ironadamant.com")
+})

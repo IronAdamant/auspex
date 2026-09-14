@@ -1,39 +1,47 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
+import { toAgentReceipt } from "./agent-receipt.ts"
 import { runCheck } from "./check.ts"
 import { buildCheckToolContent, buildReceiptToolContent, packToolFailure } from "./content.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
+import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
+import { applySavedCheckName } from "./saved-checks.ts"
 import {
+  assertRecordNotLoggedIn,
   assertRecordProfileAllowed,
   auspexAwaitLoginInputSchema,
   auspexCheckInputObject,
   auspexDesktopInputSchema,
   auspexLoginInputSchema,
+  auspexProfileStatusInputSchema,
   auspexReapInputSchema,
 } from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
-  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
+  "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry."
 
 const VERIFY_DESCRIPTION =
-  "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first."
+  "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
-  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success."
+  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user."
 
 const DESKTOP_DESCRIPTION =
-  "Solari GUI desktop: boot, wait for X11, open mousepad by default (the demo is opening the app). Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified (coordinate clicks are not). Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
+  "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
 
 const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
 
+const PROFILE_STATUS_DESCRIPTION =
+  "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft password/OTP wall is needsHuman — skip live, do not ping the user."
+
 const REAP_DESCRIPTION =
-  "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing."
+  "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
 
 function progressFromExtra(extra: unknown) {
   return createProgress({ extra: extra as ProgressExtra })
@@ -50,17 +58,29 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_check")
-        const { verify, ...rest } = args
-        const opts = { ...rest, onProgress }
+        const merged = applySavedCheckName(args)
+        const url = merged.url
+        const expect = merged.expect
+        if (!url || !expect) {
+          throw new Error("auspex_check requires name or url+expect")
+        }
+        const { verify, name: _savedName, ...rest } = merged
+        const opts = { ...rest, url, expect, onProgress }
         assertRecordProfileAllowed(opts)
-        if (verify) {
+        assertRecordNotLoggedIn(opts)
+        const shouldVerify = verify !== false
+        if (shouldVerify) {
           const both = await checkThenVerify(opts)
-          const packed = await buildCheckToolContent(both.check)
-          packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) }
+          const receipt = toAgentReceipt(both.check, { verify: both.verify })
+          const packed = await buildCheckToolContent(receipt)
+          packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) }
           return packed
         }
         const result = await runCheck(opts)
-        return await buildCheckToolContent(result)
+        const receipt = toAgentReceipt(result)
+        const packed = await buildCheckToolContent(receipt)
+        packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) }
+        return packed
       } catch (err) {
         return packToolFailure(err)
       }
@@ -93,7 +113,7 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_await_login",
     {
       description:
-        "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Then pass this profile to auspex_check.",
+        "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Then pass this profile to auspex_check. Do not ping the user.",
       inputSchema: auspexAwaitLoginInputSchema,
     },
     async ({ profile, sinceVersion, timeoutMs }) => {
@@ -116,6 +136,22 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const profiles = await listProfiles()
         return { content: [{ type: "text" as const, text: JSON.stringify(profiles, null, 2) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_profile_status",
+    {
+      description: PROFILE_STATUS_DESCRIPTION,
+      inputSchema: auspexProfileStatusInputSchema,
+    },
+    async (args) => {
+      try {
+        const result = await profileStatus(args)
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] }
       } catch (err) {
         return packToolFailure(err)
       }

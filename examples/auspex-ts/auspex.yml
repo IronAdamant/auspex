@@ -1,0 +1,16 @@
+# Saved checks for Codethulhu agents. Run without reconstructing flags:
+#   npx tsx src/cli.ts check --name ironadamant
+#   npx tsx src/cli.ts check --name checkpoint
+#   npx tsx src/cli.ts check --name consistencyhub
+# consistencyhub reuses --profile only (no --sso, no --record).
+checks:
+  ironadamant:
+    url: https://ironadamant.com
+    expect: "One office job."
+  checkpoint:
+    url: https://checkpointprojects.com
+    expect: Checkpoint
+  consistencyhub:
+    url: https://consistencyhub.io
+    expect: "Document Editor"
+    profile: consistencyhub

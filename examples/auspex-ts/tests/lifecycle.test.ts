@@ -78,6 +78,8 @@ test("checkThenVerify overlaps sandbox create with the browser check", async () 
     title: "t",
     finalUrl: "https://ironadamant.com/",
     ok: true,
+    reason: "matched" as const,
+    url: "https://ironadamant.com",
     expect: "Build it.",
     matched: true,
     excerpt: "Build it.",

@@ -5,11 +5,70 @@ import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js
 import "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as z5 } from "zod";
 
+// src/check-reason.ts
+function deriveCheckReason(input) {
+  if (input.needsHuman || input.special === "needsHuman") return "needsHuman";
+  if (input.special === "loggedOut") return "loggedOut";
+  if (input.special === "recordedLoggedIn") return "recordedLoggedIn";
+  if (!input.finalUrl || !input.screenshotOk) return "network";
+  if (!input.matched) {
+    if (!input.networkIdle && !input.excerpt.trim()) return "network";
+    return "mismatch";
+  }
+  return "matched";
+}
+function overlayVerifyReason(reason, verify) {
+  if (reason !== "matched") return reason;
+  if (verify.ok && verify.claimOk) return "matched";
+  const blob = [...verify.errors ?? [], ...verify.claimErrors ?? []].join(" ").toLowerCase();
+  if (!verify.claimOk && /expect|mismatch|not found|missing/i.test(blob)) return "mismatch";
+  if (/fetch|network|timeout|econn|http|dns/i.test(blob)) return "network";
+  if (!verify.claimOk) return "mismatch";
+  return "network";
+}
+function agentReceiptOk(opts) {
+  if (!opts.protocolOk) return false;
+  if (opts.reason !== "matched") return false;
+  if (opts.verify) return opts.verify.ok && opts.verify.claimOk;
+  return true;
+}
+
+// src/agent-receipt.ts
+function toAgentReceipt(check, extras) {
+  const reason = extras?.verify ? overlayVerifyReason(check.reason, extras.verify) : check.reason;
+  const ok = agentReceiptOk({
+    protocolOk: check.ok,
+    reason,
+    verify: extras?.verify
+  });
+  return {
+    ok,
+    reason,
+    url: check.url || check.finalUrl,
+    expect: check.expect,
+    screenshotPath: check.screenshotPath,
+    title: check.title,
+    finalUrl: check.finalUrl,
+    matched: check.matched,
+    excerpt: check.excerpt,
+    sessionId: check.sessionId,
+    networkIdle: check.networkIdle,
+    replayReady: check.replayReady,
+    waitedFor: check.waitedFor,
+    filled: check.filled,
+    clicked: check.clicked,
+    needsHuman: check.needsHuman,
+    diff: check.diff,
+    verify: extras?.verify,
+    profileSeed: check.profileSeed,
+    profileSaved: check.profileSaved
+  };
+}
+
 // src/check.ts
 import { existsSync as existsSync2 } from "node:fs";
-import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile3 } from "node:fs/promises";
-import path4 from "node:path";
-import { fileURLToPath as fileURLToPath3 } from "node:url";
+import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile3 } from "node:fs/promises";
+import path7 from "node:path";
 
 // src/http-url.ts
 import { z } from "zod";
@@ -395,8 +454,8 @@ function stillOnAuth(url) {
   if (microsoftAuthHost(url.hostname) || hostIs(url.hostname, "accounts.google.com")) {
     return true;
   }
-  const path8 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path8 === "/login" || path8.startsWith("/login/") || path8 === "/auth" || path8.startsWith("/auth/")) {
+  const path12 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path12 === "/login" || path12.startsWith("/login/") || path12 === "/auth" || path12.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -567,8 +626,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path8 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path8 === "/" || path8 === "/landing" || path8 === "/login" || path8 === "/signup" || path8.startsWith("/auth")) {
+  const path12 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path12 === "/" || path12 === "/landing" || path12 === "/login" || path12 === "/signup" || path12.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -581,8 +640,8 @@ function isLoggedOutLanding(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path8 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  return path8 === "/landing" || path8.startsWith("/landing/");
+  const path12 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  return path12 === "/landing" || path12.startsWith("/landing/");
 }
 function cookiesForOrigin(cookies, origin) {
   let host;
@@ -772,12 +831,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path8 = url;
+    let path12 = url;
     try {
-      path8 = new URL(url, BROWSER_API_BASE).pathname;
+      path12 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path8);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path12);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -1195,8 +1254,8 @@ function loginInstructions(profile, urlHint, handoff) {
 async function defaultProfileHttp() {
   const key = requireApiKey();
   return {
-    post: async (path8, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path8}`, {
+    post: async (path12, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path12}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -1341,28 +1400,175 @@ function haystackMatches(raw, expect) {
 }
 var expectSchema = z3.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
 
+// src/paths.ts
+import path4 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
+var packageRoot2 = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..");
+
+// src/receipt-diff.ts
+import { readFile as readFile3 } from "node:fs/promises";
+import path6 from "node:path";
+
+// src/receipt.ts
+import { readFileSync as readFileSync2 } from "node:fs";
+import { readdir, readFile as readFile2, stat } from "node:fs/promises";
+import path5 from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
+var ASSERT_RECEIPT_PY_PATH = path5.join(path5.dirname(fileURLToPath4(import.meta.url)), "assert_receipt.py");
+var RECEIPT_ASSERT_PY = readFileSync2(ASSERT_RECEIPT_PY_PATH, "utf8");
+var RUNS_DIR = path5.join(packageRoot2, ".auspex", "runs");
+function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
+  const dir = path5.resolve(runDir2);
+  const root = path5.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path5.sep)) {
+    throw new Error("runDir must be under .auspex/runs");
+  }
+  return dir;
+}
+async function listCompleteRunDirs(runsDir = RUNS_DIR) {
+  let names;
+  try {
+    names = await readdir(runsDir);
+  } catch {
+    return [];
+  }
+  const dirs = [];
+  for (const name of names) {
+    const dir = path5.join(runsDir, name);
+    const st = await stat(dir).catch(() => void 0);
+    if (!st?.isDirectory()) continue;
+    try {
+      await stat(path5.join(dir, "manifest.json"));
+      await stat(path5.join(dir, "screenshot.png"));
+      dirs.push({ dir, mtime: st.mtimeMs, name });
+    } catch {
+      continue;
+    }
+  }
+  dirs.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name));
+  return dirs.map((d) => d.dir);
+}
+async function findLatestRun(runsDir = RUNS_DIR) {
+  const dirs = await listCompleteRunDirs(runsDir);
+  const latest = dirs[0];
+  if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`);
+  return latest;
+}
+async function loadRunFiles(runDir2) {
+  const manifest = await readFile2(path5.join(runDir2, "manifest.json"), "utf8");
+  const png = await readFile2(path5.join(runDir2, "screenshot.png"));
+  return { manifest, png };
+}
+
+// src/receipt-diff.ts
+function canonicalCheckUrl(url) {
+  const u = new URL(url);
+  const host = u.hostname.toLowerCase();
+  const pathName = u.pathname.replace(/\/+$/, "") || "/";
+  return `${u.protocol}//${host}${pathName}`;
+}
+function receiptUrlKey(manifest) {
+  const raw = typeof manifest.url === "string" && manifest.url ? manifest.url : typeof manifest.finalUrl === "string" ? manifest.finalUrl : void 0;
+  if (!raw) return void 0;
+  try {
+    return canonicalCheckUrl(raw);
+  } catch {
+    return raw;
+  }
+}
+async function readManifest(dir) {
+  try {
+    const raw = await readFile3(path6.join(dir, "manifest.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : void 0;
+  } catch {
+    return void 0;
+  }
+}
+async function findPreviousReceiptForUrl(opts) {
+  let want;
+  try {
+    want = canonicalCheckUrl(opts.url);
+  } catch {
+    return void 0;
+  }
+  const dirs = await listCompleteRunDirs(opts.runsDir ?? RUNS_DIR);
+  const exclude = opts.excludeDir ? path6.resolve(opts.excludeDir) : void 0;
+  for (const dir of dirs) {
+    if (exclude && path6.resolve(dir) === exclude) continue;
+    const manifest = await readManifest(dir);
+    if (!manifest) continue;
+    const key = receiptUrlKey(manifest);
+    if (key === want) return { dir, manifest };
+  }
+  return void 0;
+}
+async function diffAgainstLastReceipt(opts) {
+  const previous = await findPreviousReceiptForUrl(opts);
+  if (!previous) {
+    return { urlChanged: false, excerptChanged: false, sameUrl: false };
+  }
+  const previousUrl = typeof previous.manifest.finalUrl === "string" ? previous.manifest.finalUrl : typeof previous.manifest.url === "string" ? previous.manifest.url : void 0;
+  const previousExcerpt = typeof previous.manifest.excerpt === "string" ? previous.manifest.excerpt : void 0;
+  const previousReason = typeof previous.manifest.reason === "string" ? previous.manifest.reason : void 0;
+  const landed = opts.finalUrl || opts.url;
+  let urlChanged = false;
+  if (previousUrl && landed) {
+    try {
+      urlChanged = canonicalCheckUrl(previousUrl) !== canonicalCheckUrl(landed);
+    } catch {
+      urlChanged = previousUrl !== landed;
+    }
+  }
+  const excerptChanged = (previousExcerpt ?? "") !== (opts.excerpt ?? "");
+  return {
+    previousRunDir: previous.dir,
+    previousUrl,
+    previousExcerpt,
+    previousReason,
+    urlChanged,
+    excerptChanged,
+    sameUrl: true
+  };
+}
+
 // src/tool-schema.ts
 import { z as z4 } from "zod";
 var RECORD_PROFILE_ERROR = "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile to override.";
-var RECORD_LOGGED_IN_ERROR = "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record.";
+var RECORD_LOGGED_IN_ERROR = "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing.";
+function isDashboardLandingUrl(url) {
+  try {
+    const pathName = (new URL(url).pathname.replace(/\/+$/, "") || "/").toLowerCase();
+    return pathName === "/dashboard" || pathName.startsWith("/dashboard/") || pathName === "/landing" || pathName.startsWith("/landing/");
+  } catch {
+    return false;
+  }
+}
 function assertRecordProfileAllowed(opts) {
   if (opts.record && opts.profile && !opts.allowRecordProfile) {
     throw new Error(RECORD_PROFILE_ERROR);
   }
 }
 function assertRecordNotLoggedIn(opts) {
-  if (opts.record && (opts.sso || opts.saveProfile)) {
+  if (!opts.record) return;
+  if (opts.sso || opts.saveProfile) {
+    throw new Error(RECORD_LOGGED_IN_ERROR);
+  }
+  if (opts.url && isDashboardLandingUrl(opts.url)) {
     throw new Error(RECORD_LOGGED_IN_ERROR);
   }
 }
 var auspexCheckInputObject = z4.object({
-  url: checkUrlSchema.describe("http or https URL to open (not loopback)"),
-  expect: expectSchema.describe("Non-empty substring that must appear in the page text"),
+  name: z4.string().trim().min(1).optional().describe(
+    "Saved check name from auspex.yml (ironadamant, checkpoint, consistencyhub). Supplies url/expect/profile so the agent does not reconstruct flags."
+  ),
+  url: checkUrlSchema.optional().describe("http or https URL to open (not loopback). Required unless name is set."),
+  expect: expectSchema.optional().describe("Non-empty substring that must appear in the page text. Required unless name is set."),
   selector: z4.string().optional().describe("Optional CSS selector to extract instead of body"),
   profile: profileNameSchema.optional().describe("Solari profile name to reuse cookies/storage"),
   stealth: z4.boolean().optional().describe("Solari stealth pool. Starter+; Free returns 402 FeatureRequiresPlan (not retryable)"),
   record: z4.boolean().optional().describe(
-    "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a logged-in landing."
+    "Record for Solari console Replay via sessionId (no presigned replayUrl). Forbidden with profile unless allowRecordProfile. Never with --sso, --save-profile, or a dashboard landing."
   ),
   sso: z4.boolean().optional().describe("Click Sign in with Microsoft/Google (or another Sign in with \u2026 button) if they appear"),
   ssoProvider: z4.enum(["microsoft", "google", "auto"]).optional().describe("SSO vendor. Default auto tries Microsoft, then Google, then a generic Sign in with button"),
@@ -1374,7 +1580,7 @@ var auspexCheckInputObject = z4.object({
   proxySticky: z4.string().optional().describe("Sticky proxy session id (with proxy country)"),
   captcha: z4.boolean().optional().describe("Managed captcha solving. Implies stealth. Starter+ (402 on Free)"),
   verify: z4.boolean().optional().describe(
-    "One-shot: after check, audit the receipt in a headless sandbox and kill that VM. Do not also call auspex_verify"
+    "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true."
   ),
   allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)"),
   saveProfile: z4.boolean().optional().describe(
@@ -1382,10 +1588,20 @@ var auspexCheckInputObject = z4.object({
   )
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
+  if (!val.name && (!val.url || !val.expect)) {
+    ctx.addIssue({
+      code: z4.ZodIssueCode.custom,
+      message: "auspex_check requires name or url+expect",
+      path: ["url"]
+    });
+  }
   if (val.record && val.profile && !val.allowRecordProfile) {
     ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_PROFILE_ERROR, path: ["record"] });
   }
   if (val.record && (val.sso || val.saveProfile)) {
+    ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] });
+  }
+  if (val.record && val.url && isDashboardLandingUrl(val.url)) {
     ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_LOGGED_IN_ERROR, path: ["record"] });
   }
   if (val.fill && val.value === void 0) {
@@ -1406,7 +1622,7 @@ var auspexAwaitLoginInputSchema = z4.object({
   timeoutMs: z4.number().optional().describe("Cap wait in ms (default 300000, max 600000)")
 });
 var auspexDesktopInputSchema = z4.object({
-  open: z4.string().optional().describe("App to open (default mousepad)"),
+  open: z4.string().optional().describe("App to open on the named Solari sandbox desktop demo (default mousepad). Not the user's Mac."),
   type: z4.string().optional().describe("Optional text to type after focusing the window"),
   clickX: z4.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
   clickY: z4.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
@@ -1415,7 +1631,13 @@ var auspexDesktopInputSchema = z4.object({
 var auspexReapInputSchema = z4.object({
   dryRun: z4.boolean().optional().describe("List leftover sessions/VMs without closing them"),
   sessionId: z4.string().optional().describe("Extra browser session id to release"),
-  vmId: z4.string().optional().describe("Extra sandbox/desktop id to kill")
+  vmId: z4.string().optional().describe("Extra sandbox/desktop id to kill"),
+  packReceipts: z4.boolean().optional().describe("Copy last receipts per URL into .auspex/pack for an agent to attach to a PR")
+});
+var auspexProfileStatusInputSchema = z4.object({
+  profile: profileNameSchema.optional().describe("Solari profile name"),
+  name: z4.string().trim().min(1).optional().describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
+  url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)")
 });
 
 // src/errors.ts
@@ -1540,17 +1762,16 @@ function createProgress(opts = {}) {
 var noopProgress = () => void 0;
 
 // src/check.ts
-var packageRoot2 = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..");
 function toReceiptPath(absPath) {
-  return path4.relative(packageRoot2, absPath).replaceAll("\\", "/");
+  return path7.relative(packageRoot2, absPath).replaceAll("\\", "/");
 }
 function runDirFromResult(result) {
-  const abs = path4.isAbsolute(result.screenshotPath) ? result.screenshotPath : path4.join(packageRoot2, result.screenshotPath);
-  return path4.dirname(abs);
+  const abs = path7.isAbsolute(result.screenshotPath) ? result.screenshotPath : path7.join(packageRoot2, result.screenshotPath);
+  return path7.dirname(abs);
 }
 function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path4.join(packageRoot2, ".auspex", "runs", stamp);
+  return path7.join(packageRoot2, ".auspex", "runs", stamp);
 }
 async function extractPage(page, selector, signal) {
   return observeAbort(
@@ -1566,7 +1787,7 @@ async function extractPage(page, selector, signal) {
   );
 }
 async function writeFittedScreenshot(abs) {
-  const png = await readFile2(abs);
+  const png = await readFile4(abs);
   const fitted = fitPngUnderCap(png, MAX_IMAGE_BYTES);
   if (fitted !== png) await writeFile3(abs, fitted);
 }
@@ -1582,7 +1803,7 @@ async function runCheck(opts) {
   let sessionId = "";
   const outDir = runDir();
   await mkdir2(outDir, { recursive: true });
-  const screenshotAbs = path4.join(outDir, "screenshot.png");
+  const screenshotAbs = path7.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
   let finalUrl = "";
@@ -1596,7 +1817,7 @@ async function runCheck(opts) {
   let profileSeed;
   let profileSaved;
   let needsHuman = false;
-  let reason;
+  let special;
   let workError;
   const work = async (isCancelled, signal) => {
     try {
@@ -1648,7 +1869,7 @@ async function runCheck(opts) {
         const sso = await completeSso(page, { provider: opts.ssoProvider ?? "auto", isCancelled, signal });
         if (sso.needsHuman) {
           needsHuman = true;
-          reason = "needsHuman";
+          special = "needsHuman";
         }
       }
       if (isCancelled()) return;
@@ -1698,7 +1919,7 @@ async function runCheck(opts) {
         matched = false;
         excerpt = `needsHuman: Microsoft password or OTP wall at ${finalUrl || page.url()}. ${excerpt}`;
       } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl)) {
-        reason = "loggedOut";
+        special = "loggedOut";
         matched = false;
         excerpt = `loggedOut: landed on ${finalUrl}. ${excerpt}`;
       }
@@ -1765,38 +1986,55 @@ async function runCheck(opts) {
       });
     }
     if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
-      reason = "recordedLoggedIn";
+      special = "recordedLoggedIn";
     } else if (opts.record && sessionId) {
       onProgress("replay");
       replayReady = await attachRecordedReplay(solari, sessionId, outDir);
     }
     const authFail = Boolean(finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts));
-    const loggedOut = reason === "loggedOut";
-    const blockedHuman = reason === "needsHuman" || needsHuman;
+    const loggedOut = special === "loggedOut";
+    const blockedHuman = special === "needsHuman" || needsHuman;
     const savedOk = !opts.saveProfile || profileSaved?.ok === true;
     const protocolOk = Boolean(
-      finalUrl && existsSync2(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && reason !== "recordedLoggedIn"
+      finalUrl && existsSync2(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && special !== "recordedLoggedIn"
     );
+    const reason = deriveCheckReason({
+      special,
+      needsHuman,
+      matched,
+      networkIdle,
+      finalUrl,
+      excerpt,
+      screenshotOk: existsSync2(screenshotAbs)
+    });
+    const diff = await diffAgainstLastReceipt({
+      url: opts.url,
+      excerpt,
+      finalUrl,
+      excludeDir: outDir
+    });
     const result = {
+      ok: protocolOk,
+      reason,
+      url: opts.url,
+      expect: opts.expect,
+      screenshotPath,
       title,
       finalUrl,
-      ok: protocolOk,
-      expect: opts.expect,
       matched,
       excerpt,
-      screenshotPath,
       sessionId,
       networkIdle,
       replayReady: opts.record ? replayReady : void 0,
       waitedFor,
       filled,
       clicked,
-      reason,
       needsHuman: needsHuman || void 0,
+      diff,
       profileSeed,
       profileSaved
     };
-    await writeFile3(path4.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}
+    await writeFile3(path7.join(outDir, "manifest.json"), `${JSON.stringify(result, null, 2)}
 `);
     return result;
   } finally {
@@ -1812,12 +2050,12 @@ async function runCheck(opts) {
 }
 
 // src/content.ts
-import { readFile as readFile3 } from "node:fs/promises";
-import path5 from "node:path";
-import { fileURLToPath as fileURLToPath4 } from "node:url";
-var packageRoot3 = path5.resolve(path5.dirname(fileURLToPath4(import.meta.url)), "..");
+import { readFile as readFile5 } from "node:fs/promises";
+import path8 from "node:path";
+import { fileURLToPath as fileURLToPath5 } from "node:url";
+var packageRoot3 = path8.resolve(path8.dirname(fileURLToPath5(import.meta.url)), "..");
 function resolveScreenshotPath(p) {
-  return path5.isAbsolute(p) ? p : path5.join(packageRoot3, p);
+  return path8.isAbsolute(p) ? p : path8.join(packageRoot3, p);
 }
 function pngNote(text) {
   return { type: "text", text };
@@ -1826,7 +2064,7 @@ async function buildReceiptToolContent(payload, screenshotPath) {
   const content = [{ type: "text", text: JSON.stringify(payload, null, 2) }];
   if (!screenshotPath) return { content };
   try {
-    const buf = await readFile3(resolveScreenshotPath(screenshotPath));
+    const buf = await readFile5(resolveScreenshotPath(screenshotPath));
     if (buf.length === 0) {
       content.push(pngNote("PNG omitted: screenshot file is empty"));
       return { content };
@@ -1883,7 +2121,7 @@ async function packToolFailure(err) {
 
 // src/desktop.ts
 import { mkdirSync, writeFileSync } from "node:fs";
-import path6 from "node:path";
+import path9 from "node:path";
 import { SolariClient } from "@solarisdk/sdk";
 
 // src/desktop-probe.ts
@@ -2064,7 +2302,7 @@ function defaultDesktopDeps() {
 }
 function newRunDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path6.join(packageRoot2, ".auspex", "runs", stamp);
+  return path9.join(packageRoot2, ".auspex", "runs", stamp);
 }
 async function waitReady(desktop, sleepFn, healthMs = DESKTOP_HEALTH_MS) {
   const deadline = Date.now() + healthMs;
@@ -2132,7 +2370,7 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         const png = await desktop.screenshot();
         const dir = newRunDir();
         mkdirSync(dir, { recursive: true });
-        const abs = path6.join(dir, "screenshot.png");
+        const abs = path9.join(dir, "screenshot.png");
         writeFileSync(abs, png);
         const desktopId = desktop.sessionId;
         const streamUrl = desktop.streamUrl;
@@ -2201,8 +2439,341 @@ ${summary}`;
   }
 }
 
+// src/saved-checks.ts
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import path10 from "node:path";
+import { fileURLToPath as fileURLToPath6 } from "node:url";
+var packageRoot4 = path10.resolve(path10.dirname(fileURLToPath6(import.meta.url)), "..");
+var DEFAULT_SAVED_CHECKS = [
+  { name: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
+  { name: "checkpoint", url: "https://checkpointprojects.com", expect: "Checkpoint" },
+  {
+    name: "consistencyhub",
+    url: "https://consistencyhub.io",
+    expect: "Document Editor",
+    profile: "consistencyhub"
+  }
+];
+function canonicalSavedCheckName(name) {
+  const key = name.trim().toLowerCase();
+  if (key === "checkpoint") return "checkpoint";
+  if (key === "consistencyhub") return "consistencyhub";
+  if (key === "ironadamant") return "ironadamant";
+  return key;
+}
+function defaultConfigPath() {
+  return path10.join(packageRoot4, "auspex.yml");
+}
+function resolveConfigPath(explicit) {
+  if (explicit) return explicit;
+  const env = process.env.AUSPEX_CONFIG?.trim();
+  if (env) return env;
+  const cwdPath = path10.resolve("auspex.yml");
+  if (existsSync3(cwdPath)) return cwdPath;
+  const packed = defaultConfigPath();
+  if (existsSync3(packed)) return packed;
+  return void 0;
+}
+function unquote(value) {
+  const t = value.trim();
+  if (t.length >= 2) {
+    const a = t[0];
+    const b = t[t.length - 1];
+    if (a === '"' && b === '"' || a === "'" && b === "'") return t.slice(1, -1);
+  }
+  return t;
+}
+function asBool(value) {
+  const v = unquote(value).toLowerCase();
+  if (v === "true" || v === "yes" || v === "1") return true;
+  if (v === "false" || v === "no" || v === "0" || v === "") return false;
+  throw new Error(`invalid boolean in auspex.yml: ${value}`);
+}
+function parseSavedChecksYaml(text) {
+  const out = {};
+  let inChecks = false;
+  let current;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\t/g, "  ");
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (trimmed === "checks:") {
+      inChecks = true;
+      current = void 0;
+      continue;
+    }
+    const nameMatch = /^  ([A-Za-z][\w-]*):\s*$/.exec(line);
+    if (inChecks && nameMatch) {
+      current = canonicalSavedCheckName(nameMatch[1]);
+      out[current] = out[current] ?? {};
+      continue;
+    }
+    const fieldMatch = /^    (url|expect|profile|sso|record):\s*(.*)$/.exec(line);
+    if (inChecks && current && fieldMatch) {
+      const key = fieldMatch[1];
+      const val = fieldMatch[2] ?? "";
+      if (key === "sso" || key === "record") {
+        out[current][key] = asBool(val);
+      } else if (key === "url" || key === "expect" || key === "profile") {
+        out[current][key] = unquote(val);
+      }
+      continue;
+    }
+    throw new Error(`invalid auspex.yml line: ${trimmed}`);
+  }
+  return out;
+}
+function assertSavedCheckSafe(name, raw) {
+  const canon = canonicalSavedCheckName(name);
+  if (canon === "consistencyhub") {
+    if (raw.sso) throw new Error("saved check consistencyhub must not set sso");
+    if (raw.record) throw new Error("saved check consistencyhub must not set record");
+  }
+  if (raw.sso) throw new Error(`saved check ${canon} must not set sso (human SSO is a separate login)`);
+  if (raw.record) throw new Error(`saved check ${canon} must not set record`);
+}
+function materializeSavedCheck(name, raw) {
+  const canon = canonicalSavedCheckName(name);
+  assertSavedCheckSafe(canon, raw);
+  const url = requireCheckUrl(raw.url ?? "", "url");
+  const expect = requireExpect(raw.expect ?? "");
+  const profile = raw.profile ? requireProfileName(raw.profile) : void 0;
+  return { name: canon, url, expect, profile };
+}
+function builtinSavedChecks() {
+  const out = {};
+  for (const row of DEFAULT_SAVED_CHECKS) {
+    out[row.name] = { ...row };
+  }
+  return out;
+}
+function loadSavedChecks(configPath) {
+  const merged = builtinSavedChecks();
+  const file = resolveConfigPath(configPath);
+  if (!file || !existsSync3(file)) return merged;
+  const parsed = parseSavedChecksYaml(readFileSync3(file, "utf8"));
+  for (const [name, raw] of Object.entries(parsed)) {
+    const base = merged[name] ?? {};
+    merged[name] = materializeSavedCheck(name, { ...base, ...raw });
+  }
+  return merged;
+}
+function listSavedCheckNames(checks) {
+  return Object.keys(checks ?? loadSavedChecks()).sort();
+}
+function resolveSavedCheck(name, checks) {
+  const catalog = checks ?? loadSavedChecks();
+  const canon = canonicalSavedCheckName(name);
+  const found = catalog[canon];
+  if (!found) {
+    throw new Error(
+      `unknown saved check ${name.trim() || "(empty)"}. Known: ${listSavedCheckNames(catalog).join(", ")}`
+    );
+  }
+  return found;
+}
+function savedCheckForProfile(profile, checks) {
+  const want = profile.trim().toLowerCase();
+  return Object.values(checks ?? loadSavedChecks()).find((c) => c.profile?.toLowerCase() === want);
+}
+function applySavedCheckName(args, checks) {
+  if (!args.name?.trim()) return args;
+  const saved = resolveSavedCheck(args.name, checks);
+  return {
+    ...args,
+    url: args.url || saved.url,
+    expect: args.expect || saved.expect,
+    profile: args.profile || saved.profile
+  };
+}
+
+// src/profile-status.ts
+function resolveStatusTarget(opts, deps) {
+  let profile = opts.profile?.trim();
+  let url = opts.url?.trim();
+  let expect;
+  if (opts.name?.trim()) {
+    const saved = deps?.savedForName ? deps.savedForName(opts.name) : resolveSavedCheck(opts.name);
+    profile = profile || saved.profile;
+    url = url || saved.url;
+    expect = saved.expect;
+  }
+  if (!profile) {
+    throw new Error("profile-status requires --profile or --name");
+  }
+  profile = requireProfileName(profile);
+  if (!url) {
+    const byProfile = deps?.savedForProfile ? deps.savedForProfile(profile) : savedCheckForProfile(profile);
+    url = byProfile?.url;
+    expect = expect ?? byProfile?.expect;
+  }
+  return { profile, url, expect };
+}
+async function profileStatus(opts, deps) {
+  const { profile, url, expect } = resolveStatusTarget(opts, deps);
+  const list = deps?.listProfiles ?? listProfiles;
+  const rows = await list();
+  const row = rows.find((p) => p.name.trim() === profile);
+  if (!row || row.populated === false || row.populated === void 0 && !(row.sizeBytes && row.sizeBytes > 0)) {
+    const missing = !row;
+    return {
+      ok: false,
+      reason: "loggedOut",
+      profile,
+      url,
+      populated: false,
+      live: false,
+      skippedLive: true,
+      skipReason: missing ? `profile ${profile} not found. Human SSO once (agent never types a password).` : `profile ${profile} is empty. Human SSO once (agent never types a password).`
+    };
+  }
+  if (!url) {
+    return {
+      ok: false,
+      reason: "loggedOut",
+      profile,
+      populated: true,
+      live: false,
+      skippedLive: true,
+      skipReason: "no url to probe; pass --url or --name. Not pinging the user."
+    };
+  }
+  const check = deps?.runCheck ?? runCheck;
+  let result;
+  try {
+    result = await check({
+      url,
+      expect: expect && expect.trim() ? expect : ".",
+      profile
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/0 cookies|empty Save|profile not found/i.test(msg)) {
+      return {
+        ok: false,
+        reason: "loggedOut",
+        profile,
+        url,
+        populated: row.populated,
+        live: false,
+        skippedLive: true,
+        skipReason: `${msg} Human SSO once (agent never types a password).`
+      };
+    }
+    throw err;
+  }
+  if (result.needsHuman || result.reason === "needsHuman") {
+    return {
+      ok: false,
+      reason: "needsHuman",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skippedLive: true,
+      skipReason: "Microsoft password/OTP wall. Skip live; human SSO once. Agent never types a password.",
+      finalUrl: result.finalUrl,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath
+    };
+  }
+  const landed = result.finalUrl || "";
+  let auth = false;
+  try {
+    auth = Boolean(landed) && stillOnAuth(new URL(landed));
+  } catch {
+    auth = false;
+  }
+  if (result.reason === "loggedOut" || landed && isLoggedOutLanding(landed) || auth) {
+    return {
+      ok: false,
+      reason: "loggedOut",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      finalUrl: landed,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath
+    };
+  }
+  return {
+    ok: true,
+    reason: "loggedIn",
+    profile,
+    url,
+    populated: true,
+    live: true,
+    finalUrl: landed,
+    excerpt: result.excerpt,
+    screenshotPath: result.screenshotPath
+  };
+}
+
 // src/reap.ts
 import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
+
+// src/receipt-pack.ts
+import { copyFile, mkdir as mkdir3, readFile as readFile6, writeFile as writeFile4 } from "node:fs/promises";
+import path11 from "node:path";
+function relToPackage(abs) {
+  return path11.relative(packageRoot2, abs).replaceAll("\\", "/");
+}
+function packDirRoot() {
+  return path11.join(packageRoot2, ".auspex", "pack");
+}
+async function packLastReceipts(opts) {
+  const runsDir = opts?.runsDir ?? RUNS_DIR;
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+  const packDir = opts?.destDir ?? path11.join(packDirRoot(), stamp);
+  await mkdir3(packDir, { recursive: true });
+  const dirs = await listCompleteRunDirs(runsDir);
+  const chosen = [];
+  const seenUrl = /* @__PURE__ */ new Set();
+  for (const dir of dirs) {
+    const raw = await readFile6(path11.join(dir, "manifest.json"), "utf8").catch(() => "");
+    let manifest = {};
+    try {
+      manifest = JSON.parse(raw);
+    } catch {
+      manifest = {};
+    }
+    const key = receiptUrlKey(manifest);
+    if (!key) continue;
+    if (seenUrl.has(key)) continue;
+    seenUrl.add(key);
+    chosen.push(dir);
+  }
+  const packed = [];
+  for (const dir of chosen) {
+    const dest = path11.join(packDir, path11.basename(dir));
+    await mkdir3(dest, { recursive: true });
+    const manifestAbs = path11.join(dest, "manifest.json");
+    const shotAbs = path11.join(dest, "screenshot.png");
+    await copyFile(path11.join(dir, "manifest.json"), manifestAbs);
+    await copyFile(path11.join(dir, "screenshot.png"), shotAbs);
+    const raw = await readFile6(manifestAbs, "utf8");
+    let manifest = {};
+    try {
+      manifest = JSON.parse(raw);
+    } catch {
+      manifest = {};
+    }
+    packed.push({
+      url: typeof manifest.url === "string" && manifest.url || typeof manifest.finalUrl === "string" && manifest.finalUrl || "",
+      expect: typeof manifest.expect === "string" ? manifest.expect : void 0,
+      reason: typeof manifest.reason === "string" ? manifest.reason : void 0,
+      screenshotPath: relToPackage(shotAbs),
+      manifestPath: relToPackage(manifestAbs),
+      runDir: relToPackage(dest)
+    });
+  }
+  await writeFile4(path11.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
+`);
+  return { packDir: relToPackage(packDir), packed };
+}
+
+// src/reap.ts
 var HOLDING = /* @__PURE__ */ new Set(["starting", "running", "paused"]);
 async function defaultReapDeps() {
   const key = requireApiKey();
@@ -2245,29 +2816,28 @@ async function reapLeftovers(opts = {}, deps) {
     if (!extra) vms = [...vms, { id: opts.vmId, kind: "sandbox", state: "running" }];
   }
   vms = vms.filter((v) => HOLDING.has(v.state) || v.id === opts.vmId);
-  if (dryRun) {
-    return { ok: true, dryRun, browsers, vms, released, killed, errors };
-  }
-  for (const id of browsers) {
-    try {
-      await d.releaseBrowser(id);
-      released.push(id);
-      await forgetLive("browser", id).catch(() => void 0);
-    } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
+  if (!dryRun) {
+    for (const id of browsers) {
+      try {
+        await d.releaseBrowser(id);
+        released.push(id);
+        await forgetLive("browser", id).catch(() => void 0);
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+    for (const vm of vms) {
+      try {
+        await d.deleteVm(vm.id);
+        killed.push(vm.id);
+        const kind = vm.kind === "desktop" ? "desktop" : "sandbox";
+        await forgetLive(kind, vm.id).catch(() => void 0);
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
     }
   }
-  for (const vm of vms) {
-    try {
-      await d.deleteVm(vm.id);
-      killed.push(vm.id);
-      const kind = vm.kind === "desktop" ? "desktop" : "sandbox";
-      await forgetLive(kind, vm.id).catch(() => void 0);
-    } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
-    }
-  }
-  return {
+  const result = {
     ok: errors.length === 0,
     dryRun,
     browsers,
@@ -2276,59 +2846,22 @@ async function reapLeftovers(opts = {}, deps) {
     killed,
     errors
   };
+  if (opts.packReceipts) {
+    try {
+      const pack = await (d.packReceipts ?? packLastReceipts)();
+      result.packed = pack.packed;
+      result.packDir = pack.packDir;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.errors.push(msg);
+      result.ok = false;
+    }
+  }
+  return result;
 }
 
 // src/sandbox.ts
 import { SolariClient as SolariClient3 } from "@solarisdk/sdk";
-
-// src/receipt.ts
-import { readFileSync as readFileSync2 } from "node:fs";
-import { readdir, readFile as readFile4, stat } from "node:fs/promises";
-import path7 from "node:path";
-import { fileURLToPath as fileURLToPath5 } from "node:url";
-var ASSERT_RECEIPT_PY_PATH = path7.join(path7.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
-var RECEIPT_ASSERT_PY = readFileSync2(ASSERT_RECEIPT_PY_PATH, "utf8");
-var RUNS_DIR = path7.join(packageRoot2, ".auspex", "runs");
-function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
-  const dir = path7.resolve(runDir2);
-  const root = path7.resolve(runsDir);
-  if (dir !== root && !dir.startsWith(root + path7.sep)) {
-    throw new Error("runDir must be under .auspex/runs");
-  }
-  return dir;
-}
-async function findLatestRun(runsDir = RUNS_DIR) {
-  let names;
-  try {
-    names = await readdir(runsDir);
-  } catch {
-    throw new Error(`no Auspex runs in ${runsDir}. Run check first.`);
-  }
-  const dirs = [];
-  for (const name of names.sort().reverse()) {
-    const dir = path7.join(runsDir, name);
-    const st = await stat(dir).catch(() => void 0);
-    if (!st?.isDirectory()) continue;
-    dirs.push(dir);
-  }
-  for (const dir of dirs) {
-    try {
-      await stat(path7.join(dir, "manifest.json"));
-      await stat(path7.join(dir, "screenshot.png"));
-      return dir;
-    } catch {
-      continue;
-    }
-  }
-  throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`);
-}
-async function loadRunFiles(runDir2) {
-  const manifest = await readFile4(path7.join(runDir2, "manifest.json"), "utf8");
-  const png = await readFile4(path7.join(runDir2, "screenshot.png"));
-  return { manifest, png };
-}
-
-// src/sandbox.ts
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
 var VERIFY_OVERALL_MS = 9e4;
 var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
@@ -2511,12 +3044,13 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
-var VERIFY_DESCRIPTION = "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success.";
-var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, wait for X11, open mousepad by default (the demo is opening the app). Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified (coordinate clicks are not). Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath, plus diff vs last same-URL receipt. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Profile reuse that lands on /landing is ok:false reason:loggedOut. Microsoft password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
+var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
+var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var REAP_DESCRIPTION = "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing.";
+var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft password/OTP wall is needsHuman \u2014 skip live, do not ping the user.";
+var REAP_DESCRIPTION = "List and close leftover Solari browser sessions (from Auspex's live ledger) and kill holding sandboxes/desktops. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function progressFromExtra(extra) {
   return createProgress({ extra });
 }
@@ -2531,17 +3065,29 @@ function registerAuspexTools(server2) {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_check");
-        const { verify, ...rest } = args;
-        const opts = { ...rest, onProgress };
+        const merged = applySavedCheckName(args);
+        const url = merged.url;
+        const expect = merged.expect;
+        if (!url || !expect) {
+          throw new Error("auspex_check requires name or url+expect");
+        }
+        const { verify, name: _savedName, ...rest } = merged;
+        const opts = { ...rest, url, expect, onProgress };
         assertRecordProfileAllowed(opts);
-        if (verify) {
+        assertRecordNotLoggedIn(opts);
+        const shouldVerify = verify !== false;
+        if (shouldVerify) {
           const both = await checkThenVerify(opts);
-          const packed = await buildCheckToolContent(both.check);
-          packed.content[0] = { type: "text", text: JSON.stringify(both, null, 2) };
-          return packed;
+          const receipt2 = toAgentReceipt(both.check, { verify: both.verify });
+          const packed2 = await buildCheckToolContent(receipt2);
+          packed2.content[0] = { type: "text", text: JSON.stringify(receipt2, null, 2) };
+          return packed2;
         }
         const result = await runCheck(opts);
-        return await buildCheckToolContent(result);
+        const receipt = toAgentReceipt(result);
+        const packed = await buildCheckToolContent(receipt);
+        packed.content[0] = { type: "text", text: JSON.stringify(receipt, null, 2) };
+        return packed;
       } catch (err) {
         return packToolFailure(err);
       }
@@ -2571,7 +3117,7 @@ function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_await_login",
     {
-      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Then pass this profile to auspex_check.",
+      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Then pass this profile to auspex_check. Do not ping the user.",
       inputSchema: auspexAwaitLoginInputSchema
     },
     async ({ profile, sinceVersion, timeoutMs }) => {
@@ -2593,6 +3139,21 @@ function registerAuspexTools(server2) {
       try {
         const profiles = await listProfiles();
         return { content: [{ type: "text", text: JSON.stringify(profiles, null, 2) }] };
+      } catch (err) {
+        return packToolFailure(err);
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_profile_status",
+    {
+      description: PROFILE_STATUS_DESCRIPTION,
+      inputSchema: auspexProfileStatusInputSchema
+    },
+    async (args) => {
+      try {
+        const result = await profileStatus(args);
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       } catch (err) {
         return packToolFailure(err);
       }
