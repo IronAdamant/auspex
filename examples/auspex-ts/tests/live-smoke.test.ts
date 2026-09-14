@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { parseArgv } from "../src/cli.ts"
 import { persistLiveProfile } from "../src/profile-persist.ts"
-import { captureStorageState } from "../src/profile-storage.ts"
+import { captureStorageState, hydrateSessionStorage } from "../src/profile-storage.ts"
 import { createClient, launchBrowser, pageForSession } from "../src/solari.ts"
 
 const live = process.env.AUSPEX_LIVE === "1" && Boolean(process.env.SOLARI_API_KEY?.trim())
@@ -52,6 +52,7 @@ test("live profile persist carries localStorage on a new session", { skip: !live
     try {
       const page = await pageForSession(second)
       await page.goto("https://example.com", { waitUntil: "domcontentloaded", timeout: 45_000 })
+      await hydrateSessionStorage(page)
       const seen = await page.evaluate(() => ({
         marker: localStorage.getItem("auspex_persist"),
         accessToken: sessionStorage.getItem("accessToken"),

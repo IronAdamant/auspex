@@ -533,6 +533,23 @@ function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFI
 function hydrateSessionStorageSource(prefix = SESSION_STORAGE_PREFIX) {
   return `(() => { try { const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
 }
+async function hydrateSessionStorage(page) {
+  return page.evaluate((prefix) => {
+    let n = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        const name = k.slice(prefix.length);
+        if (!name || sessionStorage.getItem(name) != null) continue;
+        sessionStorage.setItem(name, localStorage.getItem(k) ?? "");
+        n += 1;
+      }
+    } catch {
+    }
+    return n;
+  }, SESSION_STORAGE_PREFIX);
+}
 async function readSessionItems(frame) {
   try {
     const rows = await frame.evaluate(() => {
@@ -1432,6 +1449,15 @@ async function runCheck(opts) {
         waitUntil: "domcontentloaded",
         signal
       });
+      if (isCancelled()) return;
+      const restored = await hydrateSessionStorage(page);
+      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+        await page.goto(opts.url, {
+          timeout: GOTO_TIMEOUT_MS,
+          waitUntil: "domcontentloaded",
+          signal
+        });
+      }
       if (isCancelled()) return;
       if (opts.sso) {
         onProgress("sso");

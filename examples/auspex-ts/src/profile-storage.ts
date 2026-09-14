@@ -132,6 +132,28 @@ export function hydrateSessionStorageSource(prefix = SESSION_STORAGE_PREFIX): st
   return `(() => { try { const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`
 }
 
+/** Copy prefixed localStorage into sessionStorage after Playwright has restored origins. */
+export async function hydrateSessionStorage(page: {
+  evaluate: (fn: (prefix: string) => number, arg: string) => Promise<number>
+}): Promise<number> {
+  return page.evaluate((prefix) => {
+    let n = 0
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (!k || !k.startsWith(prefix)) continue
+        const name = k.slice(prefix.length)
+        if (!name || sessionStorage.getItem(name) != null) continue
+        sessionStorage.setItem(name, localStorage.getItem(k) ?? "")
+        n += 1
+      }
+    } catch {
+      /* opaque origins */
+    }
+    return n
+  }, SESSION_STORAGE_PREFIX)
+}
+
 async function readSessionItems(frame: FrameLike): Promise<Array<{ name: string; value: string }>> {
   try {
     const rows = (await frame.evaluate(() => {
