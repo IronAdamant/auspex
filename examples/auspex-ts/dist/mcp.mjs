@@ -378,6 +378,214 @@ async function raceWithTimeout(work, ms, message) {
   }
 }
 
+// src/sso.ts
+var SSO_RETURN_TIMEOUT_MS = 12e4;
+function hostIs(hostname, domain) {
+  const h = hostname.toLowerCase();
+  const d = domain.toLowerCase();
+  return h === d || h.endsWith(`.${d}`);
+}
+function stillOnAuth(url) {
+  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
+    return true;
+  }
+  const path8 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path8 === "/login" || path8.startsWith("/login/") || path8 === "/auth" || path8.startsWith("/auth/")) {
+    return true;
+  }
+  return false;
+}
+function shouldFailClosedAuth(url, opts) {
+  if (!stillOnAuth(url)) return false;
+  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
+    return true;
+  }
+  return Boolean(opts.sso || opts.profile);
+}
+function stopped(cancel) {
+  return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
+}
+async function clickFirst(page, name, signal) {
+  const btn = page.getByRole("button", { name });
+  if (await btn.count() === 0) return false;
+  await btn.first().click({ timeout: 1e4, signal });
+  return true;
+}
+async function finishMicrosoftPicker(page, cancel) {
+  const signal = cancel.signal;
+  await page.waitForURL(
+    (url) => hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com"),
+    { timeout: 3e4, signal }
+  ).catch(() => void 0);
+  if (stopped(cancel)) return;
+  const picker = page.getByText(/pick an account/i);
+  await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return;
+  const signedIn = page.getByText(/^Signed in$/i);
+  const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
+  if (await signedIn.count() > 0) {
+    await signedIn.first().click({ timeout: 1e4, signal });
+  } else if (await tile.count() > 0) {
+    await tile.first().click({ timeout: 1e4, signal });
+  }
+  if (stopped(cancel)) return;
+  const yes = page.getByRole("button", { name: /^yes$/i });
+  if (await yes.count() > 0) {
+    await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
+  }
+}
+async function finishGooglePicker(page, cancel) {
+  const signal = cancel.signal;
+  await page.waitForURL((url) => hostIs(url.hostname, "accounts.google.com"), { timeout: 3e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return;
+  const account = page.getByRole("link", { name: /@/ }).or(page.getByRole("button", { name: /@/ }));
+  if (await account.count() > 0) {
+    await account.first().click({ timeout: 1e4, signal }).catch(() => void 0);
+  }
+}
+async function completeSso(page, opts = {}) {
+  if (stopped(opts)) return;
+  const provider = opts.provider ?? "auto";
+  const signal = opts.signal;
+  const tryMs = provider === "auto" || provider === "microsoft";
+  const tryGoogle = provider === "auto" || provider === "google";
+  let clicked = false;
+  if (tryMs && await clickFirst(page, /sign in with microsoft/i, signal)) {
+    clicked = true;
+    if (stopped(opts)) return;
+    await finishMicrosoftPicker(page, opts);
+  } else if (tryGoogle && await clickFirst(page, /sign in with google/i, signal)) {
+    clicked = true;
+    if (stopped(opts)) return;
+    await finishGooglePicker(page, opts);
+  } else if (provider === "auto" && await clickFirst(page, /sign in with /i, signal)) {
+    clicked = true;
+  }
+  if (!clicked || stopped(opts)) return;
+  await page.waitForURL((url) => !stillOnAuth(url), { timeout: SSO_RETURN_TIMEOUT_MS, signal }).catch(() => void 0);
+}
+
+// src/profile-storage.ts
+var SESSION_STORAGE_PREFIX = "__auspex_ss__:";
+var PUBLIC_PROFILE_SAVE_ERROR = "refusing to save a public /landing session over the profile";
+function originOf(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return void 0;
+    return u.origin;
+  } catch {
+    return void 0;
+  }
+}
+function isPersistableAppUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (stillOnAuth(parsed)) return false;
+  const path8 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path8 === "/" || path8 === "/landing" || path8 === "/login" || path8 === "/signup" || path8.startsWith("/auth")) {
+    return false;
+  }
+  return true;
+}
+function cookieKey(c) {
+  return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`;
+}
+function mergeStorageStates(base, extra) {
+  const cookies = /* @__PURE__ */ new Map();
+  for (const c of [...base.cookies ?? [], ...extra.cookies ?? []]) {
+    if (!c?.name) continue;
+    cookies.set(cookieKey(c), c);
+  }
+  const origins = /* @__PURE__ */ new Map();
+  for (const o of [...base.origins ?? [], ...extra.origins ?? []]) {
+    if (!o?.origin) continue;
+    const prev = origins.get(o.origin) ?? { origin: o.origin, localStorage: [] };
+    const items = /* @__PURE__ */ new Map();
+    for (const row of [...prev.localStorage ?? [], ...o.localStorage ?? []]) {
+      if (!row?.name) continue;
+      items.set(row.name, row.value ?? "");
+    }
+    origins.set(o.origin, {
+      origin: o.origin,
+      localStorage: [...items.entries()].map(([name, value]) => ({ name, value })),
+      indexedDB: o.indexedDB ?? prev.indexedDB
+    });
+  }
+  return { cookies: [...cookies.values()], origins: [...origins.values()] };
+}
+function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFIX) {
+  if (!origin || items.length === 0) return state;
+  const extra = {
+    cookies: [],
+    origins: [
+      {
+        origin,
+        localStorage: items.filter((row) => row.name).map((row) => ({ name: `${prefix}${row.name}`, value: row.value ?? "" }))
+      }
+    ]
+  };
+  return mergeStorageStates(state, extra);
+}
+function hydrateSessionStorageSource(prefix = SESSION_STORAGE_PREFIX) {
+  return `(() => { try { const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
+}
+async function readSessionItems(frame) {
+  try {
+    const rows = await frame.evaluate(() => {
+      const out = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const name = sessionStorage.key(i);
+        if (name) out.push({ name, value: sessionStorage.getItem(name) ?? "" });
+      }
+      return out;
+    });
+    return Array.isArray(rows) ? rows.filter((row) => row?.name) : [];
+  } catch {
+    return [];
+  }
+}
+async function captureContext(ctx) {
+  let state = { cookies: [], origins: [] };
+  try {
+    state = await ctx.storageState({ indexedDB: true });
+  } catch {
+    try {
+      state = await ctx.storageState();
+    } catch {
+      state = { cookies: [], origins: [] };
+    }
+  }
+  if (typeof ctx.cookies === "function") {
+    try {
+      const extra = await ctx.cookies();
+      state = mergeStorageStates(state, { cookies: extra, origins: [] });
+    } catch {
+    }
+  }
+  const pages = ctx.pages?.() ?? [];
+  for (const page of pages) {
+    const frames = [page, ...typeof page.frames === "function" ? page.frames() : []];
+    for (const frame of frames) {
+      const origin = originOf(frame.url());
+      if (!origin) continue;
+      const items = await readSessionItems(frame);
+      state = foldSessionStorage(state, origin, items);
+    }
+  }
+  return state;
+}
+async function captureStorageState(browser) {
+  let merged = { cookies: [], origins: [] };
+  for (const ctx of browser.contexts()) {
+    merged = mergeStorageStates(merged, await captureContext(ctx));
+  }
+  return merged;
+}
+
 // src/solari.ts
 var CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
 function defaultLaunchDeps(solari) {
@@ -434,6 +642,10 @@ async function waitUntilReleased(id, opts = {}) {
 var GOTO_TIMEOUT_MS = 45e3;
 var NETWORKIDLE_TIMEOUT_MS = 15e3;
 var OVERALL_TIMEOUT_MS = 12e4;
+var PROFILE_CHECK_TIMEOUT_MS = 3e5;
+function checkOverallTimeoutMs(opts) {
+  return opts.sso || opts.saveProfile ? PROFILE_CHECK_TIMEOUT_MS : OVERALL_TIMEOUT_MS;
+}
 var REPLAY_ATTEMPTS = 6;
 var REPLAY_DELAY_MS = 500;
 var BROWSER_API_BASE = "https://api.getsolari.com";
@@ -456,11 +668,18 @@ function toPlaywrightStorageState(state) {
       sameSite
     });
   }
-  const origins = (state.origins ?? []).map((o) => ({
-    origin: o.origin,
-    localStorage: o.localStorage ?? []
-  }));
+  const origins = (state.origins ?? []).map((o) => {
+    const indexedDB = o.indexedDB;
+    return {
+      origin: o.origin,
+      localStorage: o.localStorage ?? [],
+      ...indexedDB !== void 0 ? { indexedDB } : {}
+    };
+  });
   return { cookies, origins };
+}
+function storageStateIsPopulated(pw) {
+  return pw.cookies.length > 0 || pw.origins.length > 0;
 }
 function findProfileId(profiles, name) {
   const want = name.trim();
@@ -559,11 +778,20 @@ async function resolveProfileId(solari, name) {
 }
 async function pageForSession(browser) {
   const existing = browser.contexts()[0];
-  if (existing) return existing.pages()[0] ?? existing.newPage();
   const state = browser.session.storageState;
-  const pw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
-  const hasState = pw.cookies.length > 0 || pw.origins.length > 0;
-  const ctx = await browser.newContext(hasState ? { storageState: pw } : {});
+  const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
+  const pw = {
+    cookies: raw.cookies,
+    origins: raw.origins.map((o) => ({ origin: o.origin, localStorage: o.localStorage }))
+  };
+  const hasState = storageStateIsPopulated(pw);
+  let ctx = existing;
+  if (!ctx) {
+    ctx = await browser.newContext(hasState ? { storageState: pw } : {});
+  }
+  if (typeof ctx.addInitScript === "function") {
+    await ctx.addInitScript(hydrateSessionStorageSource());
+  }
   return ctx.pages()[0] ?? ctx.newPage();
 }
 function sleep(ms) {
@@ -615,6 +843,7 @@ async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REP
 // src/profile-persist.ts
 var EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
 var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
+var PROFILE_EDITOR_OPEN_ERROR = "profile editor is open; close it, then --save-profile with the live session";
 var HANDOFF_POLL_MS = 2e3;
 var AWAIT_LOGIN_DEFAULT_MS = 3e5;
 function seedFromStorageState(state) {
@@ -638,21 +867,10 @@ function asFiniteNumber(value) {
   }
   return void 0;
 }
-function seedFromSaveBody(json, fallback) {
-  const cookies = asFiniteNumber(json.cookies) ?? asFiniteNumber(json.cookieCount) ?? fallback.cookies;
-  const origins = asFiniteNumber(json.origins) ?? asFiniteNumber(json.originCount) ?? fallback.origins;
-  return { cookies, origins };
-}
-function saveProfileFallbackAllowed(err) {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /\b404\b|\b501\b|not found/i.test(msg);
-}
 async function persistLiveProfile(opts) {
   return persistProfileState({
     profileId: opts.profileId,
-    sessionId: opts.sessionId,
     state: opts.state,
-    http: opts.http ?? await defaultSaveProfileHttp(),
     save: (id, state) => opts.solari.profiles.save(id, state)
   });
 }
@@ -662,24 +880,6 @@ async function persistProfileState(opts) {
     return { ok: false, cookies: 0, origins: 0, error: EMPTY_PROFILE_SAVE_ERROR };
   }
   try {
-    const json = await opts.http.post(
-      `/sessions/${encodeURIComponent(opts.sessionId)}/save-profile`,
-      { profileId: opts.profileId }
-    );
-    const saved = seedFromSaveBody(json, seed);
-    if (isEmptySeed(saved)) {
-      return { ok: false, ...saved, via: "save-profile", error: EMPTY_PROFILE_SAVE_ERROR };
-    }
-    return {
-      ok: true,
-      version: asFiniteNumber(json.version),
-      sizeBytes: asFiniteNumber(json.sizeBytes),
-      cookies: saved.cookies,
-      origins: saved.origins,
-      via: "save-profile"
-    };
-  } catch (err) {
-    if (!saveProfileFallbackAllowed(err)) throw err;
     const written = await opts.save(opts.profileId, opts.state);
     return {
       ok: true,
@@ -689,6 +889,12 @@ async function persistProfileState(opts) {
       origins: seed.origins,
       via: "profiles.save"
     };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/\b409\b|editor is open/i.test(msg)) {
+      return { ok: false, ...seed, error: PROFILE_EDITOR_OPEN_ERROR };
+    }
+    throw err;
   }
 }
 async function inspectProfileSeed(solari, profileId) {
@@ -743,27 +949,6 @@ async function waitForProfileSave(name, opts) {
     cookies: seed.cookies,
     origins: seed.origins,
     next: awaitNext(status, profile, version, seed)
-  };
-}
-async function defaultSaveProfileHttp() {
-  const key = requireApiKey();
-  return {
-    post: async (path8, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path8}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body ?? {})
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const err = typeof json.error === "string" ? json.error : `save-profile ${res.status}`;
-        throw new Error(err);
-      }
-      return json;
-    }
   };
 }
 async function liveAwaitLogin(name, opts = {}) {
@@ -998,7 +1183,7 @@ var auspexCheckInputObject = z4.object({
   ),
   allowRecordProfile: z4.boolean().optional().describe("Override: allow record together with a profile (recordings capture input)"),
   saveProfile: z4.boolean().optional().describe(
-    "After the check, persist this session into the named profile via Solari save-profile. Refuses an empty seed so a 0-cookie Save cannot wipe a login."
+    "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. Refuses an empty seed or a public /landing session so a 0-cookie Save cannot wipe a login."
   )
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
@@ -1156,92 +1341,6 @@ function createProgress(opts = {}) {
 }
 var noopProgress = () => void 0;
 
-// src/sso.ts
-function hostIs(hostname, domain) {
-  const h = hostname.toLowerCase();
-  const d = domain.toLowerCase();
-  return h === d || h.endsWith(`.${d}`);
-}
-function stillOnAuth(url) {
-  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
-    return true;
-  }
-  const path8 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path8 === "/login" || path8.startsWith("/login/") || path8 === "/auth" || path8.startsWith("/auth/")) {
-    return true;
-  }
-  return false;
-}
-function shouldFailClosedAuth(url, opts) {
-  if (!stillOnAuth(url)) return false;
-  if (hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com") || hostIs(url.hostname, "accounts.google.com")) {
-    return true;
-  }
-  return Boolean(opts.sso || opts.profile);
-}
-function stopped(cancel) {
-  return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
-}
-async function clickFirst(page, name, signal) {
-  const btn = page.getByRole("button", { name });
-  if (await btn.count() === 0) return false;
-  await btn.first().click({ timeout: 1e4, signal });
-  return true;
-}
-async function finishMicrosoftPicker(page, cancel) {
-  const signal = cancel.signal;
-  await page.waitForURL(
-    (url) => hostIs(url.hostname, "login.microsoftonline.com") || hostIs(url.hostname, "login.live.com"),
-    { timeout: 3e4, signal }
-  ).catch(() => void 0);
-  if (stopped(cancel)) return;
-  const picker = page.getByText(/pick an account/i);
-  await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return;
-  const signedIn = page.getByText(/^Signed in$/i);
-  const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
-  if (await signedIn.count() > 0) {
-    await signedIn.first().click({ timeout: 1e4, signal });
-  } else if (await tile.count() > 0) {
-    await tile.first().click({ timeout: 1e4, signal });
-  }
-  if (stopped(cancel)) return;
-  const yes = page.getByRole("button", { name: /^yes$/i });
-  if (await yes.count() > 0) {
-    await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
-  }
-}
-async function finishGooglePicker(page, cancel) {
-  const signal = cancel.signal;
-  await page.waitForURL((url) => hostIs(url.hostname, "accounts.google.com"), { timeout: 3e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return;
-  const account = page.getByRole("link", { name: /@/ }).or(page.getByRole("button", { name: /@/ }));
-  if (await account.count() > 0) {
-    await account.first().click({ timeout: 1e4, signal }).catch(() => void 0);
-  }
-}
-async function completeSso(page, opts = {}) {
-  if (stopped(opts)) return;
-  const provider = opts.provider ?? "auto";
-  const signal = opts.signal;
-  const tryMs = provider === "auto" || provider === "microsoft";
-  const tryGoogle = provider === "auto" || provider === "google";
-  let clicked = false;
-  if (tryMs && await clickFirst(page, /sign in with microsoft/i, signal)) {
-    clicked = true;
-    if (stopped(opts)) return;
-    await finishMicrosoftPicker(page, opts);
-  } else if (tryGoogle && await clickFirst(page, /sign in with google/i, signal)) {
-    clicked = true;
-    if (stopped(opts)) return;
-    await finishGooglePicker(page, opts);
-  } else if (provider === "auto" && await clickFirst(page, /sign in with /i, signal)) {
-    clicked = true;
-  }
-  if (!clicked || stopped(opts)) return;
-  await page.waitForURL((url) => !stillOnAuth(url), { timeout: 45e3, signal }).catch(() => void 0);
-}
-
 // src/check.ts
 var packageRoot2 = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..");
 function toReceiptPath(absPath) {
@@ -1350,6 +1449,9 @@ async function runCheck(opts) {
       } catch {
         networkIdle = false;
       }
+      if (opts.profile) {
+        await page.waitForURL((url) => isPersistableAppUrl(url.toString()), { timeout: 2e4, signal }).catch(() => void 0);
+      }
       if (isCancelled()) return;
       onProgress("extract");
       let raw = "";
@@ -1387,13 +1489,23 @@ async function runCheck(opts) {
       await writeFittedScreenshot(screenshotAbs);
       if (opts.saveProfile && profileId && !isCancelled()) {
         onProgress("save-profile");
-        const state = await page.context().storageState();
-        profileSaved = await persistLiveProfile({
-          solari,
-          profileId,
-          sessionId,
-          state
-        });
+        const liveUrl = finalUrl || page.url();
+        if (!isPersistableAppUrl(liveUrl)) {
+          profileSaved = {
+            ok: false,
+            cookies: 0,
+            origins: 0,
+            error: PUBLIC_PROFILE_SAVE_ERROR
+          };
+        } else {
+          const state = await captureStorageState(browser);
+          profileSaved = await persistLiveProfile({
+            solari,
+            profileId,
+            sessionId,
+            state
+          });
+        }
       }
     } finally {
       closer.skip();
@@ -1403,8 +1515,8 @@ async function runCheck(opts) {
     try {
       await raceWithTimeout(
         work,
-        OVERALL_TIMEOUT_MS,
-        `auspex check timed out after ${OVERALL_TIMEOUT_MS}ms`
+        checkOverallTimeoutMs(opts),
+        `auspex check timed out after ${checkOverallTimeoutMs(opts)}ms`
       );
     } catch (err) {
       workError = err;
@@ -2109,7 +2221,7 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. saveProfile persists a non-empty seed only. 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional click/fill/wait-for, snapshot, check expected text, close. JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. verify=true is one-shot check-then-sandbox (do not also call auspex_verify). Integrity ok vs claim claimOk are separate. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile. saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session). 429: call auspex_reap, then retry.";
 var VERIFY_DESCRIPTION = "After auspex_check without verify=true, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if you already passed verify=true. 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success.";
 var DESKTOP_DESCRIPTION = "Solari GUI desktop: boot, wait for X11, open mousepad by default (click inside the editor at 320,300 \u2014 not screen center), optional type/expect, screenshot, kill. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";

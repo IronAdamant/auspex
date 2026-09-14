@@ -31,7 +31,7 @@ reap lists/closes leftover browser sessions and kills holding sandboxes/desktops
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). --wait then blocks until Save stores cookies or origins.
 await-login waits for that Save (a version bump with 0 cookies is empty-save, not success).
 profiles lists names, ids, version, and whether storage is populated.
---save-profile writes the live session into the named profile via Solari save-profile (never overwrites with an empty seed).
+--save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, and never saves a public /landing session).
 
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.

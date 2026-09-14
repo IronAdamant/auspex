@@ -21,19 +21,11 @@ test("seedFromStorageState counts cookies and origins without requiring values",
   )
 })
 
-test("persistProfileState refuses an empty seed and does not call save", async () => {
-  let posted = 0
+test("persistProfileState writes via profiles.save and skips empty seeds", async () => {
   let saved = 0
   const empty = await persistProfileState({
     profileId: "prof_1",
-    sessionId: "sess_1",
     state: { cookies: [], origins: [] },
-    http: {
-      post: async () => {
-        posted += 1
-        return {}
-      },
-    },
     save: async () => {
       saved += 1
       return { version: 2, sizeBytes: 9 }
@@ -41,49 +33,40 @@ test("persistProfileState refuses an empty seed and does not call save", async (
   })
   assert.equal(empty.ok, false)
   assert.equal(empty.error, EMPTY_PROFILE_SAVE_ERROR)
-  assert.equal(posted, 0)
   assert.equal(saved, 0)
-})
 
-test("persistProfileState uses save-profile then falls back on 404", async () => {
-  const native = await persistProfileState({
+  const written = await persistProfileState({
     profileId: "prof_1",
-    sessionId: "sess:1",
-    state: { cookies: [{ name: "a", value: "1", domain: "example.com" }] },
-    http: {
-      post: async (path, body) => {
-        assert.match(path, /\/sessions\/sess%3A1\/save-profile/)
-        assert.deepEqual(body, { profileId: "prof_1" })
-        return { version: 4, sizeBytes: 120, cookies: 1, origins: 0 }
-      },
-    },
-    save: async () => {
-      throw new Error("should not fallback")
-    },
-  })
-  assert.equal(native.ok, true)
-  assert.equal(native.via, "save-profile")
-  assert.equal(native.version, 4)
-  assert.equal(native.cookies, 1)
-
-  const fallback = await persistProfileState({
-    profileId: "prof_1",
-    sessionId: "sess_1",
-    state: { cookies: [{ name: "a", value: "1", domain: "example.com" }] },
-    http: {
-      post: async () => {
-        throw new Error("save-profile 404")
-      },
+    state: {
+      cookies: [{ name: "a", value: "1", domain: "example.com" }],
+      origins: [{ origin: "https://example.com", localStorage: [{ name: "__auspex_ss__:accessToken", value: "t" }] }],
     },
     save: async (id, state) => {
+      saved += 1
       assert.equal(id, "prof_1")
       assert.equal(state.cookies?.[0]?.name, "a")
-      return { version: 5, sizeBytes: 40 }
+      assert.equal(state.origins?.[0]?.localStorage?.[0]?.name, "__auspex_ss__:accessToken")
+      return { version: 6, sizeBytes: 80 }
     },
   })
-  assert.equal(fallback.ok, true)
-  assert.equal(fallback.via, "profiles.save")
-  assert.equal(fallback.version, 5)
+  assert.equal(written.ok, true)
+  assert.equal(written.via, "profiles.save")
+  assert.equal(written.version, 6)
+  assert.equal(written.cookies, 1)
+  assert.equal(written.origins, 1)
+  assert.equal(saved, 1)
+})
+
+test("persistProfileState maps 409 editor lock without throwing", async () => {
+  const locked = await persistProfileState({
+    profileId: "prof_1",
+    state: { cookies: [{ name: "a", value: "1", domain: "example.com" }] },
+    save: async () => {
+      throw new Error("Solari POST /profiles/prof_1/save failed: 409 editor is open")
+    },
+  })
+  assert.equal(locked.ok, false)
+  assert.match(locked.error ?? "", /editor is open/i)
 })
 
 test("waitForProfileSave treats a 0-cookie version bump as empty-save", async () => {
@@ -170,6 +153,38 @@ test("pageForSession uses the default context even when storageState has cookies
   const page = await pageForSession(browser as never)
   assert.equal(page, defaultPage)
   assert.equal(newContextCalls, 0)
+})
+
+test("pageForSession applies storageState when connect exposes no default context", async () => {
+  let init = ""
+  const createdPage = { id: "from-new" }
+  const browser = {
+    session: {
+      storageState: {
+        cookies: [{ name: "sid", value: "1", domain: "example.com" }],
+        origins: [
+          {
+            origin: "https://consistencyhub.io",
+            localStorage: [{ name: "__auspex_ss__:accessToken", value: "t" }],
+          },
+        ],
+      },
+    },
+    contexts: () => [],
+    newContext: async (opts: { storageState?: { origins?: Array<{ localStorage?: Array<{ name: string }> }> } }) => {
+      assert.equal(opts.storageState?.origins?.[0]?.localStorage?.[0]?.name, "__auspex_ss__:accessToken")
+      return {
+        addInitScript: async (script: string) => {
+          init = script
+        },
+        pages: () => [createdPage],
+        newPage: async () => ({ id: "new" }),
+      }
+    },
+  }
+  const page = await pageForSession(browser as never)
+  assert.equal(page, createdPage)
+  assert.match(init, /__auspex_ss__:/)
 })
 
 test("toPlaywrightStorageState does not force httpOnly or secure true", () => {

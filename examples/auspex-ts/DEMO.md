@@ -8,7 +8,7 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 ```
 
-Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`) and consistencyhub.io (`--profile` + `--sso` + `--expect "Document Editor"`). Then re-check that receipt in a headless sandbox (independent fetch/OCR of expect):
+Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`) and consistencyhub.io (`--profile` + `--sso --save-profile` once, then `--profile` + `--expect "Document Editor"`). Then re-check that receipt in a headless sandbox (independent fetch/OCR of expect):
 
 ```bash
 npx tsx src/cli.ts verify
@@ -33,10 +33,10 @@ npx tsx src/cli.ts reap --dry-run
 npx tsx src/cli.ts reap
 ```
 
-Login-once (human Save in the Solari console; no check session held open). Wait until the Save actually stored cookies/origins:
+Login-once (human Microsoft sign-in on the Solari Chrome card; Auspex captures sessionStorage). Wait until Save stored cookies/origins **or** use `--save-profile` after SSO:
 
 ```bash
-npx tsx src/cli.ts login --profile auspex-demo --wait
+npx tsx src/cli.ts check https://consistencyhub.io --profile consistencyhub --sso --sso-provider microsoft --save-profile --expect "Document Editor"
 npx tsx src/cli.ts profiles
 ```
 

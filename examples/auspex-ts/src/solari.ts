@@ -16,6 +16,7 @@ import {
   closeThenRelease,
   observeAbort,
 } from "./timeout.ts"
+import { hydrateSessionStorageSource } from "./profile-storage.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -101,6 +102,12 @@ export async function waitUntilReleased(
 export const GOTO_TIMEOUT_MS = 45_000
 export const NETWORKIDLE_TIMEOUT_MS = 15_000
 export const OVERALL_TIMEOUT_MS = 120_000
+/** SSO / save-profile need time for Microsoft number-match. */
+export const PROFILE_CHECK_TIMEOUT_MS = 300_000
+
+export function checkOverallTimeoutMs(opts: { sso?: boolean; saveProfile?: boolean }): number {
+  return opts.sso || opts.saveProfile ? PROFILE_CHECK_TIMEOUT_MS : OVERALL_TIMEOUT_MS
+}
 /** Docs: replay URL is typically ready 1–3s after release. */
 export const REPLAY_ATTEMPTS = 6
 export const REPLAY_DELAY_MS = 500
@@ -122,6 +129,7 @@ export type PlaywrightStorageState = {
   origins: Array<{
     origin: string
     localStorage: Array<{ name: string; value: string }>
+    indexedDB?: unknown
   }>
 }
 
@@ -145,11 +153,19 @@ export function toPlaywrightStorageState(state: StorageState): PlaywrightStorage
       sameSite,
     })
   }
-  const origins = (state.origins ?? []).map((o) => ({
-    origin: o.origin,
-    localStorage: o.localStorage ?? [],
-  }))
+  const origins = (state.origins ?? []).map((o) => {
+    const indexedDB = (o as { indexedDB?: unknown }).indexedDB
+    return {
+      origin: o.origin,
+      localStorage: o.localStorage ?? [],
+      ...(indexedDB !== undefined ? { indexedDB } : {}),
+    }
+  })
   return { cookies, origins }
+}
+
+export function storageStateIsPopulated(pw: PlaywrightStorageState): boolean {
+  return pw.cookies.length > 0 || pw.origins.length > 0
 }
 
 export function findProfileId(profiles: { id: string; name: string }[], name: string): string {
@@ -264,17 +280,27 @@ export async function resolveProfileId(solari: Solari, name: string): Promise<st
 }
 
 /**
- * Solari seeds the default context when profileId is set. A fresh
- * `newContext({ storageState })` drops that pool seed (and can miss
- * localStorage), which is why `--profile` reuse used to hit a public /landing.
+ * Solari's Playwright wire does not expose a default context after
+ * `chromium.connect` (contexts() is empty). Apply the profile JSON onto a
+ * new context, then hydrate sessionStorage from `__auspex_ss__:` keys so
+ * SPAs that keep access tokens out of localStorage still round-trip.
  */
 export async function pageForSession(browser: BrowserSession) {
   const existing = browser.contexts()[0]
-  if (existing) return existing.pages()[0] ?? existing.newPage()
   const state = browser.session.storageState
-  const pw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] }
-  const hasState = pw.cookies.length > 0 || pw.origins.length > 0
-  const ctx = await browser.newContext(hasState ? { storageState: pw } : {})
+  const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] }
+  const pw = {
+    cookies: raw.cookies,
+    origins: raw.origins.map((o) => ({ origin: o.origin, localStorage: o.localStorage })),
+  }
+  const hasState = storageStateIsPopulated(pw)
+  let ctx = existing
+  if (!ctx) {
+    ctx = await browser.newContext(hasState ? { storageState: pw } : {})
+  }
+  if (typeof ctx.addInitScript === "function") {
+    await ctx.addInitScript(hydrateSessionStorageSource())
+  }
   return ctx.pages()[0] ?? ctx.newPage()
 }
 

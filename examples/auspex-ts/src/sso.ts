@@ -9,6 +9,8 @@ export type SsoCancel = {
 
 export type SsoProvider = "microsoft" | "google" | "auto"
 
+export const SSO_RETURN_TIMEOUT_MS = 120_000
+
 /** True when hostname is exactly `domain` or a subdomain of it (label match, not substring). */
 export function hostIs(hostname: string, domain: string): boolean {
   const h = hostname.toLowerCase()
@@ -124,7 +126,7 @@ export async function completeSso(
   }
   if (!clicked || stopped(opts)) return
   await page
-    .waitForURL((url) => !stillOnAuth(url), { timeout: 45_000, signal })
+    .waitForURL((url) => !stillOnAuth(url), { timeout: SSO_RETURN_TIMEOUT_MS, signal })
     .catch(() => undefined)
 }
 
