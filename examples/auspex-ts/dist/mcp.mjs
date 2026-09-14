@@ -790,7 +790,7 @@ async function pageForSession(browser) {
     ctx = await browser.newContext(hasState ? { storageState: pw } : {});
   }
   if (typeof ctx.addInitScript === "function") {
-    await ctx.addInitScript(hydrateSessionStorageSource());
+    await ctx.addInitScript({ content: hydrateSessionStorageSource() });
   }
   return ctx.pages()[0] ?? ctx.newPage();
 }
