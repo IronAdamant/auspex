@@ -13,7 +13,7 @@ Grok 4.6 in Grok Build wrote the CLI, MCP server, and Solari wiring. I pointed i
 Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a login):
 
 - Still: [demo/ironadamant.png](demo/ironadamant.png)
-- JSON + `sessionId`: [demo/receipt.json](demo/receipt.json)
+- JSON + `sessionId`: [demo/receipt.json](demo/receipt.json) (**marketing summary** with `sessionId` + verify flags; agent contract is schema v1 on CLI/MCP stdout — see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen))
 - 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After clone, open that file locally, or via [jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html).
 - Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
 
