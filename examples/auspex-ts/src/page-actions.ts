@@ -7,7 +7,7 @@ export type ActionPage = {
     fill: (value: string, opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
     click: (opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
   }
-  evaluate: <R>(pageFunction: () => R) => Promise<R>
+  evaluate: <R, Arg>(pageFunction: (arg: Arg) => R, arg?: Arg) => Promise<R>
 }
 
 export type PageActionOpts = {

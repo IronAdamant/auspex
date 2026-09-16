@@ -94,7 +94,7 @@ test("P0: password-fill ban — selector and runtime detection", async () => {
       fill: async () => undefined,
       click: async () => undefined,
     }),
-    evaluate: async () => true, // returns true = is password input
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => true as R, // returns true = is password input
   }
   
   await assert.rejects(
@@ -113,7 +113,7 @@ test("P0: password-fill ban — selector and runtime detection", async () => {
       fill: async () => undefined,
       click: async () => undefined,
     }),
-    evaluate: async () => false, // returns false = not password input
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => false as R, // returns false = not password input
   }
   
   await assert.doesNotReject(async () => runPageActions(mockTextPage, { fill: '#username', value: 'alice' }))

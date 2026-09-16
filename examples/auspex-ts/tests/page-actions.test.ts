@@ -31,7 +31,7 @@ test("runPageActions waits, fills, then clicks in order", async () => {
         calls.push(`click:${sel}`)
       },
     }),
-    evaluate: async () => false, // not a password input
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => false as R, // not a password input
   }
   const out = await runPageActions(page, { waitFor: "#main", fill: "#q", value: "hi", click: "button.go" })
   assert.deepEqual(calls, ["wait:#main", "fill:#q=hi", "click:button.go"])
@@ -51,7 +51,7 @@ test("runPageActions is a no-op when no actions are set", async () => {
         fill: async () => undefined,
         click: async () => undefined,
       }),
-      evaluate: async () => false,
+      evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => false as R,
     },
     {},
   )
