@@ -62,6 +62,72 @@ test("H1: fill/click with a profile is refused unless allowPageActions", () => {
   assert.equal(publicFill.success, true)
 })
 
+test("P0: password-fill ban — selector and runtime detection", async () => {
+  const { assertNotPasswordSelector, runPageActions, PASSWORD_FILL_ERROR } = await import("../src/page-actions.ts")
+  
+  // Selector-level refusal: various password input selector patterns
+  assert.throws(
+    () => assertNotPasswordSelector('input[type=password]'),
+    (err: unknown) => {
+      assert.match(err instanceof Error ? err.message : String(err), /password/)
+      assert.match(err instanceof Error ? err.message : String(err), /agents must never type passwords/i)
+      return true
+    },
+  )
+  assert.throws(() => assertNotPasswordSelector('input[type="password"]'), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  assert.throws(() => assertNotPasswordSelector("input[type='password']"), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  assert.throws(() => assertNotPasswordSelector('[type=password]'), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  assert.throws(() => assertNotPasswordSelector('input:password'), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  assert.throws(() => assertNotPasswordSelector('INPUT[TYPE=PASSWORD]'), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  assert.throws(() => assertNotPasswordSelector('form input[type = "password"]'), new RegExp(PASSWORD_FILL_ERROR.slice(0, 20)))
+  
+  // These should pass (not password inputs)
+  assert.doesNotThrow(() => assertNotPasswordSelector('#username'))
+  assert.doesNotThrow(() => assertNotPasswordSelector('input[type=text]'))
+  assert.doesNotThrow(() => assertNotPasswordSelector('input.password-reset-button'))
+  assert.doesNotThrow(() => assertNotPasswordSelector('[data-password-field]'))
+  
+  // Runtime detection: mock page with evaluate that returns true (is password input)
+  const mockPasswordPage = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => undefined,
+    }),
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => true as R, // returns true = is password input
+  }
+  
+  await assert.rejects(
+    async () => runPageActions(mockPasswordPage, { fill: '#pwd', value: 'secret123' }),
+    (err: unknown) => {
+      assert.match(err instanceof Error ? err.message : String(err), /password/)
+      assert.match(err instanceof Error ? err.message : String(err), /agents must never type passwords/i)
+      return true
+    },
+  )
+  
+  // Runtime detection: mock page that returns false (not a password input) - should succeed
+  const mockTextPage = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => undefined,
+    }),
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => false as R, // returns false = not password input
+  }
+  
+  await assert.doesNotReject(async () => runPageActions(mockTextPage, { fill: '#username', value: 'alice' }))
+  
+  // Schema validation
+  const passwordSchema = auspexCheckInputSchema.safeParse({
+    url: "https://example.com",
+    expect: "Login",
+    fill: 'input[type=password]',
+    value: "secret",
+  })
+  assert.equal(passwordSchema.success, true, "selector check happens at runtime, not schema parse")
+})
+
 test("H2: consistencyhub cannot allowRecordProfile; recording stays off unless marketing host", () => {
   assert.throws(
     () =>

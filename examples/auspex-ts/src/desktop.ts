@@ -199,6 +199,8 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
           await desktop.click(clickAt.x, clickAt.y)
           click = { x: clickAt.x, y: clickAt.y, verified: false }
         }
+        // Desktop --type is free-form and cannot detect password fields. Agents must refuse
+        // typing passwords/secrets even when the desktop cannot enforce (unlike page-actions fill).
         if (task.type && desktop.typeText) await desktop.typeText(task.type)
         tui.setPhase("screenshot")
         const png = await desktop.screenshot()
