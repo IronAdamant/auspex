@@ -37,6 +37,10 @@ export function isConsistencyHubCheck(opts: { name?: string; profile?: string })
   return name === "consistencyhub" || profile === "consistencyhub"
 }
 
+/**
+ * Fail-closed record+profile guards: refuse recording with a profile (captures input) unless
+ * explicitly allowed on a public marketing host (never for ConsistencyHub).
+ */
 export function assertRecordProfileAllowed(opts: {
   record?: boolean
   profile?: string
@@ -125,6 +129,7 @@ export const auspexCheckInputObject = z.object({
   waitFor: z.string().optional().describe("CSS selector to wait until visible before extract"),
   fill: z.string().optional().describe(
     "CSS selector to fill; requires value. " +
+    "FAIL-CLOSED: Refused on input[type=password] selectors (agents must never type passwords). " +
     "FAIL-CLOSED: With profile or name=consistencyhub, requires allowPageActions=true (refuse driving logged-in apps from page text).",
   ),
   value: z.string().optional().describe("Text to type into fill. FAIL-CLOSED: Requires fill."),
@@ -233,7 +238,12 @@ export const auspexAwaitLoginInputSchema = z.object({
 
 export const auspexDesktopInputSchema = z.object({
   open: z.string().optional().describe("App to open on the named Solari sandbox desktop demo (default mousepad). Not the user's Mac."),
-  type: z.string().optional().describe("Optional text to type after focusing the window"),
+  type: z
+    .string()
+    .optional()
+    .describe(
+      "Optional text to type after focusing the window. WARNING: Cannot detect password fields. Agents must refuse typing passwords or secrets even when desktop cannot enforce. Free-form typing is unguarded; use only for demo text.",
+    ),
   clickX: z.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
   clickY: z.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
   expect: z.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name."),

@@ -54,7 +54,10 @@ export function stillOnAuth(url: URL): boolean {
   return false
 }
 
-/** Identity-provider hosts always fail-close; `/login` and `/auth` when --sso or --profile. */
+/**
+ * Fail-closed SSO guards: identity-provider hosts always fail-close; `/login` and `/auth`
+ * fail-close when --sso or --profile is set.
+ */
 export function shouldFailClosedAuth(
   url: URL,
   opts: { sso?: boolean; profile?: string },
@@ -66,6 +69,10 @@ export function shouldFailClosedAuth(
   return Boolean(opts.sso || opts.profile)
 }
 
+/**
+ * Fail-closed password/OTP detection: Microsoft and Google password/OTP walls return needsHuman
+ * so agents never type IdP credentials.
+ */
 export function describeAuthWall(opts: {
   url: string
   hasPasswordInput?: boolean

@@ -7,6 +7,7 @@ export type ActionPage = {
     fill: (value: string, opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
     click: (opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
   }
+  evaluate: <R>(pageFunction: () => R) => Promise<R>
 }
 
 export type PageActionOpts = {
@@ -22,6 +23,9 @@ export type PageActionOpts = {
 export const PAGE_ACTIONS_PROFILE_ERROR =
   "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click."
 
+export const PASSWORD_FILL_ERROR =
+  "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman."
+
 export type PageActionResult = {
   waitedFor?: string
   filled?: string
@@ -30,6 +34,19 @@ export type PageActionResult = {
 
 export const PAGE_ACTION_TIMEOUT_MS = 15_000
 
+/** Fail-closed password-fill ban: refuse selectors that target input[type=password]. */
+export function assertNotPasswordSelector(selector: string): void {
+  const norm = selector.toLowerCase().replace(/\s+/g, "")
+  const patterns = [
+    /input\[type=["']?password["']?\]/,
+    /\[type=["']?password["']?\]/,
+    /:password\b/,
+  ]
+  if (patterns.some((p) => p.test(norm))) {
+    throw new Error(PASSWORD_FILL_ERROR)
+  }
+}
+
 export function assertFillPair(opts: PageActionOpts): void {
   if (opts.fill && opts.value === undefined) {
     throw new Error("check --fill requires --value")
@@ -37,9 +54,15 @@ export function assertFillPair(opts: PageActionOpts): void {
   if (opts.value !== undefined && !opts.fill) {
     throw new Error("check --value requires --fill <css>")
   }
+  if (opts.fill) {
+    assertNotPasswordSelector(opts.fill)
+  }
 }
 
-/** Profile-attached checks (ConsistencyHub) cannot fill/click unless explicitly opted in. */
+/**
+ * Fail-closed page-action guards: profile-attached checks (ConsistencyHub) cannot fill/click
+ * unless explicitly opted in. Prevents agents from driving logged-in apps based on page/OCR text.
+ */
 export function assertPageActionsAllowed(opts: PageActionOpts): void {
   assertFillPair(opts)
   const attached =
@@ -64,6 +87,18 @@ export async function runPageActions(
     out.waitedFor = opts.waitFor
   }
   if (opts.fill && opts.value !== undefined) {
+    const fillSelector = opts.fill
+    const isPassword = await page.evaluate((sel: string) => {
+      try {
+        const el = document.querySelector(sel)
+        return el instanceof HTMLInputElement && el.type === "password"
+      } catch {
+        return false
+      }
+    }, fillSelector)
+    if (isPassword) {
+      throw new Error(PASSWORD_FILL_ERROR)
+    }
     await page.locator(opts.fill).fill(opts.value, { timeout, signal })
     out.filled = opts.fill
   }

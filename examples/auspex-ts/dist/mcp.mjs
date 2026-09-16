@@ -1616,13 +1616,28 @@ function sessionCreateFromCheck(opts) {
 
 // src/page-actions.ts
 var PAGE_ACTIONS_PROFILE_ERROR = "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click.";
+var PASSWORD_FILL_ERROR = "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman.";
 var PAGE_ACTION_TIMEOUT_MS = 15e3;
+function assertNotPasswordSelector(selector) {
+  const norm = selector.toLowerCase().replace(/\s+/g, "");
+  const patterns = [
+    /input\[type=["']?password["']?\]/,
+    /\[type=["']?password["']?\]/,
+    /:password\b/
+  ];
+  if (patterns.some((p) => p.test(norm))) {
+    throw new Error(PASSWORD_FILL_ERROR);
+  }
+}
 function assertFillPair(opts) {
   if (opts.fill && opts.value === void 0) {
     throw new Error("check --fill requires --value");
   }
   if (opts.value !== void 0 && !opts.fill) {
     throw new Error("check --value requires --fill <css>");
+  }
+  if (opts.fill) {
+    assertNotPasswordSelector(opts.fill);
   }
 }
 function assertPageActionsAllowed(opts) {
@@ -1642,6 +1657,18 @@ async function runPageActions(page, opts, signal) {
     out.waitedFor = opts.waitFor;
   }
   if (opts.fill && opts.value !== void 0) {
+    const fillSelector = opts.fill;
+    const isPassword = await page.evaluate((sel) => {
+      try {
+        const el = document.querySelector(sel);
+        return el instanceof HTMLInputElement && el.type === "password";
+      } catch {
+        return false;
+      }
+    }, fillSelector);
+    if (isPassword) {
+      throw new Error(PASSWORD_FILL_ERROR);
+    }
     await page.locator(opts.fill).fill(opts.value, { timeout, signal });
     out.filled = opts.fill;
   }
@@ -2065,7 +2092,7 @@ var auspexCheckInputObject = z4.object({
   ssoProvider: z4.enum(["microsoft", "google", "auto"]).optional().describe("SSO vendor. Default auto tries Microsoft, then Google, then a generic Sign in with button"),
   waitFor: z4.string().optional().describe("CSS selector to wait until visible before extract"),
   fill: z4.string().optional().describe(
-    "CSS selector to fill; requires value. FAIL-CLOSED: With profile or name=consistencyhub, requires allowPageActions=true (refuse driving logged-in apps from page text)."
+    "CSS selector to fill; requires value. FAIL-CLOSED: Refused on input[type=password] selectors (agents must never type passwords). FAIL-CLOSED: With profile or name=consistencyhub, requires allowPageActions=true (refuse driving logged-in apps from page text)."
   ),
   value: z4.string().optional().describe("Text to type into fill. FAIL-CLOSED: Requires fill."),
   click: z4.string().optional().describe(
@@ -2136,7 +2163,9 @@ var auspexAwaitLoginInputSchema = z4.object({
 });
 var auspexDesktopInputSchema = z4.object({
   open: z4.string().optional().describe("App to open on the named Solari sandbox desktop demo (default mousepad). Not the user's Mac."),
-  type: z4.string().optional().describe("Optional text to type after focusing the window"),
+  type: z4.string().optional().describe(
+    "Optional text to type after focusing the window. WARNING: Cannot detect password fields. Agents must refuse typing passwords or secrets even when desktop cannot enforce. Free-form typing is unguarded; use only for demo text."
+  ),
   clickX: z4.number().optional().describe("Click X. Unverified coordinate; omitted unless you pass it. Default demo only opens the app."),
   clickY: z4.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
   expect: z4.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name.")

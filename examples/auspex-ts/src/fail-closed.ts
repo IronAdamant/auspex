@@ -1,5 +1,19 @@
 import type { CheckReason } from "./check-reason.ts"
 
+/**
+ * Fail-closed retry and verify helpers.
+ *
+ * This file contains only no-retry / skip-verify logic. The primary fail-closed security gates
+ * that refuse unsafe actions before they run are implemented in:
+ *
+ * - tool-schema.ts — record+profile, fill/click+profile, and profile-attach validation
+ * - page-actions.ts — password-fill ban (input[type=password] detection + refusal)
+ * - sso.ts — SSO password/OTP wall detection (needsHuman)
+ * - launch-options.ts — profile-attach recording gate
+ *
+ * Grep "fail-closed" or "Fail-closed" across the codebase to find all enforcement points.
+ */
+
 /** Reasons that must not be retried and must not spend a second Solari VM. */
 export const NO_RETRY_REASONS = ["loggedOut", "needsHuman"] as const
 
