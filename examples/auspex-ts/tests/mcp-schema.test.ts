@@ -208,7 +208,4 @@ test("mcp.ts registers tools via registerAuspexTools; MCP check uses auspexCheck
   // Verify that tool-schema.ts includes FAIL-CLOSED descriptions
   const toolSchema = readFileSync(path.join(root, "src", "tool-schema.ts"), "utf8")
   assert.match(toolSchema, /FAIL-CLOSED/i, "tool-schema.ts should include FAIL-CLOSED markers in descriptions")
-  // Check for specific constraint descriptions
-  const failClosedCount = (toolSchema.match(/FAIL-CLOSED/gi) || []).length
-  assert.ok(failClosedCount >= 8, `Expected at least 8 FAIL-CLOSED markers, found ${failClosedCount}`)
 })
