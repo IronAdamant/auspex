@@ -72,3 +72,7 @@ npx auspex check --name ironadamant
 ```
 
 The saved check is configured for ironadamant.com with the expect string "One office job." — no URL or flags needed.
+
+## Weekly GitHub Actions Checks
+
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) in GitHub Actions runs weekly (Mondays + `workflow_dispatch`) to verify the saved checks still work against live sites. **The workflow does not commit artifacts** — it only runs the checks to ensure they pass. The demo PNG/receipt/replay files in this repo are manually committed when refreshed.
