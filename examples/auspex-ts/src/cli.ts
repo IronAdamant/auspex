@@ -174,7 +174,7 @@ export function parseArgv(argv: string[]): ParseResult {
         url = merged.url
         expect = merged.expect
         profileName = merged.profile
-        if (name.trim().toLowerCase() === "consistencyhub" && !noVerify && !verifyFlag) {
+        if (name.trim().toLowerCase() === "consistencyhub" && !noVerify && !verifyFlag && !verifyWithProfile) {
           verifyAfter = false
         }
       } catch (err) {

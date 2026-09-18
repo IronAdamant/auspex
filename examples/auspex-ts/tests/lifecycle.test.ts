@@ -203,3 +203,60 @@ test("replay poll window is within documented 1–3s", async () => {
   assert.ok(REPLAY_ATTEMPTS * REPLAY_DELAY_MS <= 4_000)
   assert.ok(REPLAY_DELAY_MS <= 1_000)
 })
+
+test("checkThenVerify with verifyWithProfile passes profileId to verify", async () => {
+  const stamp = `verify-profile-${Date.now()}`
+  const dir = path.join(RUNS_DIR, stamp)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    JSON.stringify({
+      url: "https://consistencyhub.io",
+      expect: "Document Editor",
+      finalUrl: "https://consistencyhub.io/dashboard",
+      screenshotPath: path.join(dir, "screenshot.png"),
+    }),
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), Buffer.from("fake"))
+  
+  let receivedProfileId: string | undefined
+  const check = {
+    title: "Dashboard",
+    finalUrl: "https://consistencyhub.io/dashboard",
+    ok: true,
+    reason: "matched" as const,
+    url: "https://consistencyhub.io",
+    expect: "Document Editor",
+    matched: true,
+    excerpt: "Document Editor",
+    screenshotPath: path.join(dir, "screenshot.png"),
+    sessionId: "sess",
+    networkIdle: true,
+  }
+  
+  const both = await checkThenVerify(
+    {
+      url: "https://consistencyhub.io",
+      expect: "Document Editor",
+      profile: "test-profile",
+      verifyWithProfile: true,
+    },
+    {
+      check: async () => check,
+      verify: async (_dir, profileId) => {
+        receivedProfileId = profileId
+        return {
+          ok: true,
+          errors: [],
+          claimOk: true,
+          claimErrors: [],
+          runDir: dir,
+        }
+      },
+      verifyWithProfile: true,
+    },
+  )
+  
+  assert.equal(both.check.reason, "matched")
+  assert.ok(receivedProfileId, "profileId should be passed to verify when verifyWithProfile is true")
+})

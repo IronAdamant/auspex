@@ -6,7 +6,7 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey } from "./solari.ts"
+import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches, normalizeHaystack } from "./text.ts"
@@ -343,7 +343,15 @@ export async function checkThenVerify(
   }
   try {
     const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
-    const profileId = verifyWithProfile && opts.profile ? opts.profile : undefined
+    let profileId: string | undefined
+    if (verifyWithProfile && opts.profile) {
+      if (!deps?.verify) {
+        const solari = createClient({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() })
+        profileId = await resolveProfileId(solari, opts.profile)
+      } else {
+        profileId = opts.profile
+      }
+    }
     const verify = deps?.verify
       ? await deps.verify(dir, profileId)
       : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : undefined)
