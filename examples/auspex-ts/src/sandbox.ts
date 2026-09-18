@@ -134,18 +134,28 @@ export async function defaultProfileClaimCheck(opts: {
       waitUntil: "domcontentloaded",
     })
     try {
-      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+      await page.waitForLoadState("networkidle", { timeout: 20_000 })
     } catch {
       // network idle optional for claim check
     }
-    const raw = await page.evaluate(() => document.body?.innerText ?? "")
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    let raw = await page.evaluate(() => document.body?.innerText ?? "")
+    if (!raw.trim() || raw.length < 50) {
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      raw = await page.evaluate(() => document.body?.innerText ?? "")
+    }
     const matched = haystackMatches(raw, opts.expect)
     closer.skip()
     await closer.release()
     await forgetLive("browser", sessionId).catch(() => undefined)
+    const errors = matched ? [] : ["profile-seeded check: page text does not contain expect"]
+    if (!matched && raw.trim()) {
+      const snippet = raw.trim().slice(0, 200).replace(/\s+/g, " ")
+      errors.push(`(sampled: "${snippet}${raw.length > 200 ? "..." : ""}")`)
+    }
     return {
       claimOk: matched,
-      claimErrors: matched ? [] : ["profile-seeded check: page text does not contain expect"],
+      claimErrors: errors,
       sessionId,
     }
   } catch (err) {
@@ -198,12 +208,16 @@ export function parseAssertStdout(stdout: string): {
       anonymousClaimSkipped?: boolean
       finalUrl?: string
     }
+    const claimErrors = Array.isArray(parsed.claimErrors) ? parsed.claimErrors : []
+    const anonymousClaimSkipped = claimErrors.some((err) =>
+      /anonymous claim skipped/i.test(err),
+    )
     return {
       ok: parsed.ok === true,
       errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
       claimOk: parsed.claimOk === true,
-      claimErrors: Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [],
-      anonymousClaimSkipped: parsed.anonymousClaimSkipped === true,
+      claimErrors,
+      anonymousClaimSkipped: anonymousClaimSkipped || undefined,
       finalUrl: parsed.finalUrl,
     }
   } catch {

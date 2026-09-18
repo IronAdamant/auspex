@@ -242,6 +242,22 @@ test("parseAssertStdout uses the last JSON line and rejects garbage", () => {
   assert.equal(empty.ok, false)
 })
 
+test("parseAssertStdout detects anonymousClaimSkipped from claimErrors", () => {
+  const skipped = parseAssertStdout(
+    '{"ok":true,"errors":[],"claimOk":false,"claimErrors":["anonymous claim skipped"]}\n',
+  )
+  assert.equal(skipped.ok, true)
+  assert.equal(skipped.claimOk, false)
+  assert.equal(skipped.anonymousClaimSkipped, true)
+  assert.deepEqual(skipped.claimErrors, ["anonymous claim skipped"])
+  
+  const notSkipped = parseAssertStdout(
+    '{"ok":true,"errors":[],"claimOk":false,"claimErrors":["fetched page text does not contain expect"]}\n',
+  )
+  assert.equal(notSkipped.claimOk, false)
+  assert.equal(notSkipped.anonymousClaimSkipped, undefined)
+})
+
 test("RECEIPT_ASSERT_PY does not treat a suffix host as Microsoft", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
   writeFileSync(

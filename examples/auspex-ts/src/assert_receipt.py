@@ -173,6 +173,8 @@ def audit_claim(man, work, skip_fetch, skip_all):
     expect = str(man.get("expect") or "")
     if not expect.strip():
         return ["manifest has no expect to audit"]
+    if skip_fetch:
+        return ["anonymous claim skipped"]
     found = False
     notes = []
     url = str(man.get("finalUrl") or "")
