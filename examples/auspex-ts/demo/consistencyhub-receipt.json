@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://consistencyhub.io",
+  "expect": "Document Editor",
+  "screenshotPath": "examples/auspex-ts/demo/consistencyhub.png",
+  "title": "ConsistencyHub \u2014 [redacted auth-gated dashboard]",
+  "finalUrl": "https://consistencyhub.io/dashboard",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated ConsistencyHub dashboard \u2014 PII/project names/activity redacted for public demo. Live expect matched: Document Editor.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": false,
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  },
+  "profileSeed": {
+    "cookies": 78,
+    "origins": 5
+  },
+  "demoNote": "Redacted public demo of a live 2026-09-19 AEST --verify-with-profile run. sessionId/sandbox ids omitted. PNG is blurred auth-gated UI, not a blank fail."
+}

@@ -48,4 +48,9 @@ npm run public-check
 
 MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok toml. Ask the agent to verify https://ironadamant.com for `"One office job."` via `auspex_check`.
 
-Public post image (Solari cloud Chrome, not a local window): [demo/ironadamant.png](demo/ironadamant.png) plus [demo/receipt.json](demo/receipt.json) (`sessionId`) plus [demo/replay.html](demo/replay.html). **Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen)). Do not post logged-in ConsistencyHub dashboards.
+Public demo artifacts (Solari cloud Chrome, not a local window):
+
+- **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`) + [demo/replay.html](demo/replay.html). Marketing summary with `sessionId` and verify flags.
+- **ConsistencyHub (auth-gated, redacted):** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
+
+**Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen)). Do not post unredacted logged-in ConsistencyHub dashboards.
