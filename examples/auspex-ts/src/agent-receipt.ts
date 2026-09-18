@@ -18,6 +18,24 @@ export function toAgentReceipt(
     reason,
     verify,
   })
+  
+  let next = check.next
+  if (
+    check.matched &&
+    verify &&
+    !verify.skipped &&
+    verify.ok &&
+    !verify.claimOk
+  ) {
+    const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase()
+    const isFetchOnly = /fetched page|does not contain|anonymous|fetch/i.test(claimBlob)
+    const hasOcrNote = /ocr|screenshot|tesseract/i.test(claimBlob)
+    if (isFetchOnly && !hasOcrNote) {
+      const hint = next ? `${next} ` : ""
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). Anonymous sandbox verify is honest: do not auto-retry.`
+    }
+  }
+  
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -38,7 +56,7 @@ export function toAgentReceipt(
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
-    next: check.next,
+    next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,

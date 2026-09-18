@@ -148,7 +148,7 @@ export function parseArgv(argv: string[]): ParseResult {
     if (noVerify && verifyFlag) {
       return { status: "error", message: "pass only one of --verify or --no-verify" }
     }
-    const verifyAfter = !noVerify
+    let verifyAfter = !noVerify
     let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     let expect = expectOpt
@@ -171,6 +171,9 @@ export function parseArgv(argv: string[]): ParseResult {
         url = merged.url
         expect = merged.expect
         profileName = merged.profile
+        if (name.trim().toLowerCase() === "consistencyhub" && !noVerify && !verifyFlag) {
+          verifyAfter = false
+        }
       } catch (err) {
         return { status: "error", message: err instanceof Error ? err.message : String(err) }
       }

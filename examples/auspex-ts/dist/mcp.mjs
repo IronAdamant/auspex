@@ -136,6 +136,16 @@ function toAgentReceipt(check, extras) {
     reason,
     verify
   });
+  let next = check.next;
+  if (check.matched && verify && !verify.skipped && verify.ok && !verify.claimOk) {
+    const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase();
+    const isFetchOnly = /fetched page|does not contain|anonymous|fetch/i.test(claimBlob);
+    const hasOcrNote = /ocr|screenshot|tesseract/i.test(claimBlob);
+    if (isFetchOnly && !hasOcrNote) {
+      const hint = next ? `${next} ` : "";
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). Anonymous sandbox verify is honest: do not auto-retry.`;
+    }
+  }
   const receipt = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -156,7 +166,7 @@ function toAgentReceipt(check, extras) {
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
-    next: check.next,
+    next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
@@ -1201,17 +1211,31 @@ async function persistProfileState(opts) {
     throw err;
   }
 }
-async function inspectProfileSeed(solari, profileId) {
+async function inspectProfileSeed(solari, profileId, origin) {
   const session = await solari.sessions.create({ profileId });
   try {
-    return seedFromStorageState(session.storageState);
+    const seed = seedFromStorageState(session.storageState);
+    if (origin) {
+      const counts = originHasLandedBytes(session.storageState, origin) ? originStoreCounts(session.storageState, origin) : void 0;
+      if (counts) {
+        seed.sessionStorage = counts.sessionStorage;
+      }
+    }
+    return seed;
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
   }
 }
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
+    let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
+    const isConsistencyHub = profile.name.trim().toLowerCase() === "consistencyhub";
+    const hasOrigins = seed.origins > 0 || seed.cookies > 0;
+    const hasNoSessionStorage = seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
+    if (isConsistencyHub && hasOrigins && hasNoSessionStorage) {
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. Check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+    }
+    return base;
   }
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
@@ -1231,13 +1255,15 @@ async function waitForProfileSave(name, opts) {
   let version = profile.version ?? since;
   let seed = { cookies: 0, origins: 0 };
   let status = "timeout";
+  const isConsistencyHub = want.toLowerCase() === "consistencyhub";
+  const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : void 0;
   while (now() < deadline) {
     const rows = await opts.deps.list();
     profile = rows.find((p) => p.name.trim() === want);
     if (!profile) throw new Error(`profile ${want} no longer exists`);
     version = profile.version ?? since;
     if (version > since) {
-      seed = await opts.deps.inspect(profile.id);
+      seed = await opts.deps.inspect(profile.id, chOrigin);
       status = isEmptySeed(seed) ? "empty-save" : "completed";
       break;
     }
@@ -1252,6 +1278,7 @@ async function waitForProfileSave(name, opts) {
     version,
     cookies: seed.cookies,
     origins: seed.origins,
+    sessionStorage: seed.sessionStorage,
     next: awaitNext(status, profile, version, seed)
   };
 }
@@ -2606,7 +2633,7 @@ async function runCheck(opts) {
     });
     let next;
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Remint with auspex_login, complete human SSO in handoff, then either use console Save or run check --profile <name> --sso --save-profile to capture sessionStorage.`;
+      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Prefer: remint with auspex_login, complete human SSO in handoff, then run check --profile <name> --sso --save-profile to capture sessionStorage. Console Save is insufficient for apps like ConsistencyHub.`;
     } else if (reason === "needsHuman") {
       next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`;
     }

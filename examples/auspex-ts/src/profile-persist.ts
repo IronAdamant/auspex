@@ -1,7 +1,7 @@
 import type { Solari, StorageState } from "@solarisdk/browser"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
-import { originHasLandedBytes } from "./profile-storage.ts"
+import { originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -21,6 +21,7 @@ export const AWAIT_LOGIN_DEFAULT_MS = 300_000
 export type ProfileSeed = {
   cookies: number
   origins: number
+  sessionStorage?: number
 }
 
 export type ProfileSaveResult = {
@@ -42,12 +43,13 @@ export type AwaitLoginResult = {
   version: number
   cookies: number
   origins: number
+  sessionStorage?: number
   next: string
 }
 
 export type AwaitLoginDeps = {
   list: () => Promise<Array<{ id: string; name: string; version?: number }>>
-  inspect: (profileId: string) => Promise<ProfileSeed>
+  inspect: (profileId: string, origin?: string) => Promise<ProfileSeed>
   sleep?: (ms: number) => Promise<void>
   now?: () => number
 }
@@ -150,10 +152,23 @@ export async function persistProfileState(opts: {
   }
 }
 
-export async function inspectProfileSeed(solari: Solari, profileId: string): Promise<ProfileSeed> {
+export async function inspectProfileSeed(
+  solari: Solari,
+  profileId: string,
+  origin?: string,
+): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
   try {
-    return seedFromStorageState(session.storageState)
+    const seed = seedFromStorageState(session.storageState)
+    if (origin) {
+      const counts = originHasLandedBytes(session.storageState, origin)
+        ? originStoreCounts(session.storageState, origin)
+        : undefined
+      if (counts) {
+        seed.sessionStorage = counts.sessionStorage
+      }
+    }
+    return seed
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
   }
@@ -166,7 +181,14 @@ function awaitNext(
   seed: ProfileSeed,
 ): string {
   if (status === "completed") {
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`
+    let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`
+    const isConsistencyHub = profile.name.trim().toLowerCase() === "consistencyhub"
+    const hasOrigins = seed.origins > 0 || seed.cookies > 0
+    const hasNoSessionStorage = seed.sessionStorage !== undefined && seed.sessionStorage === 0
+    if (isConsistencyHub && hasOrigins && hasNoSessionStorage) {
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. Check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
+    }
+    return base
   }
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`
@@ -194,13 +216,16 @@ export async function waitForProfileSave(
   let version = profile.version ?? since
   let seed: ProfileSeed = { cookies: 0, origins: 0 }
   let status: AwaitLoginStatus = "timeout"
+  const isConsistencyHub = want.toLowerCase() === "consistencyhub"
+  const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : undefined
+  
   while (now() < deadline) {
     const rows = await opts.deps.list()
     profile = rows.find((p) => p.name.trim() === want)
     if (!profile) throw new Error(`profile ${want} no longer exists`)
     version = profile.version ?? since
     if (version > since) {
-      seed = await opts.deps.inspect(profile.id)
+      seed = await opts.deps.inspect(profile.id, chOrigin)
       status = isEmptySeed(seed) ? "empty-save" : "completed"
       break
     }
@@ -215,6 +240,7 @@ export async function waitForProfileSave(
     version,
     cookies: seed.cookies,
     origins: seed.origins,
+    sessionStorage: seed.sessionStorage,
     next: awaitNext(status, profile, version, seed),
   }
 }
