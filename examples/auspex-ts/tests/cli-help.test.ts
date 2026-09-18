@@ -429,6 +429,7 @@ test("parseArgv check --name uses saved checks and verifies by default", () => {
     assert.equal(hub.command.opts.expect, "Document Editor")
     assert.equal(hub.command.opts.sso, false)
     assert.equal(hub.command.opts.record, false)
+    assert.equal(hub.command.verifyAfter, false, "consistencyhub skips anonymous verify by default")
   }
   const skip = parseArgv(["check", "--name", "checkpoint", "--no-verify"])
   assert.equal(skip.status, "ok")
@@ -470,4 +471,24 @@ test("parseArgv desktop takes no extra args", () => {
   if (a.status === "ok") assert.equal(a.command.cmd, "desktop")
   const b = parseArgv(["desktop", "extra"])
   assert.equal(b.status, "error")
+})
+
+test("parseArgv --verify-with-profile enables verifyAfter for consistencyhub", () => {
+  const withProfile = parseArgv(["check", "--name", "consistencyhub", "--verify-with-profile"])
+  assert.equal(withProfile.status, "ok")
+  if (withProfile.status === "ok" && withProfile.command.cmd === "check") {
+    assert.equal(withProfile.command.opts.profile, "consistencyhub")
+    assert.equal(withProfile.command.opts.verifyWithProfile, true)
+    assert.equal(withProfile.command.verifyAfter, true, "--verify-with-profile should enable verifyAfter")
+  }
+  const explicitVerify = parseArgv(["check", "--name", "consistencyhub", "--verify"])
+  assert.equal(explicitVerify.status, "ok")
+  if (explicitVerify.status === "ok" && explicitVerify.command.cmd === "check") {
+    assert.equal(explicitVerify.command.verifyAfter, true, "--verify should enable verifyAfter")
+  }
+  const explicitNoVerify = parseArgv(["check", "--name", "consistencyhub", "--no-verify"])
+  assert.equal(explicitNoVerify.status, "ok")
+  if (explicitNoVerify.status === "ok" && explicitNoVerify.command.cmd === "check") {
+    assert.equal(explicitNoVerify.command.verifyAfter, false, "--no-verify should disable verifyAfter")
+  }
 })

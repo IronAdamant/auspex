@@ -45,7 +45,10 @@ function overlayVerifyReason(reason, verify) {
 function agentReceiptOk(opts) {
   if (!opts.protocolOk) return false;
   if (opts.reason !== "matched") return false;
-  if (opts.verify && !opts.verify.skipped) return opts.verify.ok && opts.verify.claimOk;
+  if (opts.verify && !opts.verify.skipped) {
+    if (opts.verify.anonymousClaimSkipped) return opts.verify.ok;
+    return opts.verify.ok && opts.verify.claimOk;
+  }
   return true;
 }
 
@@ -3497,6 +3500,7 @@ function parseAssertStdout(stdout) {
       errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
       claimOk: parsed.claimOk === true,
       claimErrors: Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [],
+      anonymousClaimSkipped: parsed.anonymousClaimSkipped === true,
       finalUrl: parsed.finalUrl
     };
   } catch {
@@ -3536,8 +3540,10 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
           sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY)
         ]);
         onProgress("sandbox-assert");
+        const assertArgs = ["/work/assert.py", "/work"];
+        if (deps.skipAnonymousClaim) assertArgs.push("--skip-anonymous-claim");
         const out = await boundPromise(
-          sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
+          sandbox.commands.run("python3", { args: assertArgs }),
           SANDBOX_ASSERT_TIMEOUT_MS,
           `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`
         );
@@ -3620,8 +3626,19 @@ async function checkThenVerify(opts, deps) {
   }
   try {
     const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
-    const profileId = verifyWithProfile && opts.profile ? opts.profile : void 0;
-    const verify = deps?.verify ? await deps.verify(dir, profileId) : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : void 0);
+    let profileId;
+    if (verifyWithProfile && opts.profile) {
+      if (!deps?.verify) {
+        const solari = createClient();
+        profileId = await resolveProfileId(solari, opts.profile);
+      } else {
+        profileId = opts.profile;
+      }
+    }
+    const verify = deps?.verify ? await deps.verify(dir, profileId) : await verifyReceipt(dir, {
+      ...defaultVerifyDeps(),
+      skipAnonymousClaim: verifyWithProfile && Boolean(profileId)
+    }, profileId ? { profileId } : void 0);
     return { check, verify };
   } catch (err) {
     return {

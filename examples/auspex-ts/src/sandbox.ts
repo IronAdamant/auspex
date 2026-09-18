@@ -6,7 +6,7 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey } from "./solari.ts"
+import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches, normalizeHaystack } from "./text.ts"
@@ -29,6 +29,7 @@ export type VerifyResult = {
   errors: string[]
   claimOk: boolean
   claimErrors: string[]
+  anonymousClaimSkipped?: boolean
   claimOkProfile?: boolean
   claimErrorsProfile?: string[]
   claimProfileSessionId?: string
@@ -59,6 +60,7 @@ export type VerifyDeps = {
   create: () => Promise<SandboxHandle>
   onProgress?: ProgressFn
   overallMs?: number
+  skipAnonymousClaim?: boolean
   profileClaimCheck?: (opts: {
     finalUrl: string
     expect: string
@@ -180,6 +182,7 @@ export function parseAssertStdout(stdout: string): {
   errors: string[]
   claimOk: boolean
   claimErrors: string[]
+  anonymousClaimSkipped?: boolean
   finalUrl?: string
 } {
   const line = stdout.trim().split("\n").filter(Boolean).at(-1) ?? ""
@@ -192,6 +195,7 @@ export function parseAssertStdout(stdout: string): {
       errors?: string[]
       claimOk?: boolean
       claimErrors?: string[]
+      anonymousClaimSkipped?: boolean
       finalUrl?: string
     }
     return {
@@ -199,6 +203,7 @@ export function parseAssertStdout(stdout: string): {
       errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
       claimOk: parsed.claimOk === true,
       claimErrors: Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [],
+      anonymousClaimSkipped: parsed.anonymousClaimSkipped === true,
       finalUrl: parsed.finalUrl,
     }
   } catch {
@@ -244,8 +249,10 @@ export async function verifyReceipt(
           sandbox.files.write("/work/assert.py", RECEIPT_ASSERT_PY),
         ])
         onProgress("sandbox-assert")
+        const assertArgs = ["/work/assert.py", "/work"]
+        if (deps.skipAnonymousClaim) assertArgs.push("--skip-anonymous-claim")
         const out = await boundPromise(
-          sandbox.commands.run("python3", { args: ["/work/assert.py", "/work"] }),
+          sandbox.commands.run("python3", { args: assertArgs }),
           SANDBOX_ASSERT_TIMEOUT_MS,
           `sandbox assert timed out after ${SANDBOX_ASSERT_TIMEOUT_MS}ms`,
         )
@@ -343,10 +350,21 @@ export async function checkThenVerify(
   }
   try {
     const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
-    const profileId = verifyWithProfile && opts.profile ? opts.profile : undefined
+    let profileId: string | undefined
+    if (verifyWithProfile && opts.profile) {
+      if (!deps?.verify) {
+        const solari = createClient()
+        profileId = await resolveProfileId(solari, opts.profile)
+      } else {
+        profileId = opts.profile
+      }
+    }
     const verify = deps?.verify
       ? await deps.verify(dir, profileId)
-      : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : undefined)
+      : await verifyReceipt(dir, {
+          ...defaultVerifyDeps(),
+          skipAnonymousClaim: verifyWithProfile && Boolean(profileId),
+        }, profileId ? { profileId } : undefined)
     return { check, verify }
   } catch (err) {
     return {
