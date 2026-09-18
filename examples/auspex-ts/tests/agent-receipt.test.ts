@@ -185,3 +185,20 @@ test("toAgentReceipt does not add auth-gated hint when OCR was attempted", () =>
   assert.equal(receipt.ok, false)
   assert.equal((receipt.next ?? "").includes("independent fetch"), false)
 })
+
+test("toAgentReceipt adds OCR unavailable note when tesseract missing", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["fetched page text does not contain expect", "ocr unavailable (tesseract not installed)"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.ok, false)
+  assert.match(receipt.next ?? "", /live matched/i)
+  assert.match(receipt.next ?? "", /ocr was unavailable/i)
+  assert.match(receipt.next ?? "", /tesseract missing/i)
+})

@@ -28,11 +28,13 @@ export function toAgentReceipt(
     !verify.claimOk
   ) {
     const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase()
-    const isFetchOnly = /fetched page|does not contain|anonymous|fetch/i.test(claimBlob)
-    const hasOcrNote = /ocr|screenshot|tesseract/i.test(claimBlob)
-    if (isFetchOnly && !hasOcrNote) {
+    const isFetchOnly = /fetched page|does not contain|fetch failed/i.test(claimBlob)
+    const hasOcrAttempt = /ocr of screenshot does not contain/i.test(claimBlob)
+    const ocrUnavailable = /ocr unavailable|tesseract not installed/i.test(claimBlob)
+    if (isFetchOnly && !hasOcrAttempt) {
       const hint = next ? `${next} ` : ""
-      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). Anonymous sandbox verify is honest: do not auto-retry.`
+      const ocrNote = ocrUnavailable ? " OCR was unavailable (tesseract missing in sandbox)." : ""
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`
     }
   }
   

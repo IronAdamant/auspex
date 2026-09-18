@@ -193,6 +193,8 @@ def audit_claim(man, work, skip_fetch):
             found = True
         elif not found:
             notes.append("ocr of screenshot does not contain expect")
+    elif not found and notes:
+        notes.append("ocr unavailable (tesseract not installed)")
     if found:
         return []
     if not notes:
