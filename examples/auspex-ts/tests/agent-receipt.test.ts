@@ -202,3 +202,47 @@ test("toAgentReceipt adds OCR unavailable note when tesseract missing", () => {
   assert.match(receipt.next ?? "", /ocr was unavailable/i)
   assert.match(receipt.next ?? "", /tesseract missing/i)
 })
+
+test("overlayVerifyReason preserves matched when anonymousClaimSkipped", () => {
+  assert.equal(
+    overlayVerifyReason("matched", {
+      ok: true,
+      claimOk: false,
+      anonymousClaimSkipped: true,
+      claimErrors: ["anonymous claim skipped"],
+    }),
+    "matched",
+  )
+})
+
+test("agentReceiptOk returns true when live matched and anonymousClaimSkipped", () => {
+  assert.equal(
+    agentReceiptOk({
+      protocolOk: true,
+      reason: "matched",
+      verify: {
+        ok: true,
+        claimOk: false,
+        anonymousClaimSkipped: true,
+      },
+    }),
+    true,
+  )
+})
+
+test("toAgentReceipt produces ok=true when live matched and anonymousClaimSkipped", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["anonymous claim skipped"],
+      anonymousClaimSkipped: true,
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.reason, "matched")
+  assert.equal(receipt.verify?.anonymousClaimSkipped, true)
+})

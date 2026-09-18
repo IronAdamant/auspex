@@ -35,6 +35,7 @@ function deriveCheckReason(input) {
 }
 function overlayVerifyReason(reason, verify) {
   if (reason !== "matched") return reason;
+  if (verify.anonymousClaimSkipped) return "matched";
   if (verify.ok && verify.claimOk) return "matched";
   const blob = [...verify.errors ?? [], ...verify.claimErrors ?? []].join(" ").toLowerCase();
   if (!verify.claimOk && /expect|mismatch|not found|missing/i.test(blob)) return "mismatch";
@@ -3453,17 +3454,27 @@ async function defaultProfileClaimCheck(opts) {
       waitUntil: "domcontentloaded"
     });
     try {
-      await page.waitForLoadState("networkidle", { timeout: 15e3 });
+      await page.waitForLoadState("networkidle", { timeout: 2e4 });
     } catch {
     }
-    const raw = await page.evaluate(() => document.body?.innerText ?? "");
+    await new Promise((resolve) => setTimeout(resolve, 2e3));
+    let raw = await page.evaluate(() => document.body?.innerText ?? "");
+    if (!raw.trim() || raw.length < 50) {
+      await new Promise((resolve) => setTimeout(resolve, 3e3));
+      raw = await page.evaluate(() => document.body?.innerText ?? "");
+    }
     const matched = haystackMatches(raw, opts.expect);
     closer.skip();
     await closer.release();
     await forgetLive("browser", sessionId).catch(() => void 0);
+    const errors = matched ? [] : ["profile-seeded check: page text does not contain expect"];
+    if (!matched && raw.trim()) {
+      const snippet = raw.trim().slice(0, 200).replace(/\s+/g, " ");
+      errors.push(`(sampled: "${snippet}${raw.length > 200 ? "..." : ""}")`);
+    }
     return {
       claimOk: matched,
-      claimErrors: matched ? [] : ["profile-seeded check: page text does not contain expect"],
+      claimErrors: errors,
       sessionId
     };
   } catch (err) {
@@ -3495,12 +3506,16 @@ function parseAssertStdout(stdout) {
   }
   try {
     const parsed = JSON.parse(line);
+    const claimErrors = Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [];
+    const anonymousClaimSkipped = claimErrors.some(
+      (err) => /anonymous claim skipped/i.test(err)
+    );
     return {
       ok: parsed.ok === true,
       errors: Array.isArray(parsed.errors) ? parsed.errors : ["sandbox produced no errors list"],
       claimOk: parsed.claimOk === true,
-      claimErrors: Array.isArray(parsed.claimErrors) ? parsed.claimErrors : [],
-      anonymousClaimSkipped: parsed.anonymousClaimSkipped === true,
+      claimErrors,
+      anonymousClaimSkipped: anonymousClaimSkipped || void 0,
       finalUrl: parsed.finalUrl
     };
   } catch {

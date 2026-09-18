@@ -34,9 +34,10 @@ export function deriveCheckReason(input: {
 
 export function overlayVerifyReason(
   reason: CheckReason,
-  verify: { ok: boolean; claimOk: boolean; errors?: string[]; claimErrors?: string[] },
+  verify: { ok: boolean; claimOk: boolean; anonymousClaimSkipped?: boolean; errors?: string[]; claimErrors?: string[] },
 ): CheckReason {
   if (reason !== "matched") return reason
+  if (verify.anonymousClaimSkipped) return "matched"
   if (verify.ok && verify.claimOk) return "matched"
   const blob = [...(verify.errors ?? []), ...(verify.claimErrors ?? [])].join(" ").toLowerCase()
   if (!verify.claimOk && /expect|mismatch|not found|missing/i.test(blob)) return "mismatch"
@@ -48,7 +49,7 @@ export function overlayVerifyReason(
 export function agentReceiptOk(opts: {
   protocolOk: boolean
   reason: CheckReason
-  verify?: { ok: boolean; claimOk: boolean; skipped?: boolean; anonymousClaimSkipped?: boolean }
+  verify?: { ok: boolean; claimOk: boolean; anonymousClaimSkipped?: boolean; skipped?: boolean }
 }): boolean {
   if (!opts.protocolOk) return false
   if (opts.reason !== "matched") return false
