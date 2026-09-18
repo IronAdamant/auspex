@@ -41,9 +41,9 @@ npx auspex finalize-login --profile consistencyhub
 npx auspex check --name consistencyhub
 # matched: true, ok: true (no verify for auth-gated by default)
 
-# 5. Optional: profile-seeded claim recheck
+# 5. Optional: profile-seeded claim recheck (verified 2026-09-18 AEST)
 npx auspex check --name consistencyhub --verify-with-profile
-# matched: true, claimOk: false (anonymous), emits claimOkProfile (may be false while profile-seed/sessionStorage park holds)
+# matched: true, claimOk: false (anonymous skipped), claimOkProfile: true (profile-seeded verify passed)
 ```
 
 **See [PITCH.md](PITCH.md) for the full thesis and dogfood evidence.**
