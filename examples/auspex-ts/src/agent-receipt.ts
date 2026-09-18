@@ -38,6 +38,7 @@ export function toAgentReceipt(
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
+    next: check.next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
