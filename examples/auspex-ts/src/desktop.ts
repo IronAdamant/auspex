@@ -47,11 +47,12 @@ export function assertNotPasswordLikeText(text: string): void {
 
   // Pattern 2: Contains words strongly associated with secrets
   // Use word boundaries but also catch password/secret followed immediately by digits
+  // Avoid matching hyphenated compound words (e.g., secret-santa-list, bearer-token-handler)
   const secretKeywords = [
     /\bpassword\d+/i,  // password followed by digits (e.g., password123)
     /\b(passwd|pwd)\b/i,
-    /\bsecret\b/i,  // standalone secret
-    /\b(token|bearer)\b/i,
+    /\bsecret\b(?!\-)/i,  // standalone secret not followed by hyphen
+    /\b(token|bearer)\b(?!\-)/i,  // token/bearer not followed by hyphen
     /\bapi[_-]?key\b/i,
     /\baccess[_-]?token\b/i,
     /\brefresh[_-]?token\b/i,

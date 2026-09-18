@@ -2919,9 +2919,10 @@ function assertNotPasswordLikeText(text) {
     /\bpassword\d+/i,
     // password followed by digits (e.g., password123)
     /\b(passwd|pwd)\b/i,
-    /\bsecret\b/i,
-    // standalone secret
-    /\b(token|bearer)\b/i,
+    /\bsecret\b(?!\-)/i,
+    // standalone secret not followed by hyphen
+    /\b(token|bearer)\b(?!\-)/i,
+    // token/bearer not followed by hyphen
     /\bapi[_-]?key\b/i,
     /\baccess[_-]?token\b/i,
     /\brefresh[_-]?token\b/i,

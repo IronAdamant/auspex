@@ -81,6 +81,7 @@ test("auspexCheckInputObject descriptions advertise fail-closed constraints and 
   const ssoProviderSchema = schema.shape.ssoProvider
   assert.ok(ssoProviderSchema)
   const ssoProviderDesc = ssoProviderSchema.description
+  assert.ok(ssoProviderDesc, "ssoProvider should have a description")
   assert.match(ssoProviderDesc, /structural enum/i, "ssoProvider description should note it's a structural enum")
   
   // Check that saveProfile description mentions record restriction with call-time marker
