@@ -16,7 +16,7 @@ import {
   closeThenRelease,
   observeAbort,
 } from "./timeout.ts"
-import { installSessionStorageRestore } from "./profile-storage.ts"
+import { hydrateSessionStorage, installSessionStorageRestore, isPersistableAppUrl } from "./profile-storage.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -316,6 +316,38 @@ export async function pageForSession(browser: BrowserSession) {
   const page = ctx.pages()[0] ?? (await ctx.newPage())
   await installSessionStorageRestore(ctx, state, page)
   return page
+}
+
+export type GotoWithSessionRestoreOpts = {
+  url: string
+  timeout?: number
+  waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"
+  signal?: AbortSignal
+  profile?: boolean
+}
+
+/**
+ * Navigate + hydrate sessionStorage + conditional re-goto.
+ * Shared by live check and profile-seeded claim verification.
+ */
+export async function gotoWithSessionRestore(
+  page: Awaited<ReturnType<typeof pageForSession>>,
+  opts: GotoWithSessionRestoreOpts,
+): Promise<number> {
+  await page.goto(opts.url, {
+    timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
+    waitUntil: opts.waitUntil ?? "domcontentloaded",
+    signal: opts.signal,
+  })
+  const restored = await hydrateSessionStorage(page)
+  if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+    await page.goto(opts.url, {
+      timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
+      waitUntil: opts.waitUntil ?? "domcontentloaded",
+      signal: opts.signal,
+    })
+  }
+  return restored
 }
 
 function sleep(ms: number): Promise<void> {

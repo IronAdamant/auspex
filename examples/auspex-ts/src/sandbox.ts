@@ -6,7 +6,7 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
+import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches, normalizeHaystack } from "./text.ts"
@@ -129,9 +129,11 @@ export async function defaultProfileClaimCheck(opts: {
     sessionId = browser.id
     await rememberLive("browser", sessionId).catch(() => undefined)
     const page = await pageForSession(browser)
-    await page.goto(opts.finalUrl, {
+    await gotoWithSessionRestore(page, {
+      url: opts.finalUrl,
       timeout: 45_000,
       waitUntil: "domcontentloaded",
+      profile: true,
     })
     try {
       await page.waitForLoadState("networkidle", { timeout: 20_000 })

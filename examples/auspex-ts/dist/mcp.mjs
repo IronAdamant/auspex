@@ -1086,6 +1086,22 @@ async function pageForSession(browser) {
   await installSessionStorageRestore(ctx, state, page);
   return page;
 }
+async function gotoWithSessionRestore(page, opts) {
+  await page.goto(opts.url, {
+    timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
+    waitUntil: opts.waitUntil ?? "domcontentloaded",
+    signal: opts.signal
+  });
+  const restored = await hydrateSessionStorage(page);
+  if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+    await page.goto(opts.url, {
+      timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
+      waitUntil: opts.waitUntil ?? "domcontentloaded",
+      signal: opts.signal
+    });
+  }
+  return restored;
+}
 function sleep2(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -2461,20 +2477,11 @@ async function runCheck(opts) {
       const page = await pageForSession(browser);
       if (isCancelled()) return;
       onProgress("goto");
-      await page.goto(opts.url, {
-        timeout: GOTO_TIMEOUT_MS,
-        waitUntil: "domcontentloaded",
-        signal
+      await gotoWithSessionRestore(page, {
+        url: opts.url,
+        signal,
+        profile: Boolean(opts.profile)
       });
-      if (isCancelled()) return;
-      const restored = await hydrateSessionStorage(page);
-      if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
-        await page.goto(opts.url, {
-          timeout: GOTO_TIMEOUT_MS,
-          waitUntil: "domcontentloaded",
-          signal
-        });
-      }
       if (isCancelled()) return;
       if (opts.sso) {
         onProgress("sso");
@@ -3449,9 +3456,11 @@ async function defaultProfileClaimCheck(opts) {
     sessionId = browser.id;
     await rememberLive("browser", sessionId).catch(() => void 0);
     const page = await pageForSession(browser);
-    await page.goto(opts.finalUrl, {
+    await gotoWithSessionRestore(page, {
+      url: opts.finalUrl,
       timeout: 45e3,
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
+      profile: true
     });
     try {
       await page.waitForLoadState("networkidle", { timeout: 2e4 });
