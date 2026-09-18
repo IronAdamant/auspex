@@ -85,7 +85,7 @@ npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
    - Agent clicks SSO, human completes any remaining IdP
    - Auspex captures cookies + localStorage + **sessionStorage** (slim, <1 MiB)
 4. Later: `check --name consistencyhub` → `matched: true`, verify skipped by default (auth-gated)
-5. Optional: `check --name consistencyhub --verify-with-profile` → `claimOkProfile: true` (profile-seeded browser saw the dashboard)
+5. Optional: `check --name consistencyhub --verify-with-profile` → emits `claimOkProfile` true/false (currently often false for ConsistencyHub until sessionStorage restore is resolved)
 
 ### Never types passwords
 - SSO is agent-initiated (clicks the button), human-completed (types password/OTP in handoff)

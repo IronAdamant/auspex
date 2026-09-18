@@ -63,7 +63,7 @@ The actual agent contract is **[Receipt schema v1](AGENTS.md#receipt-schema-v1-f
 
 **Optional fields:** `title`, `finalUrl`, `matched`, `excerpt`, `sessionId`, `networkIdle`, `replayReady`, `waitedFor`, `filled`, `clicked`, `needsHuman`, `diff`, `verify`, `profileSeed`, `profileSaved`
 
-For a golden example of actual schema v1 receipts, see the committed receipts in `.auspex/golden/` (if present) or run `npx auspex check --name ironadamant` yourself.
+For golden examples of actual schema v1 receipts, see the committed receipts in `examples/auspex-ts/tests/golden/receipt-v1/` or run `npx auspex check --name ironadamant` yourself.
 
 ## Replay Access
 
