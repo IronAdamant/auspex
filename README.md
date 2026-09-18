@@ -43,7 +43,7 @@ npx auspex check --name consistencyhub
 
 # 5. Optional: profile-seeded claim recheck
 npx auspex check --name consistencyhub --verify-with-profile
-# matched: true, claimOk: false (anonymous), claimOkProfile: true (with profile)
+# matched: true, claimOk: false (anonymous), emits claimOkProfile (may be false while profile-seed/sessionStorage park holds)
 ```
 
 **See [PITCH.md](PITCH.md) for the full thesis and dogfood evidence.**
