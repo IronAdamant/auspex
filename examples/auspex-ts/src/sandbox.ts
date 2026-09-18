@@ -6,8 +6,19 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { fetchWithIdempotencyKey, OVERALL_TIMEOUT_MS, requireApiKey } from "./solari.ts"
-import { boundPromise, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout } from "./timeout.ts"
+import {
+  createClient,
+  fetchWithIdempotencyKey,
+  GOTO_TIMEOUT_MS,
+  launchBrowser,
+  NETWORKIDLE_TIMEOUT_MS,
+  OVERALL_TIMEOUT_MS,
+  pageForSession,
+  requireApiKey,
+  waitUntilReleased,
+} from "./solari.ts"
+import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout } from "./timeout.ts"
+import { haystackMatches, normalizeHaystack } from "./text.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
@@ -27,9 +38,12 @@ export type VerifyResult = {
   errors: string[]
   claimOk: boolean
   claimErrors: string[]
+  claimOkProfile?: boolean
+  claimErrorsProfile?: string[]
   finalUrl?: string
   runDir: string
   sandboxId?: string
+  sessionId?: string
   skipped?: boolean
   skipReason?: string
 }
@@ -54,6 +68,7 @@ export type VerifyDeps = {
   create: () => Promise<SandboxHandle>
   onProgress?: ProgressFn
   overallMs?: number
+  profileId?: string
 }
 
 type RestSandbox = {
@@ -136,6 +151,84 @@ export function parseAssertStdout(stdout: string): {
   }
 }
 
+/** Profile-seeded claim verification via lightweight browser check. */
+async function verifyClaimWithProfile(
+  url: string,
+  expect: string,
+  profileId: string,
+  solari: SolariClient,
+  signal: AbortSignal,
+): Promise<{ claimOkProfile: boolean; claimErrorsProfile: string[]; sessionId?: string }> {
+  const errors: string[] = []
+  let sessionId: string | undefined
+  let matched = false
+
+  try {
+    const browser = await observeAbort(
+      launchBrowser(
+        solari,
+        {
+          profileId,
+          stealth: false,
+          record: false,
+          proxy: undefined,
+          proxySticky: undefined,
+          captcha: false,
+        },
+        signal,
+      ),
+      signal,
+    )
+    sessionId = browser.id
+    await rememberLive("browser", sessionId).catch(() => undefined)
+
+    try {
+      const page = await pageForSession(browser)
+      await page.goto(url, {
+        timeout: GOTO_TIMEOUT_MS,
+        waitUntil: "domcontentloaded",
+        signal,
+      })
+
+      try {
+        await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal })
+      } catch {
+        // networkidle timeout is not fatal for verification
+      }
+
+      const raw = await page.evaluate(() => {
+        const el = document.body
+        return el?.innerText ?? ""
+      })
+
+      const haystack = normalizeHaystack(raw)
+      matched = haystackMatches(raw, expect)
+
+      if (!matched) {
+        errors.push("profile-seeded check: expect not found in page text")
+      }
+    } finally {
+      await closeThenRelease(
+        () => browser.close(),
+        async () => {
+          await solari.sessions.releaseAndWait(browser.id)
+          await waitUntilReleased(browser.id).catch(() => undefined)
+        },
+        CLOSE_TIMEOUT_MS,
+      )
+      if (sessionId) await forgetLive("browser", sessionId).catch(() => undefined)
+    }
+  } catch (err) {
+    errors.push(`profile-seeded check failed: ${explainSolariError(err)}`)
+  }
+
+  return {
+    claimOkProfile: matched,
+    claimErrorsProfile: errors,
+    sessionId,
+  }
+}
+
 /** Headless microVM: upload check receipt, assert PNG + JSON, kill. Login stays on the browser profile. */
 export async function verifyReceipt(
   runDir?: string,
@@ -146,6 +239,7 @@ export async function verifyReceipt(
   const dir = assertRunDirUnderRuns(runDir ? runDir : await findLatestRun())
   const { manifest, png } = await loadRunFiles(dir)
   assertReceiptUploadSize(manifest, png)
+  const parsedManifest = JSON.parse(manifest) as { url?: string; expect?: string }
   let sandbox: SandboxHandle | undefined
   const createP = deps.create()
   try {
@@ -182,7 +276,36 @@ export async function verifyReceipt(
           parsed.ok = false
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`]
         }
-        const result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
+        let profileResult:
+          | { claimOkProfile: boolean; claimErrorsProfile: string[]; sessionId?: string }
+          | undefined
+        if (deps.profileId && parsedManifest.url && parsedManifest.expect) {
+          onProgress("verify-profile-claim")
+          const solari = createClient()
+          try {
+            profileResult = await verifyClaimWithProfile(
+              parsedManifest.url,
+              parsedManifest.expect,
+              deps.profileId,
+              solari,
+              signal,
+            )
+          } finally {
+            await boundPromise(
+              solari.close(),
+              CLOSE_TIMEOUT_MS,
+              `solari close timed out after ${CLOSE_TIMEOUT_MS}ms`,
+            ).catch(() => undefined)
+          }
+        }
+        const result: VerifyResult = {
+          ...parsed,
+          runDir: dir,
+          sandboxId: sandbox.sandboxId,
+          claimOkProfile: profileResult?.claimOkProfile,
+          claimErrorsProfile: profileResult?.claimErrorsProfile,
+          sessionId: profileResult?.sessionId,
+        }
         onProgress("sandbox-kill")
         try {
           const killedId = sandbox.sandboxId
@@ -220,6 +343,7 @@ export type CheckThenVerifyDeps = {
   check?: (opts: CheckOptions) => Promise<CheckResult>
   verify?: (runDir: string) => Promise<VerifyResult>
   onProgress?: ProgressFn
+  profileId?: string
 }
 
 export async function checkThenVerify(
@@ -250,6 +374,7 @@ export async function checkThenVerify(
       : await verifyReceipt(dir, {
           create: deps?.create ?? defaultVerifyDeps().create,
           onProgress,
+          profileId: deps?.profileId,
         })
     return { check, verify }
   } catch (err) {

@@ -70,14 +70,27 @@ export function registerAuspexTools(server: McpServer): void {
         if (!url || !expect) {
           throw new Error("auspex_check requires name or url+expect")
         }
-        const { verify, name, ...rest } = merged
+        const { verify, verifyWithProfile, name, ...rest } = merged
         const opts = { ...rest, url, expect, onProgress }
         assertPageActionsAllowed({ ...opts, name })
         assertRecordProfileAllowed({ ...opts, name })
         assertRecordNotLoggedIn(opts)
-        const shouldVerify = verify !== false
+        if (verifyWithProfile && !opts.profile) {
+          throw new Error("verifyWithProfile requires profile to be set")
+        }
+        const shouldVerify = verifyWithProfile || verify !== false
         if (shouldVerify) {
-          const both = await checkThenVerify(opts)
+          const { createClient, resolveProfileId } = await import("./solari.ts")
+          const solari = createClient()
+          let profileId: string | undefined
+          try {
+            if (verifyWithProfile && opts.profile) {
+              profileId = await resolveProfileId(solari, opts.profile)
+            }
+          } finally {
+            await solari.close().catch(() => undefined)
+          }
+          const both = await checkThenVerify(opts, { profileId })
           const receipt = toAgentReceipt(both.check, { verify: both.verify })
           const packed = await buildCheckToolContent(receipt)
           packed.content[0] = { type: "text", text: toolJson(receipt) }

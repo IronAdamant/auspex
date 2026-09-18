@@ -152,6 +152,14 @@ export const auspexCheckInputObject = z.object({
     .describe(
       "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true.",
     ),
+  verifyWithProfile: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true with a profile, also verify the claim via a profile-seeded browser check. " +
+      "Adds claimOkProfile and claimErrorsProfile to the receipt. " +
+      "Requires profile to be set. Implies verify=true for anonymous verification.",
+    ),
   allowRecordProfile: z
     .boolean()
     .optional()

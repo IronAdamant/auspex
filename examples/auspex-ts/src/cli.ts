@@ -23,9 +23,10 @@ import {
   usageErrorReceipt,
   writeStdoutJson,
 } from "./cli-json.ts"
+import { createClient, resolveProfileId } from "./solari.ts"
 
 export const USAGE = `Usage:
-  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile]
   npx auspex verify [runDir]
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
@@ -62,7 +63,7 @@ Never commit .env or .auspex/ run artifacts.
 export type CliCommand =
   | { cmd: "help" }
   | { cmd: "mcp" }
-  | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
+  | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean; verifyWithProfile?: boolean }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
   | { cmd: "profiles" }
@@ -145,10 +146,14 @@ export function parseArgv(argv: string[]): ParseResult {
     const saveProfile = takeFlag(args, "--save-profile")
     const noVerify = takeFlag(args, "--no-verify")
     const verifyFlag = takeFlag(args, "--verify")
+    const verifyWithProfile = takeFlag(args, "--verify-with-profile")
     if (noVerify && verifyFlag) {
       return { status: "error", message: "pass only one of --verify or --no-verify" }
     }
-    const verifyAfter = !noVerify
+    if (noVerify && verifyWithProfile) {
+      return { status: "error", message: "cannot use --no-verify with --verify-with-profile" }
+    }
+    const verifyAfter = verifyWithProfile || !noVerify
     let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     let expect = expectOpt
@@ -233,6 +238,7 @@ export function parseArgv(argv: string[]): ParseResult {
           saveProfile,
         },
         verifyAfter,
+        verifyWithProfile: verifyWithProfile || undefined,
       },
     }
   }
@@ -377,7 +383,16 @@ export async function main(argv: string[]): Promise<number> {
   try {
     if (parsed.command.cmd === "check") {
       if (parsed.command.verifyAfter !== false) {
-        const both = await checkThenVerify(parsed.command.opts)
+        const solari = createClient()
+        let profileId: string | undefined
+        try {
+          if (parsed.command.verifyWithProfile && parsed.command.opts.profile) {
+            profileId = await resolveProfileId(solari, parsed.command.opts.profile)
+          }
+        } finally {
+          await solari.close().catch(() => undefined)
+        }
+        const both = await checkThenVerify(parsed.command.opts, { profileId })
         const receipt = toAgentReceipt(both.check, { verify: both.verify })
         writeStdoutJson(receipt)
         return exitFromOk(receipt.ok)
