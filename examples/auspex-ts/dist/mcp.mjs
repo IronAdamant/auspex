@@ -3620,7 +3620,15 @@ async function checkThenVerify(opts, deps) {
   }
   try {
     const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
-    const profileId = verifyWithProfile && opts.profile ? opts.profile : void 0;
+    let profileId;
+    if (verifyWithProfile && opts.profile) {
+      if (!deps?.verify) {
+        const solari = createClient({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
+        profileId = await resolveProfileId(solari, opts.profile);
+      } else {
+        profileId = opts.profile;
+      }
+    }
     const verify = deps?.verify ? await deps.verify(dir, profileId) : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : void 0);
     return { check, verify };
   } catch (err) {
