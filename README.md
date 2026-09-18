@@ -25,7 +25,7 @@ npx auspex mcp
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
-Receipt: [PNG](examples/auspex-ts/demo/ironadamant.png), [sessionId JSON](examples/auspex-ts/demo/receipt.json), [rrweb replay](examples/auspex-ts/demo/replay.html) (open the HTML after clone, or via [jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html)). **Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](AGENTS.md#receipt-schema-v1-frozen)).
+**Public receipts:** [RECEIPTS.md](RECEIPTS.md) — live evidence, demo artifacts, and honesty notes on marketing summary vs. schema v1.
 
 Full agent notes: [AGENTS.md](AGENTS.md) (any host) · [examples/auspex-ts](examples/auspex-ts).
 
