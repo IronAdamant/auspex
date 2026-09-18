@@ -39,17 +39,18 @@ npx auspex check --profile myapp --expect "Dashboard"
 - Screenshot + extract text
 - `matched: true` if expect substring found
 
-### 2. Independent anonymous verify (default)
+### 2. Independent anonymous verify (optional, runs by default for public checks)
 - Upload screenshot + manifest to a **fresh headless Solari sandbox** (no profile)
 - Python script fetches the URL anonymously (no cookies) + runs OCR on screenshot
 - `claimOk: true` only if expect found via **independent** fetch or OCR
 - **Integrity check:** PNG must decode, URL not on IdP, etc.
 
-**Key:** `ok` ≠ `claimOk`. The agent receipt requires BOTH:
+**Key:** `ok` ≠ `claimOk` ≠ `claimOkProfile`. These are distinct signals:
 - `matched: true` — live browser with profile saw the expect
 - `claimOk: true` — anonymous sandbox also saw it (via fetch or OCR)
-
-If live matched but anonymous verify fails → `reason: mismatch`, `ok: false`
+- Verify is **skipped** for auth-gated SaaS by default (e.g., ConsistencyHub)
+- When verify runs and live matched but anonymous verify fails → `reason: mismatch`, `ok: false`
+- When verify is skipped → `ok` depends only on `matched` + protocol success
 
 ### 3. Profile-seeded claim recheck (optional, additive)
 ```bash

@@ -159,8 +159,8 @@ export async function inspectProfileSeed(
 ): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
   try {
-    const seed = seedFromStorageState(session.storageState)
-    if (origin) {
+    const seed = seedFromStorageState(session.storageState ?? undefined)
+    if (origin && session.storageState) {
       const counts = originHasLandedBytes(session.storageState, origin)
         ? originStoreCounts(session.storageState, origin)
         : undefined
@@ -189,7 +189,7 @@ function awaitNext(
       const isConsistencyHub = profileLc === "consistencyhub"
       const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3
       if (isConsistencyHub || looksLikeAppProfile) {
-        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
+        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
       }
     }
     return base

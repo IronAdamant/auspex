@@ -1216,8 +1216,8 @@ async function persistProfileState(opts) {
 async function inspectProfileSeed(solari, profileId, origin) {
   const session = await solari.sessions.create({ profileId });
   try {
-    const seed = seedFromStorageState(session.storageState);
-    if (origin) {
+    const seed = seedFromStorageState(session.storageState ?? void 0);
+    if (origin && session.storageState) {
       const counts = originHasLandedBytes(session.storageState, origin) ? originStoreCounts(session.storageState, origin) : void 0;
       if (counts) {
         seed.sessionStorage = counts.sessionStorage;
@@ -1238,7 +1238,7 @@ function awaitNext(status, profile, version, seed) {
       const isConsistencyHub = profileLc === "consistencyhub";
       const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
       if (isConsistencyHub || looksLikeAppProfile) {
-        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
       }
     }
     return base;
@@ -3432,7 +3432,7 @@ async function defaultProfileClaimCheck(opts) {
   const closer = new ReadyRelease();
   let sessionId = "";
   try {
-    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profile: opts.profileId }), new AbortController().signal);
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal);
     closer.set(async () => {
       await closeThenRelease(
         () => browser.close(),

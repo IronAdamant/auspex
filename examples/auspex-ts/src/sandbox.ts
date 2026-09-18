@@ -114,7 +114,7 @@ export async function defaultProfileClaimCheck(opts: {
   const closer = new ReadyRelease()
   let sessionId = ""
   try {
-    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profile: opts.profileId }), new AbortController().signal)
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal)
     closer.set(async () => {
       await closeThenRelease(
         () => browser.close(),
