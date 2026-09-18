@@ -332,7 +332,13 @@ test("runCheck source does not auto-save Solari profiles", () => {
   assert.equal(src.includes(".save("), false)
   assert.match(src, /loggedOut/)
   assert.match(src, /needsHuman/)
-  assert.match(src, /hydrateSessionStorage\(page\)/)
+  assert.match(src, /gotoWithSessionRestore/)
+})
+
+test("defaultProfileClaimCheck uses gotoWithSessionRestore", () => {
+  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
+  assert.match(src, /export async function defaultProfileClaimCheck/)
+  assert.match(src, /gotoWithSessionRestore/)
 })
 
 test("assertReceiptUploadSize rejects oversized PNG+JSON", () => {
