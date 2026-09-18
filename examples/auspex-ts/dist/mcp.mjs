@@ -3623,7 +3623,7 @@ async function checkThenVerify(opts, deps) {
     let profileId;
     if (verifyWithProfile && opts.profile) {
       if (!deps?.verify) {
-        const solari = createClient({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
+        const solari = createClient();
         profileId = await resolveProfileId(solari, opts.profile);
       } else {
         profileId = opts.profile;
