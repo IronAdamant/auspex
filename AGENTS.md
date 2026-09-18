@@ -10,6 +10,20 @@ For **ironadamant.com**, **checkpointprojects.com**, and **consistencyhub.io**, 
 
 Three primitives only: browser check, sandbox verify, named sandbox desktop demo. No fourth primitive. Desktop is not the user’s Mac.
 
+## Understanding Verification Signals
+
+Three distinct booleans in receipts, each with different meaning:
+
+- **`ok`** — Agent success: did the live browser match **and** did verify pass (when it ran)?
+- **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch + OCR see the expect string?
+- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a profile-authenticated fetch + OCR see it?
+
+**For public marketing pages:** Use default verify (anonymous). `ok=true` requires `claimOk=true`.
+
+**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify` for smoke tests), or use `--verify-with-profile` to get `claimOkProfile`. Ad-hoc auth URLs with default verify → `ok=false` even when live check matched.
+
+**Verified dogfood (2026-09-18):** ConsistencyHub with `--verify-with-profile` → `ok=true`, `claimOkProfile=true`. OneDrive (same Microsoft profile) with `--verify-with-profile` → `ok=true`, `claimOkProfile=true`. Profile-seeded verification works.
+
 If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP), you may use them for ad-hoc cloud browser / sandbox / desktop. Prefer Auspex for check → verify → tear-down. For 429 leftovers call **`auspex_reap`**. If `solari_*` are missing, do not invent them.
 
 ## One install, two doors
@@ -96,7 +110,8 @@ Usage/failure JSON (`error`, `code`) is **not** this receipt; it still has `sche
 - `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Never record a logged-in ConsistencyHub session.
 - Profiles must be **saved** after login. Attaching a profile does not auto-save. `auspex_await_login` / `login --wait` only succeed when Save stored cookies or origins. Treat profiles like passwords. Concurrent `--save-profile` on the same name is locked (`ProfileBusy`, not retryable).
 - **Profile save defaults**: `--save-profile` captures cookies, localStorage, and sessionStorage but **omits indexedDB by default** to stay under Solari's 1 MiB limit. SessionStorage is preserved (ConsistencyHub and other Microsoft OAuth SPAs need `accessToken` in sessionStorage). **Console Solari Save is insufficient for ConsistencyHub** (sessionStorage not persisted); prefer `check --profile <name> --sso --save-profile` after human completes IdP sign-in once. Cookies alone may not restore app sessions.
-- **ConsistencyHub agent recipe**: `login --profile consistencyhub` → human completes Microsoft + OneDrive consent in handoff → Save → `await-login` (may warn if no sessionStorage) → `finalize-login --profile consistencyhub` (agent SSO + save-profile in one step, captures sessionStorage) → then `check --name consistencyhub` (reuses profile, defaults to no-verify). Alternative: manual `check --profile consistencyhub --sso --save-profile` instead of finalize-login. Do not use console Save alone as sufficient for CH. Optional: `--verify-with-profile` to run profile-seeded claim recheck (adds `claimOkProfile`).
+- **ConsistencyHub agent recipe**: `login --profile consistencyhub` → human completes Microsoft + OneDrive consent in handoff → Save → `await-login` (may warn if no sessionStorage) → `finalize-login --profile consistencyhub` (agent SSO + save-profile in one step, captures sessionStorage) → then `check --name consistencyhub` (reuses profile, defaults to no-verify). Alternative: manual `check --profile consistencyhub --sso --save-profile` instead of finalize-login. Do not use console Save alone as sufficient for CH. Optional: `--verify-with-profile` to run profile-seeded claim recheck (adds `claimOkProfile`). **Verified 2026-09-18:** After reseed v20, `check --name consistencyhub --verify-with-profile` → `ok=true`, `claimOkProfile=true`.
+- **OneDrive with Microsoft profile**: The ConsistencyHub profile seed (Microsoft cookies + sessionStorage) works for OneDrive (verified) and likely other Microsoft hosts that accept the same cookie seed. Check OneDrive: `check https://onedrive.live.com/ --expect "My files" --profile consistencyhub`. Use `--no-verify` for smoke tests or `--verify-with-profile` for profile-seeded claim verification. **Gotcha:** Ad-hoc auth URLs with default verify run anonymous verify → `ok=false` even when live check matched (anonymous fetch sees login page, not logged-in UI).
 
 ## CLI
 
