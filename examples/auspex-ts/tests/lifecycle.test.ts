@@ -128,6 +128,16 @@ test("checkThenVerify verifies after matched and starts sandbox only after check
         order.push("check")
         return check
       },
+      verify: async () => {
+        order.push("verify")
+        return {
+          ok: true,
+          errors: [],
+          claimOk: true,
+          claimErrors: [],
+          runDir: dir,
+        }
+      },
       create: async () => {
         order.push("create")
         return {
@@ -148,7 +158,7 @@ test("checkThenVerify verifies after matched and starts sandbox only after check
       },
     },
   )
-  assert.deepEqual(order, ["check", "create"])
+  assert.deepEqual(order, ["check", "verify"])
   assert.equal(both.check.sessionId, "sess")
   assert.equal(both.verify.ok, true)
   assert.equal(both.verify.skipped, undefined)

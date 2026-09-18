@@ -2,7 +2,28 @@
 
 Committed demo evidence from the Auspex check → verify → teardown workflow.
 
-## Ironadamant.com Check
+**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk`) and never types passwords.
+
+## ConsistencyHub (Auth-Gated SaaS Recipe)
+
+**Problem:** Console Save alone is insufficient for Microsoft OAuth SPAs like ConsistencyHub. Cookies without sessionStorage → lands on `/landing`.
+
+**Agent recipe:**
+```bash
+# Human SSO in handoff → Save
+npx auspex login --profile consistencyhub
+npx auspex await-login --profile consistencyhub  # warns if no sessionStorage
+# Agent captures sessionStorage
+npx auspex finalize-login --profile consistencyhub
+# Later: reuse profile, verify skipped by default (auth-gated)
+npx auspex check --name consistencyhub
+# Optional: profile-seeded claim recheck
+npx auspex check --name consistencyhub --verify-with-profile
+```
+
+**See [PITCH.md](PITCH.md) for dogfood evidence and thesis.**
+
+## Ironadamant.com Check (Public Marketing)
 
 **Claim:** "One office job." appears on [ironadamant.com](https://ironadamant.com)
 

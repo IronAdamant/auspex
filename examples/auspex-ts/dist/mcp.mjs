@@ -139,11 +139,13 @@ function toAgentReceipt(check, extras) {
   let next = check.next;
   if (check.matched && verify && !verify.skipped && verify.ok && !verify.claimOk) {
     const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase();
-    const isFetchOnly = /fetched page|does not contain|anonymous|fetch/i.test(claimBlob);
-    const hasOcrNote = /ocr|screenshot|tesseract/i.test(claimBlob);
-    if (isFetchOnly && !hasOcrNote) {
+    const isFetchOnly = /fetched page|does not contain|fetch failed/i.test(claimBlob);
+    const hasOcrAttempt = /ocr of screenshot does not contain/i.test(claimBlob);
+    const ocrUnavailable = /ocr unavailable|tesseract not installed/i.test(claimBlob);
+    if (isFetchOnly && !hasOcrAttempt) {
       const hint = next ? `${next} ` : "";
-      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). Anonymous sandbox verify is honest: do not auto-retry.`;
+      const ocrNote = ocrUnavailable ? " OCR was unavailable (tesseract missing in sandbox)." : "";
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`;
     }
   }
   const receipt = {
@@ -1229,11 +1231,15 @@ async function inspectProfileSeed(solari, profileId, origin) {
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
     let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
-    const isConsistencyHub = profile.name.trim().toLowerCase() === "consistencyhub";
     const hasOrigins = seed.origins > 0 || seed.cookies > 0;
     const hasNoSessionStorage = seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
-    if (isConsistencyHub && hasOrigins && hasNoSessionStorage) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. Check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+    if (hasOrigins && hasNoSessionStorage) {
+      const profileLc = profile.name.trim().toLowerCase();
+      const isConsistencyHub = profileLc === "consistencyhub";
+      const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
+      if (isConsistencyHub || looksLikeAppProfile) {
+        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+      }
     }
     return base;
   }
@@ -3417,8 +3423,61 @@ function defaultVerifyDeps() {
       const pt = new SolariClient3({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
       const sbx = await pt.sandboxes.create(SANDBOX_CREATE_OPTS);
       return wrapSandboxRestExec(sbx);
-    }
+    },
+    profileClaimCheck: defaultProfileClaimCheck
   };
+}
+async function defaultProfileClaimCheck(opts) {
+  const solari = createClient();
+  const closer = new ReadyRelease();
+  let sessionId = "";
+  try {
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profile: opts.profileId }), new AbortController().signal);
+    closer.set(async () => {
+      await closeThenRelease(
+        () => browser.close(),
+        async () => {
+          await solari.sessions.releaseAndWait(browser.id);
+        },
+        CLOSE_TIMEOUT_MS
+      );
+    });
+    sessionId = browser.id;
+    await rememberLive("browser", sessionId).catch(() => void 0);
+    const page = await pageForSession(browser);
+    await page.goto(opts.finalUrl, {
+      timeout: 45e3,
+      waitUntil: "domcontentloaded"
+    });
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 15e3 });
+    } catch {
+    }
+    const raw = await page.evaluate(() => document.body?.innerText ?? "");
+    const matched = haystackMatches(raw, opts.expect);
+    closer.skip();
+    await closer.release();
+    await forgetLive("browser", sessionId).catch(() => void 0);
+    return {
+      claimOk: matched,
+      claimErrors: matched ? [] : ["profile-seeded check: page text does not contain expect"],
+      sessionId
+    };
+  } catch (err) {
+    try {
+      closer.skip();
+      await closer.release();
+      if (sessionId) await forgetLive("browser", sessionId).catch(() => void 0);
+    } catch {
+    }
+    return {
+      claimOk: false,
+      claimErrors: [`profile-seeded check failed: ${explainSolariError(err)}`],
+      sessionId: sessionId || void 0
+    };
+  } finally {
+    await solari.close().catch(() => void 0);
+  }
 }
 function assertReceiptUploadSize(manifest, png, cap = MAX_IMAGE_BYTES) {
   const n = Buffer.byteLength(manifest, "utf8") + png.length;
@@ -3444,12 +3503,13 @@ function parseAssertStdout(stdout) {
     return { ok: false, errors: ["sandbox stdout was not JSON"], claimOk: false, claimErrors: [] };
   }
 }
-async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
+async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
   const onProgress = deps.onProgress ?? noopProgress;
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
   const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   assertReceiptUploadSize(manifest, png);
+  const parsedManifest = JSON.parse(manifest);
   let sandbox;
   const createP = deps.create();
   try {
@@ -3486,7 +3546,7 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
           parsed.ok = false;
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
         }
-        const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+        let result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
         onProgress("sandbox-kill");
         try {
           const killedId = sandbox.sandboxId;
@@ -3496,6 +3556,28 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
         } catch (killErr) {
           const msg = `sandbox kill failed: ${explainSolariError(killErr)}`;
           return { ...result, ok: false, errors: [...result.errors, msg] };
+        }
+        if (opts?.profileId && deps.profileClaimCheck && parsedManifest.finalUrl && parsedManifest.expect) {
+          onProgress("profile-claim-check");
+          try {
+            const profileClaim = await deps.profileClaimCheck({
+              finalUrl: parsedManifest.finalUrl,
+              expect: parsedManifest.expect,
+              profileId: opts.profileId
+            });
+            result = {
+              ...result,
+              claimOkProfile: profileClaim.claimOk,
+              claimErrorsProfile: profileClaim.claimErrors,
+              claimProfileSessionId: profileClaim.sessionId
+            };
+          } catch (profileErr) {
+            result = {
+              ...result,
+              claimOkProfile: false,
+              claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`]
+            };
+          }
         }
         return result;
       },
@@ -3537,10 +3619,9 @@ async function checkThenVerify(opts, deps) {
     };
   }
   try {
-    const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
-      create: deps?.create ?? defaultVerifyDeps().create,
-      onProgress
-    });
+    const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
+    const profileId = verifyWithProfile && opts.profile ? opts.profile : void 0;
+    const verify = deps?.verify ? await deps.verify(dir, profileId) : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : void 0);
     return { check, verify };
   } catch (err) {
     return {

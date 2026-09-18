@@ -182,11 +182,15 @@ function awaitNext(
 ): string {
   if (status === "completed") {
     let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`
-    const isConsistencyHub = profile.name.trim().toLowerCase() === "consistencyhub"
     const hasOrigins = seed.origins > 0 || seed.cookies > 0
     const hasNoSessionStorage = seed.sessionStorage !== undefined && seed.sessionStorage === 0
-    if (isConsistencyHub && hasOrigins && hasNoSessionStorage) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. Check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
+    if (hasOrigins && hasNoSessionStorage) {
+      const profileLc = profile.name.trim().toLowerCase()
+      const isConsistencyHub = profileLc === "consistencyhub"
+      const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3
+      if (isConsistencyHub || looksLikeAppProfile) {
+        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
+      }
     }
     return base
   }

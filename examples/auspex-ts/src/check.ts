@@ -76,6 +76,7 @@ export type CheckOptions = {
   proxySticky?: string
   captcha?: boolean
   saveProfile?: boolean
+  verifyWithProfile?: boolean
   onProgress?: ProgressFn
 }
 

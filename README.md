@@ -1,8 +1,10 @@
 # Auspex
 
-Agent-only web eyes: cloud browser check → independent sandbox verify → tear-down. Built for [Pinetree Research's intern challenge](https://jobs.getsolari.com).
+Agent web eyes that stay honest on auth-gated SaaS. Cloud browser check → independent sandbox verify → tear-down. Built for [Pinetree Research's intern challenge](https://jobs.getsolari.com).
 
-**5-second pitch:** Coding agents launch a throwaway [Solari](https://getsolari.com) cloud Chrome, snapshot a live page (with optional stealth/proxy/captcha), verify the claim in a separate headless VM, and kill everything. Frozen receipt schema. Fail-closed by design. You never sit in that browser.
+**The thesis ([PITCH.md](PITCH.md)):** Agents need honest eyes, not just scraping. Auspex checks first-party SaaS with saved profiles, verifies claims independently (anonymous fetch + OCR), and optionally rechecks with the profile. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Never types passwords.
+
+## Quick start (public checks)
 
 ```bash
 git clone https://github.com/IronAdamant/auspex.git
@@ -13,6 +15,40 @@ npx auspex check --name ironadamant
 ```
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
+
+## Real-world agent recipe: ConsistencyHub (auth-gated SaaS)
+
+**Problem:** Console Save alone is insufficient (sessionStorage not persisted). ConsistencyHub needs `accessToken` in sessionStorage.
+
+**Solution:**
+```bash
+# 1. Human completes Microsoft + OneDrive SSO in handoff, clicks Save
+npx auspex login --profile consistencyhub
+# Opens handoff URL → human signs in → Save
+
+# 2. Agent awaits login completion (soft-warns if no sessionStorage)
+npx auspex await-login --profile consistencyhub
+# status: completed
+# Warning: no sessionStorage for consistencyhub.io...
+
+# 3. Agent runs finalize-login: SSO + save-profile in one step
+npx auspex finalize-login --profile consistencyhub
+# Agent clicks SSO, human completes any remaining IdP
+# Captures cookies + localStorage + sessionStorage (<1 MiB)
+# ok: true
+
+# 4. Later: reuse profile, verify skipped by default (auth-gated)
+npx auspex check --name consistencyhub
+# matched: true, ok: true (no verify for auth-gated by default)
+
+# 5. Optional: profile-seeded claim recheck
+npx auspex check --name consistencyhub --verify-with-profile
+# matched: true, claimOk: false (anonymous), claimOkProfile: true (with profile)
+```
+
+**See [PITCH.md](PITCH.md) for the full thesis and dogfood evidence.**
+
+---
 
 **Public receipts:** [RECEIPTS.md](RECEIPTS.md) — committed demo evidence, demo artifacts, and honesty notes on marketing summary vs. schema v1.
 
