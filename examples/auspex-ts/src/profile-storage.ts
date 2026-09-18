@@ -275,13 +275,9 @@ async function readSessionItems(frame: FrameLike): Promise<Array<{ name: string;
 async function captureContext(ctx: ContextLike): Promise<StorageState> {
   let state: StorageState = { cookies: [], origins: [] }
   try {
-    state = await ctx.storageState({ indexedDB: true })
+    state = await ctx.storageState()
   } catch {
-    try {
-      state = await ctx.storageState()
-    } catch {
-      state = { cookies: [], origins: [] }
-    }
+    state = { cookies: [], origins: [] }
   }
   if (typeof ctx.cookies === "function") {
     try {

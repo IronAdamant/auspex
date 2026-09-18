@@ -49,6 +49,7 @@ export function loginInstructions(
   handoff?: LoginHandoff,
 ): LoginResult {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in."
+  const hangGuidance = " If handoff Chromium is blank/spinning >2–3 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
   if (handoff?.url) {
     return {
       profileId: profile.id,
@@ -58,7 +59,7 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`,
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`,
     }
   }
   return {
@@ -66,7 +67,7 @@ export function loginInstructions(
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`,
+    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`,
   }
 }
 

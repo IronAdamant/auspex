@@ -105,6 +105,31 @@ export function classifySolariError(err: unknown): SolariIssue {
         status: err.status,
       }
     }
+    if (err.status === 413) {
+      return {
+        message: redactSecrets(
+          "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit.",
+        ),
+        code: "PayloadTooLarge",
+        retryable: false,
+        recovery:
+          "Profile save payload exceeded Solari 1 MiB limit. By default, Auspex now omits indexedDB to keep saves lean (sessionStorage is still captured for apps like ConsistencyHub). If this still fails, remint auspex_login and use console Save for a leaner seed. Do not retry identical save.",
+        status: 413,
+      }
+    }
+    if (err.status === 502 || err.status === 503 || err.status === 504) {
+      const statusText = err.status === 502 ? "502 Bad Gateway" : err.status === 503 ? "503 Service Unavailable" : "504 Gateway Timeout"
+      return {
+        message: redactSecrets(
+          `Solari ${statusText}: transient infrastructure issue (proxy, capacity, or upstream).`,
+        ),
+        code: "SolariInfraTransient",
+        retryable: true,
+        recovery:
+          "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+        status: err.status,
+      }
+    }
     if (code === "BrowserUnhealthy") {
       return {
         message: redactSecrets(

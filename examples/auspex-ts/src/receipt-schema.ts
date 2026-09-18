@@ -24,6 +24,7 @@ export const RECEIPT_V1_OPTIONAL_STRING_KEYS = [
   "waitedFor",
   "filled",
   "clicked",
+  "next",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
@@ -68,6 +69,7 @@ export type ReceiptV1 = {
   filled?: string
   clicked?: string
   needsHuman?: boolean
+  next?: string
   diff?: ReceiptDiff
   verify?: VerifyResult
   profileSeed?: ProfileSeed

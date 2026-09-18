@@ -65,7 +65,8 @@ var RECEIPT_V1_OPTIONAL_STRING_KEYS = [
   "sessionId",
   "waitedFor",
   "filled",
-  "clicked"
+  "clicked",
+  "next"
 ];
 var RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
   "matched",
@@ -155,6 +156,7 @@ function toAgentReceipt(check, extras) {
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
+    next: check.next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
@@ -817,13 +819,9 @@ async function readSessionItems(frame) {
 async function captureContext(ctx) {
   let state = { cookies: [], origins: [] };
   try {
-    state = await ctx.storageState({ indexedDB: true });
+    state = await ctx.storageState();
   } catch {
-    try {
-      state = await ctx.storageState();
-    } catch {
-      state = { cookies: [], origins: [] };
-    }
+    state = { cookies: [], origins: [] };
   }
   if (typeof ctx.cookies === "function") {
     try {
@@ -1288,6 +1286,7 @@ function requireProfileName(value) {
 var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
 function loginInstructions(profile, urlHint, handoff) {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
+  const hangGuidance = " If handoff Chromium is blank/spinning >2\u20133 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
   if (handoff?.url) {
     return {
       profileId: profile.id,
@@ -1297,7 +1296,7 @@ function loginInstructions(profile, urlHint, handoff) {
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
+      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`
     };
   }
   return {
@@ -1305,7 +1304,7 @@ function loginInstructions(profile, urlHint, handoff) {
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}`
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`
   };
 }
 async function defaultProfileHttp() {
@@ -2262,6 +2261,29 @@ function classifySolariError(err) {
         status: err.status
       };
     }
+    if (err.status === 413) {
+      return {
+        message: redactSecrets(
+          "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit."
+        ),
+        code: "PayloadTooLarge",
+        retryable: false,
+        recovery: "Profile save payload exceeded Solari 1 MiB limit. By default, Auspex now omits indexedDB to keep saves lean (sessionStorage is still captured for apps like ConsistencyHub). If this still fails, remint auspex_login and use console Save for a leaner seed. Do not retry identical save.",
+        status: 413
+      };
+    }
+    if (err.status === 502 || err.status === 503 || err.status === 504) {
+      const statusText = err.status === 502 ? "502 Bad Gateway" : err.status === 503 ? "503 Service Unavailable" : "504 Gateway Timeout";
+      return {
+        message: redactSecrets(
+          `Solari ${statusText}: transient infrastructure issue (proxy, capacity, or upstream).`
+        ),
+        code: "SolariInfraTransient",
+        retryable: true,
+        recovery: "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+        status: err.status
+      };
+    }
     if (code === "BrowserUnhealthy") {
       return {
         message: redactSecrets(
@@ -2582,6 +2604,12 @@ async function runCheck(opts) {
       excerpt,
       screenshotOk: existsSync3(screenshotAbs)
     });
+    let next;
+    if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
+      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Remint with auspex_login, complete human SSO in handoff, then either use console Save or run check --profile <name> --sso --save-profile to capture sessionStorage.`;
+    } else if (reason === "needsHuman") {
+      next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`;
+    }
     const diff = await diffAgainstLastReceipt({
       url: opts.url,
       excerpt,
@@ -2605,6 +2633,7 @@ async function runCheck(opts) {
       filled,
       clicked,
       needsHuman: needsHuman || void 0,
+      next,
       diff,
       profileSeed,
       profileSaved

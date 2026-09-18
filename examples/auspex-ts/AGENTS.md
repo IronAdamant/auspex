@@ -25,13 +25,17 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 
 - Always let Auspex **close** the Solari check session. A leaked session burns concurrency until you `auspex_reap`.
 - **402 FeatureRequiresPlan** (stealth, proxy, captcha, desktops on a plan that lacks them) is **not retryable**. Drop the gated option or upgrade. `proxy`/`captcha` imply stealth.
+- **413 Payload Too Large** (profile save exceeds 1 MiB) is **not retryable** with the same payload. By default, Auspex omits indexedDB to keep saves lean while still capturing sessionStorage (required for apps like ConsistencyHub). If save still fails, remint `auspex_login` and use console Save for a leaner seed. Do not retry identical save.
 - **429 ConcurrencyLimitExceeded** is **not retryable**. Call `auspex_reap`, then retry. Do not only use the Solari console. Do not retry create while the slot is held.
+- **502/503/504 Solari infrastructure errors** are **transient and retryable**. These indicate Solari proxy, capacity, or upstream issues (not app login failures). Wait 5-10 seconds, call `auspex_reap` if concurrency is suspect, then retry once. If error occurred during login handoff, remint with `auspex_login` (handoff URLs are single-use). Do not conflate with `loggedOut` or `needsHuman`.
+- **Handoff Chromium hang**: If the login handoff Chromium card is blank/spinning for >2–3 minutes, refresh the page once; if still unresponsive, remint with `auspex_login` for a new handoff URL. Complete Microsoft + OneDrive consent in the handoff card before hitting Save. Do not open parallel agent checks mid-consent.
 - `record` + `profile` is forbidden unless `allowRecordProfile` on a public marketing host. `allowRecordProfile` is refused for consistencyhub. Never `--record` a logged-in session (`sso`, `saveProfile`, or a dashboard landing).
 - `fill` / `click` with a profile requires `--allow-page-actions`. Public checks without a profile may still fill/click.
 - Never commit `SOLARI_API_KEY`, `.env`, or `.auspex/` artifacts. The only secret is env `SOLARI_API_KEY`. Concurrent `--save-profile` on the same name is locked (`ProfileBusy`).
 - Prefer `auspex_check` over driving raw CDP.
 - `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + `demo/replay.html`. Refresh with `npx tsx scripts/save-demo-receipt.ts`. Never record a logged-in ConsistencyHub session.
 - Profiles must be **saved** after login. Attaching a profile does not auto-save. `auspex_await_login` / `login --wait` only succeed when Save stored cookies or origins. Treat profiles like passwords.
+- **Profile save defaults**: `--save-profile` captures cookies, localStorage, and sessionStorage but **omits indexedDB by default** to stay under Solari's 1 MiB limit. SessionStorage is preserved (ConsistencyHub and other Microsoft OAuth SPAs need `accessToken` in sessionStorage). Cookies alone may not restore app sessions; prefer `check --profile <name> --sso --save-profile` after human completes IdP sign-in once.
 
 ## CLI
 

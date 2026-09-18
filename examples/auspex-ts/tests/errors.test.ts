@@ -33,6 +33,36 @@ test("explainSolariError maps 402 and 429", () => {
   assert.equal(explainSolariError(new Error("plain")), "plain")
 })
 
+test("classifySolariError handles 413 Payload Too Large", () => {
+  const issue = classifySolariError(new SolariError("payload too large", 413, undefined))
+  assert.equal(issue.code, "PayloadTooLarge")
+  assert.equal(issue.status, 413)
+  assert.equal(issue.retryable, false)
+  assert.match(issue.recovery ?? "", /1 MiB/)
+  assert.match(issue.recovery ?? "", /indexedDB/)
+  assert.match(issue.recovery ?? "", /not retry identical/)
+})
+
+test("classifySolariError handles 5xx transient errors", () => {
+  const issue502 = classifySolariError(new SolariError("bad gateway", 502, undefined))
+  assert.equal(issue502.code, "SolariInfraTransient")
+  assert.equal(issue502.status, 502)
+  assert.equal(issue502.retryable, true)
+  assert.match(issue502.recovery ?? "", /transient/)
+  assert.match(issue502.recovery ?? "", /auspex_reap/)
+  assert.match(issue502.recovery ?? "", /not conflate/)
+
+  const issue503 = classifySolariError(new SolariError("service unavailable", 503, undefined))
+  assert.equal(issue503.code, "SolariInfraTransient")
+  assert.equal(issue503.status, 503)
+  assert.equal(issue503.retryable, true)
+
+  const issue504 = classifySolariError(new SolariError("gateway timeout", 504, undefined))
+  assert.equal(issue504.code, "SolariInfraTransient")
+  assert.equal(issue504.status, 504)
+  assert.equal(issue504.retryable, true)
+})
+
 test("classifySolariError is structured, 402/429 not retryable, recovery names close/kill", () => {
   const a = classifySolariError(new SolariError("x", 402, undefined, "FeatureRequiresPlan"))
   assert.equal(a.code, "FeatureRequiresPlan")
