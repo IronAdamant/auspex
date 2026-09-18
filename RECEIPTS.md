@@ -1,6 +1,6 @@
 # Public Receipts
 
-Live evidence from the Auspex check → verify → teardown workflow.
+Committed demo evidence from the Auspex check → verify → teardown workflow.
 
 ## Ironadamant.com Check
 
@@ -52,12 +52,12 @@ For a golden example of actual schema v1 receipts, see the committed receipts in
 
 ## Verification
 
-The check ran with default verification enabled (`--verify` is default, not `--no-verify`). The sandbox:
-1. Re-fetched `https://ironadamant.com` via HTTP
-2. OCR'd the committed PNG
-3. Confirmed "One office job." appears in both
-4. Wrote `claimOk: true` and `verifyOk: true`
-5. Tore down the VM
+The check ran with default verification enabled (`--verify` is default, not `--no-verify`). Here's how the verify workflow works (not a transcript of this specific commit):
+1. Re-fetches the target URL via HTTP
+2. OCRs the committed PNG
+3. Confirms the expect string appears in both
+4. Writes `claimOk: true` and `verifyOk: true`
+5. Tears down the VM
 
 This is **claim verification**, not just echo — the sandbox independently checks the expect string against live HTTP and OCR, rather than parroting the browser session's `ok` value.
 

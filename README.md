@@ -14,7 +14,7 @@ npx auspex check --name ironadamant
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
-**Public receipts:** [RECEIPTS.md](RECEIPTS.md) — live evidence, demo artifacts, and honesty notes on marketing summary vs. schema v1.
+**Public receipts:** [RECEIPTS.md](RECEIPTS.md) — committed demo evidence, demo artifacts, and honesty notes on marketing summary vs. schema v1.
 
 Full agent instructions: [AGENTS.md](AGENTS.md) · Package: [examples/auspex-ts](examples/auspex-ts)
 
