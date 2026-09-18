@@ -320,3 +320,127 @@ test("M4: workflow pins contents:read; @solarisdk versions are exact", () => {
   assert.equal(pkgJson.dependencies["@solarisdk/mcp"], "0.4.3")
   assert.equal(pkgJson.dependencies["@solarisdk/browser"].startsWith("^"), false)
 })
+
+test("P0: desktop type password/OTP refuse — fail-closed content detection", async () => {
+  const { assertNotPasswordLikeText, DESKTOP_PASSWORD_TYPE_ERROR } = await import("../src/desktop.ts")
+
+  // Pattern 1: OTP codes (6-8 digits)
+  assert.throws(() => assertNotPasswordLikeText("123456"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("12345678"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("  987654  "), /password/)
+
+  // Pattern 2: Secret keywords
+  assert.throws(() => assertNotPasswordLikeText("password123"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("My secret is xyz"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("API_KEY=abc"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("access_token here"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("[REDACTED]"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("****"), /password/)
+
+  // Pattern 3: High-complexity strings (password-like)
+  assert.throws(() => assertNotPasswordLikeText("MyPassw0rd"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("SecretKey123!"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("aB3$xYz9"), /password/)
+
+  // Pattern 4: API-key-like patterns
+  assert.throws(() => assertNotPasswordLikeText("sk-abc123def456ghi789jkl012mno345"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("slr_live_abcdefghijk1234567890"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("ghp_abc123def456ghi789jkl012mno345pqr678"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("xoxb-123-456-abcdefghijklm"), /password/)
+  assert.throws(() => assertNotPasswordLikeText("abcdef0123456789abcdef0123456789"), /password/)  // 32-char hex-like
+
+  // These should pass (legitimate demo text)
+  assert.doesNotThrow(() => assertNotPasswordLikeText("Hello World"))
+  assert.doesNotThrow(() => assertNotPasswordLikeText("This is a demo of mousepad."))
+  assert.doesNotThrow(() => assertNotPasswordLikeText("Testing 123"))
+  assert.doesNotThrow(() => assertNotPasswordLikeText(""))
+  assert.doesNotThrow(() => assertNotPasswordLikeText("   "))
+  assert.doesNotThrow(() => assertNotPasswordLikeText("Simple text without special patterns"))
+  assert.doesNotThrow(() => assertNotPasswordLikeText("12345"))  // 5 digits, not OTP range
+  assert.doesNotThrow(() => assertNotPasswordLikeText("123456789"))  // 9 digits, above OTP range
+  assert.doesNotThrow(() => assertNotPasswordLikeText("password-reset-button"))  // hyphenated, not a secret keyword match
+  assert.doesNotThrow(() => assertNotPasswordLikeText("This sentence has spaces and is clearly prose not a password"))
+
+  // MCP flow: refuse at runDesktopReview call time
+  const { Writable } = await import("node:stream")
+  const { runDesktopReview } = await import("../src/desktop.ts")
+  const { encodePng } = await import("../src/png-fit.ts")
+
+  let buf = ""
+  const stream = new Writable({
+    write(chunk, _enc, cb) {
+      buf += String(chunk)
+      cb()
+    },
+  })
+
+  const fakePng = (): Uint8Array => encodePng(2, 2, Buffer.alloc(2 * 2 * 3, 40), 3)
+
+  await assert.rejects(
+    () =>
+      runDesktopReview({
+        create: async () => ({
+          sessionId: "desk-pwd",
+          streamUrl: undefined,
+          connect: async () => undefined,
+          health: async () => ({ ready: true }),
+          screenshot: async () => fakePng(),
+          kill: async () => undefined,
+          typeText: async () => undefined,
+          openApp: async () => undefined,
+          processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+        }),
+        sleep: async () => undefined,
+        status: stream,
+        task: { open: "mousepad", type: "MyPassw0rd!" },
+      }),
+    (err: unknown) => {
+      assert.match(err instanceof Error ? err.message : String(err), /password/)
+      assert.match(err instanceof Error ? err.message : String(err), /FAIL-CLOSED/i)
+      return true
+    },
+  )
+
+  // OTP should also be refused
+  await assert.rejects(
+    () =>
+      runDesktopReview({
+        create: async () => ({
+          sessionId: "desk-otp",
+          streamUrl: undefined,
+          connect: async () => undefined,
+          health: async () => ({ ready: true }),
+          screenshot: async () => fakePng(),
+          kill: async () => undefined,
+          typeText: async () => undefined,
+          openApp: async () => undefined,
+          processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+        }),
+        sleep: async () => undefined,
+        status: stream,
+        task: { open: "mousepad", type: "123456" },
+      }),
+    new RegExp(DESKTOP_PASSWORD_TYPE_ERROR.slice(0, 20)),
+  )
+
+  // Legitimate demo text should succeed
+  const safeResult = await runDesktopReview({
+    create: async () => ({
+      sessionId: "desk-safe",
+      streamUrl: undefined,
+      connect: async () => undefined,
+      health: async () => ({ ready: true }),
+      screenshot: async () => fakePng(),
+      kill: async () => undefined,
+      typeText: async (text) => {
+        assert.equal(text, "Hello from Auspex demo")
+      },
+      openApp: async () => undefined,
+      processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+    }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", type: "Hello from Auspex demo" },
+  })
+  assert.equal(safeResult.ok, true)
+})

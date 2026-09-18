@@ -17,71 +17,102 @@ test("auspexCheckInputObject is a ZodObject with url and expect (MCP ListTools n
   assert.ok(auspexCheckInputObject.shape.expect)
 })
 
-test("auspexCheckInputObject descriptions advertise fail-closed constraints", () => {
+test("auspexCheckInputObject descriptions advertise fail-closed constraints and structural vs call-time split", () => {
   const schema = auspexCheckInputObject
   
-  // Check that profile description includes FAIL-CLOSED constraints
+  // Verify that the top-level comment documents structural vs call-time split
+  const toolSchemaFile = readFileSync(path.join(root, "src", "tool-schema.ts"), "utf8")
+  assert.match(toolSchemaFile, /Structural vs call-time FAIL-CLOSED validation/i, 
+    "tool-schema.ts should document structural vs call-time split")
+  assert.match(toolSchemaFile, /JSON Schema-visible.*enums.*optional.*required/i,
+    "tool-schema.ts should list what's structural")
+  assert.match(toolSchemaFile, /call-time only.*superRefine/i,
+    "tool-schema.ts should list what's call-time only")
+  
+  // Check that profile description includes FAIL-CLOSED constraints with call-time markers
   const profileDesc = schema.shape.profile.description
   assert.ok(profileDesc)
   assert.match(profileDesc, /FAIL-CLOSED/i, "profile description should include FAIL-CLOSED marker")
+  assert.match(profileDesc, /call-time validation/i, "profile description should mark call-time-only constraints")
   assert.match(profileDesc, /allowPageActions/i, "profile description should mention allowPageActions requirement")
   assert.match(profileDesc, /allowRecordProfile/i, "profile description should mention allowRecordProfile requirement")
   assert.match(profileDesc, /consistencyhub/i, "profile description should mention consistencyhub restrictions")
   
-  // Check that record description includes FAIL-CLOSED constraints
+  // Check that record description includes FAIL-CLOSED constraints with call-time markers
   const recordDesc = schema.shape.record.description
   assert.ok(recordDesc)
   assert.match(recordDesc, /FAIL-CLOSED/i, "record description should include FAIL-CLOSED marker")
+  assert.match(recordDesc, /call-time validation/i, "record description should mark call-time-only constraints")
   assert.match(recordDesc, /profile.*allowRecordProfile/i, "record description should mention profile+allowRecordProfile")
   assert.match(recordDesc, /sso.*saveProfile/i, "record description should mention sso/saveProfile restrictions")
   assert.match(recordDesc, /consistencyhub/i, "record description should mention consistencyhub restrictions")
   
-  // Check that fill description includes FAIL-CLOSED constraints
+  // Check that fill description includes FAIL-CLOSED constraints with call-time markers
   const fillDesc = schema.shape.fill.description
   assert.ok(fillDesc)
   assert.match(fillDesc, /FAIL-CLOSED/i, "fill description should include FAIL-CLOSED marker")
+  assert.match(fillDesc, /call-time/i, "fill description should mark call-time-only constraints")
   assert.match(fillDesc, /profile.*allowPageActions/i, "fill description should mention profile+allowPageActions requirement")
   assert.match(fillDesc, /consistencyhub/i, "fill description should mention consistencyhub restrictions")
+  assert.match(fillDesc, /password/i, "fill description should mention password refusal")
   
-  // Check that click description includes FAIL-CLOSED constraints
+  // Check that click description includes FAIL-CLOSED constraints with call-time markers
   const clickDesc = schema.shape.click.description
   assert.ok(clickDesc)
   assert.match(clickDesc, /FAIL-CLOSED/i, "click description should include FAIL-CLOSED marker")
+  assert.match(clickDesc, /call-time validation/i, "click description should mark call-time-only constraints")
   assert.match(clickDesc, /profile.*allowPageActions/i, "click description should mention profile+allowPageActions requirement")
   
-  // Check that value description mentions fill requirement
+  // Check that value description mentions fill requirement with call-time marker
   const valueDesc = schema.shape.value.description
   assert.ok(valueDesc)
   assert.match(valueDesc, /FAIL-CLOSED/i, "value description should include FAIL-CLOSED marker")
+  assert.match(valueDesc, /call-time validation/i, "value description should mark call-time-only constraint")
   assert.match(valueDesc, /fill/i, "value description should mention fill requirement")
   
-  // Check that sso description mentions record restriction
+  // Check that sso description mentions record restriction with call-time marker
   const ssoDesc = schema.shape.sso.description
   assert.ok(ssoDesc)
   assert.match(ssoDesc, /FAIL-CLOSED/i, "sso description should include FAIL-CLOSED marker")
+  assert.match(ssoDesc, /call-time validation/i, "sso description should mark call-time-only constraint")
   assert.match(ssoDesc, /record/i, "sso description should mention record restriction")
   
-  // Check that saveProfile description mentions record restriction
+  // Check that ssoProvider is a structural enum (not just documented)
+  const ssoProviderSchema = schema.shape.ssoProvider
+  assert.ok(ssoProviderSchema)
+  const ssoProviderDesc = ssoProviderSchema.description
+  assert.ok(ssoProviderDesc, "ssoProvider should have a description")
+  assert.match(ssoProviderDesc, /structural enum/i, "ssoProvider description should note it's a structural enum")
+  
+  // Check that saveProfile description mentions record restriction with call-time marker
   const saveProfileDesc = schema.shape.saveProfile.description
   assert.ok(saveProfileDesc)
   assert.match(saveProfileDesc, /FAIL-CLOSED/i, "saveProfile description should include FAIL-CLOSED marker")
+  assert.match(saveProfileDesc, /call-time validation/i, "saveProfile description should mark call-time-only constraints")
   assert.match(saveProfileDesc, /record/i, "saveProfile description should mention record restriction")
   
-  // Check that allowRecordProfile description mentions consistencyhub restriction
+  // Check that allowRecordProfile description mentions consistencyhub restriction with call-time marker
   const allowRecordProfileDesc = schema.shape.allowRecordProfile.description
   assert.ok(allowRecordProfileDesc)
   assert.match(allowRecordProfileDesc, /FAIL-CLOSED/i, "allowRecordProfile description should include FAIL-CLOSED marker")
+  assert.match(allowRecordProfileDesc, /call-time validation/i, "allowRecordProfile description should mark call-time-only constraint")
   assert.match(allowRecordProfileDesc, /consistencyhub/i, "allowRecordProfile description should mention consistencyhub restriction")
   
-  // Check that allowPageActions description mentions its role
+  // Check that allowPageActions description mentions its role with call-time marker
   const allowPageActionsDesc = schema.shape.allowPageActions.description
   assert.ok(allowPageActionsDesc)
   assert.match(allowPageActionsDesc, /FAIL-CLOSED/i, "allowPageActions description should include FAIL-CLOSED marker")
+  assert.match(allowPageActionsDesc, /call-time validation/i, "allowPageActions description should mark call-time-only constraint")
   assert.match(allowPageActionsDesc, /fill.*click/i, "allowPageActions description should mention fill/click")
   assert.match(allowPageActionsDesc, /profile.*consistencyhub/i, "allowPageActions description should mention profile/consistencyhub")
+  
+  // Check that verifyWithProfile exists and is documented
+  const verifyWithProfileDesc = schema.shape.verifyWithProfile.description
+  assert.ok(verifyWithProfileDesc, "verifyWithProfile field should exist")
+  assert.match(verifyWithProfileDesc, /profile-seeded|claimOkProfile/i, "verifyWithProfile should mention profile-seeded verification")
 })
 
-test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descriptions", async () => {
+test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descriptions and structural vs call-time markers", async () => {
   const mcp = new McpServer({ name: "auspex", version: "0.1.0" })
   registerAuspexTools(mcp)
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -101,43 +132,59 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.ok("allowPageActions" in props)
     assert.ok("allowRecordProfile" in props)
     assert.ok("saveProfile" in props)
+    assert.ok("verifyWithProfile" in props, "verifyWithProfile should be advertised")
     
-    // Verify FAIL-CLOSED markers in field descriptions
+    // Verify FAIL-CLOSED markers and call-time validation markers in field descriptions
     const profileDesc = (props as any).profile?.description ?? ""
     assert.match(profileDesc, /FAIL-CLOSED/i, "profile description should advertise FAIL-CLOSED constraints")
+    assert.match(profileDesc, /call-time validation/i, "profile description should mark call-time-only constraints")
     assert.match(profileDesc, /allowPageActions/i)
     assert.match(profileDesc, /allowRecordProfile/i)
     
     const recordDesc = (props as any).record?.description ?? ""
     assert.match(recordDesc, /FAIL-CLOSED/i, "record description should advertise FAIL-CLOSED constraints")
+    assert.match(recordDesc, /call-time validation/i, "record description should mark call-time-only constraints")
     assert.match(recordDesc, /profile.*allowRecordProfile|allowRecordProfile.*profile/i)
     assert.match(recordDesc, /sso|saveProfile/i)
     
     const fillDesc = (props as any).fill?.description ?? ""
     assert.match(fillDesc, /FAIL-CLOSED/i, "fill description should advertise FAIL-CLOSED constraints")
+    assert.match(fillDesc, /call-time/i, "fill description should mark call-time constraints")
     assert.match(fillDesc, /allowPageActions/i)
     
     const clickDesc = (props as any).click?.description ?? ""
     assert.match(clickDesc, /FAIL-CLOSED/i, "click description should advertise FAIL-CLOSED constraints")
+    assert.match(clickDesc, /call-time validation/i, "click description should mark call-time-only constraints")
     assert.match(clickDesc, /allowPageActions/i)
     
     const valueDesc = (props as any).value?.description ?? ""
     assert.match(valueDesc, /FAIL-CLOSED/i, "value description should advertise FAIL-CLOSED constraints")
+    assert.match(valueDesc, /call-time validation/i, "value description should mark call-time-only constraint")
     
     const ssoDesc = (props as any).sso?.description ?? ""
     assert.match(ssoDesc, /FAIL-CLOSED/i, "sso description should advertise FAIL-CLOSED constraints")
+    assert.match(ssoDesc, /call-time validation/i, "sso description should mark call-time-only constraint")
     assert.match(ssoDesc, /record/i)
+    
+    const ssoProviderDesc = (props as any).ssoProvider?.description ?? ""
+    assert.match(ssoProviderDesc, /structural enum/i, "ssoProvider should note it's a structural enum")
     
     const saveProfileDesc = (props as any).saveProfile?.description ?? ""
     assert.match(saveProfileDesc, /FAIL-CLOSED/i, "saveProfile description should advertise FAIL-CLOSED constraints")
+    assert.match(saveProfileDesc, /call-time validation/i, "saveProfile description should mark call-time-only constraints")
     assert.match(saveProfileDesc, /record/i)
     
     const allowRecordProfileDesc = (props as any).allowRecordProfile?.description ?? ""
     assert.match(allowRecordProfileDesc, /FAIL-CLOSED/i, "allowRecordProfile description should advertise FAIL-CLOSED constraints")
+    assert.match(allowRecordProfileDesc, /call-time validation/i, "allowRecordProfile description should mark call-time-only constraint")
     assert.match(allowRecordProfileDesc, /consistencyhub/i)
     
     const allowPageActionsDesc = (props as any).allowPageActions?.description ?? ""
     assert.match(allowPageActionsDesc, /FAIL-CLOSED/i, "allowPageActions description should advertise FAIL-CLOSED constraints")
+    assert.match(allowPageActionsDesc, /call-time validation/i, "allowPageActions description should mark call-time-only constraint")
+    
+    const verifyWithProfileDesc = (props as any).verifyWithProfile?.description ?? ""
+    assert.match(verifyWithProfileDesc, /claimOkProfile/i, "verifyWithProfile should mention claimOkProfile")
     
     const required = check.inputSchema.required ?? []
     assert.equal(required.includes("url"), false)
@@ -148,6 +195,9 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     const desktop = listed.tools.find((t) => t.name === "auspex_desktop")
     assert.ok(desktop, "auspex_desktop missing from ListTools")
     assert.match(desktop.description ?? "", /sandbox demo|mousepad|named Solari sandbox/i)
+    const deskProps = desktop.inputSchema.properties ?? {}
+    const deskTypeDesc = (deskProps as any).type?.description ?? ""
+    assert.match(deskTypeDesc, /FAIL-CLOSED/i, "desktop type description should advertise FAIL-CLOSED password/OTP refusal")
     assert.match(check.description ?? "", /verify=false|default true|Verifies by default|HTTP \+ OCR|HTTP fetch/i)
     assert.match(check.description ?? "", /schemaVersion/)
     assert.match(check.description ?? "", /schemaVersion 1 is frozen/)
@@ -178,7 +228,6 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.ok(status, "auspex_profile_status missing from ListTools")
     assert.match(status.description ?? "", /loggedIn|loggedOut|needsHuman/)
     assert.match(status.description ?? "", /password/)
-    const deskProps = desktop.inputSchema.properties ?? {}
     assert.ok("open" in deskProps || "type" in deskProps)
     assert.ok("expect" in deskProps)
     assert.match(desktop.description ?? "", /sandbox demo|mousepad/i)

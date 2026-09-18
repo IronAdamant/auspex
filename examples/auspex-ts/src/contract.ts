@@ -38,6 +38,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "proxySticky", flag: "--proxy-sticky", kind: "string" },
       { json: "captcha", flag: "--captcha", kind: "boolean" },
       { json: "verify", flag: "--no-verify", kind: "boolean" },
+      { json: "verifyWithProfile", flag: "--verify-with-profile", kind: "boolean" },
       { json: "allowRecordProfile", flag: "--allow-record-profile", kind: "boolean" },
       { json: "allowPageActions", flag: "--allow-page-actions", kind: "boolean" },
       { json: "saveProfile", flag: "--save-profile", kind: "boolean" },
