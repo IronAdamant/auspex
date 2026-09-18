@@ -76,6 +76,7 @@ export type CheckOptions = {
   proxySticky?: string
   captcha?: boolean
   saveProfile?: boolean
+  verifyWithProfile?: boolean
   onProgress?: ProgressFn
 }
 
@@ -402,7 +403,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     
     let next: string | undefined
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Remint with auspex_login, complete human SSO in handoff, then either use console Save or run check --profile <name> --sso --save-profile to capture sessionStorage.`
+      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Prefer: remint with auspex_login, complete human SSO in handoff, then run check --profile <name> --sso --save-profile to capture sessionStorage. Console Save is insufficient for apps like ConsistencyHub.`
     } else if (reason === "needsHuman") {
       next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`
     }

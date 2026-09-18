@@ -12,7 +12,7 @@ import { parseProxyFlag } from "./launch-options.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
-import { applySavedCheckName } from "./saved-checks.ts"
+import { applySavedCheckName, resolveSavedCheck } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, assertRecordProfileAllowed } from "./tool-schema.ts"
@@ -25,8 +25,9 @@ import {
 } from "./cli-json.ts"
 
 export const USAGE = `Usage:
-  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile]
   npx auspex verify [runDir]
+  npx auspex finalize-login --profile <name> [--url <url>]
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login --profile <name> [--url <hint>] [--wait]
@@ -63,6 +64,7 @@ export type CliCommand =
   | { cmd: "help" }
   | { cmd: "mcp" }
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
+  | { cmd: "finalize-login"; profile: string; url?: string }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
   | { cmd: "profiles" }
@@ -143,12 +145,13 @@ export function parseArgv(argv: string[]): ParseResult {
     const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
     const captcha = takeFlag(args, "--captcha")
     const saveProfile = takeFlag(args, "--save-profile")
+    const verifyWithProfile = takeFlag(args, "--verify-with-profile")
     const noVerify = takeFlag(args, "--no-verify")
     const verifyFlag = takeFlag(args, "--verify")
     if (noVerify && verifyFlag) {
       return { status: "error", message: "pass only one of --verify or --no-verify" }
     }
-    const verifyAfter = !noVerify
+    let verifyAfter = !noVerify
     let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     let expect = expectOpt
@@ -171,6 +174,9 @@ export function parseArgv(argv: string[]): ParseResult {
         url = merged.url
         expect = merged.expect
         profileName = merged.profile
+        if (name.trim().toLowerCase() === "consistencyhub" && !noVerify && !verifyFlag) {
+          verifyAfter = false
+        }
       } catch (err) {
         return { status: "error", message: err instanceof Error ? err.message : String(err) }
       }
@@ -231,10 +237,30 @@ export function parseArgv(argv: string[]): ParseResult {
           proxySticky,
           captcha,
           saveProfile,
+          verifyWithProfile,
         },
         verifyAfter,
       },
     }
+  }
+  if (cmd === "finalize-login") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const profile = takeOption(args, "--profile")
+    const url = takeOption(args, "--url")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    if (!profile) return { status: "error", message: "finalize-login requires --profile <name>" }
+    let profileName: string
+    try {
+      profileName = requireProfileName(profile)
+    } catch (err) {
+      return { status: "error", message: err instanceof Error ? err.message : String(err) }
+    }
+    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
+      return { status: "error", message: "url must be an http or https URL" }
+    }
+    return { status: "ok", command: { cmd: "finalize-login", profile: profileName, url } }
   }
   if (cmd === "login") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -377,12 +403,30 @@ export async function main(argv: string[]): Promise<number> {
   try {
     if (parsed.command.cmd === "check") {
       if (parsed.command.verifyAfter !== false) {
-        const both = await checkThenVerify(parsed.command.opts)
+        const both = await checkThenVerify(parsed.command.opts, {
+          verifyWithProfile: parsed.command.opts.verifyWithProfile,
+        })
         const receipt = toAgentReceipt(both.check, { verify: both.verify })
         writeStdoutJson(receipt)
         return exitFromOk(receipt.ok)
       }
       const result = await runCheck(parsed.command.opts)
+      const receipt = toAgentReceipt(result)
+      writeStdoutJson(receipt)
+      return exitFromOk(receipt.ok)
+    }
+    if (parsed.command.cmd === "finalize-login") {
+      const saved = resolveSavedCheck("consistencyhub")
+      const url = parsed.command.url || saved.url
+      const expect = saved.expect
+      const result = await runCheck({
+        url,
+        expect,
+        profile: parsed.command.profile,
+        sso: true,
+        ssoProvider: "microsoft",
+        saveProfile: true,
+      })
       const receipt = toAgentReceipt(result)
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)

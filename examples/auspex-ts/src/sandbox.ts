@@ -6,8 +6,10 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
-import { fetchWithIdempotencyKey, OVERALL_TIMEOUT_MS, requireApiKey } from "./solari.ts"
-import { boundPromise, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout } from "./timeout.ts"
+import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey } from "./solari.ts"
+import { sessionCreateFromCheck } from "./launch-options.ts"
+import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
+import { haystackMatches, normalizeHaystack } from "./text.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
@@ -27,6 +29,9 @@ export type VerifyResult = {
   errors: string[]
   claimOk: boolean
   claimErrors: string[]
+  claimOkProfile?: boolean
+  claimErrorsProfile?: string[]
+  claimProfileSessionId?: string
   finalUrl?: string
   runDir: string
   sandboxId?: string
@@ -54,6 +59,11 @@ export type VerifyDeps = {
   create: () => Promise<SandboxHandle>
   onProgress?: ProgressFn
   overallMs?: number
+  profileClaimCheck?: (opts: {
+    finalUrl: string
+    expect: string
+    profileId: string
+  }) => Promise<{ claimOk: boolean; claimErrors: string[]; sessionId?: string }>
 }
 
 type RestSandbox = {
@@ -91,6 +101,66 @@ export function defaultVerifyDeps(): VerifyDeps {
       const sbx = await pt.sandboxes.create(SANDBOX_CREATE_OPTS)
       return wrapSandboxRestExec(sbx as unknown as RestSandbox)
     },
+    profileClaimCheck: defaultProfileClaimCheck,
+  }
+}
+
+export async function defaultProfileClaimCheck(opts: {
+  finalUrl: string
+  expect: string
+  profileId: string
+}): Promise<{ claimOk: boolean; claimErrors: string[]; sessionId?: string }> {
+  const solari = createClient()
+  const closer = new ReadyRelease()
+  let sessionId = ""
+  try {
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal)
+    closer.set(async () => {
+      await closeThenRelease(
+        () => browser.close(),
+        async () => {
+          await solari.sessions.releaseAndWait(browser.id)
+        },
+        CLOSE_TIMEOUT_MS,
+      )
+    })
+    sessionId = browser.id
+    await rememberLive("browser", sessionId).catch(() => undefined)
+    const page = await pageForSession(browser)
+    await page.goto(opts.finalUrl, {
+      timeout: 45_000,
+      waitUntil: "domcontentloaded",
+    })
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 15_000 })
+    } catch {
+      // network idle optional for claim check
+    }
+    const raw = await page.evaluate(() => document.body?.innerText ?? "")
+    const matched = haystackMatches(raw, opts.expect)
+    closer.skip()
+    await closer.release()
+    await forgetLive("browser", sessionId).catch(() => undefined)
+    return {
+      claimOk: matched,
+      claimErrors: matched ? [] : ["profile-seeded check: page text does not contain expect"],
+      sessionId,
+    }
+  } catch (err) {
+    try {
+      closer.skip()
+      await closer.release()
+      if (sessionId) await forgetLive("browser", sessionId).catch(() => undefined)
+    } catch {
+      // original error wins
+    }
+    return {
+      claimOk: false,
+      claimErrors: [`profile-seeded check failed: ${explainSolariError(err)}`],
+      sessionId: sessionId || undefined,
+    }
+  } finally {
+    await solari.close().catch(() => undefined)
   }
 }
 
@@ -140,12 +210,14 @@ export function parseAssertStdout(stdout: string): {
 export async function verifyReceipt(
   runDir?: string,
   deps: VerifyDeps = defaultVerifyDeps(),
+  opts?: { profileId?: string },
 ): Promise<VerifyResult> {
   const onProgress = deps.onProgress ?? noopProgress
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS
   const dir = assertRunDirUnderRuns(runDir ? runDir : await findLatestRun())
   const { manifest, png } = await loadRunFiles(dir)
   assertReceiptUploadSize(manifest, png)
+  const parsedManifest = JSON.parse(manifest) as { finalUrl?: string; expect?: string; profileSeed?: { cookies?: number } }
   let sandbox: SandboxHandle | undefined
   const createP = deps.create()
   try {
@@ -182,7 +254,7 @@ export async function verifyReceipt(
           parsed.ok = false
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`]
         }
-        const result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
+        let result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
         onProgress("sandbox-kill")
         try {
           const killedId = sandbox.sandboxId
@@ -193,6 +265,30 @@ export async function verifyReceipt(
           const msg = `sandbox kill failed: ${explainSolariError(killErr)}`
           return { ...result, ok: false, errors: [...result.errors, msg] }
         }
+        
+        if (opts?.profileId && deps.profileClaimCheck && parsedManifest.finalUrl && parsedManifest.expect) {
+          onProgress("profile-claim-check")
+          try {
+            const profileClaim = await deps.profileClaimCheck({
+              finalUrl: parsedManifest.finalUrl,
+              expect: parsedManifest.expect,
+              profileId: opts.profileId,
+            })
+            result = {
+              ...result,
+              claimOkProfile: profileClaim.claimOk,
+              claimErrorsProfile: profileClaim.claimErrors,
+              claimProfileSessionId: profileClaim.sessionId,
+            }
+          } catch (profileErr) {
+            result = {
+              ...result,
+              claimOkProfile: false,
+              claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`],
+            }
+          }
+        }
+        
         return result
       },
       overallMs,
@@ -218,8 +314,9 @@ export async function verifyReceipt(
 export type CheckThenVerifyDeps = {
   create?: () => Promise<SandboxHandle>
   check?: (opts: CheckOptions) => Promise<CheckResult>
-  verify?: (runDir: string) => Promise<VerifyResult>
+  verify?: (runDir: string, profileId?: string) => Promise<VerifyResult>
   onProgress?: ProgressFn
+  verifyWithProfile?: boolean
 }
 
 export async function checkThenVerify(
@@ -245,12 +342,11 @@ export async function checkThenVerify(
     }
   }
   try {
+    const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
+    const profileId = verifyWithProfile && opts.profile ? opts.profile : undefined
     const verify = deps?.verify
-      ? await deps.verify(dir)
-      : await verifyReceipt(dir, {
-          create: deps?.create ?? defaultVerifyDeps().create,
-          onProgress,
-        })
+      ? await deps.verify(dir, profileId)
+      : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : undefined)
     return { check, verify }
   } catch (err) {
     return {

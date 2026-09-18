@@ -18,6 +18,26 @@ export function toAgentReceipt(
     reason,
     verify,
   })
+  
+  let next = check.next
+  if (
+    check.matched &&
+    verify &&
+    !verify.skipped &&
+    verify.ok &&
+    !verify.claimOk
+  ) {
+    const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase()
+    const isFetchOnly = /fetched page|does not contain|fetch failed/i.test(claimBlob)
+    const hasOcrAttempt = /ocr of screenshot does not contain/i.test(claimBlob)
+    const ocrUnavailable = /ocr unavailable|tesseract not installed/i.test(claimBlob)
+    if (isFetchOnly && !hasOcrAttempt) {
+      const hint = next ? `${next} ` : ""
+      const ocrNote = ocrUnavailable ? " OCR was unavailable (tesseract missing in sandbox)." : ""
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`
+    }
+  }
+  
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -38,7 +58,7 @@ export function toAgentReceipt(
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
-    next: check.next,
+    next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,

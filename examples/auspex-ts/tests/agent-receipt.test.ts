@@ -151,3 +151,54 @@ test("toAgentReceipt folds sandbox verify into ok/reason", () => {
   assert.equal(receipt.reason, "mismatch")
   assert.equal(receipt.verify?.claimOk, false)
 })
+
+test("toAgentReceipt adds next hint when live matched but claimOk false (auth-gated)", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["fetched page text does not contain expect"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "mismatch")
+  assert.match(receipt.next ?? "", /live matched/i)
+  assert.match(receipt.next ?? "", /independent fetch/i)
+  assert.match(receipt.next ?? "", /--no-verify/i)
+  assert.match(receipt.next ?? "", /auth-gated/i)
+})
+
+test("toAgentReceipt does not add auth-gated hint when OCR was attempted", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["fetched page text does not contain expect", "ocr of screenshot does not contain expect"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.ok, false)
+  assert.equal((receipt.next ?? "").includes("independent fetch"), false)
+})
+
+test("toAgentReceipt adds OCR unavailable note when tesseract missing", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["fetched page text does not contain expect", "ocr unavailable (tesseract not installed)"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.ok, false)
+  assert.match(receipt.next ?? "", /live matched/i)
+  assert.match(receipt.next ?? "", /ocr was unavailable/i)
+  assert.match(receipt.next ?? "", /tesseract missing/i)
+})

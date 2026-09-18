@@ -119,6 +119,61 @@ test("persistProfileState maps 409 editor lock without throwing", async () => {
   assert.match(locked.error ?? "", /editor is open/i)
 })
 
+test("waitForProfileSave warns when consistencyhub has cookies but no sessionStorage", async () => {
+  const completed = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 14,
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 15 }],
+      inspect: async (_id, origin) => {
+        if (origin === "https://consistencyhub.io") {
+          return { cookies: 78, origins: 5, sessionStorage: 0 }
+        }
+        return { cookies: 78, origins: 5 }
+      },
+    },
+  })
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.cookies, 78)
+  assert.equal(completed.origins, 5)
+  assert.equal(completed.sessionStorage, 0)
+  assert.match(completed.next, /warning/i)
+  assert.match(completed.next, /sessionStorage/i)
+  assert.match(completed.next, /consistencyhub\.io/i)
+  assert.match(completed.next, /--sso --save-profile/i)
+})
+
+test("waitForProfileSave does not warn for non-consistencyhub profiles", async () => {
+  const completed = await waitForProfileSave("other-profile", {
+    sinceVersion: 1,
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p2", name: "other-profile", version: 2 }],
+      inspect: async () => ({ cookies: 10, origins: 2 }),
+    },
+  })
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.cookies, 10)
+  assert.equal(completed.origins, 2)
+  assert.equal(completed.next.includes("Warning"), false)
+})
+
 test("waitForProfileSave treats a 0-cookie version bump as empty-save", async () => {
   let clock = 0
   const empty = await waitForProfileSave("consistencyhub", {

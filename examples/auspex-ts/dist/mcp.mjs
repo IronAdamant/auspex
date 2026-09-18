@@ -136,6 +136,18 @@ function toAgentReceipt(check, extras) {
     reason,
     verify
   });
+  let next = check.next;
+  if (check.matched && verify && !verify.skipped && verify.ok && !verify.claimOk) {
+    const claimBlob = (verify.claimErrors ?? []).join(" ").toLowerCase();
+    const isFetchOnly = /fetched page|does not contain|fetch failed/i.test(claimBlob);
+    const hasOcrAttempt = /ocr of screenshot does not contain/i.test(claimBlob);
+    const ocrUnavailable = /ocr unavailable|tesseract not installed/i.test(claimBlob);
+    if (isFetchOnly && !hasOcrAttempt) {
+      const hint = next ? `${next} ` : "";
+      const ocrNote = ocrUnavailable ? " OCR was unavailable (tesseract missing in sandbox)." : "";
+      next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`;
+    }
+  }
   const receipt = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -156,7 +168,7 @@ function toAgentReceipt(check, extras) {
     filled: check.filled,
     clicked: check.clicked,
     needsHuman: check.needsHuman,
-    next: check.next,
+    next,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
@@ -1201,17 +1213,35 @@ async function persistProfileState(opts) {
     throw err;
   }
 }
-async function inspectProfileSeed(solari, profileId) {
+async function inspectProfileSeed(solari, profileId, origin) {
   const session = await solari.sessions.create({ profileId });
   try {
-    return seedFromStorageState(session.storageState);
+    const seed = seedFromStorageState(session.storageState ?? void 0);
+    if (origin && session.storageState) {
+      const counts = originHasLandedBytes(session.storageState, origin) ? originStoreCounts(session.storageState, origin) : void 0;
+      if (counts) {
+        seed.sessionStorage = counts.sessionStorage;
+      }
+    }
+    return seed;
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
   }
 }
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
+    let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
+    const hasOrigins = seed.origins > 0 || seed.cookies > 0;
+    const hasNoSessionStorage = seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
+    if (hasOrigins && hasNoSessionStorage) {
+      const profileLc = profile.name.trim().toLowerCase();
+      const isConsistencyHub = profileLc === "consistencyhub";
+      const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
+      if (isConsistencyHub || looksLikeAppProfile) {
+        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+      }
+    }
+    return base;
   }
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
@@ -1231,13 +1261,15 @@ async function waitForProfileSave(name, opts) {
   let version = profile.version ?? since;
   let seed = { cookies: 0, origins: 0 };
   let status = "timeout";
+  const isConsistencyHub = want.toLowerCase() === "consistencyhub";
+  const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : void 0;
   while (now() < deadline) {
     const rows = await opts.deps.list();
     profile = rows.find((p) => p.name.trim() === want);
     if (!profile) throw new Error(`profile ${want} no longer exists`);
     version = profile.version ?? since;
     if (version > since) {
-      seed = await opts.deps.inspect(profile.id);
+      seed = await opts.deps.inspect(profile.id, chOrigin);
       status = isEmptySeed(seed) ? "empty-save" : "completed";
       break;
     }
@@ -1252,6 +1284,7 @@ async function waitForProfileSave(name, opts) {
     version,
     cookies: seed.cookies,
     origins: seed.origins,
+    sessionStorage: seed.sessionStorage,
     next: awaitNext(status, profile, version, seed)
   };
 }
@@ -2606,7 +2639,7 @@ async function runCheck(opts) {
     });
     let next;
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Remint with auspex_login, complete human SSO in handoff, then either use console Save or run check --profile <name> --sso --save-profile to capture sessionStorage.`;
+      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Prefer: remint with auspex_login, complete human SSO in handoff, then run check --profile <name> --sso --save-profile to capture sessionStorage. Console Save is insufficient for apps like ConsistencyHub.`;
     } else if (reason === "needsHuman") {
       next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`;
     }
@@ -3390,8 +3423,61 @@ function defaultVerifyDeps() {
       const pt = new SolariClient3({ apiKey: requireApiKey(), fetch: fetchWithIdempotencyKey() });
       const sbx = await pt.sandboxes.create(SANDBOX_CREATE_OPTS);
       return wrapSandboxRestExec(sbx);
-    }
+    },
+    profileClaimCheck: defaultProfileClaimCheck
   };
+}
+async function defaultProfileClaimCheck(opts) {
+  const solari = createClient();
+  const closer = new ReadyRelease();
+  let sessionId = "";
+  try {
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal);
+    closer.set(async () => {
+      await closeThenRelease(
+        () => browser.close(),
+        async () => {
+          await solari.sessions.releaseAndWait(browser.id);
+        },
+        CLOSE_TIMEOUT_MS
+      );
+    });
+    sessionId = browser.id;
+    await rememberLive("browser", sessionId).catch(() => void 0);
+    const page = await pageForSession(browser);
+    await page.goto(opts.finalUrl, {
+      timeout: 45e3,
+      waitUntil: "domcontentloaded"
+    });
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 15e3 });
+    } catch {
+    }
+    const raw = await page.evaluate(() => document.body?.innerText ?? "");
+    const matched = haystackMatches(raw, opts.expect);
+    closer.skip();
+    await closer.release();
+    await forgetLive("browser", sessionId).catch(() => void 0);
+    return {
+      claimOk: matched,
+      claimErrors: matched ? [] : ["profile-seeded check: page text does not contain expect"],
+      sessionId
+    };
+  } catch (err) {
+    try {
+      closer.skip();
+      await closer.release();
+      if (sessionId) await forgetLive("browser", sessionId).catch(() => void 0);
+    } catch {
+    }
+    return {
+      claimOk: false,
+      claimErrors: [`profile-seeded check failed: ${explainSolariError(err)}`],
+      sessionId: sessionId || void 0
+    };
+  } finally {
+    await solari.close().catch(() => void 0);
+  }
 }
 function assertReceiptUploadSize(manifest, png, cap = MAX_IMAGE_BYTES) {
   const n = Buffer.byteLength(manifest, "utf8") + png.length;
@@ -3417,12 +3503,13 @@ function parseAssertStdout(stdout) {
     return { ok: false, errors: ["sandbox stdout was not JSON"], claimOk: false, claimErrors: [] };
   }
 }
-async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
+async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
   const onProgress = deps.onProgress ?? noopProgress;
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
   const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   assertReceiptUploadSize(manifest, png);
+  const parsedManifest = JSON.parse(manifest);
   let sandbox;
   const createP = deps.create();
   try {
@@ -3459,7 +3546,7 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
           parsed.ok = false;
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
         }
-        const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+        let result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
         onProgress("sandbox-kill");
         try {
           const killedId = sandbox.sandboxId;
@@ -3469,6 +3556,28 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
         } catch (killErr) {
           const msg = `sandbox kill failed: ${explainSolariError(killErr)}`;
           return { ...result, ok: false, errors: [...result.errors, msg] };
+        }
+        if (opts?.profileId && deps.profileClaimCheck && parsedManifest.finalUrl && parsedManifest.expect) {
+          onProgress("profile-claim-check");
+          try {
+            const profileClaim = await deps.profileClaimCheck({
+              finalUrl: parsedManifest.finalUrl,
+              expect: parsedManifest.expect,
+              profileId: opts.profileId
+            });
+            result = {
+              ...result,
+              claimOkProfile: profileClaim.claimOk,
+              claimErrorsProfile: profileClaim.claimErrors,
+              claimProfileSessionId: profileClaim.sessionId
+            };
+          } catch (profileErr) {
+            result = {
+              ...result,
+              claimOkProfile: false,
+              claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`]
+            };
+          }
         }
         return result;
       },
@@ -3510,10 +3619,9 @@ async function checkThenVerify(opts, deps) {
     };
   }
   try {
-    const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
-      create: deps?.create ?? defaultVerifyDeps().create,
-      onProgress
-    });
+    const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
+    const profileId = verifyWithProfile && opts.profile ? opts.profile : void 0;
+    const verify = deps?.verify ? await deps.verify(dir, profileId) : await verifyReceipt(dir, defaultVerifyDeps(), profileId ? { profileId } : void 0);
     return { check, verify };
   } catch (err) {
     return {

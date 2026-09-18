@@ -1,71 +1,116 @@
-# PITCH.md — Auspex for hiring managers
+# Auspex — agent web eyes that stay honest on auth-gated SaaS
 
-**One-sentence summary:** Coding agents launch a throwaway cloud browser, snapshot a live page, verify the claim in a separate headless VM, and tear everything down—no human watching, no passwords typed, frozen contract.
+## The problem: agents lie about logged-in state
 
----
+Agents scraping first-party SaaS repeatedly hit the same failure mode:
+1. Scrape a page with Playwright/Puppeteer on the local machine
+2. Return `ok: true` / "content extracted" when they see *any* HTML
+3. Confuse the logged-out landing page with the logged-in dashboard
+4. Never notice they're stuck on `/landing` or `/login` because the text *looks* like success
 
-## Problem
+The agent thinks it's logged in. The human wastes hours debugging. The SaaS remains untouched.
 
-Coding agents need evidence from live web pages without sitting in a browser tab you have to watch. They also hallucinate claims about what they saw. Asking "did ironadamant.com say X?" gets a confident yes even when the page never loaded.
+**Root cause:** no independent verification. The same browser that fetched the page is the only source of truth.
 
----
+## Why Solari (not local Playwright): isolation + SSO handoff + honest verification
 
-## Mechanism
+**Throwaway cloud Chrome**
+- Solari spins up a fresh Chrome instance in the cloud
+- Agent drives it via CDP (same API as Playwright)
+- Session is killed after every check — no state leakage across runs
 
-**Three primitives only:** browser check → independent sandbox verify → tear-down.
+**SSO handoff**
+- Human signs into Microsoft/Google/etc in a Solari-hosted Chromium card
+- Agent never handles passwords or OTP
+- Cookies + sessionStorage saved to a named profile, reusable across checks
 
-1. **`auspex_check`** — agent launches a Solari cloud Chrome (its own remote instance, not your local browser), navigates to a URL, optionally waits for elements/fills forms, snapshots text + PNG, checks if a claim substring appears, and closes. Returns a frozen **schema v1** JSON receipt: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath` (required); `diff`, `verify`, optional fields.
+**Concurrency + reap**
+- Multiple agents can run checks in parallel without stepping on each other
+- Leaked sessions (429 errors) are reaped via `auspex_reap` — no manual console cleanup
 
-2. **`auspex_verify`** (runs by default) — a separate headless VM independently audits the receipt. It re-fetches the URL via HTTP, OCRs the PNG, and asserts the claim. **Integrity `ok` (the agent sees) is separate from claim `claimOk` (verify sees).** Verify does not echo `manifest.ok`; it does the work again. Then kills the VM.
+## Mechanism: check → independent anonymous verify → optional profile-seeded recheck → kill
 
-3. **`auspex_reap`** — lists leftover ledger sessions (e.g., after concurrency limit) and kills them. Default does not wipe every VM on the key; `--account-wide` does.
+### 1. Check (live browser with profile)
+```bash
+npx auspex check --profile myapp --expect "Dashboard"
+```
+- Launch Solari browser WITH the saved profile (cookies + sessionStorage)
+- Navigate to URL
+- Screenshot + extract text
+- `matched: true` if expect substring found
 
-**Named checks:** `--name ironadamant` / `checkpoint` / `consistencyhub` are saved per-site configs (URL + expected substring + optional profile/SSO). Agents call them without reconstructing flags.
+### 2. Independent anonymous verify (optional, runs by default for public checks)
+- Upload screenshot + manifest to a **fresh headless Solari sandbox** (no profile)
+- Python script fetches the URL anonymously (no cookies) + runs OCR on screenshot
+- `claimOk: true` only if expect found via **independent** fetch or OCR
+- **Integrity check:** PNG must decode, URL not on IdP, etc.
 
-**Fail-closed by design:**
-- No password typing: SSO handoff URL (human signs in once). `--fill` refused on `input[type=password]`. Microsoft/Google walls return `needsHuman: true`.
-- No logged-in recording by default: `--record` + `--profile` forbidden unless `--allow-record-profile` on a public marketing host (ironadamant.com, checkpointprojects.com). Refused for consistencyhub.
-- No page actions with profiles by default: `--fill` / `--click` with a profile requires `--allow-page-actions`.
-- Frozen contract: CLI and MCP are identical (every MCP tool is a CLI command; every flag is a JSON field). Schema v1 is locked; no required-key additions.
+**Key:** `ok` ≠ `claimOk` ≠ `claimOkProfile`. These are distinct signals:
+- `matched: true` — live browser with profile saw the expect
+- `claimOk: true` — anonymous sandbox also saw it (via fetch or OCR)
+- Verify is **skipped** for auth-gated SaaS by default (e.g., ConsistencyHub)
+- When verify runs and live matched but anonymous verify fails → `reason: mismatch`, `ok: false`
+- When verify is skipped → `ok` depends only on `matched` + protocol success
 
----
+### 3. Profile-seeded claim recheck (optional, additive)
+```bash
+npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
+```
+- After anonymous verify, launch a **second** Solari browser WITH the profile
+- Navigate to `finalUrl` and check if expect is in page text
+- Adds `claimOkProfile: true/false` to receipt (distinct from anonymous `claimOk`)
+- Use for auth-gated SaaS where anonymous fetch can't see the UI
 
-## Evidence
+**Never:** overwrite `claimOk` silently. Both fields stay honest.
 
-**Public receipts:** [RECEIPTS.md](RECEIPTS.md) — demo artifacts (PNG, replay, receipt JSON), honesty notes on marketing summary vs. schema v1, and verification details.
+### 4. Kill
+- Browser session released
+- Sandbox VM killed
+- No leftover state
 
-**Live checks:** GitHub Actions [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) runs weekly (Mondays + `workflow_dispatch`) to verify the saved checks still work. The workflow **does not commit artifacts**; the demo PNG/receipt/replay in the repo are manually committed when refreshed.
+## Evidence: ConsistencyHub + OneDrive Save+reuse
 
-**Agent instructions (any host):** [AGENTS.md](AGENTS.md) — source of truth for CLI, Cursor, Claude Code, Codex, shell. Includes frozen schema v1 table, tools, rules, MCP setup.
+**ConsistencyHub** is a Microsoft OAuth SPA that stores `accessToken` in sessionStorage. Cookies alone won't restore the session.
 
-**Package:** [examples/auspex-ts](examples/auspex-ts) — the intern submission. Other `examples/*` are upstream Solari cookbook samples (not the submission).
+### The dogfood pain (before Auspex fixes)
+1. Human completes Microsoft + OneDrive consent in Solari handoff → clicks **Save**
+2. `await-login` reports `status: completed` (78 cookies, 5 origins) → looks good!
+3. `check --name consistencyhub` → `reason: loggedOut`, lands on `/landing` → wtf?
+4. Root cause: Solari console Save only persists cookies + localStorage, **not sessionStorage**
 
----
+### The fix (after P0/P1 implementation)
+1. Human completes Microsoft + OneDrive in handoff → clicks **Save** (78 cookies)
+2. `await-login` → `status: completed` with **Warning: no sessionStorage for consistencyhub.io. Run check --profile consistencyhub --sso --save-profile...**
+3. Agent runs `check --profile consistencyhub --sso --save-profile` (or `finalize-login --profile consistencyhub`)
+   - Agent clicks SSO, human completes any remaining IdP
+   - Auspex captures cookies + localStorage + **sessionStorage** (slim, <1 MiB)
+4. Later: `check --name consistencyhub` → `matched: true`, verify skipped by default (auth-gated)
+5. Optional: `check --name consistencyhub --verify-with-profile` → `claimOkProfile: true` (profile-seeded browser saw the dashboard)
 
-## Week one if hired (optional — modest, no promises)
+### Never types passwords
+- SSO is agent-initiated (clicks the button), human-completed (types password/OTP in handoff)
+- `--fill` refuses `input[type=password]` selectors
+- Microsoft/Google password/OTP walls → `needsHuman: true`, agent stops
 
-If green-lit, these are areas I'd explore first:
+## One-liner wedge
 
-1. **Reap metrics:** `auspex_reap` currently lists/kills ledger ids. Add per-session metadata (created-at, last-used-at, concurrency burn) so agents can triage "which leftover is eating my slot?"
+**Auspex = agent web-eyes that stay honest on auth-gated first-party SaaS.**
 
-2. **Multi-claim batches:** Today each `auspex_check` is one URL + one expect substring. For pages with many claims (e.g., a pricing table), batch N claims → one browser session → N verify VMs → one receipt with per-claim results. Saves concurrency slots.
+- **Check:** live browser with profile → `matched`
+- **Verify:** anonymous sandbox fetch/OCR → `claimOk` (integrity + claim)
+- **Optional:** profile-seeded browser recheck → `claimOkProfile`
+- **Kill:** no leftover state
 
-3. **Cheaper HTTP-first tier:** For public marketing pages (no stealth/proxy/captcha), try HTTP+OCR first. Only launch cloud Chrome if HTTP fetch fails (403/captcha). Reduces cost when the page is scrapeable.
+Schema v1 receipt is parseable JSON: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`, plus optional `verify` / `claimOkProfile`. CLI and MCP share the same contract. Exit 0 only when `ok` is true.
 
-4. **Profile hygiene alerts:** `auspex_profile_status` returns `loggedIn` / `loggedOut` / `needsHuman`. Add a `stale` reason (e.g., last-used > 30d, cookie expiry approaching) so agents know when to re-seed before a live check.
+## Why it matters (beyond the $300k intern checklist)
 
-These are *ideas*, not commitments. Real priorities depend on intern onboarding + team needs.
+Pinetree/Solari is a path into the AI field far beyond demo polish. Real agents need:
+- Honest verification (not "I saw some HTML")
+- Auth-gated SaaS access (not just public marketing pages)
+- Reusable sessions without password leakage
+- Fail-closed on IdP walls (never type OTP)
 
----
+Auspex is the wedge: agents that can **repeatedly** check first-party SaaS dashboards, extract real data, and stay honest about what they saw — because the verification is independent, the profile is saved once and reused many times, and the receipt distinguishes `matched` from `claimOk` from `claimOkProfile`.
 
-## Why this matters
-
-Coding agents are moving from "write code" to "verify the code works in production." That means checking live pages, waiting for deploy previews, and asserting claims without a human sitting in DevTools. Auspex gives them a parseable receipt they can trust—and a separate VM that double-checks the receipt before the agent sees `ok: true`.
-
-**This is the intern submission.** Full product scope (browser/sandbox/desktop) is at [getsolari.com](https://getsolari.com); Auspex is the check → verify → kill workflow built on Solari's cloud Chrome + headless VMs.
-
----
-
-**Repo:** [github.com/IronAdamant/auspex](https://github.com/IronAdamant/auspex)  
-**Challenge:** [jobs.getsolari.com](https://jobs.getsolari.com)  
-**Console:** [console.getsolari.com](https://console.getsolari.com)
+The thesis: **agents need honest eyes, not just scraping**.
