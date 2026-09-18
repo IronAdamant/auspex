@@ -1,3 +1,815 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/timeout.ts
+async function boundPromise(p, ms, message) {
+  return raceWithTimeout(async () => p, ms, message);
+}
+async function observeAbort(p, signal) {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+async function closeThenRelease(close, release, ms) {
+  try {
+    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
+  } catch (err) {
+    try {
+      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
+    } catch {
+    }
+    throw err;
+  }
+}
+async function raceWithTimeout(work, ms, message) {
+  let timer;
+  let cancelled = false;
+  const ac = new AbortController();
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      cancelled = true;
+      ac.abort();
+      reject(new Error(message));
+    }, ms);
+  });
+  const pending = work(() => cancelled, ac.signal);
+  void pending.catch(() => {
+  });
+  try {
+    return await Promise.race([pending, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+var CLOSE_TIMEOUT_MS, LAUNCH_SETTLE_MS, CHROMIUM_CONNECT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS, ReadyRelease;
+var init_timeout = __esm({
+  "src/timeout.ts"() {
+    "use strict";
+    CLOSE_TIMEOUT_MS = 15e3;
+    LAUNCH_SETTLE_MS = 5e4;
+    CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
+    SCREENSHOT_TIMEOUT_MS = 3e4;
+    ReadyRelease = class {
+      mark;
+      ready;
+      fn;
+      constructor() {
+        this.ready = new Promise((r) => {
+          this.mark = r;
+        });
+      }
+      set(fn) {
+        this.fn = fn;
+        this.mark();
+      }
+      skip() {
+        this.mark();
+      }
+      async release(settleMs = LAUNCH_SETTLE_MS) {
+        await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
+          () => void 0
+        );
+        if (this.fn) await this.fn();
+      }
+    };
+  }
+});
+
+// src/sso.ts
+function hostIs(hostname, domain) {
+  const h = hostname.toLowerCase();
+  const d = domain.toLowerCase();
+  return h === d || h.endsWith(`.${d}`);
+}
+function microsoftAuthHost(hostname) {
+  return hostIs(hostname, "login.microsoftonline.com") || hostIs(hostname, "login.live.com");
+}
+function googleAuthHost(hostname) {
+  return hostIs(hostname, "accounts.google.com");
+}
+function idpAuthHost(hostname) {
+  return microsoftAuthHost(hostname) || googleAuthHost(hostname);
+}
+function stillOnAuth(url) {
+  if (idpAuthHost(url.hostname)) {
+    return true;
+  }
+  const path13 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path13 === "/login" || path13.startsWith("/login/") || path13 === "/auth" || path13.startsWith("/auth/")) {
+    return true;
+  }
+  return false;
+}
+function shouldFailClosedAuth(url, opts) {
+  if (!stillOnAuth(url)) return false;
+  if (idpAuthHost(url.hostname)) {
+    return true;
+  }
+  return Boolean(opts.sso || opts.profile);
+}
+function describeAuthWall(opts) {
+  let parsed;
+  try {
+    parsed = new URL(opts.url);
+  } catch {
+    return { needsHuman: false };
+  }
+  const text = opts.text ?? "";
+  const idp = idpAuthHost(parsed.hostname);
+  if (idp && (opts.hasPasswordInput || PASSWORD_WALL.test(text))) {
+    return { needsHuman: true, wall: "password", url: opts.url };
+  }
+  if (idp && OTP_WALL.test(text)) {
+    return { needsHuman: true, wall: "otp", url: opts.url };
+  }
+  return { needsHuman: false };
+}
+function stopped(cancel) {
+  return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
+}
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new Error("aborted"));
+      return;
+    }
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(signal.reason ?? new Error("aborted"));
+      },
+      { once: true }
+    );
+  });
+}
+async function probeSsoWall(page) {
+  let hasPassword = false;
+  let text = "";
+  try {
+    const snap = await page.evaluate(() => ({
+      hasPassword: Boolean(document.querySelector('input[type="password"]')),
+      text: document.body?.innerText ?? ""
+    }));
+    hasPassword = Boolean(snap.hasPassword);
+    text = snap.text ?? "";
+  } catch {
+  }
+  return describeAuthWall({ url: page.url(), hasPasswordInput: hasPassword, text });
+}
+async function clickFirst(page, name, signal) {
+  const btn = page.getByRole("button", { name });
+  if (await btn.count() === 0) return false;
+  await btn.first().click({ timeout: 1e4, signal });
+  return true;
+}
+async function finishMicrosoftPicker(page, cancel) {
+  const signal = cancel.signal;
+  await page.waitForURL((url) => microsoftAuthHost(url.hostname), { timeout: 3e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return { needsHuman: false };
+  const wallNow = await probeSsoWall(page);
+  if (wallNow.needsHuman) return wallNow;
+  const picker = page.getByText(/pick an account/i);
+  await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return { needsHuman: false };
+  const signedIn = page.getByText(/^Signed in$/i);
+  const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
+  if (await signedIn.count() > 0) {
+    await signedIn.first().click({ timeout: 1e4, signal });
+  } else if (await tile.count() > 0) {
+    await tile.first().click({ timeout: 1e4, signal });
+  } else {
+    const blocked = await probeSsoWall(page);
+    if (blocked.needsHuman) return blocked;
+  }
+  if (stopped(cancel)) return { needsHuman: false };
+  const afterPick = await probeSsoWall(page);
+  if (afterPick.needsHuman) return afterPick;
+  const yes = page.getByRole("button", { name: /^yes$/i });
+  if (await yes.count() > 0) {
+    await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
+  }
+  return probeSsoWall(page);
+}
+async function finishGooglePicker(page, cancel) {
+  const signal = cancel.signal;
+  await page.waitForURL((url) => googleAuthHost(url.hostname), { timeout: 3e4, signal }).catch(() => void 0);
+  if (stopped(cancel)) return { needsHuman: false };
+  const wallNow = await probeSsoWall(page);
+  if (wallNow.needsHuman) return wallNow;
+  const account = page.getByRole("link", { name: /@/ }).or(page.getByRole("button", { name: /@/ }));
+  if (await account.count() > 0) {
+    await account.first().click({ timeout: 1e4, signal }).catch(() => void 0);
+  }
+  return probeSsoWall(page);
+}
+async function waitForSsoReturn(page, cancel) {
+  const deadline = Date.now() + SSO_RETURN_TIMEOUT_MS;
+  while (!stopped(cancel) && Date.now() < deadline) {
+    const wall2 = await probeSsoWall(page);
+    if (wall2.needsHuman) return wall2;
+    try {
+      if (!stillOnAuth(new URL(page.url()))) return { needsHuman: false };
+    } catch {
+    }
+    try {
+      await sleep(SSO_POLL_MS, cancel.signal);
+    } catch {
+      return { needsHuman: false };
+    }
+  }
+  const wall = await probeSsoWall(page);
+  if (wall.needsHuman) return wall;
+  return { needsHuman: false };
+}
+async function completeSso(page, opts = {}) {
+  if (stopped(opts)) return { needsHuman: false };
+  const already = await probeSsoWall(page);
+  if (already.needsHuman) return already;
+  const provider = opts.provider ?? "auto";
+  const signal = opts.signal;
+  const tryMs = provider === "auto" || provider === "microsoft";
+  const tryGoogle = provider === "auto" || provider === "google";
+  let clicked = false;
+  if (tryMs && await clickFirst(page, /sign in with microsoft/i, signal)) {
+    clicked = true;
+    if (stopped(opts)) return { needsHuman: false };
+    const wall = await finishMicrosoftPicker(page, opts);
+    if (wall.needsHuman) return wall;
+  } else if (tryGoogle && await clickFirst(page, /sign in with google/i, signal)) {
+    clicked = true;
+    if (stopped(opts)) return { needsHuman: false };
+    const wall = await finishGooglePicker(page, opts);
+    if (wall.needsHuman) return wall;
+  } else if (provider === "auto" && await clickFirst(page, /sign in with /i, signal)) {
+    clicked = true;
+  }
+  if (!clicked) return probeSsoWall(page);
+  if (stopped(opts)) return { needsHuman: false };
+  return waitForSsoReturn(page, opts);
+}
+var SSO_RETURN_TIMEOUT_MS, SSO_POLL_MS, PASSWORD_WALL, OTP_WALL;
+var init_sso = __esm({
+  "src/sso.ts"() {
+    "use strict";
+    SSO_RETURN_TIMEOUT_MS = 12e4;
+    SSO_POLL_MS = 500;
+    PASSWORD_WALL = /enter (your )?password/i;
+    OTP_WALL = /enter (the )?code|one-time|authenticator app|approve a sign[- ]in|approve sign[- ]in|verify your identity|texted a code|2-step verification|verify it['’]s you|google prompt/i;
+  }
+});
+
+// src/profile-storage.ts
+function originOf(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return void 0;
+    return u.origin;
+  } catch {
+    return void 0;
+  }
+}
+function isPersistableAppUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (stillOnAuth(parsed)) return false;
+  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path13 === "/" || path13 === "/landing" || path13 === "/login" || path13 === "/signup" || path13.startsWith("/auth")) {
+    return false;
+  }
+  return true;
+}
+function isLoggedOutLanding(url, opts) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (stillOnAuth(parsed)) return true;
+  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path13 === "/landing" || path13.startsWith("/landing/")) return true;
+  if (path13 === "/") return opts?.matched !== true;
+  return false;
+}
+function cookiesForOrigin(cookies, origin) {
+  let host;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return [];
+  }
+  return (cookies ?? []).filter((c) => {
+    if (!c?.name) return false;
+    const d = (c.domain ?? "").replace(/^\./, "").toLowerCase();
+    if (!d) return false;
+    return host === d || host.endsWith(`.${d}`);
+  });
+}
+function originStoreCounts(state, origin) {
+  const cookies = cookiesForOrigin(state.cookies, origin).length;
+  const rec = (state.origins ?? []).find((o) => o.origin === origin);
+  let localStorage2 = 0;
+  let sessionStorage2 = 0;
+  for (const row of rec?.localStorage ?? []) {
+    if (!row?.name) continue;
+    if (row.name.startsWith(SESSION_STORAGE_PREFIX)) sessionStorage2 += 1;
+    else localStorage2 += 1;
+  }
+  return { cookies, localStorage: localStorage2, sessionStorage: sessionStorage2 };
+}
+function originHasLandedBytes(state, origin) {
+  const c = originStoreCounts(state, origin);
+  return c.cookies + c.localStorage + c.sessionStorage > 0;
+}
+function sessionItemsByOrigin(state, prefix = SESSION_STORAGE_PREFIX) {
+  const out = {};
+  for (const o of state.origins ?? []) {
+    if (!o?.origin) continue;
+    const items = {};
+    for (const row of o.localStorage ?? []) {
+      if (!row?.name?.startsWith(prefix)) continue;
+      const name = row.name.slice(prefix.length);
+      if (name) items[name] = row.value ?? "";
+    }
+    if (Object.keys(items).length) out[o.origin] = items;
+  }
+  return out;
+}
+function cookieKey(c) {
+  return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`;
+}
+function mergeStorageStates(base, extra) {
+  const cookies = /* @__PURE__ */ new Map();
+  for (const c of [...base.cookies ?? [], ...extra.cookies ?? []]) {
+    if (!c?.name) continue;
+    cookies.set(cookieKey(c), c);
+  }
+  const origins = /* @__PURE__ */ new Map();
+  for (const o of [...base.origins ?? [], ...extra.origins ?? []]) {
+    if (!o?.origin) continue;
+    const prev = origins.get(o.origin) ?? { origin: o.origin, localStorage: [] };
+    const items = /* @__PURE__ */ new Map();
+    for (const row of [...prev.localStorage ?? [], ...o.localStorage ?? []]) {
+      if (!row?.name) continue;
+      items.set(row.name, row.value ?? "");
+    }
+    origins.set(o.origin, {
+      origin: o.origin,
+      localStorage: [...items.entries()].map(([name, value]) => ({ name, value })),
+      indexedDB: o.indexedDB ?? prev.indexedDB
+    });
+  }
+  return { cookies: [...cookies.values()], origins: [...origins.values()] };
+}
+function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFIX) {
+  if (!origin || items.length === 0) return state;
+  const extra = {
+    cookies: [],
+    origins: [
+      {
+        origin,
+        localStorage: items.filter((row) => row.name).map((row) => ({ name: `${prefix}${row.name}`, value: row.value ?? "" }))
+      }
+    ]
+  };
+  return mergeStorageStates(state, extra);
+}
+function hydrateSessionStorageSource(itemsByOrigin = {}, prefix = SESSION_STORAGE_PREFIX) {
+  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
+}
+async function installSessionStorageRestore(ctx, state, page) {
+  const payload = {
+    baked: state ? sessionItemsByOrigin(state) : {},
+    prefix: SESSION_STORAGE_PREFIX
+  };
+  const content = hydrateSessionStorageSource(payload.baked, payload.prefix);
+  const ctxInstall = ctx.addInitScript;
+  if (typeof ctxInstall === "function") {
+    await ctxInstall({ content }).catch(() => void 0);
+  }
+  const pageInstall = page?.addInitScript;
+  if (typeof pageInstall === "function") {
+    await pageInstall({ content }).catch(() => void 0);
+  }
+  return payload;
+}
+async function hydrateSessionStorage(page) {
+  return page.evaluate((prefix) => {
+    let n = 0;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        const name = k.slice(prefix.length);
+        if (!name || sessionStorage.getItem(name) != null) continue;
+        sessionStorage.setItem(name, localStorage.getItem(k) ?? "");
+        n += 1;
+      }
+    } catch {
+    }
+    return n;
+  }, SESSION_STORAGE_PREFIX);
+}
+async function readSessionItems(frame) {
+  try {
+    const rows = await frame.evaluate(() => {
+      const out = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const name = sessionStorage.key(i);
+        if (name) out.push({ name, value: sessionStorage.getItem(name) ?? "" });
+      }
+      return out;
+    });
+    return Array.isArray(rows) ? rows.filter((row) => row?.name) : [];
+  } catch {
+    return [];
+  }
+}
+async function captureContext(ctx) {
+  let state = { cookies: [], origins: [] };
+  try {
+    state = await ctx.storageState();
+  } catch {
+    state = { cookies: [], origins: [] };
+  }
+  if (typeof ctx.cookies === "function") {
+    try {
+      const extra = await ctx.cookies();
+      state = mergeStorageStates(state, { cookies: extra, origins: [] });
+    } catch {
+    }
+  }
+  const pages = ctx.pages?.() ?? [];
+  for (const page of pages) {
+    const frames = [page, ...typeof page.frames === "function" ? page.frames() : []];
+    for (const frame of frames) {
+      const origin = originOf(frame.url());
+      if (!origin) continue;
+      const items = await readSessionItems(frame);
+      state = foldSessionStorage(state, origin, items);
+    }
+  }
+  return state;
+}
+async function captureStorageState(browser) {
+  let merged = { cookies: [], origins: [] };
+  for (const ctx of browser.contexts()) {
+    merged = mergeStorageStates(merged, await captureContext(ctx));
+  }
+  return merged;
+}
+var SESSION_STORAGE_PREFIX, PUBLIC_PROFILE_SAVE_ERROR;
+var init_profile_storage = __esm({
+  "src/profile-storage.ts"() {
+    "use strict";
+    init_sso();
+    SESSION_STORAGE_PREFIX = "__auspex_ss__:";
+    PUBLIC_PROFILE_SAVE_ERROR = "refusing to save a public /landing session over the profile";
+  }
+});
+
+// src/solari.ts
+var solari_exports = {};
+__export(solari_exports, {
+  BROWSER_API_BASE: () => BROWSER_API_BASE,
+  CHROMIUM_CONNECT_OPTS: () => CHROMIUM_CONNECT_OPTS,
+  DOTENV_PATH: () => DOTENV_PATH,
+  GOTO_TIMEOUT_MS: () => GOTO_TIMEOUT_MS,
+  NETWORKIDLE_TIMEOUT_MS: () => NETWORKIDLE_TIMEOUT_MS,
+  OVERALL_TIMEOUT_MS: () => OVERALL_TIMEOUT_MS,
+  PROFILE_CHECK_TIMEOUT_MS: () => PROFILE_CHECK_TIMEOUT_MS,
+  REPLAY_ATTEMPTS: () => REPLAY_ATTEMPTS,
+  REPLAY_DELAY_MS: () => REPLAY_DELAY_MS,
+  REPO_DOTENV_PATH: () => REPO_DOTENV_PATH,
+  checkOverallTimeoutMs: () => checkOverallTimeoutMs,
+  createClient: () => createClient,
+  defaultLaunchDeps: () => defaultLaunchDeps,
+  downloadReplayWhenReady: () => downloadReplayWhenReady,
+  fetchWithIdempotencyKey: () => fetchWithIdempotencyKey,
+  findProfileId: () => findProfileId,
+  getSessionStatus: () => getSessionStatus,
+  launchBrowser: () => launchBrowser,
+  loadDotEnv: () => loadDotEnv,
+  pageForSession: () => pageForSession,
+  requireApiKey: () => requireApiKey,
+  resolveProfileId: () => resolveProfileId,
+  retryReplay404: () => retryReplay404,
+  storageStateIsPopulated: () => storageStateIsPopulated,
+  toPlaywrightStorageState: () => toPlaywrightStorageState,
+  waitForReplayUrl: () => waitForReplayUrl,
+  waitUntilReleased: () => waitUntilReleased
+});
+import { existsSync, readFileSync } from "node:fs";
+import path3 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
+import {
+  BrowserSession,
+  Solari,
+  SolariError
+} from "@solarisdk/browser";
+import { chromium } from "patchright-core";
+function defaultLaunchDeps(solari) {
+  return {
+    create: (opts) => solari.sessions.create(opts),
+    connect: (ws, opts) => chromium.connect(ws, opts),
+    wrap: (session, browser) => new BrowserSession(solari, session, browser),
+    releaseAndWait: (id) => solari.sessions.releaseAndWait(id),
+    getStatus: (id) => getSessionStatus(id)
+  };
+}
+function fetchWithIdempotencyKey(base = fetch) {
+  return (async (input, init) => {
+    const headers = new Headers(init?.headers);
+    const method = (init?.method ?? "GET").toUpperCase();
+    const url = String(input);
+    let path13 = url;
+    try {
+      path13 = new URL(url, BROWSER_API_BASE).pathname;
+    } catch {
+    }
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path13);
+    if (isVmCreate && !headers.has("Idempotency-Key")) {
+      headers.set("Idempotency-Key", crypto.randomUUID());
+    }
+    return base(input, { ...init, headers });
+  });
+}
+async function getSessionStatus(id, fetchImpl = fetch) {
+  const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${requireApiKey()}` }
+  });
+  if (!res.ok) throw new Error(`session status ${res.status}`);
+  return await res.json();
+}
+async function waitUntilReleased(id, opts = {}) {
+  const getStatus = opts.getStatus ?? ((sid) => getSessionStatus(sid));
+  const sleepFn = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const deadline = opts.deadlineMs ?? Date.now() + 5e3;
+  let last = "";
+  while (Date.now() < deadline) {
+    try {
+      const { status } = await getStatus(id);
+      last = status ?? "";
+      if (status === "released" || status === "expired") return;
+    } catch {
+    }
+    await sleepFn(200);
+  }
+  if (last && last !== "released") {
+    throw new Error(`session ${id} not released (status=${last})`);
+  }
+}
+function checkOverallTimeoutMs(opts) {
+  return opts.sso || opts.saveProfile ? PROFILE_CHECK_TIMEOUT_MS : OVERALL_TIMEOUT_MS;
+}
+function toPlaywrightStorageState(state) {
+  const cookies = [];
+  for (const c of state.cookies ?? []) {
+    if (!c.name) continue;
+    const domain = c.domain;
+    if (!domain) continue;
+    const sameSite = c.sameSite === "Strict" || c.sameSite === "Lax" || c.sameSite === "None" ? c.sameSite : "Lax";
+    cookies.push({
+      name: c.name,
+      value: c.value,
+      domain,
+      path: c.path ?? "/",
+      expires: c.expires ?? -1,
+      httpOnly: c.httpOnly ?? false,
+      secure: c.secure ?? false,
+      sameSite
+    });
+  }
+  const origins = (state.origins ?? []).map((o) => {
+    const indexedDB = o.indexedDB;
+    return {
+      origin: o.origin,
+      localStorage: o.localStorage ?? [],
+      ...indexedDB !== void 0 ? { indexedDB } : {}
+    };
+  });
+  return { cookies, origins };
+}
+function storageStateIsPopulated(pw) {
+  return pw.cookies.length > 0 || pw.origins.length > 0;
+}
+function findProfileId(profiles, name) {
+  const want = name.trim();
+  const existing = profiles.find((p) => p.name.trim() === want);
+  if (!existing) {
+    throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`);
+  }
+  return existing.id;
+}
+function readSolariKeyFromFile(file) {
+  if (!existsSync(file)) return void 0;
+  for (const raw of readFileSync(file, "utf8").split("\n")) {
+    let line = raw;
+    if (line.charCodeAt(0) === 65279) line = line.slice(1);
+    line = line.trim();
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("export ")) line = line.slice(7).trim();
+    const cut = line.indexOf("=");
+    if (cut <= 0) continue;
+    const name = line.slice(0, cut).trim();
+    let value = line.slice(cut + 1).trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    if (name === "SOLARI_API_KEY" && value) return value;
+  }
+  return void 0;
+}
+function loadDotEnv(file = DOTENV_PATH) {
+  if (process.env.SOLARI_API_KEY) return;
+  const files = file === DOTENV_PATH ? [DOTENV_PATH, REPO_DOTENV_PATH] : [file];
+  for (const f of files) {
+    const value = readSolariKeyFromFile(f);
+    if (value) {
+      process.env.SOLARI_API_KEY = value;
+      return;
+    }
+  }
+}
+function requireApiKey() {
+  loadDotEnv();
+  const key = process.env.SOLARI_API_KEY;
+  if (!key) {
+    throw new Error(
+      "SOLARI_API_KEY is not set. Export SOLARI_API_KEY (https://console.getsolari.com) in the process that runs Auspex. Never commit the key."
+    );
+  }
+  return key;
+}
+function createClient() {
+  return new Solari({ apiKey: requireApiKey() });
+}
+async function launchBrowser(solari, options = {}, signal, deps = defaultLaunchDeps(solari)) {
+  const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS;
+  const createP = deps.create(options);
+  let session;
+  if (signal) {
+    try {
+      session = await observeAbort(createP, signal);
+    } catch (err) {
+      void createP.then((s) => deps.releaseAndWait(s.id).catch(() => void 0));
+      throw err;
+    }
+  } else {
+    session = await createP;
+  }
+  const release = async () => {
+    await boundPromise(
+      deps.releaseAndWait(session.id),
+      closeMs,
+      `session release timed out after ${closeMs}ms`
+    ).catch(() => void 0);
+    if (deps.getStatus) {
+      await waitUntilReleased(session.id, {
+        getStatus: deps.getStatus,
+        deadlineMs: Date.now() + 2e3
+      }).catch(() => void 0);
+    }
+  };
+  if (signal?.aborted) {
+    await release();
+    throw new Error("aborted");
+  }
+  try {
+    const browser = await deps.connect(session.wsEndpoint, {
+      timeout: CHROMIUM_CONNECT_OPTS.timeout
+    });
+    if (signal?.aborted) {
+      const held = deps.wrap(session, browser);
+      await closeThenRelease(() => held.close(), () => deps.releaseAndWait(session.id), closeMs).catch(
+        () => void 0
+      );
+      throw new Error("aborted");
+    }
+    return deps.wrap(session, browser);
+  } catch (err) {
+    if (err instanceof Error && err.message === "aborted") throw err;
+    await release();
+    throw err;
+  }
+}
+async function resolveProfileId(solari, name) {
+  return findProfileId(await solari.profiles.list(), name);
+}
+async function pageForSession(browser) {
+  const existing = browser.contexts()[0];
+  const state = browser.session.storageState;
+  const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
+  const pw = {
+    cookies: raw.cookies,
+    origins: raw.origins.map((o) => ({
+      origin: o.origin,
+      localStorage: o.localStorage,
+      ...o.indexedDB !== void 0 ? { indexedDB: o.indexedDB } : {}
+    }))
+  };
+  const hasState = storageStateIsPopulated(pw);
+  let ctx = existing;
+  if (!ctx) {
+    ctx = await browser.newContext(hasState ? { storageState: pw } : {});
+  }
+  const page = ctx.pages()[0] ?? await ctx.newPage();
+  await installSessionStorageRestore(ctx, state, page);
+  return page;
+}
+function sleep2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function replayStatus(err) {
+  if (err instanceof SolariError) return err.status;
+  if (err && typeof err === "object" && "status" in err) {
+    const s = err.status;
+    return typeof s === "number" ? s : void 0;
+  }
+  return void 0;
+}
+async function retryReplay404(op, opts = {}) {
+  const now = opts.now ?? Date.now;
+  const sleepFn = opts.sleep ?? sleep2;
+  const deadlineMs = opts.deadlineMs ?? now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS;
+  let lastErr;
+  for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
+    if (now() >= deadlineMs) break;
+    try {
+      return await op();
+    } catch (err) {
+      if (replayStatus(err) !== 404) throw err;
+      lastErr = err;
+    }
+    const remain = deadlineMs - now();
+    if (remain <= 0) break;
+    await sleepFn(Math.min(REPLAY_DELAY_MS, remain));
+  }
+  if (lastErr) throw lastErr;
+  throw new Error("replay was not ready before deadline");
+}
+async function downloadReplayWhenReady(download, sessionId, opts = {}) {
+  return retryReplay404(() => download(sessionId), opts);
+}
+async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS) {
+  try {
+    return await retryReplay404(async () => {
+      const replay = await solari.sessions.getReplayUrl(sessionId);
+      return replay.url;
+    }, { deadlineMs });
+  } catch (err) {
+    if (replayStatus(err) === 404) return void 0;
+    throw err;
+  }
+}
+var CHROMIUM_CONNECT_OPTS, GOTO_TIMEOUT_MS, NETWORKIDLE_TIMEOUT_MS, OVERALL_TIMEOUT_MS, PROFILE_CHECK_TIMEOUT_MS, REPLAY_ATTEMPTS, REPLAY_DELAY_MS, BROWSER_API_BASE, DOTENV_PATH, REPO_DOTENV_PATH;
+var init_solari = __esm({
+  "src/solari.ts"() {
+    "use strict";
+    init_timeout();
+    init_profile_storage();
+    CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
+    GOTO_TIMEOUT_MS = 45e3;
+    NETWORKIDLE_TIMEOUT_MS = 15e3;
+    OVERALL_TIMEOUT_MS = 12e4;
+    PROFILE_CHECK_TIMEOUT_MS = 3e5;
+    REPLAY_ATTEMPTS = 6;
+    REPLAY_DELAY_MS = 500;
+    BROWSER_API_BASE = "https://api.getsolari.com";
+    DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
+    REPO_DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
+  }
+});
+
 // src/mcp.ts
 import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -369,754 +1181,9 @@ ${Date.now()}
   }
 }
 
-// src/solari.ts
-import { existsSync, readFileSync } from "node:fs";
-import path3 from "node:path";
-import { fileURLToPath as fileURLToPath2 } from "node:url";
-import {
-  BrowserSession,
-  Solari,
-  SolariError
-} from "@solarisdk/browser";
-import { chromium } from "patchright-core";
-
-// src/timeout.ts
-var CLOSE_TIMEOUT_MS = 15e3;
-var LAUNCH_SETTLE_MS = 5e4;
-var CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
-var SCREENSHOT_TIMEOUT_MS = 3e4;
-async function boundPromise(p, ms, message) {
-  return raceWithTimeout(async () => p, ms, message);
-}
-async function observeAbort(p, signal) {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-    p.then(
-      (v) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(v);
-      },
-      (e) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(e);
-      }
-    );
-  });
-}
-async function closeThenRelease(close, release, ms) {
-  try {
-    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
-  } catch (err) {
-    try {
-      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
-    } catch {
-    }
-    throw err;
-  }
-}
-var ReadyRelease = class {
-  mark;
-  ready;
-  fn;
-  constructor() {
-    this.ready = new Promise((r) => {
-      this.mark = r;
-    });
-  }
-  set(fn) {
-    this.fn = fn;
-    this.mark();
-  }
-  skip() {
-    this.mark();
-  }
-  async release(settleMs = LAUNCH_SETTLE_MS) {
-    await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
-      () => void 0
-    );
-    if (this.fn) await this.fn();
-  }
-};
-async function raceWithTimeout(work, ms, message) {
-  let timer;
-  let cancelled = false;
-  const ac = new AbortController();
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      cancelled = true;
-      ac.abort();
-      reject(new Error(message));
-    }, ms);
-  });
-  const pending = work(() => cancelled, ac.signal);
-  void pending.catch(() => {
-  });
-  try {
-    return await Promise.race([pending, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-// src/sso.ts
-var SSO_RETURN_TIMEOUT_MS = 12e4;
-var SSO_POLL_MS = 500;
-var PASSWORD_WALL = /enter (your )?password/i;
-var OTP_WALL = /enter (the )?code|one-time|authenticator app|approve a sign[- ]in|approve sign[- ]in|verify your identity|texted a code|2-step verification|verify it['’]s you|google prompt/i;
-function hostIs(hostname, domain) {
-  const h = hostname.toLowerCase();
-  const d = domain.toLowerCase();
-  return h === d || h.endsWith(`.${d}`);
-}
-function microsoftAuthHost(hostname) {
-  return hostIs(hostname, "login.microsoftonline.com") || hostIs(hostname, "login.live.com");
-}
-function googleAuthHost(hostname) {
-  return hostIs(hostname, "accounts.google.com");
-}
-function idpAuthHost(hostname) {
-  return microsoftAuthHost(hostname) || googleAuthHost(hostname);
-}
-function stillOnAuth(url) {
-  if (idpAuthHost(url.hostname)) {
-    return true;
-  }
-  const path13 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/login" || path13.startsWith("/login/") || path13 === "/auth" || path13.startsWith("/auth/")) {
-    return true;
-  }
-  return false;
-}
-function shouldFailClosedAuth(url, opts) {
-  if (!stillOnAuth(url)) return false;
-  if (idpAuthHost(url.hostname)) {
-    return true;
-  }
-  return Boolean(opts.sso || opts.profile);
-}
-function describeAuthWall(opts) {
-  let parsed;
-  try {
-    parsed = new URL(opts.url);
-  } catch {
-    return { needsHuman: false };
-  }
-  const text = opts.text ?? "";
-  const idp = idpAuthHost(parsed.hostname);
-  if (idp && (opts.hasPasswordInput || PASSWORD_WALL.test(text))) {
-    return { needsHuman: true, wall: "password", url: opts.url };
-  }
-  if (idp && OTP_WALL.test(text)) {
-    return { needsHuman: true, wall: "otp", url: opts.url };
-  }
-  return { needsHuman: false };
-}
-function stopped(cancel) {
-  return Boolean(cancel.isCancelled?.() || cancel.signal?.aborted);
-}
-function sleep(ms, signal) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(signal.reason ?? new Error("aborted"));
-      return;
-    }
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(t);
-        reject(signal.reason ?? new Error("aborted"));
-      },
-      { once: true }
-    );
-  });
-}
-async function probeSsoWall(page) {
-  let hasPassword = false;
-  let text = "";
-  try {
-    const snap = await page.evaluate(() => ({
-      hasPassword: Boolean(document.querySelector('input[type="password"]')),
-      text: document.body?.innerText ?? ""
-    }));
-    hasPassword = Boolean(snap.hasPassword);
-    text = snap.text ?? "";
-  } catch {
-  }
-  return describeAuthWall({ url: page.url(), hasPasswordInput: hasPassword, text });
-}
-async function clickFirst(page, name, signal) {
-  const btn = page.getByRole("button", { name });
-  if (await btn.count() === 0) return false;
-  await btn.first().click({ timeout: 1e4, signal });
-  return true;
-}
-async function finishMicrosoftPicker(page, cancel) {
-  const signal = cancel.signal;
-  await page.waitForURL((url) => microsoftAuthHost(url.hostname), { timeout: 3e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return { needsHuman: false };
-  const wallNow = await probeSsoWall(page);
-  if (wallNow.needsHuman) return wallNow;
-  const picker = page.getByText(/pick an account/i);
-  await picker.waitFor({ timeout: 2e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return { needsHuman: false };
-  const signedIn = page.getByText(/^Signed in$/i);
-  const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i });
-  if (await signedIn.count() > 0) {
-    await signedIn.first().click({ timeout: 1e4, signal });
-  } else if (await tile.count() > 0) {
-    await tile.first().click({ timeout: 1e4, signal });
-  } else {
-    const blocked = await probeSsoWall(page);
-    if (blocked.needsHuman) return blocked;
-  }
-  if (stopped(cancel)) return { needsHuman: false };
-  const afterPick = await probeSsoWall(page);
-  if (afterPick.needsHuman) return afterPick;
-  const yes = page.getByRole("button", { name: /^yes$/i });
-  if (await yes.count() > 0) {
-    await yes.first().click({ timeout: 8e3, signal }).catch(() => void 0);
-  }
-  return probeSsoWall(page);
-}
-async function finishGooglePicker(page, cancel) {
-  const signal = cancel.signal;
-  await page.waitForURL((url) => googleAuthHost(url.hostname), { timeout: 3e4, signal }).catch(() => void 0);
-  if (stopped(cancel)) return { needsHuman: false };
-  const wallNow = await probeSsoWall(page);
-  if (wallNow.needsHuman) return wallNow;
-  const account = page.getByRole("link", { name: /@/ }).or(page.getByRole("button", { name: /@/ }));
-  if (await account.count() > 0) {
-    await account.first().click({ timeout: 1e4, signal }).catch(() => void 0);
-  }
-  return probeSsoWall(page);
-}
-async function waitForSsoReturn(page, cancel) {
-  const deadline = Date.now() + SSO_RETURN_TIMEOUT_MS;
-  while (!stopped(cancel) && Date.now() < deadline) {
-    const wall2 = await probeSsoWall(page);
-    if (wall2.needsHuman) return wall2;
-    try {
-      if (!stillOnAuth(new URL(page.url()))) return { needsHuman: false };
-    } catch {
-    }
-    try {
-      await sleep(SSO_POLL_MS, cancel.signal);
-    } catch {
-      return { needsHuman: false };
-    }
-  }
-  const wall = await probeSsoWall(page);
-  if (wall.needsHuman) return wall;
-  return { needsHuman: false };
-}
-async function completeSso(page, opts = {}) {
-  if (stopped(opts)) return { needsHuman: false };
-  const already = await probeSsoWall(page);
-  if (already.needsHuman) return already;
-  const provider = opts.provider ?? "auto";
-  const signal = opts.signal;
-  const tryMs = provider === "auto" || provider === "microsoft";
-  const tryGoogle = provider === "auto" || provider === "google";
-  let clicked = false;
-  if (tryMs && await clickFirst(page, /sign in with microsoft/i, signal)) {
-    clicked = true;
-    if (stopped(opts)) return { needsHuman: false };
-    const wall = await finishMicrosoftPicker(page, opts);
-    if (wall.needsHuman) return wall;
-  } else if (tryGoogle && await clickFirst(page, /sign in with google/i, signal)) {
-    clicked = true;
-    if (stopped(opts)) return { needsHuman: false };
-    const wall = await finishGooglePicker(page, opts);
-    if (wall.needsHuman) return wall;
-  } else if (provider === "auto" && await clickFirst(page, /sign in with /i, signal)) {
-    clicked = true;
-  }
-  if (!clicked) return probeSsoWall(page);
-  if (stopped(opts)) return { needsHuman: false };
-  return waitForSsoReturn(page, opts);
-}
-
-// src/profile-storage.ts
-var SESSION_STORAGE_PREFIX = "__auspex_ss__:";
-var PUBLIC_PROFILE_SAVE_ERROR = "refusing to save a public /landing session over the profile";
-function originOf(url) {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return void 0;
-    return u.origin;
-  } catch {
-    return void 0;
-  }
-}
-function isPersistableAppUrl(url) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (stillOnAuth(parsed)) return false;
-  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/" || path13 === "/landing" || path13 === "/login" || path13 === "/signup" || path13.startsWith("/auth")) {
-    return false;
-  }
-  return true;
-}
-function isLoggedOutLanding(url, opts) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return false;
-  }
-  if (stillOnAuth(parsed)) return true;
-  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/landing" || path13.startsWith("/landing/")) return true;
-  if (path13 === "/") return opts?.matched !== true;
-  return false;
-}
-function cookiesForOrigin(cookies, origin) {
-  let host;
-  try {
-    host = new URL(origin).hostname.toLowerCase();
-  } catch {
-    return [];
-  }
-  return (cookies ?? []).filter((c) => {
-    if (!c?.name) return false;
-    const d = (c.domain ?? "").replace(/^\./, "").toLowerCase();
-    if (!d) return false;
-    return host === d || host.endsWith(`.${d}`);
-  });
-}
-function originStoreCounts(state, origin) {
-  const cookies = cookiesForOrigin(state.cookies, origin).length;
-  const rec = (state.origins ?? []).find((o) => o.origin === origin);
-  let localStorage2 = 0;
-  let sessionStorage2 = 0;
-  for (const row of rec?.localStorage ?? []) {
-    if (!row?.name) continue;
-    if (row.name.startsWith(SESSION_STORAGE_PREFIX)) sessionStorage2 += 1;
-    else localStorage2 += 1;
-  }
-  return { cookies, localStorage: localStorage2, sessionStorage: sessionStorage2 };
-}
-function originHasLandedBytes(state, origin) {
-  const c = originStoreCounts(state, origin);
-  return c.cookies + c.localStorage + c.sessionStorage > 0;
-}
-function sessionItemsByOrigin(state, prefix = SESSION_STORAGE_PREFIX) {
-  const out = {};
-  for (const o of state.origins ?? []) {
-    if (!o?.origin) continue;
-    const items = {};
-    for (const row of o.localStorage ?? []) {
-      if (!row?.name?.startsWith(prefix)) continue;
-      const name = row.name.slice(prefix.length);
-      if (name) items[name] = row.value ?? "";
-    }
-    if (Object.keys(items).length) out[o.origin] = items;
-  }
-  return out;
-}
-function cookieKey(c) {
-  return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`;
-}
-function mergeStorageStates(base, extra) {
-  const cookies = /* @__PURE__ */ new Map();
-  for (const c of [...base.cookies ?? [], ...extra.cookies ?? []]) {
-    if (!c?.name) continue;
-    cookies.set(cookieKey(c), c);
-  }
-  const origins = /* @__PURE__ */ new Map();
-  for (const o of [...base.origins ?? [], ...extra.origins ?? []]) {
-    if (!o?.origin) continue;
-    const prev = origins.get(o.origin) ?? { origin: o.origin, localStorage: [] };
-    const items = /* @__PURE__ */ new Map();
-    for (const row of [...prev.localStorage ?? [], ...o.localStorage ?? []]) {
-      if (!row?.name) continue;
-      items.set(row.name, row.value ?? "");
-    }
-    origins.set(o.origin, {
-      origin: o.origin,
-      localStorage: [...items.entries()].map(([name, value]) => ({ name, value })),
-      indexedDB: o.indexedDB ?? prev.indexedDB
-    });
-  }
-  return { cookies: [...cookies.values()], origins: [...origins.values()] };
-}
-function foldSessionStorage(state, origin, items, prefix = SESSION_STORAGE_PREFIX) {
-  if (!origin || items.length === 0) return state;
-  const extra = {
-    cookies: [],
-    origins: [
-      {
-        origin,
-        localStorage: items.filter((row) => row.name).map((row) => ({ name: `${prefix}${row.name}`, value: row.value ?? "" }))
-      }
-    ]
-  };
-  return mergeStorageStates(state, extra);
-}
-function hydrateSessionStorageSource(itemsByOrigin = {}, prefix = SESSION_STORAGE_PREFIX) {
-  return `(() => { try { const baked = ${JSON.stringify(itemsByOrigin)}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = ${JSON.stringify(prefix)}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? ""); } } catch {} })()`;
-}
-async function installSessionStorageRestore(ctx, state, page) {
-  const payload = {
-    baked: state ? sessionItemsByOrigin(state) : {},
-    prefix: SESSION_STORAGE_PREFIX
-  };
-  const content = hydrateSessionStorageSource(payload.baked, payload.prefix);
-  const ctxInstall = ctx.addInitScript;
-  if (typeof ctxInstall === "function") {
-    await ctxInstall({ content }).catch(() => void 0);
-  }
-  const pageInstall = page?.addInitScript;
-  if (typeof pageInstall === "function") {
-    await pageInstall({ content }).catch(() => void 0);
-  }
-  return payload;
-}
-async function hydrateSessionStorage(page) {
-  return page.evaluate((prefix) => {
-    let n = 0;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k || !k.startsWith(prefix)) continue;
-        const name = k.slice(prefix.length);
-        if (!name || sessionStorage.getItem(name) != null) continue;
-        sessionStorage.setItem(name, localStorage.getItem(k) ?? "");
-        n += 1;
-      }
-    } catch {
-    }
-    return n;
-  }, SESSION_STORAGE_PREFIX);
-}
-async function readSessionItems(frame) {
-  try {
-    const rows = await frame.evaluate(() => {
-      const out = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const name = sessionStorage.key(i);
-        if (name) out.push({ name, value: sessionStorage.getItem(name) ?? "" });
-      }
-      return out;
-    });
-    return Array.isArray(rows) ? rows.filter((row) => row?.name) : [];
-  } catch {
-    return [];
-  }
-}
-async function captureContext(ctx) {
-  let state = { cookies: [], origins: [] };
-  try {
-    state = await ctx.storageState();
-  } catch {
-    state = { cookies: [], origins: [] };
-  }
-  if (typeof ctx.cookies === "function") {
-    try {
-      const extra = await ctx.cookies();
-      state = mergeStorageStates(state, { cookies: extra, origins: [] });
-    } catch {
-    }
-  }
-  const pages = ctx.pages?.() ?? [];
-  for (const page of pages) {
-    const frames = [page, ...typeof page.frames === "function" ? page.frames() : []];
-    for (const frame of frames) {
-      const origin = originOf(frame.url());
-      if (!origin) continue;
-      const items = await readSessionItems(frame);
-      state = foldSessionStorage(state, origin, items);
-    }
-  }
-  return state;
-}
-async function captureStorageState(browser) {
-  let merged = { cookies: [], origins: [] };
-  for (const ctx of browser.contexts()) {
-    merged = mergeStorageStates(merged, await captureContext(ctx));
-  }
-  return merged;
-}
-
-// src/solari.ts
-var CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
-function defaultLaunchDeps(solari) {
-  return {
-    create: (opts) => solari.sessions.create(opts),
-    connect: (ws, opts) => chromium.connect(ws, opts),
-    wrap: (session, browser) => new BrowserSession(solari, session, browser),
-    releaseAndWait: (id) => solari.sessions.releaseAndWait(id),
-    getStatus: (id) => getSessionStatus(id)
-  };
-}
-function fetchWithIdempotencyKey(base = fetch) {
-  return (async (input, init) => {
-    const headers = new Headers(init?.headers);
-    const method = (init?.method ?? "GET").toUpperCase();
-    const url = String(input);
-    let path13 = url;
-    try {
-      path13 = new URL(url, BROWSER_API_BASE).pathname;
-    } catch {
-    }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path13);
-    if (isVmCreate && !headers.has("Idempotency-Key")) {
-      headers.set("Idempotency-Key", crypto.randomUUID());
-    }
-    return base(input, { ...init, headers });
-  });
-}
-async function getSessionStatus(id, fetchImpl = fetch) {
-  const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
-    headers: { Authorization: `Bearer ${requireApiKey()}` }
-  });
-  if (!res.ok) throw new Error(`session status ${res.status}`);
-  return await res.json();
-}
-async function waitUntilReleased(id, opts = {}) {
-  const getStatus = opts.getStatus ?? ((sid) => getSessionStatus(sid));
-  const sleepFn = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const deadline = opts.deadlineMs ?? Date.now() + 5e3;
-  let last = "";
-  while (Date.now() < deadline) {
-    try {
-      const { status } = await getStatus(id);
-      last = status ?? "";
-      if (status === "released" || status === "expired") return;
-    } catch {
-    }
-    await sleepFn(200);
-  }
-  if (last && last !== "released") {
-    throw new Error(`session ${id} not released (status=${last})`);
-  }
-}
-var GOTO_TIMEOUT_MS = 45e3;
-var NETWORKIDLE_TIMEOUT_MS = 15e3;
-var OVERALL_TIMEOUT_MS = 12e4;
-var PROFILE_CHECK_TIMEOUT_MS = 3e5;
-function checkOverallTimeoutMs(opts) {
-  return opts.sso || opts.saveProfile ? PROFILE_CHECK_TIMEOUT_MS : OVERALL_TIMEOUT_MS;
-}
-var REPLAY_ATTEMPTS = 6;
-var REPLAY_DELAY_MS = 500;
-var BROWSER_API_BASE = "https://api.getsolari.com";
-var DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
-var REPO_DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
-function toPlaywrightStorageState(state) {
-  const cookies = [];
-  for (const c of state.cookies ?? []) {
-    if (!c.name) continue;
-    const domain = c.domain;
-    if (!domain) continue;
-    const sameSite = c.sameSite === "Strict" || c.sameSite === "Lax" || c.sameSite === "None" ? c.sameSite : "Lax";
-    cookies.push({
-      name: c.name,
-      value: c.value,
-      domain,
-      path: c.path ?? "/",
-      expires: c.expires ?? -1,
-      httpOnly: c.httpOnly ?? false,
-      secure: c.secure ?? false,
-      sameSite
-    });
-  }
-  const origins = (state.origins ?? []).map((o) => {
-    const indexedDB = o.indexedDB;
-    return {
-      origin: o.origin,
-      localStorage: o.localStorage ?? [],
-      ...indexedDB !== void 0 ? { indexedDB } : {}
-    };
-  });
-  return { cookies, origins };
-}
-function storageStateIsPopulated(pw) {
-  return pw.cookies.length > 0 || pw.origins.length > 0;
-}
-function findProfileId(profiles, name) {
-  const want = name.trim();
-  const existing = profiles.find((p) => p.name.trim() === want);
-  if (!existing) {
-    throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`);
-  }
-  return existing.id;
-}
-function readSolariKeyFromFile(file) {
-  if (!existsSync(file)) return void 0;
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
-    let line = raw;
-    if (line.charCodeAt(0) === 65279) line = line.slice(1);
-    line = line.trim();
-    if (!line || line.startsWith("#")) continue;
-    if (line.startsWith("export ")) line = line.slice(7).trim();
-    const cut = line.indexOf("=");
-    if (cut <= 0) continue;
-    const name = line.slice(0, cut).trim();
-    let value = line.slice(cut + 1).trim();
-    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-      value = value.slice(1, -1);
-    }
-    if (name === "SOLARI_API_KEY" && value) return value;
-  }
-  return void 0;
-}
-function loadDotEnv(file = DOTENV_PATH) {
-  if (process.env.SOLARI_API_KEY) return;
-  const files = file === DOTENV_PATH ? [DOTENV_PATH, REPO_DOTENV_PATH] : [file];
-  for (const f of files) {
-    const value = readSolariKeyFromFile(f);
-    if (value) {
-      process.env.SOLARI_API_KEY = value;
-      return;
-    }
-  }
-}
-function requireApiKey() {
-  loadDotEnv();
-  const key = process.env.SOLARI_API_KEY;
-  if (!key) {
-    throw new Error(
-      "SOLARI_API_KEY is not set. Export SOLARI_API_KEY (https://console.getsolari.com) in the process that runs Auspex. Never commit the key."
-    );
-  }
-  return key;
-}
-function createClient() {
-  return new Solari({ apiKey: requireApiKey() });
-}
-async function launchBrowser(solari, options = {}, signal, deps = defaultLaunchDeps(solari)) {
-  const closeMs = deps.closeTimeoutMs ?? CLOSE_TIMEOUT_MS;
-  const createP = deps.create(options);
-  let session;
-  if (signal) {
-    try {
-      session = await observeAbort(createP, signal);
-    } catch (err) {
-      void createP.then((s) => deps.releaseAndWait(s.id).catch(() => void 0));
-      throw err;
-    }
-  } else {
-    session = await createP;
-  }
-  const release = async () => {
-    await boundPromise(
-      deps.releaseAndWait(session.id),
-      closeMs,
-      `session release timed out after ${closeMs}ms`
-    ).catch(() => void 0);
-    if (deps.getStatus) {
-      await waitUntilReleased(session.id, {
-        getStatus: deps.getStatus,
-        deadlineMs: Date.now() + 2e3
-      }).catch(() => void 0);
-    }
-  };
-  if (signal?.aborted) {
-    await release();
-    throw new Error("aborted");
-  }
-  try {
-    const browser = await deps.connect(session.wsEndpoint, {
-      timeout: CHROMIUM_CONNECT_OPTS.timeout
-    });
-    if (signal?.aborted) {
-      const held = deps.wrap(session, browser);
-      await closeThenRelease(() => held.close(), () => deps.releaseAndWait(session.id), closeMs).catch(
-        () => void 0
-      );
-      throw new Error("aborted");
-    }
-    return deps.wrap(session, browser);
-  } catch (err) {
-    if (err instanceof Error && err.message === "aborted") throw err;
-    await release();
-    throw err;
-  }
-}
-async function resolveProfileId(solari, name) {
-  return findProfileId(await solari.profiles.list(), name);
-}
-async function pageForSession(browser) {
-  const existing = browser.contexts()[0];
-  const state = browser.session.storageState;
-  const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
-  const pw = {
-    cookies: raw.cookies,
-    origins: raw.origins.map((o) => ({
-      origin: o.origin,
-      localStorage: o.localStorage,
-      ...o.indexedDB !== void 0 ? { indexedDB: o.indexedDB } : {}
-    }))
-  };
-  const hasState = storageStateIsPopulated(pw);
-  let ctx = existing;
-  if (!ctx) {
-    ctx = await browser.newContext(hasState ? { storageState: pw } : {});
-  }
-  const page = ctx.pages()[0] ?? await ctx.newPage();
-  await installSessionStorageRestore(ctx, state, page);
-  return page;
-}
-function sleep2(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-function replayStatus(err) {
-  if (err instanceof SolariError) return err.status;
-  if (err && typeof err === "object" && "status" in err) {
-    const s = err.status;
-    return typeof s === "number" ? s : void 0;
-  }
-  return void 0;
-}
-async function retryReplay404(op, opts = {}) {
-  const now = opts.now ?? Date.now;
-  const sleepFn = opts.sleep ?? sleep2;
-  const deadlineMs = opts.deadlineMs ?? now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS;
-  let lastErr;
-  for (let attempt = 1; attempt <= REPLAY_ATTEMPTS; attempt++) {
-    if (now() >= deadlineMs) break;
-    try {
-      return await op();
-    } catch (err) {
-      if (replayStatus(err) !== 404) throw err;
-      lastErr = err;
-    }
-    const remain = deadlineMs - now();
-    if (remain <= 0) break;
-    await sleepFn(Math.min(REPLAY_DELAY_MS, remain));
-  }
-  if (lastErr) throw lastErr;
-  throw new Error("replay was not ready before deadline");
-}
-async function downloadReplayWhenReady(download, sessionId, opts = {}) {
-  return retryReplay404(() => download(sessionId), opts);
-}
-async function waitForReplayUrl(solari, sessionId, deadlineMs = Date.now() + REPLAY_ATTEMPTS * REPLAY_DELAY_MS) {
-  try {
-    return await retryReplay404(async () => {
-      const replay = await solari.sessions.getReplayUrl(sessionId);
-      return replay.url;
-    }, { deadlineMs });
-  } catch (err) {
-    if (replayStatus(err) === 404) return void 0;
-    throw err;
-  }
-}
-
 // src/profile-persist.ts
+init_solari();
+init_profile_storage();
 var EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
 var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
 var EMPTY_ORIGIN_SAVE_ERROR = "refusing to save: no cookies, localStorage, or sessionStorage landed for the page origin";
@@ -1276,6 +1343,7 @@ async function liveAwaitLogin(name, opts = {}) {
 }
 
 // src/profiles.ts
+init_solari();
 var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
 var PROFILE_NAME_ERROR = "profile name must be non-empty";
 function requireProfileName(value) {
@@ -1379,6 +1447,9 @@ async function listProfiles() {
     await solari.close();
   }
 }
+
+// src/saved-checks.ts
+init_sso();
 
 // src/text.ts
 import { z as z3 } from "zod";
@@ -1850,7 +1921,11 @@ function fitMcpAttach(png, cap = MCP_ATTACH_MAX_BYTES) {
   return { buf: pngOut, mimeType: "image/png" };
 }
 
+// src/check.ts
+init_profile_storage();
+
 // src/replay-save.ts
+init_solari();
 import { writeFile } from "node:fs/promises";
 import path5 from "node:path";
 async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
@@ -2103,6 +2178,9 @@ var auspexCheckInputObject = z4.object({
   verify: z4.boolean().optional().describe(
     "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true."
   ),
+  verifyWithProfile: z4.boolean().optional().describe(
+    "When true with a profile, also verify the claim via a profile-seeded browser check. Adds claimOkProfile and claimErrorsProfile to the receipt. Requires profile to be set. Implies verify=true for anonymous verification."
+  ),
   allowRecordProfile: z4.boolean().optional().describe(
     "Override: allow record together with a profile only on ironadamant.com or checkpointprojects.com (public marketing hosts). FAIL-CLOSED: Refused for name=consistencyhub or profile=consistencyhub. Recordings capture input; only use on public pages."
   ),
@@ -2181,6 +2259,9 @@ var auspexProfileStatusInputSchema = z4.object({
   name: z4.string().trim().min(1).optional().describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
   url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)")
 });
+
+// src/check.ts
+init_solari();
 
 // src/errors.ts
 import { SolariError as SolariError2 } from "@solarisdk/browser";
@@ -2335,6 +2416,8 @@ function createProgress(opts = {}) {
 var noopProgress = () => void 0;
 
 // src/check.ts
+init_sso();
+init_timeout();
 function toReceiptPath(absPath) {
   return path9.relative(packageRoot, absPath).replaceAll("\\", "/");
 }
@@ -2808,6 +2891,10 @@ function expectOnProcessSignal(signal, expect) {
   return signal.via.length > 0 && desktopNeedleMatches(signal.haystack, expect);
 }
 
+// src/desktop.ts
+init_solari();
+init_timeout();
+
 // src/banner.ts
 var REVIEW_START = "Agent is using Solari to review";
 var REVIEW_DONE = "Solari closed, all operations completed per request. Agent sending output...";
@@ -3049,6 +3136,8 @@ ${summary}`;
 }
 
 // src/profile-status.ts
+init_profile_storage();
+init_sso();
 function resolveStatusTarget(opts, deps) {
   let profile = opts.profile?.trim();
   let url = opts.url?.trim();
@@ -3237,6 +3326,7 @@ async function packLastReceipts(opts) {
 }
 
 // src/reap.ts
+init_solari();
 var HOLDING = /* @__PURE__ */ new Set(["starting", "running", "paused"]);
 async function defaultReapDeps() {
   const key = requireApiKey();
@@ -3355,6 +3445,8 @@ function shouldVerifyAfterCheck(reason) {
 }
 
 // src/sandbox.ts
+init_solari();
+init_timeout();
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
 var VERIFY_OVERALL_MS = 9e4;
 var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
@@ -3417,12 +3509,75 @@ function parseAssertStdout(stdout) {
     return { ok: false, errors: ["sandbox stdout was not JSON"], claimOk: false, claimErrors: [] };
   }
 }
+async function verifyClaimWithProfile(url, expect, profileId, solari, signal) {
+  const errors = [];
+  let sessionId;
+  let matched = false;
+  try {
+    const browser = await observeAbort(
+      launchBrowser(
+        solari,
+        {
+          profileId,
+          stealth: false,
+          record: false,
+          proxy: void 0,
+          proxySticky: void 0,
+          captcha: false
+        },
+        signal
+      ),
+      signal
+    );
+    sessionId = browser.id;
+    await rememberLive("browser", sessionId).catch(() => void 0);
+    try {
+      const page = await pageForSession(browser);
+      await page.goto(url, {
+        timeout: GOTO_TIMEOUT_MS,
+        waitUntil: "domcontentloaded",
+        signal
+      });
+      try {
+        await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal });
+      } catch {
+      }
+      const raw = await page.evaluate(() => {
+        const el = document.body;
+        return el?.innerText ?? "";
+      });
+      const haystack = normalizeHaystack(raw);
+      matched = haystackMatches(raw, expect);
+      if (!matched) {
+        errors.push("profile-seeded check: expect not found in page text");
+      }
+    } finally {
+      await closeThenRelease(
+        () => browser.close(),
+        async () => {
+          await solari.sessions.releaseAndWait(browser.id);
+          await waitUntilReleased(browser.id).catch(() => void 0);
+        },
+        CLOSE_TIMEOUT_MS
+      );
+      if (sessionId) await forgetLive("browser", sessionId).catch(() => void 0);
+    }
+  } catch (err) {
+    errors.push(`profile-seeded check failed: ${explainSolariError(err)}`);
+  }
+  return {
+    claimOkProfile: matched,
+    claimErrorsProfile: errors,
+    sessionId
+  };
+}
 async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
   const onProgress = deps.onProgress ?? noopProgress;
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
   const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   assertReceiptUploadSize(manifest, png);
+  const parsedManifest = JSON.parse(manifest);
   let sandbox;
   const createP = deps.create();
   try {
@@ -3459,7 +3614,34 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps()) {
           parsed.ok = false;
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`];
         }
-        const result = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId };
+        let profileResult;
+        if (deps.profileId && parsedManifest.url && parsedManifest.expect) {
+          onProgress("verify-profile-claim");
+          const solari = createClient();
+          try {
+            profileResult = await verifyClaimWithProfile(
+              parsedManifest.url,
+              parsedManifest.expect,
+              deps.profileId,
+              solari,
+              signal
+            );
+          } finally {
+            await boundPromise(
+              solari.close(),
+              CLOSE_TIMEOUT_MS,
+              `solari close timed out after ${CLOSE_TIMEOUT_MS}ms`
+            ).catch(() => void 0);
+          }
+        }
+        const result = {
+          ...parsed,
+          runDir: dir,
+          sandboxId: sandbox.sandboxId,
+          claimOkProfile: profileResult?.claimOkProfile,
+          claimErrorsProfile: profileResult?.claimErrorsProfile,
+          sessionId: profileResult?.sessionId
+        };
         onProgress("sandbox-kill");
         try {
           const killedId = sandbox.sandboxId;
@@ -3512,7 +3694,8 @@ async function checkThenVerify(opts, deps) {
   try {
     const verify = deps?.verify ? await deps.verify(dir) : await verifyReceipt(dir, {
       create: deps?.create ?? defaultVerifyDeps().create,
-      onProgress
+      onProgress,
+      profileId: deps?.profileId
     });
     return { check, verify };
   } catch (err) {
@@ -3560,14 +3743,27 @@ function registerAuspexTools(server2) {
         if (!url || !expect) {
           throw new Error("auspex_check requires name or url+expect");
         }
-        const { verify, name, ...rest } = merged;
+        const { verify, verifyWithProfile, name, ...rest } = merged;
         const opts = { ...rest, url, expect, onProgress };
         assertPageActionsAllowed({ ...opts, name });
         assertRecordProfileAllowed({ ...opts, name });
         assertRecordNotLoggedIn(opts);
-        const shouldVerify = verify !== false;
+        if (verifyWithProfile && !opts.profile) {
+          throw new Error("verifyWithProfile requires profile to be set");
+        }
+        const shouldVerify = verifyWithProfile || verify !== false;
         if (shouldVerify) {
-          const both = await checkThenVerify(opts);
+          const { createClient: createClient2, resolveProfileId: resolveProfileId2 } = await Promise.resolve().then(() => (init_solari(), solari_exports));
+          const solari = createClient2();
+          let profileId;
+          try {
+            if (verifyWithProfile && opts.profile) {
+              profileId = await resolveProfileId2(solari, opts.profile);
+            }
+          } finally {
+            await solari.close().catch(() => void 0);
+          }
+          const both = await checkThenVerify(opts, { profileId });
           const receipt2 = toAgentReceipt(both.check, { verify: both.verify });
           const packed2 = await buildCheckToolContent(receipt2);
           packed2.content[0] = { type: "text", text: toolJson(receipt2) };
