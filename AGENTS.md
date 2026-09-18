@@ -16,7 +16,7 @@ Three distinct booleans in receipts, each with different meaning:
 
 - **`ok`** — Agent success: did the live browser match **and** did verify pass (when it ran)?
 - **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch + OCR see the expect string?
-- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a profile-authenticated fetch + OCR see it?
+- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a second Solari browser with the profile see the expect string in page text?
 
 **For public marketing pages:** Use default verify (anonymous). `ok=true` requires `claimOk=true`.
 

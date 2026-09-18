@@ -10,7 +10,7 @@ Three distinct booleans in the receipt, each telling you something different:
 
 - **`ok`** — Agent success: did the live browser match **and** did verify pass (when it ran)?
 - **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch + OCR see the expect string?
-- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a profile-authenticated fetch + OCR see it?
+- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a second Solari browser with the profile see the expect string in page text?
 
 **For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
 
@@ -18,7 +18,7 @@ Three distinct booleans in the receipt, each telling you something different:
 
 ## Verified Dogfood (2026-09-18 AEST)
 
-After PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20:
+After PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20. Committed redacted demo artifacts from 2026-09-19 AEST re-seed.
 
 ### ConsistencyHub
 ```bash
@@ -163,7 +163,7 @@ This is **claim verification**, not just echo — the sandbox independently chec
 
 **Anonymous verify** (default): Works for public pages. Fails for auth-gated SaaS (fetch sees login page, not logged-in UI).
 
-**Profile-seeded verify** (`--verify-with-profile`): Uploads profile cookies/sessionStorage to the sandbox. Fetch runs authenticated. Returns `verify.claimOkProfile` (anonymous claim is skipped). Use for auth-gated SaaS.
+**Profile-seeded verify** (`--verify-with-profile`): Launches a second Solari browser with the profile seed and extracts page text to verify the expect string. Returns `verify.claimOkProfile` (anonymous claim is skipped). Use for auth-gated SaaS.
 
 **No verify** (`--no-verify`): Skip verification entirely. Smoke test only — trust the live browser, no sandbox claim check.
 

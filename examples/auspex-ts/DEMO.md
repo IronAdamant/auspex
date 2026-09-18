@@ -33,10 +33,25 @@ npx tsx src/cli.ts reap --dry-run
 npx tsx src/cli.ts reap
 ```
 
-Login-once (human Microsoft sign-in on the Solari Chrome card; Auspex captures sessionStorage). Wait until Save stored cookies/origins **or** use `--save-profile` after SSO:
+Login-once (human Microsoft sign-in on the Solari Chrome card; Auspex captures sessionStorage via finalize-login):
 
 ```bash
-npx tsx src/cli.ts check https://consistencyhub.io --profile consistencyhub --sso --sso-provider microsoft --save-profile --expect "Document Editor"
+# 1. Human SSO in handoff → Save
+npx tsx src/cli.ts login --profile consistencyhub
+
+# 2. Wait for Save (warns if no sessionStorage)
+npx tsx src/cli.ts await-login --profile consistencyhub
+
+# 3. Agent captures sessionStorage
+npx tsx src/cli.ts finalize-login --profile consistencyhub
+
+# 4. Later: reuse profile
+npx tsx src/cli.ts check --name consistencyhub
+
+# 5. Optional: profile-seeded claim recheck
+npx tsx src/cli.ts check --name consistencyhub --verify-with-profile
+
+# List profiles
 npx tsx src/cli.ts profiles
 ```
 
