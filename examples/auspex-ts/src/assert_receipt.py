@@ -169,7 +169,7 @@ def auth_integrity_errors(url):
 
 def audit_claim(man, work, skip_fetch, skip_all):
     if skip_all:
-        return []
+        return ["anonymous claim skipped"]
     expect = str(man.get("expect") or "")
     if not expect.strip():
         return ["manifest has no expect to audit"]

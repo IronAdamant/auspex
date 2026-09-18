@@ -258,6 +258,32 @@ test("RECEIPT_ASSERT_PY does not treat a suffix host as Microsoft", () => {
   assert.equal(out.status, 0, out.stderr + out.stdout)
 })
 
+test("RECEIPT_ASSERT_PY with --skip-anonymous-claim returns claimOk false", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      expect: "test",
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://example.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  const out = spawnSync("python3", [ASSERT_RECEIPT_PY_PATH, dir, "--skip-anonymous-claim"], {
+    encoding: "utf8",
+  })
+  assert.equal(out.status, 0, out.stderr + out.stdout)
+  const parsed = JSON.parse(out.stdout.trim().split("\n").at(-1) ?? "{}")
+  assert.equal(parsed.ok, true, "integrity should pass")
+  assert.equal(parsed.claimOk, false, "claimOk should be false when anonymous claim skipped")
+  assert.equal(parsed.anonymousClaimSkipped, true, "anonymousClaimSkipped should be true")
+  assert.ok(Array.isArray(parsed.claimErrors), "claimErrors should be an array")
+  assert.ok(parsed.claimErrors.length > 0, "claimErrors should not be empty")
+  assert.match(parsed.claimErrors[0] ?? "", /anonymous claim skipped/i, "claimErrors should explain skip")
+})
+
 test("runCheck source does not auto-save Solari profiles", () => {
   const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
   assert.match(src, /opts\.saveProfile/)
