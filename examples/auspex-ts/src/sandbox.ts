@@ -10,6 +10,7 @@ import { createClient, fetchWithIdempotencyKey, launchBrowser, OVERALL_TIMEOUT_M
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches, normalizeHaystack } from "./text.ts"
+import { hydrateSessionStorage } from "./profile-storage.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
@@ -133,6 +134,7 @@ export async function defaultProfileClaimCheck(opts: {
       timeout: 45_000,
       waitUntil: "domcontentloaded",
     })
+    await hydrateSessionStorage(page)
     try {
       await page.waitForLoadState("networkidle", { timeout: 20_000 })
     } catch {
