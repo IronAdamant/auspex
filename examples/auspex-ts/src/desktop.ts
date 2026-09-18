@@ -19,6 +19,84 @@ import { createDesktopTui, desktopOverviewText, desktopSummary, type DesktopTui 
 
 export type { DesktopProcess }
 
+export const DESKTOP_PASSWORD_TYPE_ERROR =
+  "Auspex desktop --type is FAIL-CLOSED refused for password/OTP-like strings. Agents must never type passwords or secrets. Free-form typing is unguarded; desktop cannot detect password fields like page-actions can. Use only for demo text (e.g., mousepad content)."
+
+/**
+ * Fail-closed password/OTP detection for desktop type: refuse strings that look like
+ * passwords, secrets, or OTP codes. Cannot detect field context (unlike page-actions),
+ * so must pattern-match the typed content itself.
+ *
+ * Detects:
+ * - Password-like strings (8+ chars with mix of upper/lower/digit/special, or common patterns)
+ * - OTP codes (6-8 digit sequences)
+ * - Secret-like strings (API keys, tokens, bearer, etc.)
+ * - Redaction markers ([REDACTED], [SECRET], etc.)
+ *
+ * False positives (legitimate demo text rejected) are acceptable for fail-closed security.
+ */
+export function assertNotPasswordLikeText(text: string): void {
+  if (!text || text.trim().length === 0) return
+
+  const norm = text.trim()
+
+  // Pattern 1: 6-8 consecutive digits (OTP codes)
+  if (/^\d{6,8}$/.test(norm)) {
+    throw new Error(DESKTOP_PASSWORD_TYPE_ERROR)
+  }
+
+  // Pattern 2: Contains words strongly associated with secrets
+  // Use word boundaries but also catch password/secret followed immediately by digits
+  const secretKeywords = [
+    /\bpassword\d+/i,  // password followed by digits (e.g., password123)
+    /\b(passwd|pwd)\b/i,
+    /\bsecret\b/i,  // standalone secret
+    /\b(token|bearer)\b/i,
+    /\bapi[_-]?key\b/i,
+    /\baccess[_-]?token\b/i,
+    /\brefresh[_-]?token\b/i,
+    /\bprivate[_-]?key\b/i,
+    /\bclient[_-]?secret\b/i,
+    /\bcredential\b/i,
+    /\bauth[_-]?key\b/i,
+    /\[redacted\]/i,
+    /\[secret\]/i,
+    /\*\*\*\*+/,  // Masked password indicators
+  ]
+  if (secretKeywords.some((p) => p.test(norm))) {
+    throw new Error(DESKTOP_PASSWORD_TYPE_ERROR)
+  }
+
+  // Pattern 3: Password-like complexity (8+ chars with mixed case + digits/special)
+  // Skip if the text is very long (likely prose, not a password)
+  if (norm.length >= 8 && norm.length <= 128) {
+    const hasUpper = /[A-Z]/.test(norm)
+    const hasLower = /[a-z]/.test(norm)
+    const hasDigit = /[0-9]/.test(norm)
+    const hasSpecial = /[^A-Za-z0-9\s]/.test(norm)
+    const hasNoSpaces = !/\s/.test(norm)
+
+    // Strong password pattern: mixed case + (digits OR special) + no spaces
+    if (hasUpper && hasLower && (hasDigit || hasSpecial) && hasNoSpaces) {
+      throw new Error(DESKTOP_PASSWORD_TYPE_ERROR)
+    }
+  }
+
+  // Pattern 4: Common password/secret patterns
+  const suspiciousPatterns = [
+    /^[a-z0-9]{32,}$/i,  // Long hex-like strings (API keys, hashes)
+    /^[A-Za-z0-9_-]{40,}$/,  // Very long base64-like without spaces (increased from 20 to 40)
+    /^(?=.*[A-Z])(?=.*[a-z])[A-Za-z0-9_-]{20,}$/,  // 20+ chars with mixed case (typical API keys)
+    /^sk-[a-zA-Z0-9]{20,}$/,  // OpenAI-style secret keys (reduced from 32 to 20)
+    /^slr_[a-z]+_[a-zA-Z0-9]+$/,  // Solari API keys
+    /^ghp_[a-zA-Z0-9]{36,}$/,  // GitHub personal access token
+    /^xox[baprs]-[a-zA-Z0-9-]+$/,  // Slack tokens
+  ]
+  if (suspiciousPatterns.some((p) => p.test(norm))) {
+    throw new Error(DESKTOP_PASSWORD_TYPE_ERROR)
+  }
+}
+
 export const DESKTOP_OVERALL_MS = 90_000
 export const DESKTOP_HEALTH_MS = 30_000
 export const WINDOW_MAP_MS = 8_000
@@ -199,9 +277,11 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
           await desktop.click(clickAt.x, clickAt.y)
           click = { x: clickAt.x, y: clickAt.y, verified: false }
         }
-        // Desktop --type is free-form and cannot detect password fields. Agents must refuse
-        // typing passwords/secrets even when the desktop cannot enforce (unlike page-actions fill).
-        if (task.type && desktop.typeText) await desktop.typeText(task.type)
+        // Desktop --type FAIL-CLOSED: refuse password/OTP-like strings (cannot detect field context)
+        if (task.type) {
+          assertNotPasswordLikeText(task.type)
+          if (desktop.typeText) await desktop.typeText(task.type)
+        }
         tui.setPhase("screenshot")
         const png = await desktop.screenshot()
         const dir = newRunDir()

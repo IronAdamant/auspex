@@ -16,6 +16,14 @@ npx auspex check --name ironadamant
 
 ![Solari cloud Chrome checking ironadamant.com](examples/auspex-ts/demo/ironadamant.png)
 
+### Auth-Gated SaaS Demo (Redacted)
+
+**ConsistencyHub verified check** — Redacted auth-gated dashboard proving the verification triad remains honest:
+
+![ConsistencyHub dashboard (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
+
+**Verification triad:** `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** (profile-seeded verify passed). Caption blur ≠ blank fail — the page matched; the blur protects project names/PII. See full receipt: [`demo/consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json) and [RECEIPTS.md](RECEIPTS.md) for details.
+
 ## Real-world agent recipe: ConsistencyHub (auth-gated SaaS)
 
 **Problem:** Console Save alone is insufficient (sessionStorage not persisted). ConsistencyHub needs `accessToken` in sessionStorage.
