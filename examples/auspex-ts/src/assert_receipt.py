@@ -167,7 +167,9 @@ def auth_integrity_errors(url):
     return errors
 
 
-def audit_claim(man, work, skip_fetch):
+def audit_claim(man, work, skip_fetch, skip_all):
+    if skip_all:
+        return []
     expect = str(man.get("expect") or "")
     if not expect.strip():
         return ["manifest has no expect to audit"]
@@ -204,6 +206,7 @@ def audit_claim(man, work, skip_fetch):
 
 def main(argv):
     work = Path(argv[1] if len(argv) > 1 else "/work")
+    skip_anonymous_claim = "--skip-anonymous-claim" in argv
     man = json.loads((work / "manifest.json").read_text())
     png = (work / "screenshot.png").read_bytes()
     integrity = []
@@ -225,13 +228,14 @@ def main(argv):
     url = str(man.get("finalUrl") or "")
     auth_errs = auth_integrity_errors(url)
     integrity.extend(auth_errs)
-    claim = audit_claim(man, work, skip_fetch=bool(auth_errs))
+    claim = audit_claim(man, work, skip_fetch=bool(auth_errs), skip_all=skip_anonymous_claim)
     out = {
         "ok": len(integrity) == 0,
         "errors": integrity,
         "claimOk": len(claim) == 0,
         "claimErrors": claim,
         "finalUrl": url,
+        "anonymousClaimSkipped": skip_anonymous_claim,
     }
     print(json.dumps(out))
     sys.exit(0 if out["ok"] else 1)

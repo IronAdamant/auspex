@@ -204,7 +204,7 @@ test("replay poll window is within documented 1–3s", async () => {
   assert.ok(REPLAY_DELAY_MS <= 1_000)
 })
 
-test("checkThenVerify with verifyWithProfile passes profileId to verify", async () => {
+test("checkThenVerify with verifyWithProfile passes profileId and skips anonymous claim", async () => {
   const stamp = `verify-profile-${Date.now()}`
   const dir = path.join(RUNS_DIR, stamp)
   mkdirSync(dir, { recursive: true })
@@ -220,6 +220,7 @@ test("checkThenVerify with verifyWithProfile passes profileId to verify", async 
   writeFileSync(path.join(dir, "screenshot.png"), Buffer.from("fake"))
   
   let receivedProfileId: string | undefined
+  let receivedSkipAnonymousClaim: boolean | undefined
   const check = {
     title: "Dashboard",
     finalUrl: "https://consistencyhub.io/dashboard",
@@ -248,10 +249,16 @@ test("checkThenVerify with verifyWithProfile passes profileId to verify", async 
         return {
           ok: true,
           errors: [],
-          claimOk: true,
-          claimErrors: [],
+          claimOk: false,
+          claimErrors: ["auth-gated"],
+          anonymousClaimSkipped: true,
+          claimOkProfile: true,
+          claimErrorsProfile: [],
           runDir: dir,
         }
+      },
+      create: async () => {
+        throw new Error("sandbox should not be created in this mock")
       },
       verifyWithProfile: true,
     },
@@ -259,4 +266,31 @@ test("checkThenVerify with verifyWithProfile passes profileId to verify", async 
   
   assert.equal(both.check.reason, "matched")
   assert.ok(receivedProfileId, "profileId should be passed to verify when verifyWithProfile is true")
+  assert.equal(both.verify.anonymousClaimSkipped, true, "anonymous claim should be skipped")
+  assert.equal(both.verify.claimOk, false, "anonymous claimOk should be false (auth-gated)")
+  assert.equal(both.verify.claimOkProfile, true, "profile claim should succeed")
+})
+
+test("agentReceiptOk succeeds with anonymousClaimSkipped when live matched and integrity ok", async () => {
+  const { agentReceiptOk } = await import("../src/check-reason.ts")
+  const okWithSkip = agentReceiptOk({
+    protocolOk: true,
+    reason: "matched",
+    verify: {
+      ok: true,
+      claimOk: false,
+      anonymousClaimSkipped: true,
+    },
+  })
+  assert.equal(okWithSkip, true, "ok should be true when anonymous claim is skipped and integrity ok")
+  
+  const notOkWithoutSkip = agentReceiptOk({
+    protocolOk: true,
+    reason: "matched",
+    verify: {
+      ok: true,
+      claimOk: false,
+    },
+  })
+  assert.equal(notOkWithoutSkip, false, "ok should be false when anonymous claim is not skipped and claimOk false")
 })
