@@ -18,7 +18,7 @@ Three distinct booleans in the receipt, each telling you something different:
 
 ## Verified Dogfood (2026-09-18 AEST)
 
-After PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20:
+After PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20. Committed redacted demo artifacts from 2026-09-19 AEST re-seed.
 
 ### ConsistencyHub
 ```bash
@@ -88,7 +88,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 **Saved check:** `npx auspex check --name ironadamant`
 
-**Demo artifacts (committed from 2026-09-19 AEST re-seed):**
+**Demo artifacts (committed):**
 
 - **[Screenshot](examples/auspex-ts/demo/ironadamant.png)** — PNG from cloud Chrome (337 KB)
 - **[Receipt JSON](examples/auspex-ts/demo/receipt.json)** — Marketing summary with `sessionId` and verify flags
