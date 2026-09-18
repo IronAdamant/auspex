@@ -32,12 +32,11 @@ Coding agents need evidence from live web pages without sitting in a browser tab
 
 ## Evidence
 
-Live demo committed to this repository (refreshed weekly via GitHub Actions):
-- **PNG:** [examples/auspex-ts/demo/ironadamant.png](examples/auspex-ts/demo/ironadamant.png)
-- **Replay:** [examples/auspex-ts/demo/replay.html](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html) (rrweb session recording)
-- **Receipt:** [examples/auspex-ts/demo/receipt.json](examples/auspex-ts/demo/receipt.json) — **Note:** this is a public marketing summary (`sessionId` + verify flags); the agent contract is frozen schema v1 on CLI/MCP stdout (see [AGENTS.md](AGENTS.md#receipt-schema-v1-frozen))
+**Public receipts:** [RECEIPTS.md](RECEIPTS.md) — demo artifacts (PNG, replay, receipt JSON), honesty notes on marketing summary vs. schema v1, and verification details.
 
-**Agent instructions (any host):** [AGENTS.md](AGENTS.md) — source of truth for CLI, Cursor, Claude Code, Codex, shell. Includes frozen schema table, tools, rules, MCP setup.
+**Live checks:** GitHub Actions [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) runs weekly (Mondays + `workflow_dispatch`) to verify the saved checks still work. The workflow **does not commit artifacts**; the demo PNG/receipt/replay in the repo are manually committed when refreshed.
+
+**Agent instructions (any host):** [AGENTS.md](AGENTS.md) — source of truth for CLI, Cursor, Claude Code, Codex, shell. Includes frozen schema v1 table, tools, rules, MCP setup.
 
 **Package:** [examples/auspex-ts](examples/auspex-ts) — the intern submission. Other `examples/*` are upstream Solari cookbook samples (not the submission).
 
