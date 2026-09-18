@@ -1,6 +1,6 @@
 # Auspex
 
-Agent web eyes that stay honest on auth-gated SaaS. Cloud browser check → independent sandbox verify → tear-down. Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions closed 30 Sep](https://x.com/harrychow_/status/2099130594076557556)).
+Agent web eyes that stay honest on auth-gated SaaS. Cloud browser check → independent sandbox verify → tear-down. Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)).
 
 **The thesis ([PITCH.md](PITCH.md)):** Agents need honest eyes, not just scraping. Auspex checks first-party SaaS with saved profiles, verifies claims independently (anonymous fetch + OCR), and optionally rechecks with the profile. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Never types passwords.
 
