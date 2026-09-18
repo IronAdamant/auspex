@@ -99,6 +99,21 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 **Public marketing pages** use anonymous verify by default — the right signal because no auth is needed.
 
+## ConsistencyHub Check (Auth-Gated SaaS — Redacted Demo)
+
+**Claim:** "Document Editor" appears on [consistencyhub.io](https://consistencyhub.io) dashboard (auth-gated)
+
+**Saved check:** `npx auspex check --name consistencyhub --verify-with-profile`
+
+**Demo artifacts (committed, redacted for public repo):**
+
+- **[Screenshot](examples/auspex-ts/demo/consistencyhub.png)** — Blurred auth-gated dashboard PNG (106 KB). **Note:** Not a blank fail — UI is intentionally obscured to protect PII/project names while proving the live check matched.
+- **[Receipt JSON](examples/auspex-ts/demo/consistencyhub-receipt.json)** — Redacted schema-v1-shaped receipt from live 2026-09-19 AEST run. SessionId/sandbox ids omitted. Excerpt/title redacted. **Triad remains honest:** `ok=true`, `claimOk=false` (anonymous claim skipped), **`claimOkProfile=true`**.
+
+**Result:** ✅ Claim matched. Profile-seeded sandbox verify passed (`ok=true`, `claimOkProfile=true`).
+
+**Auth-gated SaaS pages** require `--verify-with-profile` to run profile-seeded claim verification. Anonymous verify cannot see logged-in UI (would fail with `claimOk=false` and login-page OCR). The blur proves the page is not blank; the schema-v1 triad proves the verification signals remain honest.
+
 ## Important Notes
 
 ### Marketing Summary vs. Schema v1
