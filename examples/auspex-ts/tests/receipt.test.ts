@@ -258,6 +258,31 @@ test("parseAssertStdout detects anonymousClaimSkipped from claimErrors", () => {
   assert.equal(notSkipped.anonymousClaimSkipped, undefined)
 })
 
+test("RECEIPT_ASSERT_PY does not return anonymousClaimSkipped for auth-gated skip_fetch", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      expect: "test",
+      screenshotPath: ".auspex/runs/stamp/screenshot.png",
+      finalUrl: "https://login.microsoftonline.com/",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  const out = runAssert(dir)
+  const parsed = JSON.parse(out.stdout.trim().split("\n").at(-1) ?? "{}")
+  assert.equal(parsed.ok, false, "integrity should fail on IDP URL")
+  assert.ok(parsed.errors.some((e: string) => /identity provider/i.test(e)), "should have IDP integrity error")
+  assert.ok(Array.isArray(parsed.claimErrors), "claimErrors should be an array")
+  assert.equal(
+    parsed.claimErrors.some((e: string) => /anonymous claim skipped/i.test(e)),
+    false,
+    "auth-gated skip_fetch should NOT produce 'anonymous claim skipped'",
+  )
+})
+
 test("RECEIPT_ASSERT_PY does not treat a suffix host as Microsoft", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
   writeFileSync(
