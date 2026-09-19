@@ -93,6 +93,24 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.match(first, /no public GitHub Issues tracker/)
 })
 
+test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLoginTarget", () => {
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const pagesYml = readFileSync(path.join(repo, ".github", "workflows", "pages.yml"), "utf8")
+  assert.equal(
+    rootReadme.includes("profile on consistencyhub.io / onedrive.live.com"),
+    false,
+    "README must not teach the old two-host anonymous-verify skip",
+  )
+  assert.equal(
+    rootReadme.includes("Defaults to ConsistencyHub URL and expect"),
+    false,
+    "README must not teach finalize-login always defaulting to ConsistencyHub",
+  )
+  assert.match(rootReadme, /any attached profile on a non-public-marketing URL/)
+  assert.match(rootReadme, /unknown profiles require `--url` and `--expect`/)
+  assert.match(pagesYml, /enablement:\s*true/)
+})
+
 test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")

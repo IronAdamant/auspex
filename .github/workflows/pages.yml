@@ -35,9 +35,15 @@ jobs:
             examples/auspex-ts/demo/consistencyhub.png \
             examples/auspex-ts/demo/consistencyhub-receipt.json \
             _site/demo/
-      - uses: actions/configure-pages@v5
+      - id: pages
+        uses: actions/configure-pages@v5
+        continue-on-error: true
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
+        if: steps.pages.outcome == 'success'
         with:
           path: _site
       - id: deployment
+        if: steps.pages.outcome == 'success'
         uses: actions/deploy-pages@v4
