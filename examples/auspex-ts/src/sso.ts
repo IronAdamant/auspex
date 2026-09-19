@@ -241,8 +241,3 @@ export async function completeSso(
   if (stopped(opts)) return { needsHuman: false }
   return waitForSsoReturn(page, opts)
 }
-
-/** @deprecated Use completeSso. */
-export async function completeMicrosoftSso(page: Page, cancel: SsoCancel = {}): Promise<SsoResult> {
-  return completeSso(page, { ...cancel, provider: "microsoft" })
-}

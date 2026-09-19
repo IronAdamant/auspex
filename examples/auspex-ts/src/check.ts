@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
 import { agentReceiptOk, deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
@@ -29,7 +29,7 @@ import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
-import { packageRoot } from "./paths.ts"
+import { ensureRunDir, packageRoot } from "./paths.ts"
 import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
@@ -164,11 +164,6 @@ export function runDirFromResult(result: CheckResult): string {
   return path.dirname(abs)
 }
 
-function runDir(): string {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-  return path.join(packageRoot, ".auspex", "runs", stamp)
-}
-
 async function extractPage(
   page: Page,
   selector: string | undefined,
@@ -205,8 +200,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   const solari = createClient()
   const closer = new ReadyRelease()
   let sessionId = ""
-  const outDir = runDir()
-  await mkdir(outDir, { recursive: true })
+  const outDir = await ensureRunDir()
   const screenshotAbs = path.join(outDir, "screenshot.png")
   const screenshotPath = toReceiptPath(screenshotAbs)
 
@@ -227,6 +221,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
     try {
+      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device })
       onProgress("launching")
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
       if (isCancelled()) return
@@ -252,7 +247,6 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile))
       }
-      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device })
       const page = await pageForSession(browser, deviceContextOptions)
       if (isCancelled()) return
       onProgress("goto")

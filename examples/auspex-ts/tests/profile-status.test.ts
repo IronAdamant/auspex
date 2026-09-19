@@ -1,7 +1,13 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import test from "node:test"
+import { isWeakSeed } from "../src/profile-persist.ts"
 import { profileStatus } from "../src/profile-status.ts"
 import type { CheckResult } from "../src/check.ts"
+
+const srcRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src")
 
 const hubSaved = {
   name: "consistencyhub",
@@ -154,24 +160,81 @@ test("profileStatus treats unmatched / as loggedOut even if check reason is mism
   assert.equal(result.ok, false)
 })
 
-test("profileStatus reports weakSeed from inspect without a live check", async () => {
+test("inspect without URL does not claim a sessionStorage count (E8)", async () => {
   let live = 0
   const result = await profileStatus(
     { profile: "consistencyhub" },
     {
       listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
       savedForProfile: () => undefined,
-      inspectSeed: async () => ({ cookies: 78, origins: 5, sessionStorage: 0 }),
+      inspectSeed: async (_id, origin) => {
+        assert.equal(origin, undefined)
+        return { cookies: 78, origins: 5, sessionStorage: 0 }
+      },
       runCheck: async () => {
         live += 1
         throw new Error("should not live-check")
       },
     },
   )
-  assert.equal(result.reason, "weakSeed")
+  assert.equal(result.reason, "loggedOut")
   assert.equal(result.ok, false)
   assert.equal(result.skippedLive, true)
+  assert.equal(result.sessionStorage, undefined)
   assert.equal(live, 0)
+})
+
+test("isWeakSeed is ConsistencyHub-only and requires a counted sessionStorage of 0", () => {
+  assert.equal(
+    isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1, sessionStorage: 0 }),
+    true,
+  )
+  assert.equal(
+    isWeakSeed({ url: "https://consistencyhub.io", cookies: 5, origins: 1, sessionStorage: 0 }),
+    true,
+  )
+  assert.equal(
+    isWeakSeed({ profile: "ironadamant", cookies: 5, origins: 1, sessionStorage: 0 }),
+    false,
+  )
+  assert.equal(
+    isWeakSeed({ profile: "other-profile", cookies: 10, origins: 2, sessionStorage: 0 }),
+    false,
+  )
+  assert.equal(
+    isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1 }),
+    false,
+  )
+  const kebab = "/^[a-z0-9]+(-[a-z0-9]+)*$/"
+  assert.equal(readFileSync(path.join(srcRoot, "profile-status.ts"), "utf8").includes(kebab), false)
+  assert.equal(readFileSync(path.join(srcRoot, "profile-persist.ts"), "utf8").includes(kebab), false)
+})
+
+test("cookie-only ironadamant logged-out is loggedOut not weakSeed", async () => {
+  const result = await profileStatus(
+    { profile: "ironadamant", url: "https://ironadamant.com" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "ironadamant", populated: true }],
+      runCheck: async () =>
+        ({
+          ok: false,
+          reason: "loggedOut",
+          url: "https://ironadamant.com",
+          expect: "One office job.",
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Landing",
+          finalUrl: "https://ironadamant.com/",
+          matched: false,
+          excerpt: "loggedOut",
+          sessionId: "s",
+          networkIdle: true,
+          profileSeed: { cookies: 4, origins: 1, sessionStorage: 0 },
+        }) satisfies CheckResult,
+    },
+  )
+  assert.equal(result.reason, "loggedOut")
+  assert.equal(result.ok, false)
+  assert.equal(result.live, true)
 })
 
 test("profileStatus with a URL skips production inspect (one live session)", async () => {

@@ -9,6 +9,7 @@ import { listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
+import { listDevices } from "./device-emulation.ts"
 import { parseProxyFlag } from "./launch-options.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
 import { ensureRunDir } from "./paths.ts"
@@ -47,7 +48,7 @@ Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. con
 check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which default to --no-verify because anonymous fetch cannot see auth-gated UI. Public marketing still verifies with a leftover profile. No profile still verifies. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
 Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
 ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman). matched is the expect substring; reason is always set. CLI exit 0 requires agent ok.
---mobile emulates iPhone viewport/UA. --device <name> uses a specific device profile (iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
+--mobile emulates iPhone viewport/UA (iphone-13-pro). --device <name> uses a specific device profile (${listDevices().join(", ")}). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
 profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. Re-seed is human SSO once; the agent never types a password and does not ping the user. Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
@@ -451,8 +452,10 @@ export async function main(argv: string[]): Promise<number> {
       let qrPath: string | undefined
       if (result.handoff?.url) {
         const qr = await generateQRCode(result.handoff.url, runDir)
-        qrPath = qr.qrPath
-        result.handoff.qrPath = qrPath
+        if (qr.qrPath) {
+          qrPath = qr.qrPath
+          result.handoff.qrPath = qrPath
+        }
       }
       if (!parsed.command.wait) {
         writeStdoutJson(stampSchema({ ok: true, ...result }))

@@ -40,6 +40,3 @@ export function failureReceipt(err: unknown): {
   })
 }
 
-export function asAgentJson<T extends object>(obj: T): T & { schemaVersion: number } {
-  return stampSchema(obj)
-}

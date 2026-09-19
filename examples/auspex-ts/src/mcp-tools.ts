@@ -137,7 +137,7 @@ export function registerAuspexTools(server: McpServer): void {
         const result = await loginProfile(profile, url)
         if (result.handoff?.url) {
           const qr = await generateQRCode(result.handoff.url, runDir)
-          result.handoff.qrPath = qr.qrPath
+          if (qr.qrPath) result.handoff.qrPath = qr.qrPath
         }
         if (!wait) {
           return { content: [{ type: "text" as const, text: toolJson({ ok: true, ...result }) }] }

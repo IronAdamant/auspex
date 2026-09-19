@@ -54,35 +54,32 @@ export type MobileDeviceOptions = {
   mobile?: boolean
 }
 
+export function listDevices(): string[] {
+  return Object.keys(DEVICES)
+}
+
+function contextOptionsFor(device: DeviceDescriptor): Partial<BrowserContextOptions> {
+  return {
+    viewport: device.viewport,
+    userAgent: device.userAgent,
+    deviceScaleFactor: device.deviceScaleFactor,
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch,
+  }
+}
+
 export function parseDeviceOptions(opts: MobileDeviceOptions): Partial<BrowserContextOptions> | undefined {
   if (opts.device) {
     const device = DEVICES[opts.device.toLowerCase()]
     if (!device) {
-      const available = Object.keys(DEVICES).join(", ")
-      throw new Error(`Unknown device: ${opts.device}. Available: ${available}`)
+      throw new Error(`Unknown device: ${opts.device}. Available: ${listDevices().join(", ")}`)
     }
-    return {
-      viewport: device.viewport,
-      userAgent: device.userAgent,
-      deviceScaleFactor: device.deviceScaleFactor,
-      isMobile: device.isMobile,
-      hasTouch: device.hasTouch,
-    }
+    return contextOptionsFor(device)
   }
-  
-  if (opts.mobile) {
-    return {
-      viewport: { width: 390, height: 844 },
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-      deviceScaleFactor: 3,
-      isMobile: true,
-      hasTouch: true,
-    }
-  }
-  
-  return undefined
-}
 
-export function listDevices(): string[] {
-  return Object.keys(DEVICES)
+  if (opts.mobile) {
+    return contextOptionsFor(DEVICES["iphone-13-pro"]!)
+  }
+
+  return undefined
 }

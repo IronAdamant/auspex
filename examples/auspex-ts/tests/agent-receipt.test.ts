@@ -218,6 +218,18 @@ test("overlayVerifyReason preserves matched when anonymousClaimSkipped", () => {
   )
 })
 
+test("overlayVerifyReason maps anonymousClaimSkipped integrity fail to network", () => {
+  assert.equal(
+    overlayVerifyReason("matched", {
+      ok: false,
+      claimOk: false,
+      anonymousClaimSkipped: true,
+      errors: ["sandbox verify timed out after 90000ms"],
+    }),
+    "network",
+  )
+})
+
 test("agentReceiptOk returns true when live matched and anonymousClaimSkipped", () => {
   assert.equal(
     agentReceiptOk({
@@ -264,7 +276,8 @@ test("VWP envelope timeout with anonymousClaimSkipped stays matched and does not
     },
   })
   assert.equal(receipt.ok, false)
-  assert.equal(receipt.reason, "matched")
+  assert.notEqual(receipt.reason, "matched")
+  assert.equal(receipt.reason, "network")
   assert.equal(receipt.verify?.anonymousClaimSkipped, true)
   assert.equal(receipt.verify?.claimOk, false)
   assert.equal(receipt.verify?.claimOkProfile, false)
