@@ -243,6 +243,11 @@ export async function waitForProfileSave(
     }
     await sleepFn(Math.min(HANDOFF_POLL_MS, remain))
   }
+  
+  if (status === "waiting") {
+    status = "timeout"
+  }
+  
   return {
     status,
     profileId: profile.id,

@@ -1378,6 +1378,9 @@ async function waitForProfileSave(name, opts) {
     }
     await sleepFn(Math.min(HANDOFF_POLL_MS, remain));
   }
+  if (status === "waiting") {
+    status = "timeout";
+  }
   return {
     status,
     profileId: profile.id,
@@ -2261,8 +2264,8 @@ var auspexCheckInputObject = z4.object({
   saveProfile: z4.boolean().optional().describe(
     "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. FAIL-CLOSED: Cannot be used with record=true (recordings capture logged-in sessions) (call-time validation). FAIL-CLOSED: Refuses an empty seed, a public /landing session, or a save with no bytes for the page origin (call-time validation)."
   ),
-  mobile: z4.boolean().optional().describe("Emulate iPhone viewport and user agent (390x844, iOS Safari UA, mobile touch). Applied via Playwright context options."),
-  device: z4.string().optional().describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options.")
+  mobile: z4.boolean().optional().describe("Emulate iPhone viewport and user agent (390x844, iOS Safari UA, mobile touch). Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides."),
+  device: z4.string().optional().describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides.")
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (!val.name && (!val.url || !val.expect)) {
@@ -3299,7 +3302,7 @@ async function profileStatus(opts, deps) {
     const missing = !row;
     return {
       ok: false,
-      reason: missing ? "emptySave" : "emptySave",
+      reason: "loggedOut",
       profile,
       url,
       populated: false,
@@ -3900,7 +3903,7 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";

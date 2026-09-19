@@ -201,11 +201,11 @@ export const auspexCheckInputObject = z.object({
   mobile: z
     .boolean()
     .optional()
-    .describe("Emulate iPhone viewport and user agent (390x844, iOS Safari UA, mobile touch). Applied via Playwright context options."),
+    .describe("Emulate iPhone viewport and user agent (390x844, iOS Safari UA, mobile touch). Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides."),
   device: z
     .string()
     .optional()
-    .describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options."),
+    .describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides."),
 })
 
 /** Full parse including record+profile combination. MCP registerTool must use auspexCheckInputObject. */

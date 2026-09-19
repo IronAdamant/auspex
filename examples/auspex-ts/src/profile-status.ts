@@ -80,7 +80,7 @@ export async function profileStatus(
     const missing = !row
     return {
       ok: false,
-      reason: missing ? "emptySave" : "emptySave",
+      reason: "loggedOut",
       profile,
       url,
       populated: false,
