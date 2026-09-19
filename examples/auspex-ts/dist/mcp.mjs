@@ -1450,7 +1450,6 @@ function stripDigitRuns(text) {
 function fenceExcerpt(text) {
   const inner = text.trim();
   if (!inner) return inner;
-  if (inner.startsWith(EXCERPT_FENCE_START)) return inner;
   const sanitized = inner.replace(/<<<AUSPEX_UNTRUSTED_PAGE_TEXT/g, "<<<[SANITIZED]AUSPEX_UNTRUSTED_PAGE_TEXT").replace(/AUSPEX_UNTRUSTED_PAGE_TEXT>>>/g, "AUSPEX_UNTRUSTED_PAGE_TEXT[SANITIZED]>>>");
   return `${EXCERPT_FENCE_START}
 ${sanitized}
