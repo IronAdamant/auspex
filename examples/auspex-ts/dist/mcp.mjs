@@ -3311,15 +3311,23 @@ async function profileStatus(opts, deps) {
       skipReason: missing ? `profile ${profile} not found. Human SSO once (agent never types a password).` : `profile ${profile} is empty. Human SSO once (agent never types a password).`
     };
   }
-  const solari = createClient();
   let seed;
-  try {
-    const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : void 0);
-    seed = inspected;
-  } catch {
-    seed = void 0;
-  } finally {
-    await solari.close().catch(() => void 0);
+  if (deps?.inspectSeed) {
+    try {
+      seed = await deps.inspectSeed(row.id, url ? new URL(url).origin : void 0);
+    } catch {
+      seed = void 0;
+    }
+  } else {
+    const solari = createClient();
+    try {
+      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : void 0);
+      seed = inspected;
+    } catch {
+      seed = void 0;
+    } finally {
+      await solari.close().catch(() => void 0);
+    }
   }
   const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0);
   const hasNoSessionStorage = seed && seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
