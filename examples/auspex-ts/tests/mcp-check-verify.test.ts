@@ -103,6 +103,37 @@ test("MCP name=consistencyhub with verifyWithProfile calls checkThenVerify", asy
   assert.equal(verified, true)
 })
 
+test("MCP ad-hoc OneDrive + profile does not call checkThenVerify", async () => {
+  let verifyCalls = 0
+  let checkCalls = 0
+  const { verified, receipt } = await executeAuspexCheck(
+    {
+      url: "https://onedrive.live.com/",
+      expect: "My files",
+      profile: "consistencyhub",
+    },
+    {
+      checkThenVerify: async () => {
+        verifyCalls += 1
+        throw new Error("must not anonymously verify OneDrive with a profile")
+      },
+      runCheck: async (opts) => {
+        checkCalls += 1
+        assert.equal(opts.profile, "consistencyhub")
+        return matchedCheck({
+          url: opts.url,
+          expect: opts.expect,
+          finalUrl: "https://onedrive.live.com/",
+        })
+      },
+    },
+  )
+  assert.equal(verifyCalls, 0)
+  assert.equal(checkCalls, 1)
+  assert.equal(verified, false)
+  assert.equal(receipt.ok, true)
+})
+
 test("MCP name=ironadamant without verify still calls checkThenVerify", async () => {
   let verifyCalls = 0
   const { verified } = await executeAuspexCheck(

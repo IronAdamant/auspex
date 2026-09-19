@@ -56,10 +56,12 @@ npx auspex check --profile myapp --expect "Dashboard"
 ```bash
 npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
 ```
-- After anonymous verify, launch a **second** Solari browser WITH the profile
+- **Skips** anonymous claim (integrity still runs: PNG decode, URL not leftover IdP). Production does **not** run anonymous fetch/OCR first.
+- Launches a **second** Solari browser WITH the profile
 - Navigate to `finalUrl` and check if expect is in page text
-- Adds `claimOkProfile: true/false` to receipt (distinct from anonymous `claimOk`)
-- Use for auth-gated SaaS where anonymous fetch can't see the UI
+- Adds `claimOkProfile: true/false` to receipt (distinct from anonymous `claimOk`, which stays `false` + `anonymousClaimSkipped`)
+- `ok` requires only integrity `verify.ok` when anonymous claim is skipped — **read `claimOkProfile`**, do not treat `ok` as the triad
+- Use for auth-gated SaaS where anonymous fetch can't see the UI. `--verify` (anonymous) is **not** this path and will poison `ok`.
 
 **Never:** overwrite `claimOk` silently. Both fields stay honest.
 

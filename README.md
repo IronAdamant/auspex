@@ -66,23 +66,27 @@ Full agent instructions: [AGENTS.md](AGENTS.md) · Package: [examples/auspex-ts]
 
 Three primitives only: browser check, sandbox verify, named sandbox desktop demo.
 
-- **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), optional stealth/proxy/captcha, snapshot, claim check, close. **Verifies by default** (HTTP + OCR in headless VM). Saved checks: `--name ironadamant` / `checkpoint` / `consistencyhub`. Returns frozen **schema v1** receipt: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath` (required); `diff`, `verify`, optional fields.
+- **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), optional stealth/proxy/captcha, snapshot, claim check, close. **Verifies by default** (HTTP + OCR in headless VM) for public marketing pages. **`name=consistencyhub`**, **`profile=consistencyhub`**, or a **profile on consistencyhub.io / onedrive.live.com** defaults to **no** sandbox (anonymous fetch cannot see logged-in UI). `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Saved checks: `--name ironadamant` / `checkpoint` / `consistencyhub`. Returns frozen **schema v1** receipt: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath` (required); `diff`, `verify`, optional fields.
 
-- **`auspex_verify`** — only if you passed `verify=false` to skip default verify. Headless sandbox independently re-checks the PNG + JSON. **Integrity `ok` is separate from claim `claimOk`:** verify re-fetches the URL and OCRs the PNG instead of echoing `manifest.ok`. Kills the VM.
+- **`auspex_login` / `auspex_await_login`** — single-use handoff URL, then wait until Save stored cookies or origins. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing (console Save is not enough for ConsistencyHub).
 
-- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman`. Human SSO once; **the agent never types a password.** Microsoft and Google password/OTP walls return `needsHuman: true`. `--fill` is refused on `input[type=password]` selectors.
+- **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Defaults to ConsistencyHub URL and expect. Same as `check --profile … --sso --save-profile`.
+
+- **`auspex_verify`** — only if you passed `verify=false` to skip default verify. Headless sandbox independently re-checks the PNG + JSON. **Integrity `ok` is separate from claim `claimOk`:** verify re-fetches the URL and OCRs the PNG instead of echoing `manifest.ok`. Kills the VM. Do not call this after a default check that already verified.
+
+- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` = cookies/origins but no sessionStorage. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.** Microsoft and Google password/OTP walls return `needsHuman: true`. `--fill` is refused on `input[type=password]` selectors.
 
 - **`auspex_reap`** — list/kill leftover **ledger** sessions after `429 ConcurrencyLimitExceeded`. Default lists ledger ids only (does not wipe every VM on the key). `--account-wide` wipes all VMs. `--pack-receipts` copies last receipts per URL into `.auspex/pack/` for a PR attach.
 
-- **`auspex_desktop`** — named Solari sandbox desktop demo: wait for X11, open Mousepad by default. **Not the user's Mac.** Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC.
+- **`auspex_desktop`** — named Solari sandbox desktop demo: wait for X11, open Mousepad by default. **Not the user's Mac.** Wait/expect/`ok` share one process haystack. Coordinate clicks are unverified and not default. `streamUrl` is the live VNC. **FAIL-CLOSED `--type`** refuses password/OTP-like strings.
 
 ### Fail-closed design
 
-- **No password typing:** SSO handoff URL (human signs in once); `--fill` refused on `input[type=password]`; Microsoft/Google walls return `needsHuman`.
+- **No password typing:** SSO handoff URL (human signs in once); `--fill` refused on `input[type=password]`; Microsoft/Google walls return `needsHuman`. Desktop `--type` refuses password/OTP-like strings.
 - **No logged-in recording by default:** `--record` + `--profile` is forbidden unless `--allow-record-profile` on a public marketing host (ironadamant.com, checkpointprojects.com). Refused for consistencyhub.
 - **No page actions with profiles by default:** `--fill` / `--click` with a profile (including `--name consistencyhub`) requires `--allow-page-actions`. Public checks without a profile may still fill/click.
 - **Schema v1 frozen:** `schemaVersion: 1` on stdout. CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
-- **`ok` ≠ `claimOk`:** The agent sees `ok` (matched + verify passed). Verify sees `claimOk` (re-fetch + OCR, not JSON echo).
+- **`ok` ≠ `claimOk` ≠ `claimOkProfile`:** The agent sees `ok` (matched + verify passed when it ran). Anonymous verify sees `claimOk` (re-fetch + OCR, not JSON echo). Profile-seeded verify sees `claimOkProfile`. After `--verify-with-profile`, read `claimOkProfile` — `ok` is not that signal.
 
 ## MCP first (Cursor / Claude / Grok)
 

@@ -473,6 +473,45 @@ test("parseArgv desktop takes no extra args", () => {
   assert.equal(b.status, "error")
 })
 
+test("parseArgv ad-hoc auth URL + profile skips anonymous verify; public marketing does not", () => {
+  const onedrive = parseArgv([
+    "check",
+    "https://onedrive.live.com/",
+    "--expect",
+    "My files",
+    "--profile",
+    "consistencyhub",
+  ])
+  assert.equal(onedrive.status, "ok")
+  if (onedrive.status === "ok" && onedrive.command.cmd === "check") {
+    assert.equal(onedrive.command.verifyAfter, false, "OneDrive + profile must not default-verify anonymously")
+  }
+  const adHocCh = parseArgv([
+    "check",
+    "https://consistencyhub.io",
+    "--expect",
+    "Document Editor",
+    "--profile",
+    "consistencyhub",
+  ])
+  assert.equal(adHocCh.status, "ok")
+  if (adHocCh.status === "ok" && adHocCh.command.cmd === "check") {
+    assert.equal(adHocCh.command.verifyAfter, false, "ad-hoc CH URL + profile skips anonymous verify")
+  }
+  const publicWithProfile = parseArgv([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "One office job.",
+    "--profile",
+    "demo",
+  ])
+  assert.equal(publicWithProfile.status, "ok")
+  if (publicWithProfile.status === "ok" && publicWithProfile.command.cmd === "check") {
+    assert.equal(publicWithProfile.command.verifyAfter, true, "public marketing still verifies with a leftover profile")
+  }
+})
+
 test("parseArgv --verify-with-profile enables verifyAfter for consistencyhub", () => {
   const withProfile = parseArgv(["check", "--name", "consistencyhub", "--verify-with-profile"])
   assert.equal(withProfile.status, "ok")
