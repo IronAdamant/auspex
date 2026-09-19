@@ -32,3 +32,21 @@ export function mayRetryCheck(reason: CheckReason | string | undefined): boolean
 export function shouldVerifyAfterCheck(reason: CheckReason | string | undefined): boolean {
   return mayRetryCheck(reason) && reason !== "recordedLoggedIn"
 }
+
+/**
+ * CLI and MCP share this policy. Default is verify (anonymous sandbox).
+ * `--name consistencyhub` / `name=consistencyhub` skips verify unless the caller
+ * passed an explicit verify=true (`--verify`) or verifyWithProfile.
+ * verify=false (`--no-verify`) always skips.
+ */
+export function shouldVerifyCheck(opts: {
+  name?: string
+  verify?: boolean
+  verifyWithProfile?: boolean
+}): boolean {
+  if (opts.verify === false) return false
+  if (opts.verify === true) return true
+  if (opts.verifyWithProfile) return true
+  if (opts.name?.trim().toLowerCase() === "consistencyhub") return false
+  return true
+}

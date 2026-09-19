@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { toAgentReceipt } from "../src/agent-receipt.ts"
+import { persistAgentManifest, toAgentReceipt } from "../src/agent-receipt.ts"
+import { mkdtempSync, readFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import {
   agentReceiptOk,
   deriveCheckReason,
@@ -246,3 +249,35 @@ test("toAgentReceipt produces ok=true when live matched and anonymousClaimSkippe
   assert.equal(receipt.reason, "matched")
   assert.equal(receipt.verify?.anonymousClaimSkipped, true)
 })
+
+test("mismatch is not agent ok even when protocolOk is true", () => {
+  const receipt = toAgentReceipt(
+    sampleCheck({ ok: false, protocolOk: true, matched: false, reason: "mismatch" }),
+  )
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "mismatch")
+  assert.equal((receipt as { protocolOk?: boolean }).protocolOk, true)
+})
+
+test("persistAgentManifest writes agent-success ok (not protocol ok) to disk", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-manifest-"))
+  const shot = path.join(dir, "screenshot.png")
+  const check = sampleCheck({
+    ok: false,
+    protocolOk: true,
+    matched: false,
+    reason: "mismatch",
+    screenshotPath: shot,
+    excerpt: "hello",
+  })
+  await persistAgentManifest(check)
+  const written = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8")) as {
+    ok: boolean
+    reason: string
+    protocolOk?: boolean
+  }
+  assert.equal(written.ok, false)
+  assert.equal(written.reason, "mismatch")
+  assert.equal(written.protocolOk, true)
+})
+

@@ -65,6 +65,14 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
     ],
   },
   {
+    cmd: "finalize-login",
+    tool: "auspex_finalize_login",
+    fields: [
+      { json: "profile", flag: "--profile", kind: "string" },
+      { json: "url", flag: "--url", kind: "string" },
+    ],
+  },
+  {
     cmd: "profiles",
     tool: "auspex_profiles",
     fields: [],

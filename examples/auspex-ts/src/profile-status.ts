@@ -1,6 +1,6 @@
-import { isLoggedOutLanding, originStoreCounts } from "./profile-storage.ts"
+import { isLoggedOutLanding } from "./profile-storage.ts"
 import { listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
-import { asFiniteNumber, inspectProfileSeed } from "./profile-persist.ts"
+import { inspectProfileSeed } from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
@@ -81,7 +81,7 @@ export async function profileStatus(
     const missing = !row
     return {
       ok: false,
-      reason: "loggedOut",
+      reason: "emptySave",
       profile,
       url,
       populated: false,
@@ -92,7 +92,8 @@ export async function profileStatus(
         : `profile ${profile} is empty. Human SSO once (agent never types a password).`,
     }
   }
-  
+
+  const willLive = Boolean(url)
   let seed: { cookies: number; origins: number; sessionStorage?: number } | undefined
   if (deps?.inspectSeed) {
     try {
@@ -100,11 +101,10 @@ export async function profileStatus(
     } catch {
       seed = undefined
     }
-  } else {
+  } else if (!willLive) {
     const solari = createClient()
     try {
-      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
-      seed = inspected
+      seed = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
     } catch {
       seed = undefined
     } finally {
@@ -162,7 +162,7 @@ export async function profileStatus(
     if (/0 cookies|empty Save|profile not found/i.test(msg)) {
       return {
         ok: false,
-        reason: "loggedOut",
+        reason: "emptySave",
         profile,
         url,
         populated: row.populated,
@@ -176,6 +176,9 @@ export async function profileStatus(
     }
     throw err
   }
+  if (!seed && result.profileSeed) seed = result.profileSeed
+  const liveHasOrigins = seed && (seed.cookies > 0 || seed.origins > 0)
+  const liveNoSessionStorage = seed && seed.sessionStorage !== undefined && seed.sessionStorage === 0
   if (result.needsHuman || result.reason === "needsHuman") {
     return {
       ok: false,
@@ -202,7 +205,26 @@ export async function profileStatus(
     auth = false
   }
   const matchedClaim = Boolean(claim) && result.matched === true
-  if (result.reason === "loggedOut" || (landed && isLoggedOutLanding(landed, { matched: matchedClaim })) || auth) {
+  const loggedOutLive =
+    result.reason === "loggedOut" || (landed && isLoggedOutLanding(landed, { matched: matchedClaim })) || auth
+  if (loggedOutLive && liveHasOrigins && liveNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+    return {
+      ok: false,
+      reason: "weakSeed",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      finalUrl: landed,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
+    }
+  }
+  if (loggedOutLive) {
     return {
       ok: false,
       reason: "loggedOut",

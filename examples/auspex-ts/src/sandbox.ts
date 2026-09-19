@@ -1,4 +1,5 @@
 import { SolariClient } from "@solarisdk/sdk"
+import { persistAgentManifest } from "./agent-receipt.ts"
 import { runCheck, runDirFromResult, type CheckOptions, type CheckResult } from "./check.ts"
 import { MAX_IMAGE_BYTES } from "./content.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
@@ -370,7 +371,11 @@ export async function checkThenVerify(
     if (verifyWithProfile && opts.profile) {
       if (!deps?.verify) {
         const solari = createClient()
-        profileId = await resolveProfileId(solari, opts.profile)
+        try {
+          profileId = await resolveProfileId(solari, opts.profile)
+        } finally {
+          await solari.close().catch(() => undefined)
+        }
       } else {
         profileId = opts.profile
       }
@@ -381,6 +386,7 @@ export async function checkThenVerify(
           ...defaultVerifyDeps(),
           skipAnonymousClaim: verifyWithProfile && Boolean(profileId),
         }, profileId ? { profileId } : undefined)
+    await persistAgentManifest(check, { verify }).catch(() => undefined)
     return { check, verify }
   } catch (err) {
     return {

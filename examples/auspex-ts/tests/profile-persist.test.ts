@@ -4,6 +4,7 @@ import { pageForSession, toPlaywrightStorageState } from "../src/solari.ts"
 import {
   EMPTY_ORIGIN_SAVE_ERROR,
   EMPTY_PROFILE_SAVE_ERROR,
+  bindInspectProfileSeed,
   persistProfileState,
   seedFromStorageState,
   waitForProfileSave,
@@ -172,6 +173,53 @@ test("waitForProfileSave does not warn for non-consistencyhub profiles", async (
   assert.equal(completed.cookies, 10)
   assert.equal(completed.origins, 2)
   assert.equal(completed.next.includes("Warning"), false)
+})
+
+test("bindInspectProfileSeed forwards origin so live await-login can warn", async () => {
+  const calls: Array<{ id: string; origin?: string }> = []
+  const inspect = async (_solari: unknown, id: string, origin?: string) => {
+    calls.push({ id, origin })
+    return { cookies: 78, origins: 5, sessionStorage: origin ? 0 : undefined }
+  }
+  const bound = bindInspectProfileSeed(inspect as never, {} as never)
+  const completed = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 14,
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 15 }],
+      inspect: bound,
+    },
+  })
+  assert.deepEqual(calls, [{ id: "p1", origin: "https://consistencyhub.io" }])
+  assert.equal(completed.sessionStorage, 0)
+  assert.match(completed.next, /warning/i)
+  assert.match(completed.next, /sessionStorage/i)
+})
+
+test("seedFromStorageState counts sessionStorage when origin is passed", () => {
+  const state = {
+    cookies: [{ name: "sid", value: "1", domain: "consistencyhub.io" }],
+    origins: [
+      {
+        origin: "https://consistencyhub.io",
+        localStorage: [{ name: "theme", value: "dark" }],
+      },
+    ],
+  }
+  const counted = seedFromStorageState(state, "https://consistencyhub.io")
+  assert.equal(counted.cookies, 1)
+  assert.equal(counted.origins, 1)
+  assert.equal(counted.sessionStorage, 0)
+  const noOrigin = seedFromStorageState(state)
+  assert.equal(noOrigin.sessionStorage, undefined)
 })
 
 test("waitForProfileSave treats a 0-cookie version bump as empty-save", async () => {

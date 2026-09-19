@@ -204,6 +204,58 @@ test("replay poll window is within documented 1–3s", async () => {
   assert.ok(REPLAY_DELAY_MS <= 1_000)
 })
 
+test("checkThenVerify closes the verify-with-profile Solari client", () => {
+  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
+  const idx = src.indexOf("if (verifyWithProfile && opts.profile)")
+  assert.ok(idx >= 0, "verifyWithProfile client resolve must exist")
+  const slice = src.slice(idx, idx + 700)
+  assert.match(slice, /createClient\(\)/)
+  assert.match(slice, /finally/)
+  assert.match(slice, /solari\.close/)
+})
+
+test("checkThenVerify rewrites manifest ok to agent-success after verify", async () => {
+  const stamp = `agent-ok-${Date.now()}`
+  const dir = path.join(RUNS_DIR, stamp)
+  mkdirSync(dir, { recursive: true })
+  const shot = path.join(dir, "screenshot.png")
+  writeFileSync(shot, readFileSync(path.join(root, "demo", "ironadamant.png")))
+  writeFileSync(path.join(dir, "manifest.json"), `${JSON.stringify({ ok: true, reason: "matched" })}\n`)
+  const check = {
+    title: "t",
+    finalUrl: "https://ironadamant.com/",
+    ok: true,
+    protocolOk: true,
+    reason: "matched" as const,
+    url: "https://ironadamant.com",
+    expect: "Build it.",
+    matched: true,
+    excerpt: "Build it.",
+    screenshotPath: shot,
+    sessionId: "sess",
+    networkIdle: true,
+  }
+  await checkThenVerify(
+    { url: "https://ironadamant.com", expect: "Build it." },
+    {
+      check: async () => check,
+      verify: async () => ({
+        ok: true,
+        errors: [],
+        claimOk: false,
+        claimErrors: ["expect not found"],
+        runDir: dir,
+      }),
+    },
+  )
+  const written = JSON.parse(readFileSync(path.join(dir, "manifest.json"), "utf8")) as {
+    ok: boolean
+    reason: string
+  }
+  assert.equal(written.ok, false)
+  assert.equal(written.reason, "mismatch")
+})
+
 test("checkThenVerify with verifyWithProfile passes profileId and skips anonymous claim", async () => {
   const stamp = `verify-profile-${Date.now()}`
   const dir = path.join(RUNS_DIR, stamp)

@@ -2,13 +2,13 @@ import { existsSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
-import { deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
+import { agentReceiptOk, deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
+import { persistAgentManifest } from "./agent-receipt.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
-import { stampSchema } from "./schema-version.ts"
 import {
   emptyProfileSeedError,
   isEmptySeed,
@@ -24,6 +24,7 @@ import {
   originOf,
   PUBLIC_PROFILE_SAVE_ERROR,
 } from "./profile-storage.ts"
+import { resolveSavedCheck } from "./saved-checks.ts"
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
@@ -86,7 +87,10 @@ export type CheckOptions = {
 export type { CheckReason } from "./check-reason.ts"
 
 export type CheckResult = {
+  /** Agent success: reason is matched (verify, when it ran, is folded in by toAgentReceipt). */
   ok: boolean
+  /** Protocol success (URL+PNG, not loggedOut/needsHuman/recordedLoggedIn). Not the receipt `ok`. */
+  protocolOk?: boolean
   reason: CheckReason
   url: string
   expect: string
@@ -109,6 +113,24 @@ export type CheckResult = {
 }
 
 export { packageRoot } from "./paths.ts"
+
+/** CLI/MCP finalize-login: SSO + save-profile to capture sessionStorage (CH recipe). */
+export async function runFinalizeLogin(opts: {
+  profile: string
+  url?: string
+  onProgress?: ProgressFn
+}): Promise<CheckResult> {
+  const saved = resolveSavedCheck("consistencyhub")
+  return runCheck({
+    url: opts.url || saved.url,
+    expect: saved.expect,
+    profile: requireProfileName(opts.profile),
+    sso: true,
+    ssoProvider: "microsoft",
+    saveProfile: true,
+    onProgress: opts.onProgress,
+  })
+}
 
 export function toReceiptPath(absPath: string): string {
   return path.relative(packageRoot, absPath).replaceAll("\\", "/")
@@ -205,7 +227,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       sessionId = browser.id
       await rememberLive("browser", sessionId).catch(() => undefined)
       if (isCancelled()) return
-      profileSeed = seedFromStorageState(browser.session.storageState)
+      profileSeed = seedFromStorageState(browser.session.storageState, originOf(opts.url))
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile))
       }
@@ -410,7 +432,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       excludeDir: outDir,
     })
     const result: CheckResult = {
-      ok: protocolOk,
+      ok: agentReceiptOk({ protocolOk, reason }),
+      protocolOk,
       reason,
       url: opts.url,
       expect: opts.expect,
@@ -431,7 +454,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       profileSeed,
       profileSaved,
     }
-    await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(stampSchema(result), null, 2)}\n`)
+    await persistAgentManifest(result)
     return result
   } finally {
     try {

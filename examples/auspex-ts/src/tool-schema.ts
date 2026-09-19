@@ -163,7 +163,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true.",
+      "Default true (anonymous sandbox HTTP fetch + OCR) except name=consistencyhub, which defaults to false because anonymous fetch cannot see auth-gated UI. Pass true or verifyWithProfile to force verify for consistencyhub. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
     ),
   verifyWithProfile: z
     .boolean()
@@ -290,6 +290,11 @@ export const auspexReapInputSchema = z.object({
     .boolean()
     .optional()
     .describe("Also list/kill every holding sandbox/desktop on this Solari key. Default reap only ledger ids plus --session/--vm."),
+})
+
+export const auspexFinalizeLoginInputSchema = z.object({
+  profile: profileNameSchema.describe("Profile name to finalize (SSO + save-profile; captures sessionStorage)"),
+  url: httpUrlSchema.optional().describe("Optional http(s) URL (defaults to ConsistencyHub)"),
 })
 
 export const auspexProfileStatusInputSchema = z.object({
