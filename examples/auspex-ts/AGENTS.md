@@ -18,7 +18,7 @@ Three distinct booleans in receipts, each with different meaning:
 
 **For public marketing pages:** Use default verify (anonymous). `ok=true` requires `claimOk=true`.
 
-**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify` for smoke tests), or use `--verify-with-profile` to get `claimOkProfile`. `name=consistencyhub`, `profile=consistencyhub`, or a profile on consistencyhub.io / onedrive.live.com now **skip** anonymous verify by default. Other ad-hoc auth URLs (no profile, or an unknown host) still default-verify and will print `ok=false` on a live match. `--verify` on those paths is still anonymous and will poison `ok`.
+**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify` for smoke tests), or use `--verify-with-profile` to get `claimOkProfile`. `name=consistencyhub`, `profile=consistencyhub`, or a profile on consistencyhub.io / onedrive.live.com now **skip** anonymous verify by default. Other ad-hoc auth URLs (no profile, or an unknown host) still default-verify and will print `ok=false` on a live match. `--verify` on those paths is still anonymous and will poison `ok`. A VWP timeout after anonymous claim is skipped keeps `anonymousClaimSkipped` and sets `claimOkProfile=false`; it does not treat the miss as an anonymous `claimOk` failure. `ok` still follows integrity `verify.ok` — do not fold `claimOkProfile` into `ok`.
 
 **Verified dogfood (2026-09-18):** ConsistencyHub with `--verify-with-profile` → `ok=true`, `claimOkProfile=true`. OneDrive (same Microsoft profile) with `--verify-with-profile` → `ok=true`, `claimOkProfile=true`. Profile-seeded verification works.
 

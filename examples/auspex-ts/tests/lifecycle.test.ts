@@ -323,6 +323,82 @@ test("checkThenVerify with verifyWithProfile passes profileId and skips anonymou
   assert.equal(both.verify.claimOkProfile, true, "profile claim should succeed")
 })
 
+test("checkThenVerify VWP timeout preserves anonymousClaimSkipped so reason stays matched", async () => {
+  const { toAgentReceipt } = await import("../src/agent-receipt.ts")
+  const check = {
+    title: "Dashboard",
+    finalUrl: "https://consistencyhub.io/dashboard",
+    ok: true,
+    protocolOk: true,
+    reason: "matched" as const,
+    url: "https://consistencyhub.io",
+    expect: "Document Editor",
+    matched: true,
+    excerpt: "Document Editor",
+    screenshotPath: ".auspex/runs/stamp/screenshot.png",
+    sessionId: "sess",
+    networkIdle: true,
+  }
+  const both = await checkThenVerify(
+    {
+      url: "https://consistencyhub.io",
+      expect: "Document Editor",
+      profile: "consistencyhub",
+      verifyWithProfile: true,
+    },
+    {
+      check: async () => check,
+      verify: async () => {
+        throw new Error("sandbox verify timed out after 90000ms")
+      },
+      verifyWithProfile: true,
+    },
+  )
+  assert.equal(both.check.ok, true)
+  assert.equal(both.verify.ok, false)
+  assert.equal(both.verify.claimOk, false)
+  assert.equal(both.verify.anonymousClaimSkipped, true)
+  assert.equal(both.verify.claimOkProfile, false)
+  assert.match(both.verify.errors.join(" "), /timed out/)
+  const receipt = toAgentReceipt(both.check, { verify: both.verify })
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "matched")
+  assert.equal(receipt.verify?.anonymousClaimSkipped, true)
+  assert.equal(receipt.verify?.claimOkProfile, false)
+})
+
+test("checkThenVerify non-VWP timeout does not invent anonymousClaimSkipped", async () => {
+  const { toAgentReceipt } = await import("../src/agent-receipt.ts")
+  const check = {
+    title: "t",
+    finalUrl: "https://ironadamant.com/",
+    ok: true,
+    protocolOk: true,
+    reason: "matched" as const,
+    url: "https://ironadamant.com",
+    expect: "Build it.",
+    matched: true,
+    excerpt: "Build it.",
+    screenshotPath: ".auspex/runs/stamp/screenshot.png",
+    sessionId: "sess",
+    networkIdle: true,
+  }
+  const both = await checkThenVerify(
+    { url: "https://ironadamant.com", expect: "Build it." },
+    {
+      check: async () => check,
+      verify: async () => {
+        throw new Error("sandbox verify timed out after 90000ms")
+      },
+    },
+  )
+  assert.equal(both.verify.anonymousClaimSkipped, undefined)
+  assert.equal(both.verify.claimOkProfile, undefined)
+  const receipt = toAgentReceipt(both.check, { verify: both.verify })
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "network")
+})
+
 test("agentReceiptOk succeeds with anonymousClaimSkipped when live matched and integrity ok", async () => {
   const { agentReceiptOk } = await import("../src/check-reason.ts")
   const okWithSkip = agentReceiptOk({

@@ -12,6 +12,53 @@ export async function boundPromise<T>(p: Promise<T>, ms: number, message: string
   return raceWithTimeout(async () => p, ms, message)
 }
 
+/** Sleep that rejects when `signal` aborts. Timer is always cleared. */
+export function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    return Promise.reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"))
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"))
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+/** Child controller that aborts when the parent does. Caller must `dispose`. */
+export function linkAbortSignal(parent?: AbortSignal): {
+  signal: AbortSignal
+  abort: (reason?: unknown) => void
+  dispose: () => void
+} {
+  const ac = new AbortController()
+  const onParent = () => {
+    if (!ac.signal.aborted) ac.abort()
+  }
+  if (parent?.aborted) {
+    ac.abort()
+  } else {
+    parent?.addEventListener("abort", onParent, { once: true })
+  }
+  return {
+    signal: ac.signal,
+    abort: () => {
+      if (!ac.signal.aborted) ac.abort()
+    },
+    dispose: () => {
+      parent?.removeEventListener("abort", onParent)
+    },
+  }
+}
+
 /** Reject `p` when `signal` aborts (does not cancel the inner work, but observes cancel). */
 export async function observeAbort<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
