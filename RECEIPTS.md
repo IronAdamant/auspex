@@ -91,7 +91,8 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 **Demo artifacts (committed):**
 
 - **[Screenshot](examples/auspex-ts/demo/ironadamant.png)** — PNG from cloud Chrome (337 KB)
-- **[Receipt JSON](examples/auspex-ts/demo/receipt.json)** — Marketing summary with `sessionId` and verify flags
+- **[Schema v1 receipt](examples/auspex-ts/demo/ironadamant-receipt.json)** — Frozen agent contract (`parseReceiptV1`). Synthetic `sessionId`. No `replayUrl`.
+- **[Marketing summary](examples/auspex-ts/demo/receipt.json)** — Human-oriented JSON with `sessionId` and verify flags; **not** schema v1
 - **[Replay HTML](examples/auspex-ts/demo/replay.html)** — rrweb recording ([view via jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html))
 - **[Replay NDJSON](examples/auspex-ts/demo/replay.ndjson)** — Raw recording data ([view via jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.ndjson))
 
@@ -118,12 +119,12 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 ### Marketing Summary vs. Schema v1
 
-The committed `demo/receipt.json` is a **public marketing summary** that includes:
-- `sessionId` for Solari console replay lookup
-- Verify outcome flags (`claimOk`, `verifyOk`)
-- Human-readable note about replay URLs
+Two committed ironadamant JSON files:
 
-**This is NOT the schema v1 CLI/MCP stdout contract.** Agents receive a different, parseable receipt on stdout when they call `auspex_check` or use the MCP tool.
+- [`demo/receipt.json`](examples/auspex-ts/demo/receipt.json) — **public marketing summary** (`sessionId`, `claimOk`, `verifyOk`, replay note). **Not** the schema v1 CLI/MCP stdout contract.
+- [`demo/ironadamant-receipt.json`](examples/auspex-ts/demo/ironadamant-receipt.json) — **schema v1** public-check receipt (`parseReceiptV1`). Required keys: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`. Synthetic `sessionId`. No `replayUrl`.
+
+Agents receive schema v1 on stdout when they call `auspex_check` or use the MCP tool.
 
 ### Schema v1 Receipt (Agent Contract)
 

@@ -1,0 +1,2 @@
+examples/auspex-ts/dist/** linguist-vendored
+examples/auspex-ts/dist/** linguist-generated=true

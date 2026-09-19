@@ -1,0 +1,43 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+# Human step: Settings → Pages → Source = GitHub Actions.
+# Do not set the GitHub homepage until this URL 200s and the replay plays.
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble Pages artifact
+        run: |
+          mkdir -p _site/demo
+          cp -a docs/. _site/
+          cp examples/auspex-ts/demo/replay.html \
+            examples/auspex-ts/demo/ironadamant.png \
+            examples/auspex-ts/demo/receipt.json \
+            examples/auspex-ts/demo/ironadamant-receipt.json \
+            examples/auspex-ts/demo/consistencyhub.png \
+            examples/auspex-ts/demo/consistencyhub-receipt.json \
+            _site/demo/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://ironadamant.com",
+  "expect": "One office job.",
+  "screenshotPath": "examples/auspex-ts/demo/ironadamant.png",
+  "title": "One office job. You run it. | Iron Adamant",
+  "finalUrl": "https://ironadamant.com/",
+  "matched": true,
+  "sessionId": "demo_synthetic_session_ironadamant_public_marketing_page",
+  "networkIdle": true,
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": true,
+    "claimErrors": [],
+    "runDir": "examples/auspex-ts/demo"
+  },
+  "demoNote": "Schema v1 public-check receipt for ironadamant.com. sessionId is the synthetic DEMO_SYNTHETIC_SESSION_ID placeholder. No replayUrl. Marketing summary remains demo/receipt.json."
+}

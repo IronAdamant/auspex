@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Auspex — cloud Chrome check → sandbox verify → tear-down</title>
+  <meta name="description" content="Watch a Solari cloud Chrome public check of ironadamant.com. ok ≠ claimOk ≠ claimOkProfile. Never types passwords."/>
+  <style>
+    :root {
+      --bg: #111;
+      --fg: #eee;
+      --muted: #9aa3b2;
+      --link: #9cf;
+      --border: #2a3140;
+      --panel: #1a1f2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+    }
+    a { color: var(--link); }
+    header, main, footer { max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
+    header p { color: var(--muted); max-width: 46rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
+    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.6rem; }
+    .watch {
+      width: 100%;
+      min-height: 640px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #000;
+    }
+    pre {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      overflow-x: auto;
+      font-size: 0.88rem;
+    }
+    .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    figure { margin: 0; }
+    figure img {
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: block;
+    }
+    figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+    ul { color: var(--muted); }
+    @media (max-width: 800px) {
+      .shots { grid-template-columns: 1fr; }
+      .watch { min-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Auspex</h1>
+    <p>Cloud Chrome check → independent sandbox verify → tear-down. <code>ok</code> ≠ <code>claimOk</code> ≠ <code>claimOkProfile</code>. Never types passwords.</p>
+    <p>
+      Watch (no clone, no API key):
+      <a href="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html">jsDelivr rrweb replay</a>
+      · <a href="https://github.com/IronAdamant/auspex">GitHub</a>
+      · Pages copy: <a href="demo/replay.html">demo/replay.html</a>
+    </p>
+  </header>
+  <main>
+    <iframe
+      class="watch"
+      title="Auspex rrweb replay — public check of ironadamant.com (no login)"
+      src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"
+      loading="lazy"
+      referrerpolicy="no-referrer"
+    ></iframe>
+    <p>This replay is a <strong>public check (no login)</strong> of ironadamant.com. It does not prove logged-in honesty.</p>
+
+    <h2>Verification triad</h2>
+    <ul>
+      <li><code>ok</code> — agent success (live match, and verify passed when it ran)</li>
+      <li><code>claimOk</code> — anonymous sandbox fetch + OCR saw the expect string</li>
+      <li><code>claimOkProfile</code> — a second profile-seeded browser saw the expect string</li>
+    </ul>
+    <p>Do not fold <code>claimOkProfile</code> into <code>ok</code>.</p>
+
+    <h2>Try it</h2>
+    <pre>git clone https://github.com/IronAdamant/auspex.git
+cd auspex
+npm install
+export SOLARI_API_KEY=slr_live_…   # console.getsolari.com — env only, never commit
+npx auspex check --name ironadamant
+npx auspex check https://example.com --expect "Example Domain"
+npx auspex-mcp</pre>
+
+    <h2>Receipts</h2>
+    <div class="shots">
+      <figure>
+        <img
+          src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/ironadamant.png"
+          alt="Solari cloud Chrome checking ironadamant.com (public check, no login)"
+        />
+        <figcaption>Public marketing page. Schema v1: <a href="demo/ironadamant-receipt.json">ironadamant-receipt.json</a>. Marketing summary: <a href="demo/receipt.json">receipt.json</a>.</figcaption>
+      </figure>
+      <figure>
+        <img
+          src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/consistencyhub.png"
+          alt="ConsistencyHub dashboard, blurred to protect PII. Blur is not a blank fail."
+        />
+        <figcaption>Auth-gated ConsistencyHub (redacted). Blur ≠ blank fail. Triad: <code>ok=true</code>, <code>claimOk=false</code> (anonymous skipped), <code>claimOkProfile=true</code>. Receipt: <a href="demo/consistencyhub-receipt.json">consistencyhub-receipt.json</a>.</figcaption>
+      </figure>
+    </div>
+  </main>
+  <footer>
+    <p>Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>. Never type passwords. Never <code>--record</code> a logged-in dashboard.</p>
+  </footer>
+</body>
+</html>

@@ -78,3 +78,32 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /auspex_finalize_login/)
   assert.match(cursorRule, /weakSeed/)
 })
+
+test("root README first screen is For Reviewers + watch URL", () => {
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const first = rootReadme.split("\n").slice(0, 80).join("\n")
+  assert.match(first, /For Reviewers/)
+  assert.match(
+    first,
+    /https:\/\/cdn\.jsdelivr\.net\/gh\/IronAdamant\/auspex@main\/examples\/auspex-ts\/demo\/replay\.html/,
+  )
+  assert.match(first, /npx auspex-mcp/)
+  assert.match(first, /[Pp]ublic check/)
+  assert.match(first, /[Aa]uth-gated/)
+})
+
+test("showcase landing and Discord packet hero the jsDelivr watch URL", () => {
+  const watch =
+    "https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"
+  const escaped = watch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
+  const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
+  assert.match(index, new RegExp(escaped))
+  assert.match(discord, new RegExp(escaped))
+  assert.match(discord, /https:\/\/github\.com\/IronAdamant\/auspex/)
+  assert.match(discord, /npx auspex check --name ironadamant/)
+  assert.match(discord, /npx auspex-mcp/)
+  assert.match(discord, /ok.*claimOk.*claimOkProfile/)
+  assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(index), false)
+  assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
+})

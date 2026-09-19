@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { DEMO_SYNTHETIC_SESSION_ID, replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
+import { parseReceiptV1 } from "../src/receipt-schema.ts"
 
 const demo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "demo")
 
@@ -31,6 +32,24 @@ test("demo receipt has sessionId and no replayUrl", () => {
   assert.equal(receipt.matched, true)
   assert.equal(receipt.verifyOk, true)
   assert.equal(receipt.claimOk, true)
+})
+
+test("demo ironadamant-receipt.json is schema v1", () => {
+  const raw = JSON.parse(readFileSync(path.join(demo, "ironadamant-receipt.json"), "utf8")) as Record<
+    string,
+    unknown
+  >
+  const receipt = parseReceiptV1(raw)
+  assert.equal(receipt.schemaVersion, 1)
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.reason, "matched")
+  assert.equal(receipt.url, "https://ironadamant.com")
+  assert.equal(receipt.expect, "One office job.")
+  assert.match(receipt.screenshotPath, /ironadamant\.png/)
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.sessionId, DEMO_SYNTHETIC_SESSION_ID)
+  assert.equal(receipt.verify?.claimOk, true)
+  assert.equal("replayUrl" in raw, false)
 })
 
 test("demo PNG is a real PNG", () => {
