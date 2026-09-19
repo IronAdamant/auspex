@@ -21,10 +21,12 @@
     "@solarisdk/mcp": "0.4.3",
     "@solarisdk/sdk": "0.1.2",
     "patchright-core": "1.62.2",
+    "qrcode": "^1.5.4",
     "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
     "esbuild": "^0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

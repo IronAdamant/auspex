@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
 import { deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
+import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { runPageActions } from "./page-actions.ts"
@@ -77,6 +78,8 @@ export type CheckOptions = {
   captcha?: boolean
   saveProfile?: boolean
   verifyWithProfile?: boolean
+  mobile?: boolean
+  device?: string
   onProgress?: ProgressFn
 }
 
@@ -206,7 +209,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile))
       }
-      const page = await pageForSession(browser)
+      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device })
+      const page = await pageForSession(browser, deviceContextOptions)
       if (isCancelled()) return
       onProgress("goto")
       await gotoWithSessionRestore(page, {

@@ -5,6 +5,8 @@ import { runCheck } from "./check.ts"
 import { buildCheckToolContent, buildReceiptToolContent, packToolFailure } from "./content.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
+import { ensureRunDir } from "./paths.ts"
+import { generateQRCode } from "./qr-gen.ts"
 import { listProfiles, loginProfile } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
@@ -102,7 +104,12 @@ export function registerAuspexTools(server: McpServer): void {
     },
     async ({ profile, url, wait }) => {
       try {
+        const runDir = await ensureRunDir()
         const result = await loginProfile(profile, url)
+        if (result.handoff?.url) {
+          const qr = await generateQRCode(result.handoff.url, runDir)
+          result.handoff.qrPath = qr.qrPath
+        }
         if (!wait) {
           return { content: [{ type: "text" as const, text: toolJson({ ok: true, ...result }) }] }
         }

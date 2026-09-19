@@ -34,7 +34,7 @@ export type ProfileSaveResult = {
   error?: string
 }
 
-export type AwaitLoginStatus = "completed" | "timeout" | "empty-save"
+export type AwaitLoginStatus = "completed" | "timeout" | "empty-save" | "waiting"
 
 export type AwaitLoginResult = {
   status: AwaitLoginStatus
@@ -197,6 +197,9 @@ function awaitNext(
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`
   }
+  if (status === "waiting") {
+    return `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`
+  }
   return `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`
 }
 
@@ -219,7 +222,7 @@ export async function waitForProfileSave(
   const since = opts.sinceVersion ?? profile.version ?? 0
   let version = profile.version ?? since
   let seed: ProfileSeed = { cookies: 0, origins: 0 }
-  let status: AwaitLoginStatus = "timeout"
+  let status: AwaitLoginStatus = "waiting"
   const isConsistencyHub = want.toLowerCase() === "consistencyhub"
   const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : undefined
   
@@ -234,7 +237,10 @@ export async function waitForProfileSave(
       break
     }
     const remain = deadline - now()
-    if (remain <= 0) break
+    if (remain <= 0) {
+      status = "timeout"
+      break
+    }
     await sleepFn(Math.min(HANDOFF_POLL_MS, remain))
   }
   return {
