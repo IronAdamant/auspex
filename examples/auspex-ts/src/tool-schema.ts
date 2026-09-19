@@ -40,6 +40,8 @@ export function isConsistencyHubCheck(opts: { name?: string; profile?: string })
 /**
  * Fail-closed record+profile guards: refuse recording with a profile (captures input) unless
  * explicitly allowed on a public marketing host (never for ConsistencyHub).
+ * Additionally, refuse record+profile+fill/click combinations to prevent capturing user input
+ * even on public marketing URLs.
  */
 export function assertRecordProfileAllowed(opts: {
   record?: boolean
@@ -47,6 +49,8 @@ export function assertRecordProfileAllowed(opts: {
   name?: string
   url?: string
   allowRecordProfile?: boolean
+  fill?: string
+  click?: string
 }): void {
   if (isConsistencyHubCheck(opts) && (opts.record || opts.allowRecordProfile)) {
     throw new Error(CONSISTENCYHUB_RECORD_ERROR)
@@ -57,6 +61,11 @@ export function assertRecordProfileAllowed(opts: {
   if (opts.record && opts.profile && opts.allowRecordProfile) {
     if (!opts.url || !isPublicMarketingUrl(opts.url)) {
       throw new Error(RECORD_PROFILE_HOST_ERROR)
+    }
+    if (opts.fill || opts.click) {
+      throw new Error(
+        "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
+      )
     }
   }
 }

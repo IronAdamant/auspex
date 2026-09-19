@@ -167,6 +167,34 @@ def auth_integrity_errors(url):
     return errors
 
 
+def validate_url_origin(requested_url, final_url):
+    """Validate finalUrl origin matches requested URL origin or follows documented redirect policy."""
+    errors = []
+    req_parsed = urlparse(requested_url)
+    final_parsed = urlparse(final_url)
+    
+    req_origin = f"{req_parsed.scheme}://{req_parsed.hostname or ''}"
+    final_origin = f"{final_parsed.scheme}://{final_parsed.hostname or ''}"
+    
+    if req_origin != final_origin:
+        req_host = (req_parsed.hostname or "").lower()
+        final_host = (final_parsed.hostname or "").lower()
+        
+        allowed_redirects = [
+            (lambda r, f: r.replace("www.", "") == f.replace("www.", "")),
+            (lambda r, f: r == "ironadamant.com" and f == "ironadamant.com"),
+            (lambda r, f: r == "checkpointprojects.com" and (f == "checkpointprojects.com" or f == "www.checkpointprojects.com")),
+            (lambda r, f: r == "consistencyhub.io" and f == "consistencyhub.io"),
+        ]
+        
+        redirect_allowed = any(check(req_host, final_host) for check in allowed_redirects)
+        
+        if not redirect_allowed:
+            errors.append(f"finalUrl origin {final_origin} does not match requested origin {req_origin}")
+    
+    return errors
+
+
 def audit_claim(man, work, skip_fetch, skip_all):
     if skip_all:
         return ["anonymous claim skipped"]
@@ -228,6 +256,12 @@ def main(argv):
     url = str(man.get("finalUrl") or "")
     auth_errs = auth_integrity_errors(url)
     integrity.extend(auth_errs)
+    
+    requested_url = str(man.get("url") or "")
+    if requested_url and url:
+        origin_errs = validate_url_origin(requested_url, url)
+        integrity.extend(origin_errs)
+    
     claim = audit_claim(man, work, skip_fetch=bool(auth_errs), skip_all=skip_anonymous_claim)
     out = {
         "ok": len(integrity) == 0,
