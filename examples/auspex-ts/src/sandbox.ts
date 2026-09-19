@@ -10,7 +10,7 @@ import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY }
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
-import { haystackMatches, normalizeHaystack } from "./text.ts"
+import { haystackMatches } from "./text.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
@@ -18,10 +18,11 @@ export const VERIFY_OVERALL_MS = 90_000
 export const CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS
 /** Leave this much of VERIFY_OVERALL_MS so a profile-claim return beats the outer race. */
 export const PROFILE_CLAIM_RETURN_BUFFER_MS = 750
-/** Post-goto settle before first text sample. Same duration as before; now abortable. */
+/** Cap for post-goto expect poll (not a mandatory sleep). */
 export const PROFILE_CLAIM_SETTLE_MS = 2_000
-/** Extra wait only when the first sample is empty or under 50 chars. */
+/** Extra poll cap when the first sample is empty or under 50 chars. */
 export const PROFILE_CLAIM_RETRY_MS = 3_000
+const PROFILE_CLAIM_POLL_SLICE_MS = 150
 
 export function profileClaimBudgetMs(overallMs: number, elapsedMs: number): number {
   return overallMs - elapsedMs - PROFILE_CLAIM_RETURN_BUFFER_MS
@@ -157,11 +158,21 @@ export async function defaultProfileClaimCheck(opts: {
     } catch {
       // network idle optional for claim check
     }
-    await abortableSleep(PROFILE_CLAIM_SETTLE_MS, signal)
-    let raw = await page.evaluate(() => document.body?.innerText ?? "")
-    if (!raw.trim() || raw.length < 50) {
-      await abortableSleep(PROFILE_CLAIM_RETRY_MS, signal)
-      raw = await page.evaluate(() => document.body?.innerText ?? "")
+    const sample = () => page.evaluate(() => document.body?.innerText ?? "")
+    let raw = await sample()
+    if (!haystackMatches(raw, opts.expect)) {
+      const cap =
+        !raw.trim() || raw.length < 50
+          ? PROFILE_CLAIM_SETTLE_MS + PROFILE_CLAIM_RETRY_MS
+          : PROFILE_CLAIM_SETTLE_MS
+      const started = Date.now()
+      while (Date.now() - started < cap) {
+        const remain = cap - (Date.now() - started)
+        if (remain <= 0) break
+        await abortableSleep(Math.min(PROFILE_CLAIM_POLL_SLICE_MS, remain), signal)
+        raw = await sample()
+        if (haystackMatches(raw, opts.expect)) break
+      }
     }
     const matched = haystackMatches(raw, opts.expect)
     closer.skip()

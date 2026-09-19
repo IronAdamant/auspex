@@ -2,6 +2,7 @@ import type { Solari, StorageState } from "@solarisdk/browser"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
+import { hostIs } from "./sso.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -67,6 +68,38 @@ export function seedFromStorageState(state: StorageState | null | undefined, ori
 
 export function isEmptySeed(seed: ProfileSeed): boolean {
   return seed.cookies === 0 && seed.origins === 0
+}
+
+/** ConsistencyHub by saved name, profile name, or host. Not a kebab/slug heuristic. */
+export function isConsistencyHubTarget(opts: { name?: string; profile?: string; url?: string }): boolean {
+  const name = (opts.name ?? "").trim().toLowerCase()
+  const profile = (opts.profile ?? "").trim().toLowerCase()
+  if (name === "consistencyhub" || profile === "consistencyhub") return true
+  const raw = opts.url?.trim()
+  if (!raw) return false
+  try {
+    return hostIs(new URL(raw).hostname, "consistencyhub.io")
+  } catch {
+    return false
+  }
+}
+
+/**
+ * weakSeed only when ConsistencyHub (name/profile/host) has cookies/origins and a counted
+ * sessionStorage of 0. Unknown sessionStorage (no origin) is not weakSeed.
+ */
+export function isWeakSeed(opts: {
+  name?: string
+  profile?: string
+  url?: string
+  cookies?: number
+  origins?: number
+  sessionStorage?: number
+}): boolean {
+  if (!isConsistencyHubTarget(opts)) return false
+  if (opts.sessionStorage === undefined) return false
+  const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0
+  return hasStore && opts.sessionStorage === 0
 }
 
 export function emptyProfileSeedError(name: string): string {
@@ -185,15 +218,15 @@ function awaitNext(
 ): string {
   if (status === "completed") {
     let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`
-    const hasOrigins = seed.origins > 0 || seed.cookies > 0
-    const hasNoSessionStorage = seed.sessionStorage !== undefined && seed.sessionStorage === 0
-    if (hasOrigins && hasNoSessionStorage) {
-      const profileLc = profile.name.trim().toLowerCase()
-      const isConsistencyHub = profileLc === "consistencyhub"
-      const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3
-      if (isConsistencyHub || looksLikeAppProfile) {
-        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
-      }
+    if (
+      isWeakSeed({
+        profile: profile.name,
+        cookies: seed.cookies,
+        origins: seed.origins,
+        sessionStorage: seed.sessionStorage,
+      })
+    ) {
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
     }
     return base
   }

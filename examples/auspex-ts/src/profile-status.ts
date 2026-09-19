@@ -1,6 +1,6 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
-import { inspectProfileSeed } from "./profile-persist.ts"
+import { inspectProfileSeed, isWeakSeed } from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
@@ -112,13 +112,18 @@ export async function profileStatus(
     }
   }
 
-  const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0)
-  const hasNoSessionStorage = seed && seed.sessionStorage !== undefined && seed.sessionStorage === 0
-  const profileLc = profile.trim().toLowerCase()
-  const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3
-  const isConsistencyHub = profileLc === "consistencyhub"
-  
-  if (hasOrigins && hasNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+  if (!url && seed) {
+    seed = { cookies: seed.cookies, origins: seed.origins }
+  }
+  const weakOpts = {
+    name: opts.name,
+    profile,
+    url,
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage,
+  }
+  if (isWeakSeed(weakOpts)) {
     return {
       ok: false,
       reason: "weakSeed",
@@ -127,7 +132,7 @@ export async function profileStatus(
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage,
@@ -177,8 +182,6 @@ export async function profileStatus(
     throw err
   }
   if (!seed && result.profileSeed) seed = result.profileSeed
-  const liveHasOrigins = seed && (seed.cookies > 0 || seed.origins > 0)
-  const liveNoSessionStorage = seed && seed.sessionStorage !== undefined && seed.sessionStorage === 0
   if (result.needsHuman || result.reason === "needsHuman") {
     return {
       ok: false,
@@ -207,7 +210,17 @@ export async function profileStatus(
   const matchedClaim = Boolean(claim) && result.matched === true
   const loggedOutLive =
     result.reason === "loggedOut" || (landed && isLoggedOutLanding(landed, { matched: matchedClaim })) || auth
-  if (loggedOutLive && liveHasOrigins && liveNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+  if (
+    loggedOutLive &&
+    isWeakSeed({
+      name: opts.name,
+      profile,
+      url,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
+    })
+  ) {
     return {
       ok: false,
       reason: "weakSeed",
@@ -215,7 +228,7 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,

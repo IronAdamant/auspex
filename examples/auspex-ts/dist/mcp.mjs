@@ -40,7 +40,7 @@ function deriveCheckReason(input) {
 }
 function overlayVerifyReason(reason, verify) {
   if (reason !== "matched") return reason;
-  if (verify.anonymousClaimSkipped) return "matched";
+  if (verify.anonymousClaimSkipped) return verify.ok ? "matched" : "network";
   if (verify.ok && verify.claimOk) return "matched";
   const blob = [...verify.errors ?? [], ...verify.claimErrors ?? []].join(" ").toLowerCase();
   if (!verify.claimOk && /expect|mismatch|not found|missing/i.test(blob)) return "mismatch";
@@ -145,9 +145,9 @@ async function ensureRunDir() {
   const auspexDir = path.join(packageRoot, ".auspex");
   const runsDir = path.join(auspexDir, "runs");
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
-  const runDir2 = path.join(runsDir, stamp);
-  await mkdir(runDir2, { recursive: true });
-  return runDir2;
+  const runDir = path.join(runsDir, stamp);
+  await mkdir(runDir, { recursive: true });
+  return runDir;
 }
 
 // src/agent-receipt.ts
@@ -217,7 +217,7 @@ async function persistAgentManifest(check, extras) {
 
 // src/check.ts
 import { existsSync as existsSync4 } from "node:fs";
-import { mkdir as mkdir4, readFile as readFile5, writeFile as writeFile4 } from "node:fs/promises";
+import { readFile as readFile5, writeFile as writeFile4 } from "node:fs/promises";
 import path10 from "node:path";
 
 // src/device-emulation.ts
@@ -258,29 +258,28 @@ var DEVICES = {
     hasTouch: true
   }
 };
+function listDevices() {
+  return Object.keys(DEVICES);
+}
+function contextOptionsFor(device) {
+  return {
+    viewport: device.viewport,
+    userAgent: device.userAgent,
+    deviceScaleFactor: device.deviceScaleFactor,
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch
+  };
+}
 function parseDeviceOptions(opts) {
   if (opts.device) {
     const device = DEVICES[opts.device.toLowerCase()];
     if (!device) {
-      const available = Object.keys(DEVICES).join(", ");
-      throw new Error(`Unknown device: ${opts.device}. Available: ${available}`);
+      throw new Error(`Unknown device: ${opts.device}. Available: ${listDevices().join(", ")}`);
     }
-    return {
-      viewport: device.viewport,
-      userAgent: device.userAgent,
-      deviceScaleFactor: device.deviceScaleFactor,
-      isMobile: device.isMobile,
-      hasTouch: device.hasTouch
-    };
+    return contextOptionsFor(device);
   }
   if (opts.mobile) {
-    return {
-      viewport: { width: 390, height: 844 },
-      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
-      deviceScaleFactor: 3,
-      isMobile: true,
-      hasTouch: true
-    };
+    return contextOptionsFor(DEVICES["iphone-13-pro"]);
   }
   return void 0;
 }
@@ -1297,6 +1296,24 @@ function seedFromStorageState(state, origin) {
 function isEmptySeed(seed) {
   return seed.cookies === 0 && seed.origins === 0;
 }
+function isConsistencyHubTarget(opts) {
+  const name = (opts.name ?? "").trim().toLowerCase();
+  const profile = (opts.profile ?? "").trim().toLowerCase();
+  if (name === "consistencyhub" || profile === "consistencyhub") return true;
+  const raw = opts.url?.trim();
+  if (!raw) return false;
+  try {
+    return hostIs(new URL(raw).hostname, "consistencyhub.io");
+  } catch {
+    return false;
+  }
+}
+function isWeakSeed(opts) {
+  if (!isConsistencyHubTarget(opts)) return false;
+  if (opts.sessionStorage === void 0) return false;
+  const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0;
+  return hasStore && opts.sessionStorage === 0;
+}
 function emptyProfileSeedError(name) {
   const n = name.trim();
   return `profile ${n} ${EMPTY_PROFILE_SEED_ERROR}`;
@@ -1380,15 +1397,13 @@ function bindInspectProfileSeed(inspect, solari) {
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
     let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
-    const hasOrigins = seed.origins > 0 || seed.cookies > 0;
-    const hasNoSessionStorage = seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
-    if (hasOrigins && hasNoSessionStorage) {
-      const profileLc = profile.name.trim().toLowerCase();
-      const isConsistencyHub = profileLc === "consistencyhub";
-      const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
-      if (isConsistencyHub || looksLikeAppProfile) {
-        base += `. Warning: profile has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
-      }
+    if (isWeakSeed({
+      profile: profile.name,
+      cookies: seed.cookies,
+      origins: seed.origins,
+      sessionStorage: seed.sessionStorage
+    })) {
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
     }
     return base;
   }
@@ -2113,8 +2128,8 @@ import { fileURLToPath as fileURLToPath5 } from "node:url";
 var ASSERT_RECEIPT_PY_PATH = path8.join(path8.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
 var RECEIPT_ASSERT_PY = readFileSync3(ASSERT_RECEIPT_PY_PATH, "utf8");
 var RUNS_DIR = path8.join(packageRoot, ".auspex", "runs");
-function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
-  const dir = path8.resolve(runDir2);
+function assertRunDirUnderRuns(runDir, runsDir = RUNS_DIR) {
+  const dir = path8.resolve(runDir);
   const root = path8.resolve(runsDir);
   if (dir !== root && !dir.startsWith(root + path8.sep)) {
     throw new Error("runDir must be under .auspex/runs");
@@ -2150,9 +2165,9 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`);
   return latest;
 }
-async function loadRunFiles(runDir2) {
-  const manifest = await readFile3(path8.join(runDir2, "manifest.json"), "utf8");
-  const png = await readFile3(path8.join(runDir2, "screenshot.png"));
+async function loadRunFiles(runDir) {
+  const manifest = await readFile3(path8.join(runDir, "manifest.json"), "utf8");
+  const png = await readFile3(path8.join(runDir, "screenshot.png"));
   return { manifest, png };
 }
 
@@ -2234,6 +2249,7 @@ var RECORD_PROFILE_ERROR = "--record cannot be used with --profile (recordings c
 var RECORD_LOGGED_IN_ERROR = "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing.";
 var CONSISTENCYHUB_RECORD_ERROR = "--allow-record-profile is refused for the consistencyhub saved check (recordings capture a logged-in session).";
 var RECORD_PROFILE_HOST_ERROR = "--record with a profile is only allowed on a public marketing host (ironadamant.com, checkpointprojects.com), even with --allow-record-profile.";
+var RECORD_PROFILE_FILL_CLICK_ERROR = "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs.";
 function isDashboardLandingUrl(url) {
   try {
     const pathName = (new URL(url).pathname.replace(/\/+$/, "") || "/").toLowerCase();
@@ -2259,9 +2275,7 @@ function assertRecordProfileAllowed(opts) {
       throw new Error(RECORD_PROFILE_HOST_ERROR);
     }
     if (opts.fill || opts.click) {
-      throw new Error(
-        "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
-      );
+      throw new Error(RECORD_PROFILE_FILL_CLICK_ERROR);
     }
   }
 }
@@ -2340,6 +2354,9 @@ var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (val.record && val.profile && val.allowRecordProfile) {
     if (val.url && !isPublicMarketingUrl(val.url)) {
       ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_PROFILE_HOST_ERROR, path: ["record"] });
+    }
+    if (val.fill || val.click) {
+      ctx.addIssue({ code: z4.ZodIssueCode.custom, message: RECORD_PROFILE_FILL_CLICK_ERROR, path: ["record"] });
     }
   }
   if ((val.fill || val.click) && (val.profile || val.name?.trim().toLowerCase() === "consistencyhub") && !val.allowPageActions) {
@@ -2583,10 +2600,6 @@ function runDirFromResult(result) {
   const abs = path10.isAbsolute(result.screenshotPath) ? result.screenshotPath : path10.join(packageRoot, result.screenshotPath);
   return path10.dirname(abs);
 }
-function runDir() {
-  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path10.join(packageRoot, ".auspex", "runs", stamp);
-}
 async function extractPage(page, selector, signal) {
   return observeAbort(
     page.evaluate((sel) => {
@@ -2617,8 +2630,7 @@ async function runCheck(opts) {
   const solari = createClient();
   const closer = new ReadyRelease();
   let sessionId = "";
-  const outDir = runDir();
-  await mkdir4(outDir, { recursive: true });
+  const outDir = await ensureRunDir();
   const screenshotAbs = path10.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
@@ -2637,6 +2649,7 @@ async function runCheck(opts) {
   let workError;
   const work = async (isCancelled, signal) => {
     try {
+      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device });
       onProgress("launching");
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : void 0;
       if (isCancelled()) return;
@@ -2662,7 +2675,6 @@ async function runCheck(opts) {
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile));
       }
-      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device });
       const page = await pageForSession(browser, deviceContextOptions);
       if (isCancelled()) return;
       onProgress("goto");
@@ -3368,15 +3380,19 @@ ${summary}`;
 // src/qr-gen.ts
 import QRCode from "qrcode";
 import path13 from "node:path";
-async function generateQRCode(url, runDir2) {
-  const qrPath = path13.join(runDir2, "handoff-qr.png");
-  await QRCode.toFile(qrPath, url, {
-    errorCorrectionLevel: "M",
-    type: "png",
-    width: 400,
-    margin: 2
-  });
-  return { qrPath };
+async function generateQRCode(url, runDir) {
+  const qrPath = path13.join(runDir, "handoff-qr.png");
+  try {
+    await QRCode.toFile(qrPath, url, {
+      errorCorrectionLevel: "M",
+      type: "png",
+      width: 400,
+      margin: 2
+    });
+    return { qrPath };
+  } catch {
+    return { qrPath: "" };
+  }
 }
 
 // src/profile-status.ts
@@ -3437,12 +3453,18 @@ async function profileStatus(opts, deps) {
       await solari.close().catch(() => void 0);
     }
   }
-  const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0);
-  const hasNoSessionStorage = seed && seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
-  const profileLc = profile.trim().toLowerCase();
-  const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
-  const isConsistencyHub = profileLc === "consistencyhub";
-  if (hasOrigins && hasNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+  if (!url && seed) {
+    seed = { cookies: seed.cookies, origins: seed.origins };
+  }
+  const weakOpts = {
+    name: opts.name,
+    profile,
+    url,
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage
+  };
+  if (isWeakSeed(weakOpts)) {
     return {
       ok: false,
       reason: "weakSeed",
@@ -3451,7 +3473,7 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage
@@ -3500,8 +3522,6 @@ async function profileStatus(opts, deps) {
     throw err;
   }
   if (!seed && result.profileSeed) seed = result.profileSeed;
-  const liveHasOrigins = seed && (seed.cookies > 0 || seed.origins > 0);
-  const liveNoSessionStorage = seed && seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
   if (result.needsHuman || result.reason === "needsHuman") {
     return {
       ok: false,
@@ -3529,7 +3549,14 @@ async function profileStatus(opts, deps) {
   }
   const matchedClaim = Boolean(claim) && result.matched === true;
   const loggedOutLive = result.reason === "loggedOut" || landed && isLoggedOutLanding(landed, { matched: matchedClaim }) || auth;
-  if (loggedOutLive && liveHasOrigins && liveNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+  if (loggedOutLive && isWeakSeed({
+    name: opts.name,
+    profile,
+    url,
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage
+  })) {
     return {
       ok: false,
       reason: "weakSeed",
@@ -3537,7 +3564,7 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -3582,7 +3609,7 @@ async function profileStatus(opts, deps) {
 import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 
 // src/receipt-pack.ts
-import { copyFile, mkdir as mkdir5, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
+import { copyFile, mkdir as mkdir4, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
 import path14 from "node:path";
 function relToPackage(abs) {
   return path14.relative(packageRoot, abs).replaceAll("\\", "/");
@@ -3594,7 +3621,7 @@ async function packLastReceipts(opts) {
   const runsDir = opts?.runsDir ?? RUNS_DIR;
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   const packDir = opts?.destDir ?? path14.join(packDirRoot(), stamp);
-  await mkdir5(packDir, { recursive: true });
+  await mkdir4(packDir, { recursive: true });
   const dirs = await listCompleteRunDirs(runsDir);
   const chosen = [];
   const seenUrl = /* @__PURE__ */ new Set();
@@ -3615,7 +3642,7 @@ async function packLastReceipts(opts) {
   const packed = [];
   for (const dir of chosen) {
     const dest = path14.join(packDir, path14.basename(dir));
-    await mkdir5(dest, { recursive: true });
+    await mkdir4(dest, { recursive: true });
     const manifestAbs = path14.join(dest, "manifest.json");
     const shotAbs = path14.join(dest, "screenshot.png");
     await copyFile(path14.join(dir, "manifest.json"), manifestAbs);
@@ -3753,6 +3780,7 @@ var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_
 var PROFILE_CLAIM_RETURN_BUFFER_MS = 750;
 var PROFILE_CLAIM_SETTLE_MS = 2e3;
 var PROFILE_CLAIM_RETRY_MS = 3e3;
+var PROFILE_CLAIM_POLL_SLICE_MS = 150;
 function profileClaimBudgetMs(overallMs, elapsedMs) {
   return overallMs - elapsedMs - PROFILE_CLAIM_RETURN_BUFFER_MS;
 }
@@ -3822,11 +3850,18 @@ async function defaultProfileClaimCheck(opts) {
       await page.waitForLoadState("networkidle", { timeout: 2e4, signal });
     } catch {
     }
-    await abortableSleep(PROFILE_CLAIM_SETTLE_MS, signal);
-    let raw = await page.evaluate(() => document.body?.innerText ?? "");
-    if (!raw.trim() || raw.length < 50) {
-      await abortableSleep(PROFILE_CLAIM_RETRY_MS, signal);
-      raw = await page.evaluate(() => document.body?.innerText ?? "");
+    const sample = () => page.evaluate(() => document.body?.innerText ?? "");
+    let raw = await sample();
+    if (!haystackMatches(raw, opts.expect)) {
+      const cap = !raw.trim() || raw.length < 50 ? PROFILE_CLAIM_SETTLE_MS + PROFILE_CLAIM_RETRY_MS : PROFILE_CLAIM_SETTLE_MS;
+      const started = Date.now();
+      while (Date.now() - started < cap) {
+        const remain = cap - (Date.now() - started);
+        if (remain <= 0) break;
+        await abortableSleep(Math.min(PROFILE_CLAIM_POLL_SLICE_MS, remain), signal);
+        raw = await sample();
+        if (haystackMatches(raw, opts.expect)) break;
+      }
     }
     const matched = haystackMatches(raw, opts.expect);
     closer.skip();
@@ -3929,10 +3964,10 @@ async function attachProfileClaim(result, args) {
     linked.dispose();
   }
 }
-async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
+async function verifyReceipt(runDir, deps = defaultVerifyDeps(), opts) {
   const onProgress = deps.onProgress ?? noopProgress;
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
-  const dir = assertRunDirUnderRuns(runDir2 ? runDir2 : await findLatestRun());
+  const dir = assertRunDirUnderRuns(runDir ? runDir : await findLatestRun());
   const { manifest, png } = await loadRunFiles(dir);
   assertReceiptUploadSize(manifest, png);
   const parsedManifest = JSON.parse(manifest);
@@ -4148,11 +4183,11 @@ function registerAuspexTools(server2) {
     },
     async ({ profile, url, wait }) => {
       try {
-        const runDir2 = await ensureRunDir();
+        const runDir = await ensureRunDir();
         const result = await loginProfile(profile, url);
         if (result.handoff?.url) {
-          const qr = await generateQRCode(result.handoff.url, runDir2);
-          result.handoff.qrPath = qr.qrPath;
+          const qr = await generateQRCode(result.handoff.url, runDir);
+          if (qr.qrPath) result.handoff.qrPath = qr.qrPath;
         }
         if (!wait) {
           return { content: [{ type: "text", text: toolJson({ ok: true, ...result }) }] };
@@ -4283,11 +4318,11 @@ function registerAuspexTools(server2) {
         runDir: z5.string().optional().describe("Optional path to an .auspex/runs/<stamp> directory")
       }
     },
-    async ({ runDir: runDir2 }, extra) => {
+    async ({ runDir }, extra) => {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_verify");
-        const result = await verifyReceipt(runDir2, { ...defaultVerifyDeps(), onProgress });
+        const result = await verifyReceipt(runDir, { ...defaultVerifyDeps(), onProgress });
         return { content: [{ type: "text", text: toolJson(result) }] };
       } catch (err) {
         return packToolFailure(err);

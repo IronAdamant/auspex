@@ -17,6 +17,9 @@ export const CONSISTENCYHUB_RECORD_ERROR =
 export const RECORD_PROFILE_HOST_ERROR =
   "--record with a profile is only allowed on a public marketing host (ironadamant.com, checkpointprojects.com), even with --allow-record-profile."
 
+export const RECORD_PROFILE_FILL_CLICK_ERROR =
+  "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
+
 export function isDashboardLandingUrl(url: string): boolean {
   try {
     const pathName = (new URL(url).pathname.replace(/\/+$/, "") || "/").toLowerCase()
@@ -63,9 +66,7 @@ export function assertRecordProfileAllowed(opts: {
       throw new Error(RECORD_PROFILE_HOST_ERROR)
     }
     if (opts.fill || opts.click) {
-      throw new Error(
-        "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
-      )
+      throw new Error(RECORD_PROFILE_FILL_CLICK_ERROR)
     }
   }
 }
@@ -226,6 +227,9 @@ export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, c
   if (val.record && val.profile && val.allowRecordProfile) {
     if (val.url && !isPublicMarketingUrl(val.url)) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_PROFILE_HOST_ERROR, path: ["record"] })
+    }
+    if (val.fill || val.click) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: RECORD_PROFILE_FILL_CLICK_ERROR, path: ["record"] })
     }
   }
   if ((val.fill || val.click) && (val.profile || val.name?.trim().toLowerCase() === "consistencyhub") && !val.allowPageActions) {

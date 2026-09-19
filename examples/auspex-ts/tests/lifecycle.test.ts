@@ -323,7 +323,7 @@ test("checkThenVerify with verifyWithProfile passes profileId and skips anonymou
   assert.equal(both.verify.claimOkProfile, true, "profile claim should succeed")
 })
 
-test("checkThenVerify VWP timeout preserves anonymousClaimSkipped so reason stays matched", async () => {
+test("checkThenVerify VWP timeout preserves anonymousClaimSkipped so reason is network not matched", async () => {
   const { toAgentReceipt } = await import("../src/agent-receipt.ts")
   const check = {
     title: "Dashboard",
@@ -362,7 +362,8 @@ test("checkThenVerify VWP timeout preserves anonymousClaimSkipped so reason stay
   assert.match(both.verify.errors.join(" "), /timed out/)
   const receipt = toAgentReceipt(both.check, { verify: both.verify })
   assert.equal(receipt.ok, false)
-  assert.equal(receipt.reason, "matched")
+  assert.notEqual(receipt.reason, "matched")
+  assert.equal(receipt.reason, "network")
   assert.equal(receipt.verify?.anonymousClaimSkipped, true)
   assert.equal(receipt.verify?.claimOkProfile, false)
 })

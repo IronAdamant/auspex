@@ -166,12 +166,13 @@ test("waitForProfileSave does not warn for non-consistencyhub profiles", async (
       })(),
       sleep: async () => undefined,
       list: async () => [{ id: "p2", name: "other-profile", version: 2 }],
-      inspect: async () => ({ cookies: 10, origins: 2 }),
+      inspect: async () => ({ cookies: 10, origins: 2, sessionStorage: 0 }),
     },
   })
   assert.equal(completed.status, "completed")
   assert.equal(completed.cookies, 10)
   assert.equal(completed.origins, 2)
+  assert.equal(completed.sessionStorage, 0)
   assert.equal(completed.next.includes("Warning"), false)
 })
 

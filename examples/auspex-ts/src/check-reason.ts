@@ -37,7 +37,7 @@ export function overlayVerifyReason(
   verify: { ok: boolean; claimOk: boolean; anonymousClaimSkipped?: boolean; errors?: string[]; claimErrors?: string[] },
 ): CheckReason {
   if (reason !== "matched") return reason
-  if (verify.anonymousClaimSkipped) return "matched"
+  if (verify.anonymousClaimSkipped) return verify.ok ? "matched" : "network"
   if (verify.ok && verify.claimOk) return "matched"
   const blob = [...(verify.errors ?? []), ...(verify.claimErrors ?? [])].join(" ").toLowerCase()
   if (!verify.claimOk && /expect|mismatch|not found|missing/i.test(blob)) return "mismatch"

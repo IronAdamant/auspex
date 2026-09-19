@@ -168,30 +168,20 @@ def auth_integrity_errors(url):
 
 
 def validate_url_origin(requested_url, final_url):
-    """Validate finalUrl origin matches requested URL origin or follows documented redirect policy."""
+    """Validate finalUrl origin matches requested URL origin or is a prefix-anchored www-flip."""
     errors = []
     req_parsed = urlparse(requested_url)
     final_parsed = urlparse(final_url)
-    
+
     req_origin = f"{req_parsed.scheme}://{req_parsed.hostname or ''}"
     final_origin = f"{final_parsed.scheme}://{final_parsed.hostname or ''}"
-    
+
     if req_origin != final_origin:
-        req_host = (req_parsed.hostname or "").lower()
-        final_host = (final_parsed.hostname or "").lower()
-        
-        allowed_redirects = [
-            (lambda r, f: r.replace("www.", "") == f.replace("www.", "")),
-            (lambda r, f: r == "ironadamant.com" and f == "ironadamant.com"),
-            (lambda r, f: r == "checkpointprojects.com" and (f == "checkpointprojects.com" or f == "www.checkpointprojects.com")),
-            (lambda r, f: r == "consistencyhub.io" and f == "consistencyhub.io"),
-        ]
-        
-        redirect_allowed = any(check(req_host, final_host) for check in allowed_redirects)
-        
-        if not redirect_allowed:
+        req_host = re.sub(r"^www\.", "", (req_parsed.hostname or "").lower())
+        final_host = re.sub(r"^www\.", "", (final_parsed.hostname or "").lower())
+        if req_host != final_host:
             errors.append(f"finalUrl origin {final_origin} does not match requested origin {req_origin}")
-    
+
     return errors
 
 

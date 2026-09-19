@@ -70,6 +70,27 @@ test("MCP auspex_check schema rejects loopback, record+profile, and whitespace p
     allowRecordProfile: true,
   })
   assert.equal(recMarketing.success, true)
+  const recFill = auspexCheckInputSchema.safeParse({
+    url: "https://ironadamant.com",
+    expect: "Build it.",
+    record: true,
+    profile: "demo",
+    allowRecordProfile: true,
+    fill: "x",
+    value: "y",
+  })
+  assert.equal(recFill.success, false)
+  const recFillAllowed = auspexCheckInputSchema.safeParse({
+    url: "https://ironadamant.com",
+    expect: "Build it.",
+    record: true,
+    profile: "demo",
+    allowRecordProfile: true,
+    allowPageActions: true,
+    fill: "x",
+    value: "y",
+  })
+  assert.equal(recFillAllowed.success, false)
   const recSso = auspexCheckInputSchema.safeParse({
     ...base,
     record: true,
