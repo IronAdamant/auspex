@@ -14,7 +14,7 @@ Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a lo
 
 - Still: [demo/ironadamant.png](demo/ironadamant.png)
 - JSON + `sessionId`: [demo/receipt.json](demo/receipt.json) (**marketing summary** with `sessionId` + verify flags; agent contract is schema v1 on CLI/MCP stdout — see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen))
-- 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After clone, open that file locally, or via [jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html).
+- 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After clone, open that file locally, or the [Pages player](https://ironadamant.com/auspex/demo/replay.html) (jsDelivr serves this file as plain text).
 - Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
 
 `--record` does not put a presigned replay URL on the JSON receipt. It does poll until replay is ready (`replayReady`) and may write `replay.ndjson` next to the receipt. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).

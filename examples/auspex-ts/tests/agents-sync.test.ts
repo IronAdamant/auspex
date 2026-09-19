@@ -83,10 +83,7 @@ test("root README first screen is For Reviewers + watch URL", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const first = rootReadme.split("\n").slice(0, 80).join("\n")
   assert.match(first, /For Reviewers/)
-  assert.match(
-    first,
-    /https:\/\/cdn\.jsdelivr\.net\/gh\/IronAdamant\/auspex@main\/examples\/auspex-ts\/demo\/replay\.html/,
-  )
+  assert.match(first, /https:\/\/ironadamant\.com\/auspex\//)
   assert.match(first, /npx auspex-mcp/)
   assert.match(first, /[Pp]ublic check/)
   assert.match(first, /[Aa]uth-gated/)
@@ -146,14 +143,29 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.match(deferred, /Do not claim timeout still invents an anonymous miss/)
 })
 
-test("showcase landing and Discord packet hero the jsDelivr watch URL", () => {
-  const watch =
-    "https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"
-  const escaped = watch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
   const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
   const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
-  assert.match(index, new RegExp(escaped))
-  assert.match(discord, new RegExp(escaped))
+  assert.match(index, /src="demo\/replay\.html"/)
+  assert.equal(
+    index.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
+    false,
+    "jsDelivr serves replay.html as text/plain; do not iframe it",
+  )
+  assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
+  for (const [label, text] of [
+    ["package README", packReadme],
+    ["RECEIPTS.md", receipts],
+    ["Discord packet", discord],
+  ] as const) {
+    assert.equal(
+      text.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
+      false,
+      `${label} must not hero jsDelivr replay.html (text/plain)`,
+    )
+  }
   assert.match(discord, /https:\/\/github\.com\/IronAdamant\/auspex/)
   assert.match(discord, /npx auspex check --name ironadamant/)
   assert.match(discord, /npx auspex-mcp/)

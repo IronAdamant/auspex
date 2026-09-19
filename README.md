@@ -8,7 +8,7 @@ The ironadamant one-liner is a **public check (no login)**. It does **not** prov
 
 | Door | Open this |
 | --- | --- |
-| **Watch** (no clone, no key) | [rrweb replay](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html) |
+| **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) |
 | **Public check (no login)** | `npx auspex check --name ironadamant` |
 | **Any host** | `npx auspex check https://example.com --expect "Example Domain"` |
 | **MCP** | `npx auspex-mcp` |
