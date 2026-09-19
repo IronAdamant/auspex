@@ -29,6 +29,9 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build:mcp
       - run: git diff --exit-code -- dist/
+      - name: npm audit high+
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - name: Root spawn door
         working-directory: ${{ github.workspace }}
         run: node bin/auspex.mjs --help

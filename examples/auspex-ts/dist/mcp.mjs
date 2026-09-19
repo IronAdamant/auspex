@@ -1451,8 +1451,9 @@ function fenceExcerpt(text) {
   const inner = text.trim();
   if (!inner) return inner;
   if (inner.startsWith(EXCERPT_FENCE_START)) return inner;
+  const sanitized = inner.replace(/<<<AUSPEX_UNTRUSTED_PAGE_TEXT/g, "<<<[SANITIZED]AUSPEX_UNTRUSTED_PAGE_TEXT").replace(/AUSPEX_UNTRUSTED_PAGE_TEXT>>>/g, "AUSPEX_UNTRUSTED_PAGE_TEXT[SANITIZED]>>>");
   return `${EXCERPT_FENCE_START}
-${inner}
+${sanitized}
 ${EXCERPT_FENCE_END}`;
 }
 function prepareCheckExcerpt(opts) {
@@ -2112,6 +2113,11 @@ function assertRecordProfileAllowed(opts) {
   if (opts.record && opts.profile && opts.allowRecordProfile) {
     if (!opts.url || !isPublicMarketingUrl(opts.url)) {
       throw new Error(RECORD_PROFILE_HOST_ERROR);
+    }
+    if (opts.fill || opts.click) {
+      throw new Error(
+        "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
+      );
     }
   }
 }

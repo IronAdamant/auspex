@@ -210,6 +210,8 @@ export function parseArgv(argv: string[]): ParseResult {
         name,
         url,
         allowRecordProfile,
+        fill,
+        click,
       })
     } catch (err) {
       return { status: "error", message: err instanceof Error ? err.message : String(err) }

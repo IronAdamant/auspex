@@ -21,7 +21,10 @@ export function fenceExcerpt(text: string): string {
   const inner = text.trim()
   if (!inner) return inner
   if (inner.startsWith(EXCERPT_FENCE_START)) return inner
-  return `${EXCERPT_FENCE_START}\n${inner}\n${EXCERPT_FENCE_END}`
+  const sanitized = inner
+    .replace(/<<<AUSPEX_UNTRUSTED_PAGE_TEXT/g, "<<<[SANITIZED]AUSPEX_UNTRUSTED_PAGE_TEXT")
+    .replace(/AUSPEX_UNTRUSTED_PAGE_TEXT>>>/g, "AUSPEX_UNTRUSTED_PAGE_TEXT[SANITIZED]>>>")
+  return `${EXCERPT_FENCE_START}\n${sanitized}\n${EXCERPT_FENCE_END}`
 }
 
 export function prepareCheckExcerpt(opts: {
