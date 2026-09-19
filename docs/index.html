@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auspex — cloud Chrome check → sandbox verify → tear-down</title>
-  <meta name="description" content="Watch a Solari cloud Chrome public check of ironadamant.com. ok ≠ claimOk ≠ claimOkProfile. Never types passwords."/>
+  <title>Auspex — two demos, one public and one logged-in</title>
+  <meta name="description" content="Auspex drives a cloud Chrome, then checks the claim on a second machine. ironadamant.com is the public watch tape. ConsistencyHub is the logged-in product. They are not the same site."/>
   <style>
     :root {
       --bg: #111;
@@ -24,9 +24,17 @@
     }
     a { color: var(--link); }
     header, main, footer { max-width: 1100px; margin: 0 auto; padding: 16px 20px; }
-    header p { color: var(--muted); max-width: 46rem; }
-    h1 { font-size: 1.6rem; margin: 0 0 0.4rem; }
-    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.6rem; }
+    header p, main p, li { color: var(--muted); max-width: 46rem; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.4rem; color: var(--fg); }
+    h2 { font-size: 1.15rem; margin: 1.6rem 0 0.6rem; color: var(--fg); }
+    .callout {
+      max-width: 46rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      color: var(--fg);
+    }
     .watch {
       width: 100%;
       min-height: 640px;
@@ -41,6 +49,7 @@
       padding: 12px 14px;
       overflow-x: auto;
       font-size: 0.88rem;
+      color: var(--fg);
     }
     .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     figure { margin: 0; }
@@ -52,7 +61,6 @@
       display: block;
     }
     figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
-    ul { color: var(--muted); }
     @media (max-width: 800px) {
       .shots { grid-template-columns: 1fr; }
       .watch { min-height: 420px; }
@@ -62,61 +70,89 @@
 <body>
   <header>
     <h1>Auspex</h1>
-    <p>Cloud Chrome check → independent sandbox verify → tear-down. <code>ok</code> ≠ <code>claimOk</code> ≠ <code>claimOkProfile</code>. Never types passwords.</p>
     <p>
-      Watch (no clone, no API key):
-      <a href="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html">jsDelivr rrweb replay</a>
-      · <a href="https://github.com/IronAdamant/auspex">GitHub</a>
-      · Pages copy: <a href="demo/replay.html">demo/replay.html</a>
+      An AI agent opens a <strong>cloud Chrome</strong> (not your laptop), reads a page, then a
+      <strong>second machine</strong> checks the same claim. It never types a password.
+    </p>
+    <p class="callout">
+      You are looking at <strong>two different sites</strong>.
+      <a href="https://ironadamant.com/">ironadamant.com</a> is a public marketing page. It has no login.
+      That is why the video has no login. The logged-in product is
+      <strong>ConsistencyHub</strong>, shown below as a blurred still. We cannot put a live password session on the internet.
+    </p>
+    <p>
+      <a href="https://github.com/IronAdamant/auspex">GitHub</a>
+      · <a href="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html">Replay only</a>
     </p>
   </header>
   <main>
+    <h2>1. What you can watch (no login)</h2>
+    <p>
+      This recording is Solari cloud Chrome opening <a href="https://ironadamant.com/">ironadamant.com</a>
+      and checking that the page still says “One office job.” Anyone can watch it. No API key, no account.
+      It proves the public loop: open page, snapshot, independent check, close.
+    </p>
     <iframe
       class="watch"
-      title="Auspex rrweb replay — public check of ironadamant.com (no login)"
+      title="Public check of ironadamant.com. No login. Marketing site, not ConsistencyHub."
       src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"
       loading="lazy"
       referrerpolicy="no-referrer"
     ></iframe>
-    <p>This replay is a <strong>public check (no login)</strong> of ironadamant.com. It does not prove logged-in honesty.</p>
+    <p>
+      If you expected a login screen, you are in the right place to be confused. That site is not an app.
+      The app is the next section.
+    </p>
 
-    <h2>Verification triad</h2>
-    <ul>
-      <li><code>ok</code> — agent success (live match, and verify passed when it ran)</li>
-      <li><code>claimOk</code> — anonymous sandbox fetch + OCR saw the expect string</li>
-      <li><code>claimOkProfile</code> — a second profile-seeded browser saw the expect string</li>
-    </ul>
-    <p>Do not fold <code>claimOkProfile</code> into <code>ok</code>.</p>
-
-    <h2>Try it</h2>
-    <pre>git clone https://github.com/IronAdamant/auspex.git
-cd auspex
-npm install
-export SOLARI_API_KEY=slr_live_…   # console.getsolari.com — env only, never commit
-npx auspex check --name ironadamant
-npx auspex check https://example.com --expect "Example Domain"
-npx auspex-mcp</pre>
-
-    <h2>Receipts</h2>
+    <h2>2. What the product is for (logged-in SaaS)</h2>
+    <p>
+      Auspex is built for pages behind a login: your own SaaS, a dashboard, Microsoft SSO.
+      You sign in once in a handoff window. Auspex saves the session. Later checks reuse it.
+      The agent never types the password.
+    </p>
+    <p>
+      Dogfood is <strong>ConsistencyHub</strong>. We cannot publish a replay of that session (it is a real dashboard).
+      You get a blurred screenshot and an honest receipt instead.
+    </p>
     <div class="shots">
       <figure>
         <img
           src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/ironadamant.png"
-          alt="Solari cloud Chrome checking ironadamant.com (public check, no login)"
+          alt="Cloud Chrome on ironadamant.com, a public page with no login"
         />
-        <figcaption>Public marketing page. Schema v1: <a href="demo/ironadamant-receipt.json">ironadamant-receipt.json</a>. Marketing summary: <a href="demo/receipt.json">receipt.json</a>.</figcaption>
+        <figcaption>
+          Public site. No login. Receipt:
+          <a href="demo/ironadamant-receipt.json">ironadamant-receipt.json</a>
+        </figcaption>
       </figure>
       <figure>
         <img
           src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/consistencyhub.png"
-          alt="ConsistencyHub dashboard, blurred to protect PII. Blur is not a blank fail."
+          alt="Blurred ConsistencyHub dashboard. Blur protects PII. Not a blank fail."
         />
-        <figcaption>Auth-gated ConsistencyHub (redacted). Blur ≠ blank fail. Triad: <code>ok=true</code>, <code>claimOk=false</code> (anonymous skipped), <code>claimOkProfile=true</code>. Receipt: <a href="demo/consistencyhub-receipt.json">consistencyhub-receipt.json</a>.</figcaption>
+        <figcaption>
+          Logged-in ConsistencyHub. Blur is on purpose, not a failed load.
+          Anonymous check cannot see the dashboard (<code>claimOk=false</code>).
+          With the saved login it can (<code>claimOkProfile=true</code>).
+          Receipt: <a href="demo/consistencyhub-receipt.json">consistencyhub-receipt.json</a>
+        </figcaption>
       </figure>
     </div>
+
+    <h2>Try the public loop</h2>
+    <pre>git clone https://github.com/IronAdamant/auspex.git
+cd auspex
+npm install
+export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
+npx auspex check --name ironadamant</pre>
+    <p>
+      That command hits the public site. For a logged-in app you use a saved profile
+      (<code>login</code> → human signs in → <code>finalize-login</code> → <code>check --profile …</code>).
+      ConsistencyHub is one example, not the only host.
+    </p>
   </main>
   <footer>
-    <p>Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>. Never type passwords. Never <code>--record</code> a logged-in dashboard.</p>
+    <p>Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>. Never type passwords.</p>
   </footer>
 </body>
 </html>

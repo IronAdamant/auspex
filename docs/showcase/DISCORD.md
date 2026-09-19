@@ -12,9 +12,10 @@ jsDelivr is the live watch URL. Do not hero a GitHub Pages URL until it 200s and
 Auspex — agent web eyes that stay honest on auth-gated SaaS.
 
 Watch (no clone, no key):
-https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html
+https://ironadamant.com/auspex/
+Replay only: https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html
 
-What you’re seeing: Solari cloud Chrome checking ironadamant.com (public check, no login), then an independent sandbox verify. That one-liner does not prove logged-in honesty. Auth-gated dogfood (ConsistencyHub) keeps the triad honest: ok ≠ claimOk ≠ claimOkProfile — ok=true, claimOk=false (anonymous skipped), claimOkProfile=true. Blur ≠ blank fail.
+Two different sites. The video is ironadamant.com (public marketing, no login) so anyone can watch. The logged-in product is ConsistencyHub: blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a live login recording.
 
 Repo (cookbook fork, current HEAD): https://github.com/IronAdamant/auspex
 
