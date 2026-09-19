@@ -8,9 +8,10 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 ```
 
-Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`) and consistencyhub.io (`--profile` + `--sso --save-profile` once, then `--profile` + `--expect "Document Editor"`). Then re-check that receipt in a headless sandbox (independent fetch/OCR of expect):
+Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). ConsistencyHub is a saved check (`--name consistencyhub`) after finalize-login — it **defaults to no sandbox** (anonymous fetch cannot see the editor). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
 
 ```bash
+npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --no-verify
 npx tsx src/cli.ts verify
 ```
 

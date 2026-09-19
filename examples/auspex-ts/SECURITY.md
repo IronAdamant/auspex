@@ -36,10 +36,10 @@ npm audit --audit-level=high
 ```
 
 **Testing:**
-- ✅ All unit tests pass (232/235 pass, 0 fail, 3 skipped)
-- ✅ MCP builds succeed
-- ✅ TypeScript type checking clean
-- ✅ No runtime API breakage
+- ✅ Unit tests: `npm test` is the source of truth (3 skipped live-only). Do **not** treat a hardcoded pass count as a security signal — counts rot.
+- ✅ MCP builds succeed (`npm run build:mcp`)
+- ✅ TypeScript type checking clean (`npx tsc --noEmit`)
+- ✅ No runtime API breakage from the override
 
 **Override Rollback:**
 

@@ -21,6 +21,9 @@ const GUNZIP_MAX = 8 * 1024 * 1024
 const demoDir = path.join(packageRoot, "demo")
 const thisFile = fileURLToPath(import.meta.url)
 
+/** Public demo receipt must never commit a live Solari sessionId. */
+export const DEMO_SYNTHETIC_SESSION_ID = "demo_synthetic_session_ironadamant_public_marketing_page"
+
 export function asNdjson(raw: Uint8Array): string {
   if (raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b) {
     return gunzipSync(raw, { maxOutputLength: GUNZIP_MAX }).toString("utf8")
@@ -140,12 +143,12 @@ export async function saveDemoReceipt(): Promise<void> {
       title: result.title,
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
-      sessionId: result.sessionId,
+      sessionId: DEMO_SYNTHETIC_SESSION_ID,
       networkIdle: result.networkIdle,
       claimOk: verify.claimOk,
       verifyOk: verify.ok,
       claimErrors: verify.claimErrors,
-      note: "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html.",
+      note: "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → Replay, or open demo/replay.html. Demo receipt uses synthetic sessionId placeholder.",
     }
     await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
     await writeFile(path.join(staging, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)

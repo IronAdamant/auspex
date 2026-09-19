@@ -163,15 +163,13 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Default true (anonymous sandbox HTTP fetch + OCR) except name=consistencyhub, which defaults to false because anonymous fetch cannot see auth-gated UI. Pass true or verifyWithProfile to force verify for consistencyhub. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
+      "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or a profile on consistencyhub.io / onedrive.live.com (anonymous fetch cannot see auth-gated UI). Pass true / --verify to force anonymous verify — that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
     ),
   verifyWithProfile: z
     .boolean()
     .optional()
     .describe(
-      "Enable profile-seeded claim verification: uploads profile cookies/sessionStorage to sandbox, returns claimOkProfile instead of claimOk. " +
-      "For name=consistencyhub, also enables verify step (which defaults off without explicit verify flag). " +
-      "Use for auth-gated SaaS where anonymous verify cannot see logged-in UI.",
+      "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. ok requires only integrity verify.ok when anonymous claim is skipped — read claimOkProfile separately; do not treat ok as the triad. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true).",
     ),
   allowRecordProfile: z
     .boolean()

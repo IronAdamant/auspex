@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { isNoRetryReason, mayRetryCheck, shouldVerifyAfterCheck, shouldVerifyCheck } from "../src/fail-closed.ts"
+import {
+  isAuthGatedAnonymousVerifyHost,
+  isNoRetryReason,
+  mayRetryCheck,
+  shouldVerifyAfterCheck,
+  shouldVerifyCheck,
+} from "../src/fail-closed.ts"
 
 test("loggedOut and needsHuman are not retried and skip sandbox verify", () => {
   assert.equal(isNoRetryReason("loggedOut"), true)
@@ -27,4 +33,60 @@ test("shouldVerifyCheck is shared CLI/MCP policy: consistencyhub defaults off", 
   assert.equal(shouldVerifyCheck({ name: "consistencyhub", verifyWithProfile: true }), true)
   assert.equal(shouldVerifyCheck({ name: "consistencyhub", verify: false, verifyWithProfile: true }), false)
   assert.equal(shouldVerifyCheck({ name: "ironadamant", verify: false }), false)
+})
+
+test("shouldVerifyCheck skips anonymous verify for ad-hoc auth hosts with a profile", () => {
+  assert.equal(shouldVerifyCheck({ profile: "consistencyhub" }), false)
+  assert.equal(shouldVerifyCheck({ profile: "ConsistencyHub" }), false)
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://onedrive.live.com/",
+      profile: "consistencyhub",
+    }),
+    false,
+  )
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://consistencyhub.io",
+      profile: "consistencyhub",
+    }),
+    false,
+  )
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://onedrive.live.com/",
+      profile: "other-ms",
+    }),
+    false,
+    "any profile on an auth-gated host skips anonymous verify",
+  )
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://ironadamant.com",
+      profile: "other-ms",
+    }),
+    true,
+    "public marketing still verifies with a leftover profile",
+  )
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://onedrive.live.com/",
+      profile: "consistencyhub",
+      verify: true,
+    }),
+    true,
+    "explicit --verify still forces anonymous verify",
+  )
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://onedrive.live.com/",
+      profile: "consistencyhub",
+      verifyWithProfile: true,
+    }),
+    true,
+  )
+  assert.equal(isAuthGatedAnonymousVerifyHost("https://onedrive.live.com/"), true)
+  assert.equal(isAuthGatedAnonymousVerifyHost("https://www.onedrive.live.com/"), true)
+  assert.equal(isAuthGatedAnonymousVerifyHost("https://ironadamant.com"), false)
+  assert.equal(isAuthGatedAnonymousVerifyHost("https://example.com"), false)
 })

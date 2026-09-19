@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
-import { replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
+import { DEMO_SYNTHETIC_SESSION_ID, replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
 
 const demo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "demo")
 
@@ -21,7 +21,8 @@ test("demo receipt has sessionId and no replayUrl", () => {
   }
   assert.equal(receipt.ok, true)
   assert.equal(typeof receipt.sessionId, "string")
-  assert.ok(receipt.sessionId.length > 20)
+  assert.equal(receipt.sessionId, DEMO_SYNTHETIC_SESSION_ID)
+  assert.ok(receipt.sessionId.startsWith("demo_synthetic_"))
   assert.equal(receipt.replayUrl, undefined)
   assert.equal(receipt.finalUrl, "https://ironadamant.com/")
   assert.equal(typeof receipt.networkIdle, "boolean")

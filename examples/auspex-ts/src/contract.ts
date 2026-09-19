@@ -37,6 +37,8 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "proxy", flag: "--proxy", kind: "string" },
       { json: "proxySticky", flag: "--proxy-sticky", kind: "string" },
       { json: "captcha", flag: "--captcha", kind: "boolean" },
+      // JSON `verify` is a boolean. CLI: `--verify` (true) and `--no-verify` (false).
+      // Listed flag is the skip form; USAGE also documents `--verify`.
       { json: "verify", flag: "--no-verify", kind: "boolean" },
       { json: "verifyWithProfile", flag: "--verify-with-profile", kind: "boolean" },
       { json: "allowRecordProfile", flag: "--allow-record-profile", kind: "boolean" },

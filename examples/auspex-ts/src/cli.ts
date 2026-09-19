@@ -44,11 +44,11 @@ Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, clo
 CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
-check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, which defaults to --no-verify because anonymous fetch cannot see auth-gated UI (pass --verify or --verify-with-profile to run the sandbox). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or a profile on consistencyhub.io / onedrive.live.com, which default to --no-verify because anonymous fetch cannot see auth-gated UI. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
 Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
 ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman). matched is the expect substring; reason is always set. CLI exit 0 requires agent ok.
 --mobile emulates iPhone viewport/UA. --device <name> uses a specific device profile (iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
-desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
+desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
 profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. Re-seed is human SSO once; the agent never types a password and does not ping the user. Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
 login creates or reuses a named Solari profile and prints a single-use login-handoff URL (human signs in; agent never handles the password). Returns handoff packet with url, openOnPhone hint, oneLiner for SMS/email, and qrPath (generated QR PNG). --wait then blocks until Save stores cookies or origins.
@@ -185,6 +185,8 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const verifyAfter = shouldVerifyCheck({
       name,
+      profile: profileName,
+      url,
       verify: noVerify ? false : verifyFlag ? true : undefined,
       verifyWithProfile,
     })

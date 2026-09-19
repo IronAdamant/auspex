@@ -34,7 +34,9 @@ npx auspex check https://ironadamant.com --expect "One office job."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
 npx auspex check --name consistencyhub
+npx auspex finalize-login --profile consistencyhub
 npx auspex profile-status --name consistencyhub
+npx auspex check --name consistencyhub --verify-with-profile
 npx auspex verify
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
@@ -44,8 +46,9 @@ Always close the browser session (the CLI does this in `finally`) and **kill** t
 ### Commands
 
 ```
-npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify]
+npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
 npx auspex verify [runDir]
+npx auspex finalize-login --profile <name> [--url <url>]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex login --profile <name> [--url <hint>] [--wait]
@@ -54,21 +57,21 @@ npx auspex profiles
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
-`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login prefer `check --profile <name> --sso --save-profile`. Then `check --profile <name>` in a new session. Login does not hold an Auspex check session open.
+`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login run `finalize-login --profile <name>` (or `check --profile <name> --sso --save-profile`). Then `check --name consistencyhub` (or `--profile <name>`) in a new session. Login does not hold an Auspex check session open.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft **and Google** password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing`, `/login`, or `/` without a matched expect is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile` on a public marketing host. `--allow-record-profile` is refused for consistencyhub. Never `--record` a logged-in session.
 
-`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. fill/click with a profile (including `--name consistencyhub`) requires `--allow-page-actions`. `ok` is protocol success (page loaded, not leftover auth, screenshot written). `matched` is the expect substring. `reason` is always set (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`). CLI stdout is one JSON object. **schemaVersion 1 is frozen** (required: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`; extra keys optional — see root [AGENTS.md](../../AGENTS.md#receipt-schema-v1-frozen)). Exit 0 only when `ok` is true. Check verifies by default (sandbox HTTP + OCR); `--no-verify` skips. `loggedOut`/`needsHuman` skip verify and are not retried. `needsHuman` omits the screenshot/MCP image and strips digit runs from excerpt.
+`--wait-for`, `--fill`+`--value`, and `--click` run after goto/SSO and before extract. fill/click with a profile (including `--name consistencyhub`) requires `--allow-page-actions`. **`ok` is agent success** (`reason` is `matched`, and sandbox verify passed when it ran — same on stdout, MCP, and on-disk `manifest.json`). Optional `protocolOk` is URL+PNG protocol success (not leftover auth); do not treat it as a second `ok`. `matched` is the expect substring. `reason` is always set (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`). CLI stdout is one JSON object. **schemaVersion 1 is frozen** (required: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`; extra keys optional — see root [AGENTS.md](../../AGENTS.md#receipt-schema-v1-frozen)). Exit 0 only when `ok` is true. Check verifies by default (sandbox HTTP + OCR) except `--name consistencyhub`, `--profile consistencyhub`, or a profile on consistencyhub.io / onedrive.live.com (anonymous fetch cannot see auth-gated UI). `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood path (`claimOkProfile`; read that field, not only `ok`). `--no-verify` skips. `loggedOut`/`needsHuman` skip verify and are not retried. `needsHuman` omits the screenshot/MCP image and strips digit runs from excerpt.
 
 **429 ConcurrencyLimitExceeded is not retryable.** Call `auspex_reap` (or `solari_browser_close` / `solari_kill` if that MCP started) to free leftover **ledger** sessions, then retry. Default reap does not kill every VM on the key; `--account-wide` does. `reap --pack-receipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 
-**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}` (PNG scaled under 2 MiB so verify can upload it). Default `check` (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt, independently re-checks `expect` (HTTP fetch + optional Tesseract OCR of the PNG — not `manifest.ok`), and **kills** the VM. Integrity (`ok`/`errors`) is separate from claim (`claimOk`/`claimErrors`). Do not also run `verify` after a default check. `--no-verify` leaves a check-only receipt. Optional `[runDir]`; default is the latest run.
+**Browser then sandbox:** `check` writes `.auspex/runs/<stamp>/{manifest.json,screenshot.png}` (PNG scaled under 2 MiB so verify can upload it). Default `check` on public marketing pages (or `check … --verify`) boots a **headless** Solari microVM, uploads that receipt, independently re-checks `expect` (HTTP fetch + optional Tesseract OCR of the PNG — not `manifest.ok`), and **kills** the VM. Integrity (`ok`/`errors`) is separate from claim (`claimOk`/`claimErrors`) and from profile-seeded `claimOkProfile`. Do not also run `verify` after a default check. `--no-verify` leaves a check-only receipt. Optional `[runDir]`; default is the latest run.
 
 Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, then `title`, `finalUrl`, `matched`, `excerpt`, `sessionId`, `networkIdle`, optional `diff` / `verify` / `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
-`desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. `streamUrl` is the live VNC; Auspex still kills after the shot.
+`desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. **FAIL-CLOSED `--type`** refuses password/OTP-like strings. `streamUrl` is the live VNC; Auspex still kills after the shot.
 
-`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman`. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
+`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` = cookies/origins but no sessionStorage. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
 
 ## MCP
 
@@ -78,19 +81,17 @@ Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
 
 **Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
 
-**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
-
 **npx (stdio):** from the repo root, `npx auspex-mcp` or `node bin/auspex-mcp.mjs`. From this directory, `npx tsx src/mcp.ts`.
 
 **Grok** — copy both tables from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. Commands are **absolute `node` + absolute paths** under `dist/`. Dual Content-Length transport is Grok-specific.
 
 Tools:
 
-- `auspex_check` — JSON + JPEG attach (verifies by default via sandbox HTTP + OCR; `verify=false` skips; `name` runs a saved check; `saveProfile` persists a non-empty seed)
+- `auspex_check` — JSON + JPEG attach (verifies by default via sandbox HTTP + OCR except `name=consistencyhub` / `profile=consistencyhub` / a profile on consistencyhub.io or onedrive.live.com; `verify=false` skips; `verify=true` is anonymous and poisons `ok` on auth-gated pages; `verifyWithProfile` is the dogfood `claimOkProfile` path; `name` runs a saved check; `saveProfile` persists a non-empty seed)
 - `auspex_verify` — only after `verify=false`. Headless VM independently audits expect, then **kill**
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs; `packReceipts` for PR attach
-- `auspex_login` / `auspex_await_login` / `auspex_profiles` / `auspex_profile_status`
-- `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. Not the user's Mac.
+- `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`)
+- `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac.
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.
 
