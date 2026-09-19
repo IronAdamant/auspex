@@ -250,6 +250,26 @@ test("toAgentReceipt produces ok=true when live matched and anonymousClaimSkippe
   assert.equal(receipt.verify?.anonymousClaimSkipped, true)
 })
 
+test("VWP envelope timeout with anonymousClaimSkipped stays matched and does not fold claimOkProfile into ok", () => {
+  const receipt = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: false,
+      errors: ["sandbox verify timed out after 90000ms"],
+      claimOk: false,
+      claimErrors: [],
+      anonymousClaimSkipped: true,
+      claimOkProfile: false,
+      claimErrorsProfile: ["sandbox verify timed out after 90000ms"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "matched")
+  assert.equal(receipt.verify?.anonymousClaimSkipped, true)
+  assert.equal(receipt.verify?.claimOk, false)
+  assert.equal(receipt.verify?.claimOkProfile, false)
+})
+
 test("mismatch is not agent ok even when protocolOk is true", () => {
   const receipt = toAgentReceipt(
     sampleCheck({ ok: false, protocolOk: true, matched: false, reason: "mismatch" }),

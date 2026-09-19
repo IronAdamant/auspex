@@ -34,4 +34,6 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /ProfileBusy/)
   assert.match(dist, /allowPageActions/)
   assert.match(dist, /accountWide/)
+  assert.match(dist, /profileClaimBudgetMs/)
+  assert.match(dist, /PROFILE_CLAIM_RETURN_BUFFER_MS/)
 })

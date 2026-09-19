@@ -9,13 +9,23 @@ import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
-import { boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
+import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches, normalizeHaystack } from "./text.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
 /** Nested check + session-close + verify-overall budgets. Must stay ≤ Auspex MCP tool_timeout_sec. */
 export const CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS
+/** Leave this much of VERIFY_OVERALL_MS so a profile-claim return beats the outer race. */
+export const PROFILE_CLAIM_RETURN_BUFFER_MS = 750
+/** Post-goto settle before first text sample. Same duration as before; now abortable. */
+export const PROFILE_CLAIM_SETTLE_MS = 2_000
+/** Extra wait only when the first sample is empty or under 50 chars. */
+export const PROFILE_CLAIM_RETRY_MS = 3_000
+
+export function profileClaimBudgetMs(overallMs: number, elapsedMs: number): number {
+  return overallMs - elapsedMs - PROFILE_CLAIM_RETURN_BUFFER_MS
+}
 
 export const SANDBOX_CREATE_OPTS = {
   template: "base",
@@ -57,16 +67,19 @@ export type SandboxHandle = {
   sandboxId?: string
 }
 
+export type ProfileClaimCheckFn = (opts: {
+  finalUrl: string
+  expect: string
+  profileId: string
+  signal?: AbortSignal
+}) => Promise<{ claimOk: boolean; claimErrors: string[]; sessionId?: string }>
+
 export type VerifyDeps = {
   create: () => Promise<SandboxHandle>
   onProgress?: ProgressFn
   overallMs?: number
   skipAnonymousClaim?: boolean
-  profileClaimCheck?: (opts: {
-    finalUrl: string
-    expect: string
-    profileId: string
-  }) => Promise<{ claimOk: boolean; claimErrors: string[]; sessionId?: string }>
+  profileClaimCheck?: ProfileClaimCheckFn
 }
 
 type RestSandbox = {
@@ -112,12 +125,14 @@ export async function defaultProfileClaimCheck(opts: {
   finalUrl: string
   expect: string
   profileId: string
+  signal?: AbortSignal
 }): Promise<{ claimOk: boolean; claimErrors: string[]; sessionId?: string }> {
   const solari = createClient()
   const closer = new ReadyRelease()
   let sessionId = ""
+  const signal = opts.signal ?? new AbortController().signal
   try {
-    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal)
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), signal)
     closer.set(async () => {
       await closeThenRelease(
         () => browser.close(),
@@ -135,16 +150,17 @@ export async function defaultProfileClaimCheck(opts: {
       timeout: 45_000,
       waitUntil: "domcontentloaded",
       profile: true,
+      signal,
     })
     try {
-      await page.waitForLoadState("networkidle", { timeout: 20_000 })
+      await page.waitForLoadState("networkidle", { timeout: 20_000, signal })
     } catch {
       // network idle optional for claim check
     }
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await abortableSleep(PROFILE_CLAIM_SETTLE_MS, signal)
     let raw = await page.evaluate(() => document.body?.innerText ?? "")
     if (!raw.trim() || raw.length < 50) {
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      await abortableSleep(PROFILE_CLAIM_RETRY_MS, signal)
       raw = await page.evaluate(() => document.body?.innerText ?? "")
     }
     const matched = haystackMatches(raw, opts.expect)
@@ -228,6 +244,64 @@ export function parseAssertStdout(stdout: string): {
   }
 }
 
+async function attachProfileClaim(
+  result: VerifyResult,
+  args: {
+    profileId: string
+    finalUrl: string
+    expect: string
+    profileClaimCheck: ProfileClaimCheckFn
+    overallMs: number
+    startedAt: number
+    isCancelled: () => boolean
+    signal: AbortSignal
+    onProgress: ProgressFn
+  },
+): Promise<VerifyResult> {
+  args.onProgress("profile-claim-check")
+  const budgetMs = profileClaimBudgetMs(args.overallMs, Date.now() - args.startedAt)
+  if (args.isCancelled() || budgetMs <= 0) {
+    return {
+      ...result,
+      claimOkProfile: false,
+      claimErrorsProfile: [
+        args.isCancelled()
+          ? `profile-seeded check skipped: sandbox verify timed out after ${args.overallMs}ms`
+          : `profile-seeded check skipped: ${Math.max(0, budgetMs)}ms left in ${args.overallMs}ms verify envelope`,
+      ],
+    }
+  }
+  const linked = linkAbortSignal(args.signal)
+  const boundTimer = setTimeout(() => linked.abort(), budgetMs)
+  try {
+    const profileClaim = await boundPromise(
+      args.profileClaimCheck({
+        finalUrl: args.finalUrl,
+        expect: args.expect,
+        profileId: args.profileId,
+        signal: linked.signal,
+      }),
+      budgetMs,
+      `profile-seeded check timed out after ${budgetMs}ms`,
+    )
+    return {
+      ...result,
+      claimOkProfile: profileClaim.claimOk,
+      claimErrorsProfile: profileClaim.claimErrors,
+      claimProfileSessionId: profileClaim.sessionId,
+    }
+  } catch (profileErr) {
+    return {
+      ...result,
+      claimOkProfile: false,
+      claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`],
+    }
+  } finally {
+    clearTimeout(boundTimer)
+    linked.dispose()
+  }
+}
+
 /** Headless microVM: upload check receipt, assert PNG + JSON, kill. Login stays on the browser profile. */
 export async function verifyReceipt(
   runDir?: string,
@@ -242,6 +316,7 @@ export async function verifyReceipt(
   const parsedManifest = JSON.parse(manifest) as { finalUrl?: string; expect?: string; profileSeed?: { cookies?: number } }
   let sandbox: SandboxHandle | undefined
   const createP = deps.create()
+  const startedAt = Date.now()
   try {
     return await raceWithTimeout(
       async (isCancelled, signal) => {
@@ -291,26 +366,17 @@ export async function verifyReceipt(
         }
         
         if (opts?.profileId && deps.profileClaimCheck && parsedManifest.finalUrl && parsedManifest.expect) {
-          onProgress("profile-claim-check")
-          try {
-            const profileClaim = await deps.profileClaimCheck({
-              finalUrl: parsedManifest.finalUrl,
-              expect: parsedManifest.expect,
-              profileId: opts.profileId,
-            })
-            result = {
-              ...result,
-              claimOkProfile: profileClaim.claimOk,
-              claimErrorsProfile: profileClaim.claimErrors,
-              claimProfileSessionId: profileClaim.sessionId,
-            }
-          } catch (profileErr) {
-            result = {
-              ...result,
-              claimOkProfile: false,
-              claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`],
-            }
-          }
+          result = await attachProfileClaim(result, {
+            profileId: opts.profileId,
+            finalUrl: parsedManifest.finalUrl,
+            expect: parsedManifest.expect,
+            profileClaimCheck: deps.profileClaimCheck,
+            overallMs,
+            startedAt,
+            isCancelled,
+            signal,
+            onProgress,
+          })
         }
         
         return result
@@ -365,8 +431,8 @@ export async function checkThenVerify(
       },
     }
   }
+  const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
   try {
-    const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
     let profileId: string | undefined
     if (verifyWithProfile && opts.profile) {
       if (!deps?.verify) {
@@ -389,15 +455,23 @@ export async function checkThenVerify(
     await persistAgentManifest(check, { verify }).catch(() => undefined)
     return { check, verify }
   } catch (err) {
-    return {
-      check,
-      verify: {
-        ok: false,
-        errors: [explainSolariError(err)],
-        claimOk: false,
-        claimErrors: [],
-        runDir: dir,
-      },
+    const msg = explainSolariError(err)
+    const vwp = Boolean(verifyWithProfile && opts.profile)
+    const verify: VerifyResult = {
+      ok: false,
+      errors: [msg],
+      claimOk: false,
+      claimErrors: [],
+      runDir: dir,
+      ...(vwp
+        ? {
+            anonymousClaimSkipped: true,
+            claimOkProfile: false,
+            claimErrorsProfile: [msg],
+          }
+        : {}),
     }
+    await persistAgentManifest(check, { verify }).catch(() => undefined)
+    return { check, verify }
   }
 }

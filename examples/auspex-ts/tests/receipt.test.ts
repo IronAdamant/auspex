@@ -339,6 +339,11 @@ test("defaultProfileClaimCheck uses gotoWithSessionRestore", () => {
   const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
   assert.match(src, /export async function defaultProfileClaimCheck/)
   assert.match(src, /gotoWithSessionRestore/)
+  assert.match(src, /opts\.signal \?\? new AbortController\(\)\.signal/)
+  assert.match(src, /abortableSleep\(PROFILE_CLAIM_SETTLE_MS/)
+  assert.match(src, /abortableSleep\(PROFILE_CLAIM_RETRY_MS/)
+  assert.match(src, /profileClaimBudgetMs/)
+  assert.match(src, /linkAbortSignal/)
 })
 
 test("assertReceiptUploadSize rejects oversized PNG+JSON", () => {
@@ -538,4 +543,125 @@ test("parseArgv verify accepts an optional run dir", () => {
   if (b.status === "ok" && b.command.cmd === "verify") {
     assert.equal(b.command.runDir, ".auspex/runs/stamp")
   }
+})
+
+function writeVwpRun(stamp: string): string {
+  const dir = path.join(RUNS_DIR, stamp)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    path.join(dir, "manifest.json"),
+    `${JSON.stringify({
+      ok: true,
+      matched: true,
+      screenshotPath: `.auspex/runs/${stamp}/screenshot.png`,
+      finalUrl: "https://consistencyhub.io/dashboard",
+      expect: "Document Editor",
+    })}\n`,
+  )
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(demoPng))
+  return dir
+}
+
+const SKIP_ANON_STDOUT = `${JSON.stringify({
+  ok: true,
+  errors: [],
+  claimOk: false,
+  claimErrors: ["anonymous claim skipped"],
+})}\n`
+
+test("verifyReceipt profile-claim hang keeps integrity and does not throw the envelope", async () => {
+  const dir = writeVwpRun(`vwp-hang-${Date.now()}`)
+  const started = Date.now()
+  const result = await verifyReceipt(
+    dir,
+    {
+      overallMs: 1500,
+      skipAnonymousClaim: true,
+      create: async () => ({
+        connect: async () => undefined,
+        files: { mkdir: async () => undefined, write: async () => undefined },
+        commands: {
+          run: async () => ({ exitCode: 0, stdout: SKIP_ANON_STDOUT }),
+        },
+        kill: async () => undefined,
+        sandboxId: "sbx-vwp-hang",
+      }),
+      profileClaimCheck: async () => {
+        await new Promise((r) => setTimeout(r, 8_000))
+        return { claimOk: true, claimErrors: [] }
+      },
+    },
+    { profileId: "p1" },
+  )
+  assert.equal(result.ok, true)
+  assert.equal(result.claimOk, false)
+  assert.equal(result.anonymousClaimSkipped, true)
+  assert.equal(result.claimOkProfile, false)
+  assert.match((result.claimErrorsProfile ?? []).join(" "), /timed out|threw|aborted|skipped/i)
+  assert.ok(Date.now() - started < 4_000, "profile-claim hang must not wait out the host timeout")
+})
+
+test("verifyReceipt skips profile claim when the 90s remainder is already gone", async () => {
+  const dir = writeVwpRun(`vwp-skip-${Date.now()}`)
+  let called = 0
+  const result = await verifyReceipt(
+    dir,
+    {
+      overallMs: 1_200,
+      skipAnonymousClaim: true,
+      create: async () => ({
+        connect: async () => undefined,
+        files: { mkdir: async () => undefined, write: async () => undefined },
+        commands: {
+          run: async () => {
+            await new Promise((r) => setTimeout(r, 500))
+            return { exitCode: 0, stdout: SKIP_ANON_STDOUT }
+          },
+        },
+        kill: async () => undefined,
+        sandboxId: "sbx-vwp-skip",
+      }),
+      profileClaimCheck: async () => {
+        called += 1
+        return { claimOk: true, claimErrors: [] }
+      },
+    },
+    { profileId: "p1" },
+  )
+  assert.equal(called, 0)
+  assert.equal(result.ok, true)
+  assert.equal(result.anonymousClaimSkipped, true)
+  assert.equal(result.claimOkProfile, false)
+  assert.match((result.claimErrorsProfile ?? []).join(" "), /skipped/i)
+})
+
+test("verifyReceipt passes the verify-race signal into profileClaimCheck", async () => {
+  const dir = writeVwpRun(`vwp-signal-${Date.now()}`)
+  let seen: AbortSignal | undefined
+  const result = await verifyReceipt(
+    dir,
+    {
+      overallMs: 5_000,
+      skipAnonymousClaim: true,
+      create: async () => ({
+        connect: async () => undefined,
+        files: { mkdir: async () => undefined, write: async () => undefined },
+        commands: {
+          run: async () => ({ exitCode: 0, stdout: SKIP_ANON_STDOUT }),
+        },
+        kill: async () => undefined,
+        sandboxId: "sbx-vwp-signal",
+      }),
+      profileClaimCheck: async (opts) => {
+        seen = opts.signal
+        return { claimOk: true, claimErrors: [] }
+      },
+    },
+    { profileId: "p1" },
+  )
+  assert.ok(seen, "profileClaimCheck must receive the verify abort signal")
+  assert.equal(seen.aborted, false)
+  assert.equal(result.claimOkProfile, true)
+  assert.equal(result.ok, true)
+  assert.equal(result.anonymousClaimSkipped, true)
 })

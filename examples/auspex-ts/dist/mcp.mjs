@@ -493,6 +493,45 @@ var SCREENSHOT_TIMEOUT_MS = 3e4;
 async function boundPromise(p, ms, message) {
   return raceWithTimeout(async () => p, ms, message);
 }
+function abortableSleep(ms, signal) {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  if (signal.aborted) {
+    return Promise.reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+function linkAbortSignal(parent) {
+  const ac = new AbortController();
+  const onParent = () => {
+    if (!ac.signal.aborted) ac.abort();
+  };
+  if (parent?.aborted) {
+    ac.abort();
+  } else {
+    parent?.addEventListener("abort", onParent, { once: true });
+  }
+  return {
+    signal: ac.signal,
+    abort: () => {
+      if (!ac.signal.aborted) ac.abort();
+    },
+    dispose: () => {
+      parent?.removeEventListener("abort", onParent);
+    }
+  };
+}
 async function observeAbort(p, signal) {
   if (signal.aborted) {
     throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
@@ -3713,6 +3752,12 @@ import { SolariClient as SolariClient3 } from "@solarisdk/sdk";
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
 var VERIFY_OVERALL_MS = 9e4;
 var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
+var PROFILE_CLAIM_RETURN_BUFFER_MS = 750;
+var PROFILE_CLAIM_SETTLE_MS = 2e3;
+var PROFILE_CLAIM_RETRY_MS = 3e3;
+function profileClaimBudgetMs(overallMs, elapsedMs) {
+  return overallMs - elapsedMs - PROFILE_CLAIM_RETURN_BUFFER_MS;
+}
 var SANDBOX_CREATE_OPTS = {
   template: "base",
   cpu: 1,
@@ -3753,8 +3798,9 @@ async function defaultProfileClaimCheck(opts) {
   const solari = createClient();
   const closer = new ReadyRelease();
   let sessionId = "";
+  const signal = opts.signal ?? new AbortController().signal;
   try {
-    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), new AbortController().signal);
+    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), signal);
     closer.set(async () => {
       await closeThenRelease(
         () => browser.close(),
@@ -3771,16 +3817,17 @@ async function defaultProfileClaimCheck(opts) {
       url: opts.finalUrl,
       timeout: 45e3,
       waitUntil: "domcontentloaded",
-      profile: true
+      profile: true,
+      signal
     });
     try {
-      await page.waitForLoadState("networkidle", { timeout: 2e4 });
+      await page.waitForLoadState("networkidle", { timeout: 2e4, signal });
     } catch {
     }
-    await new Promise((resolve) => setTimeout(resolve, 2e3));
+    await abortableSleep(PROFILE_CLAIM_SETTLE_MS, signal);
     let raw = await page.evaluate(() => document.body?.innerText ?? "");
     if (!raw.trim() || raw.length < 50) {
-      await new Promise((resolve) => setTimeout(resolve, 3e3));
+      await abortableSleep(PROFILE_CLAIM_RETRY_MS, signal);
       raw = await page.evaluate(() => document.body?.innerText ?? "");
     }
     const matched = haystackMatches(raw, opts.expect);
@@ -3842,6 +3889,48 @@ function parseAssertStdout(stdout) {
     return { ok: false, errors: ["sandbox stdout was not JSON"], claimOk: false, claimErrors: [] };
   }
 }
+async function attachProfileClaim(result, args) {
+  args.onProgress("profile-claim-check");
+  const budgetMs = profileClaimBudgetMs(args.overallMs, Date.now() - args.startedAt);
+  if (args.isCancelled() || budgetMs <= 0) {
+    return {
+      ...result,
+      claimOkProfile: false,
+      claimErrorsProfile: [
+        args.isCancelled() ? `profile-seeded check skipped: sandbox verify timed out after ${args.overallMs}ms` : `profile-seeded check skipped: ${Math.max(0, budgetMs)}ms left in ${args.overallMs}ms verify envelope`
+      ]
+    };
+  }
+  const linked = linkAbortSignal(args.signal);
+  const boundTimer = setTimeout(() => linked.abort(), budgetMs);
+  try {
+    const profileClaim = await boundPromise(
+      args.profileClaimCheck({
+        finalUrl: args.finalUrl,
+        expect: args.expect,
+        profileId: args.profileId,
+        signal: linked.signal
+      }),
+      budgetMs,
+      `profile-seeded check timed out after ${budgetMs}ms`
+    );
+    return {
+      ...result,
+      claimOkProfile: profileClaim.claimOk,
+      claimErrorsProfile: profileClaim.claimErrors,
+      claimProfileSessionId: profileClaim.sessionId
+    };
+  } catch (profileErr) {
+    return {
+      ...result,
+      claimOkProfile: false,
+      claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`]
+    };
+  } finally {
+    clearTimeout(boundTimer);
+    linked.dispose();
+  }
+}
 async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
   const onProgress = deps.onProgress ?? noopProgress;
   const overallMs = deps.overallMs ?? VERIFY_OVERALL_MS;
@@ -3851,6 +3940,7 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
   const parsedManifest = JSON.parse(manifest);
   let sandbox;
   const createP = deps.create();
+  const startedAt = Date.now();
   try {
     return await raceWithTimeout(
       async (isCancelled, signal) => {
@@ -3899,26 +3989,17 @@ async function verifyReceipt(runDir2, deps = defaultVerifyDeps(), opts) {
           return { ...result, ok: false, errors: [...result.errors, msg] };
         }
         if (opts?.profileId && deps.profileClaimCheck && parsedManifest.finalUrl && parsedManifest.expect) {
-          onProgress("profile-claim-check");
-          try {
-            const profileClaim = await deps.profileClaimCheck({
-              finalUrl: parsedManifest.finalUrl,
-              expect: parsedManifest.expect,
-              profileId: opts.profileId
-            });
-            result = {
-              ...result,
-              claimOkProfile: profileClaim.claimOk,
-              claimErrorsProfile: profileClaim.claimErrors,
-              claimProfileSessionId: profileClaim.sessionId
-            };
-          } catch (profileErr) {
-            result = {
-              ...result,
-              claimOkProfile: false,
-              claimErrorsProfile: [`profile claim check threw: ${explainSolariError(profileErr)}`]
-            };
-          }
+          result = await attachProfileClaim(result, {
+            profileId: opts.profileId,
+            finalUrl: parsedManifest.finalUrl,
+            expect: parsedManifest.expect,
+            profileClaimCheck: deps.profileClaimCheck,
+            overallMs,
+            startedAt,
+            isCancelled,
+            signal,
+            onProgress
+          });
         }
         return result;
       },
@@ -3959,8 +4040,8 @@ async function checkThenVerify(opts, deps) {
       }
     };
   }
+  const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
   try {
-    const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile;
     let profileId;
     if (verifyWithProfile && opts.profile) {
       if (!deps?.verify) {
@@ -3981,16 +4062,22 @@ async function checkThenVerify(opts, deps) {
     await persistAgentManifest(check, { verify }).catch(() => void 0);
     return { check, verify };
   } catch (err) {
-    return {
-      check,
-      verify: {
-        ok: false,
-        errors: [explainSolariError(err)],
-        claimOk: false,
-        claimErrors: [],
-        runDir: dir
-      }
+    const msg = explainSolariError(err);
+    const vwp = Boolean(verifyWithProfile && opts.profile);
+    const verify = {
+      ok: false,
+      errors: [msg],
+      claimOk: false,
+      claimErrors: [],
+      runDir: dir,
+      ...vwp ? {
+        anonymousClaimSkipped: true,
+        claimOkProfile: false,
+        claimErrorsProfile: [msg]
+      } : {}
     };
+    await persistAgentManifest(check, { verify }).catch(() => void 0);
+    return { check, verify };
   }
 }
 
