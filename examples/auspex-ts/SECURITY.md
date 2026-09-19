@@ -127,3 +127,5 @@ AUSPEX_UNTRUSTED_PAGE_TEXT>>>
 - `demo/receipt.json` - Synthetic sessionId placeholder (ironadamant.com public check)
 - `demo/consistencyhub-receipt.json` - Real sessionId omitted, UI blurred, PII redacted
 - Never commit live Solari resource IDs (sessionId, vmId, profileId) to public demos
+
+<!-- cloud-agent model probe 2026-09-19 -->
