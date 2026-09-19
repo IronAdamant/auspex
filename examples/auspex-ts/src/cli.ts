@@ -1,7 +1,8 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { toAgentReceipt } from "./agent-receipt.ts"
-import { runCheck, type CheckOptions } from "./check.ts"
+import { runCheck, runFinalizeLogin, type CheckOptions } from "./check.ts"
+import { shouldVerifyCheck } from "./fail-closed.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
@@ -14,7 +15,7 @@ import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
-import { applySavedCheckName, resolveSavedCheck } from "./saved-checks.ts"
+import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
 import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, assertRecordProfileAllowed } from "./tool-schema.ts"
@@ -43,9 +44,9 @@ Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, clo
 CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
-check verifies by default (headless sandbox HTTP fetch + OCR of expect). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, which defaults to --no-verify because anonymous fetch cannot see auth-gated UI (pass --verify or --verify-with-profile to run the sandbox). --no-verify skips the sandbox. Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
 Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
-ok is protocol success; matched is the expect substring; reason is always set. CLI exit 0 requires agent ok (matched, and verify claim if verifying).
+ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman). matched is the expect substring; reason is always set. CLI exit 0 requires agent ok.
 --mobile emulates iPhone viewport/UA. --device <name> uses a specific device profile (iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
@@ -156,7 +157,6 @@ export function parseArgv(argv: string[]): ParseResult {
     if (noVerify && verifyFlag) {
       return { status: "error", message: "pass only one of --verify or --no-verify" }
     }
-    let verifyAfter = !noVerify
     let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     let expect = expectOpt
@@ -179,13 +179,15 @@ export function parseArgv(argv: string[]): ParseResult {
         url = merged.url
         expect = merged.expect
         profileName = merged.profile
-        if (name.trim().toLowerCase() === "consistencyhub" && !noVerify && !verifyFlag && !verifyWithProfile) {
-          verifyAfter = false
-        }
       } catch (err) {
         return { status: "error", message: err instanceof Error ? err.message : String(err) }
       }
     }
+    const verifyAfter = shouldVerifyCheck({
+      name,
+      verify: noVerify ? false : verifyFlag ? true : undefined,
+      verifyWithProfile,
+    })
     if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL or --name" }
     if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
     if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
@@ -425,16 +427,9 @@ export async function main(argv: string[]): Promise<number> {
       return exitFromOk(receipt.ok)
     }
     if (parsed.command.cmd === "finalize-login") {
-      const saved = resolveSavedCheck("consistencyhub")
-      const url = parsed.command.url || saved.url
-      const expect = saved.expect
-      const result = await runCheck({
-        url,
-        expect,
+      const result = await runFinalizeLogin({
         profile: parsed.command.profile,
-        sso: true,
-        ssoProvider: "microsoft",
-        saveProfile: true,
+        url: parsed.command.url,
       })
       const receipt = toAgentReceipt(result)
       writeStdoutJson(receipt)

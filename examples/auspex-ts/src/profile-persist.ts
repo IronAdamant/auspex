@@ -54,11 +54,15 @@ export type AwaitLoginDeps = {
   now?: () => number
 }
 
-export function seedFromStorageState(state: StorageState | null | undefined): ProfileSeed {
-  return {
+export function seedFromStorageState(state: StorageState | null | undefined, origin?: string): ProfileSeed {
+  const seed: ProfileSeed = {
     cookies: (state?.cookies ?? []).filter((c) => Boolean(c?.name)).length,
     origins: (state?.origins ?? []).filter((o) => Boolean(o?.origin)).length,
   }
+  if (origin && state) {
+    seed.sessionStorage = originStoreCounts(state, origin).sessionStorage
+  }
+  return seed
 }
 
 export function isEmptySeed(seed: ProfileSeed): boolean {
@@ -159,19 +163,18 @@ export async function inspectProfileSeed(
 ): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
   try {
-    const seed = seedFromStorageState(session.storageState ?? undefined)
-    if (origin && session.storageState) {
-      const counts = originHasLandedBytes(session.storageState, origin)
-        ? originStoreCounts(session.storageState, origin)
-        : undefined
-      if (counts) {
-        seed.sessionStorage = counts.sessionStorage
-      }
-    }
-    return seed
+    return seedFromStorageState(session.storageState ?? undefined, origin)
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
   }
+}
+
+/** Production await-login adapter: must forward origin so sessionStorage can be counted. */
+export function bindInspectProfileSeed(
+  inspect: (solari: Solari, profileId: string, origin?: string) => Promise<ProfileSeed>,
+  solari: Solari,
+): AwaitLoginDeps["inspect"] {
+  return (id, origin) => inspect(solari, id, origin)
 }
 
 function awaitNext(
@@ -276,7 +279,7 @@ export async function liveAwaitLogin(
             name: p.name,
             version: asFiniteNumber((p as { version?: unknown }).version),
           })),
-        inspect: (id) => inspectProfileSeed(solari, id),
+        inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
   } finally {

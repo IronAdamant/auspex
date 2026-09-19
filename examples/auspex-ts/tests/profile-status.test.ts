@@ -10,7 +10,7 @@ const hubSaved = {
   profile: "consistencyhub",
 }
 
-test("profileStatus reports loggedOut for missing or empty profiles without live", async () => {
+test("profileStatus reports emptySave for missing or empty profiles without live", async () => {
   const missing = await profileStatus(
     { name: "consistencyhub" },
     {
@@ -21,7 +21,7 @@ test("profileStatus reports loggedOut for missing or empty profiles without live
       },
     },
   )
-  assert.equal(missing.reason, "loggedOut")
+  assert.equal(missing.reason, "emptySave")
   assert.equal(missing.ok, false)
   assert.equal(missing.live, false)
   assert.equal(missing.skippedLive, true)
@@ -37,7 +37,7 @@ test("profileStatus reports loggedOut for missing or empty profiles without live
       },
     },
   )
-  assert.equal(empty.reason, "loggedOut")
+  assert.equal(empty.reason, "emptySave")
   assert.equal(empty.skippedLive, true)
 })
 
@@ -152,4 +152,84 @@ test("profileStatus treats unmatched / as loggedOut even if check reason is mism
   )
   assert.equal(result.reason, "loggedOut")
   assert.equal(result.ok, false)
+})
+
+test("profileStatus reports weakSeed from inspect without a live check", async () => {
+  let live = 0
+  const result = await profileStatus(
+    { profile: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForProfile: () => undefined,
+      inspectSeed: async () => ({ cookies: 78, origins: 5, sessionStorage: 0 }),
+      runCheck: async () => {
+        live += 1
+        throw new Error("should not live-check")
+      },
+    },
+  )
+  assert.equal(result.reason, "weakSeed")
+  assert.equal(result.ok, false)
+  assert.equal(result.skippedLive, true)
+  assert.equal(live, 0)
+})
+
+test("profileStatus with a URL skips production inspect (one live session)", async () => {
+  let live = 0
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      runCheck: async (opts) => {
+        live += 1
+        return {
+          ok: true,
+          reason: "matched",
+          url: opts.url,
+          expect: opts.expect,
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Hub",
+          finalUrl: "https://consistencyhub.io/dashboard",
+          matched: true,
+          excerpt: "Document Editor",
+          sessionId: "s",
+          networkIdle: true,
+          profileSeed: { cookies: 5, origins: 1, sessionStorage: 2 },
+        } satisfies CheckResult
+      },
+    },
+  )
+  assert.equal(result.reason, "loggedIn")
+  assert.equal(live, 1)
+  assert.equal(result.cookies, 5)
+  assert.equal(result.sessionStorage, 2)
+})
+
+test("profileStatus derives weakSeed from live profileSeed when inspect is skipped", async () => {
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      runCheck: async () =>
+        ({
+          ok: false,
+          reason: "loggedOut",
+          url: "https://consistencyhub.io",
+          expect: "Document Editor",
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Landing",
+          finalUrl: "https://consistencyhub.io/landing",
+          matched: false,
+          excerpt: "loggedOut",
+          sessionId: "s",
+          networkIdle: true,
+          profileSeed: { cookies: 78, origins: 5, sessionStorage: 0 },
+        }) satisfies CheckResult,
+    },
+  )
+  assert.equal(result.reason, "weakSeed")
+  assert.equal(result.live, true)
+  assert.equal(result.sessionStorage, 0)
 })

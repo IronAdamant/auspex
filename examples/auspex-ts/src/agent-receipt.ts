@@ -1,10 +1,18 @@
-import { SCHEMA_VERSION } from "./schema-version.ts"
+import { existsSync } from "node:fs"
+import { writeFile } from "node:fs/promises"
+import path from "node:path"
+import { SCHEMA_VERSION, stampSchema } from "./schema-version.ts"
 import { parseReceiptV1, type ReceiptV1 } from "./receipt-schema.ts"
 import type { CheckResult } from "./check.ts"
 import { agentReceiptOk, overlayVerifyReason, type CheckReason } from "./check-reason.ts"
+import { packageRoot } from "./paths.ts"
 import type { VerifyResult } from "./sandbox.ts"
 
 export type AgentReceipt = ReceiptV1
+
+export function checkProtocolOk(check: CheckResult): boolean {
+  return check.protocolOk ?? check.ok
+}
 
 export function toAgentReceipt(
   check: CheckResult,
@@ -14,11 +22,11 @@ export function toAgentReceipt(
   const reason: CheckReason =
     verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason
   const ok = agentReceiptOk({
-    protocolOk: check.ok,
+    protocolOk: checkProtocolOk(check),
     reason,
     verify,
   })
-  
+
   let next = check.next
   if (
     check.matched &&
@@ -37,7 +45,7 @@ export function toAgentReceipt(
       next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`
     }
   }
-  
+
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -63,9 +71,24 @@ export function toAgentReceipt(
     verify,
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved,
+    protocolOk: check.protocolOk,
   }
   for (const [key, value] of Object.entries(optional)) {
     if (value !== undefined) receipt[key] = value
   }
   return parseReceiptV1(receipt)
+}
+
+/** On-disk manifest uses the same agent-success `ok` as stdout/MCP. */
+export async function persistAgentManifest(
+  check: CheckResult,
+  extras?: { verify?: VerifyResult },
+): Promise<void> {
+  const abs = path.isAbsolute(check.screenshotPath)
+    ? check.screenshotPath
+    : path.join(packageRoot, check.screenshotPath)
+  const dir = path.dirname(abs)
+  if (!existsSync(dir)) return
+  const receipt = toAgentReceipt(check, extras)
+  await writeFile(path.join(dir, "manifest.json"), `${JSON.stringify(stampSchema(receipt), null, 2)}\n`)
 }

@@ -5,6 +5,11 @@ import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js
 import "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as z5 } from "zod";
 
+// src/agent-receipt.ts
+import { existsSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
+import path2 from "node:path";
+
 // src/schema-version.ts
 var SCHEMA_VERSION = 1;
 function stampSchema(obj) {
@@ -131,12 +136,29 @@ function parseReceiptV1(input) {
   return input;
 }
 
+// src/paths.ts
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+var packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+async function ensureRunDir() {
+  const auspexDir = path.join(packageRoot, ".auspex");
+  const runsDir = path.join(auspexDir, "runs");
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
+  const runDir2 = path.join(runsDir, stamp);
+  await mkdir(runDir2, { recursive: true });
+  return runDir2;
+}
+
 // src/agent-receipt.ts
+function checkProtocolOk(check) {
+  return check.protocolOk ?? check.ok;
+}
 function toAgentReceipt(check, extras) {
   const verify = extras?.verify;
   const reason = verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason;
   const ok = agentReceiptOk({
-    protocolOk: check.ok,
+    protocolOk: checkProtocolOk(check),
     reason,
     verify
   });
@@ -176,18 +198,27 @@ function toAgentReceipt(check, extras) {
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
-    profileSaved: check.profileSaved
+    profileSaved: check.profileSaved,
+    protocolOk: check.protocolOk
   };
   for (const [key, value] of Object.entries(optional)) {
     if (value !== void 0) receipt[key] = value;
   }
   return parseReceiptV1(receipt);
 }
+async function persistAgentManifest(check, extras) {
+  const abs = path2.isAbsolute(check.screenshotPath) ? check.screenshotPath : path2.join(packageRoot, check.screenshotPath);
+  const dir = path2.dirname(abs);
+  if (!existsSync(dir)) return;
+  const receipt = toAgentReceipt(check, extras);
+  await writeFile(path2.join(dir, "manifest.json"), `${JSON.stringify(stampSchema(receipt), null, 2)}
+`);
+}
 
 // src/check.ts
-import { existsSync as existsSync3 } from "node:fs";
-import { mkdir as mkdir4, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
-import path9 from "node:path";
+import { existsSync as existsSync4 } from "node:fs";
+import { mkdir as mkdir4, readFile as readFile5, writeFile as writeFile4 } from "node:fs/promises";
+import path10 from "node:path";
 
 // src/device-emulation.ts
 var DEVICES = {
@@ -350,8 +381,8 @@ var checkUrlSchema = z.string().superRefine((value, ctx) => {
 });
 
 // src/saved-checks.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import path4 from "node:path";
+import { existsSync as existsSync3, readFileSync as readFileSync2 } from "node:fs";
+import path5 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // src/profiles.ts
@@ -360,23 +391,7 @@ import { z as z2 } from "zod";
 // src/profile-lock.ts
 import { randomBytes } from "node:crypto";
 import { open, mkdir as mkdir2, readFile, rename, stat, unlink } from "node:fs/promises";
-import path2 from "node:path";
-
-// src/paths.ts
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-var packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-async function ensureRunDir() {
-  const auspexDir = path.join(packageRoot, ".auspex");
-  const runsDir = path.join(auspexDir, "runs");
-  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
-  const runDir2 = path.join(runsDir, stamp);
-  await mkdir(runDir2, { recursive: true });
-  return runDir2;
-}
-
-// src/profile-lock.ts
+import path3 from "node:path";
 var PROFILE_BUSY_CODE = "ProfileBusy";
 var ProfileBusyError = class extends Error {
   code = PROFILE_BUSY_CODE;
@@ -390,7 +405,7 @@ var ProfileBusyError = class extends Error {
   }
 };
 function defaultLockDir() {
-  return path2.join(packageRoot, ".auspex", "locks");
+  return path3.join(packageRoot, ".auspex", "locks");
 }
 function lockFileName(profile) {
   const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_");
@@ -429,7 +444,7 @@ async function withProfileLock(profile, work, opts = {}) {
   const name = requireProfileName(profile);
   const dir = opts.lockDir ?? defaultLockDir();
   await mkdir2(dir, { recursive: true });
-  const lockPath = path2.join(dir, lockFileName(name));
+  const lockPath = path3.join(dir, lockFileName(name));
   let fh;
   try {
     fh = await open(lockPath, "wx");
@@ -460,8 +475,8 @@ ${Date.now()}
 }
 
 // src/solari.ts
-import { existsSync, readFileSync } from "node:fs";
-import path3 from "node:path";
+import { existsSync as existsSync2, readFileSync } from "node:fs";
+import path4 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import {
   BrowserSession,
@@ -577,8 +592,8 @@ function stillOnAuth(url) {
   if (idpAuthHost(url.hostname)) {
     return true;
   }
-  const path14 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path14 === "/login" || path14.startsWith("/login/") || path14 === "/auth" || path14.startsWith("/auth/")) {
+  const path15 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path15 === "/login" || path15.startsWith("/login/") || path15 === "/auth" || path15.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -753,8 +768,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path14 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path14 === "/" || path14 === "/landing" || path14 === "/login" || path14 === "/signup" || path14.startsWith("/auth")) {
+  const path15 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path15 === "/" || path15 === "/landing" || path15 === "/login" || path15 === "/signup" || path15.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -767,9 +782,9 @@ function isLoggedOutLanding(url, opts) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path14 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path14 === "/landing" || path14.startsWith("/landing/")) return true;
-  if (path14 === "/") return opts?.matched !== true;
+  const path15 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path15 === "/landing" || path15.startsWith("/landing/")) return true;
+  if (path15 === "/") return opts?.matched !== true;
   return false;
 }
 function cookiesForOrigin(cookies, origin) {
@@ -956,12 +971,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path14 = url;
+    let path15 = url;
     try {
-      path14 = new URL(url, BROWSER_API_BASE).pathname;
+      path15 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path14);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path15);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -1003,8 +1018,8 @@ function checkOverallTimeoutMs(opts) {
 var REPLAY_ATTEMPTS = 6;
 var REPLAY_DELAY_MS = 500;
 var BROWSER_API_BASE = "https://api.getsolari.com";
-var DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
-var REPO_DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
+var DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
+var REPO_DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
 function toPlaywrightStorageState(state) {
   const cookies = [];
   for (const c of state.cookies ?? []) {
@@ -1045,7 +1060,7 @@ function findProfileId(profiles, name) {
   return existing.id;
 }
 function readSolariKeyFromFile(file) {
-  if (!existsSync(file)) return void 0;
+  if (!existsSync2(file)) return void 0;
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
@@ -1230,11 +1245,15 @@ var EMPTY_ORIGIN_SAVE_ERROR = "refusing to save: no cookies, localStorage, or se
 var PROFILE_EDITOR_OPEN_ERROR = "profile editor is open; close it, then --save-profile with the live session";
 var HANDOFF_POLL_MS = 2e3;
 var AWAIT_LOGIN_DEFAULT_MS = 3e5;
-function seedFromStorageState(state) {
-  return {
+function seedFromStorageState(state, origin) {
+  const seed = {
     cookies: (state?.cookies ?? []).filter((c) => Boolean(c?.name)).length,
     origins: (state?.origins ?? []).filter((o) => Boolean(o?.origin)).length
   };
+  if (origin && state) {
+    seed.sessionStorage = originStoreCounts(state, origin).sessionStorage;
+  }
+  return seed;
 }
 function isEmptySeed(seed) {
   return seed.cookies === 0 && seed.origins === 0;
@@ -1311,17 +1330,13 @@ async function persistProfileState(opts) {
 async function inspectProfileSeed(solari, profileId, origin) {
   const session = await solari.sessions.create({ profileId });
   try {
-    const seed = seedFromStorageState(session.storageState ?? void 0);
-    if (origin && session.storageState) {
-      const counts = originHasLandedBytes(session.storageState, origin) ? originStoreCounts(session.storageState, origin) : void 0;
-      if (counts) {
-        seed.sessionStorage = counts.sessionStorage;
-      }
-    }
-    return seed;
+    return seedFromStorageState(session.storageState ?? void 0, origin);
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => void 0);
   }
+}
+function bindInspectProfileSeed(inspect, solari) {
+  return (id, origin) => inspect(solari, id, origin);
 }
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
@@ -1404,7 +1419,7 @@ async function liveAwaitLogin(name, opts = {}) {
           name: p.name,
           version: asFiniteNumber(p.version)
         })),
-        inspect: (id) => inspectProfileSeed(solari, id)
+        inspect: bindInspectProfileSeed(inspectProfileSeed, solari)
       }
     });
   } finally {
@@ -1454,8 +1469,8 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
 async function defaultProfileHttp() {
   const key = requireApiKey();
   return {
-    post: async (path14, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path14}`, {
+    post: async (path15, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path15}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -1568,7 +1583,7 @@ function haystackMatches(raw, expect) {
 var expectSchema = z3.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
 
 // src/saved-checks.ts
-var packageRoot2 = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..");
+var packageRoot2 = path5.resolve(path5.dirname(fileURLToPath3(import.meta.url)), "..");
 var DEFAULT_SAVED_CHECKS = [
   { name: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
   { name: "checkpoint", url: "https://checkpointprojects.com", expect: "Checkpoint" },
@@ -1587,14 +1602,14 @@ function canonicalSavedCheckName(name) {
   return key;
 }
 function defaultConfigPath() {
-  return path4.join(packageRoot2, "auspex.yml");
+  return path5.join(packageRoot2, "auspex.yml");
 }
 function resolveConfigPath(explicit) {
   if (explicit) return explicit;
   const env = process.env.AUSPEX_CONFIG?.trim();
   if (env) return env;
   const packed = defaultConfigPath();
-  if (existsSync2(packed)) return packed;
+  if (existsSync3(packed)) return packed;
   return void 0;
 }
 function isPublicMarketingUrl(url) {
@@ -1689,7 +1704,7 @@ function builtinSavedChecks() {
 function loadSavedChecks(configPath) {
   const merged = builtinSavedChecks();
   const file = resolveConfigPath(configPath);
-  if (!file || !existsSync2(file)) return merged;
+  if (!file || !existsSync3(file)) return merged;
   const parsed = parseSavedChecksYaml(readFileSync2(file, "utf8"));
   for (const [name, raw] of Object.entries(parsed)) {
     const base = merged[name] ?? {};
@@ -1995,25 +2010,25 @@ function fitMcpAttach(png, cap = MCP_ATTACH_MAX_BYTES) {
 }
 
 // src/replay-save.ts
-import { writeFile } from "node:fs/promises";
-import path5 from "node:path";
+import { writeFile as writeFile2 } from "node:fs/promises";
+import path6 from "node:path";
 async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
   const url = await waitForReplayUrl(solari, sessionId, opts.deadlineMs ?? Date.now() + 3e3);
   if (!url) return false;
   try {
     const blob = await downloadReplayWhenReady((id) => solari.sessions.downloadReplay(id), sessionId, opts);
-    await writeFile(path5.join(outDir, "replay.ndjson"), Buffer.from(blob));
+    await writeFile2(path6.join(outDir, "replay.ndjson"), Buffer.from(blob));
   } catch {
   }
   return true;
 }
 
 // src/session-ledger.ts
-import { mkdir as mkdir3, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
-import path6 from "node:path";
+import { mkdir as mkdir3, readFile as readFile2, writeFile as writeFile3 } from "node:fs/promises";
+import path7 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-var packageRoot3 = path6.resolve(path6.dirname(fileURLToPath4(import.meta.url)), "..");
-var LIVE_LEDGER_PATH = path6.join(packageRoot3, ".auspex", "live.json");
+var packageRoot3 = path7.resolve(path7.dirname(fileURLToPath4(import.meta.url)), "..");
+var LIVE_LEDGER_PATH = path7.join(packageRoot3, ".auspex", "live.json");
 function empty() {
   return { browser: [], sandbox: [], desktop: [] };
 }
@@ -2030,8 +2045,8 @@ async function readLiveLedger(file = LIVE_LEDGER_PATH) {
   }
 }
 async function writeLiveLedger(ledger, file = LIVE_LEDGER_PATH) {
-  await mkdir3(path6.dirname(file), { recursive: true });
-  await writeFile2(file, `${JSON.stringify(ledger, null, 2)}
+  await mkdir3(path7.dirname(file), { recursive: true });
+  await writeFile3(file, `${JSON.stringify(ledger, null, 2)}
 `);
 }
 async function rememberLive(kind, id, file = LIVE_LEDGER_PATH) {
@@ -2049,20 +2064,20 @@ async function forgetLive(kind, id, file = LIVE_LEDGER_PATH) {
 
 // src/receipt-diff.ts
 import { readFile as readFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 
 // src/receipt.ts
 import { readFileSync as readFileSync3 } from "node:fs";
 import { readdir, readFile as readFile3, stat as stat2 } from "node:fs/promises";
-import path7 from "node:path";
+import path8 from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
-var ASSERT_RECEIPT_PY_PATH = path7.join(path7.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
+var ASSERT_RECEIPT_PY_PATH = path8.join(path8.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
 var RECEIPT_ASSERT_PY = readFileSync3(ASSERT_RECEIPT_PY_PATH, "utf8");
-var RUNS_DIR = path7.join(packageRoot, ".auspex", "runs");
+var RUNS_DIR = path8.join(packageRoot, ".auspex", "runs");
 function assertRunDirUnderRuns(runDir2, runsDir = RUNS_DIR) {
-  const dir = path7.resolve(runDir2);
-  const root = path7.resolve(runsDir);
-  if (dir !== root && !dir.startsWith(root + path7.sep)) {
+  const dir = path8.resolve(runDir2);
+  const root = path8.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path8.sep)) {
     throw new Error("runDir must be under .auspex/runs");
   }
   return dir;
@@ -2076,12 +2091,12 @@ async function listCompleteRunDirs(runsDir = RUNS_DIR) {
   }
   const dirs = [];
   for (const name of names) {
-    const dir = path7.join(runsDir, name);
+    const dir = path8.join(runsDir, name);
     const st = await stat2(dir).catch(() => void 0);
     if (!st?.isDirectory()) continue;
     try {
-      await stat2(path7.join(dir, "manifest.json"));
-      await stat2(path7.join(dir, "screenshot.png"));
+      await stat2(path8.join(dir, "manifest.json"));
+      await stat2(path8.join(dir, "screenshot.png"));
       dirs.push({ dir, mtime: st.mtimeMs, name });
     } catch {
       continue;
@@ -2097,8 +2112,8 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   return latest;
 }
 async function loadRunFiles(runDir2) {
-  const manifest = await readFile3(path7.join(runDir2, "manifest.json"), "utf8");
-  const png = await readFile3(path7.join(runDir2, "screenshot.png"));
+  const manifest = await readFile3(path8.join(runDir2, "manifest.json"), "utf8");
+  const png = await readFile3(path8.join(runDir2, "screenshot.png"));
   return { manifest, png };
 }
 
@@ -2120,7 +2135,7 @@ function receiptUrlKey(manifest) {
 }
 async function readManifest(dir) {
   try {
-    const raw = await readFile4(path8.join(dir, "manifest.json"), "utf8");
+    const raw = await readFile4(path9.join(dir, "manifest.json"), "utf8");
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : void 0;
   } catch {
@@ -2135,9 +2150,9 @@ async function findPreviousReceiptForUrl(opts) {
     return void 0;
   }
   const dirs = await listCompleteRunDirs(opts.runsDir ?? RUNS_DIR);
-  const exclude = opts.excludeDir ? path8.resolve(opts.excludeDir) : void 0;
+  const exclude = opts.excludeDir ? path9.resolve(opts.excludeDir) : void 0;
   for (const dir of dirs) {
-    if (exclude && path8.resolve(dir) === exclude) continue;
+    if (exclude && path9.resolve(dir) === exclude) continue;
     const manifest = await readManifest(dir);
     if (!manifest) continue;
     const key = receiptUrlKey(manifest);
@@ -2250,7 +2265,7 @@ var auspexCheckInputObject = z4.object({
   proxySticky: z4.string().optional().describe("Sticky proxy session id (with proxy country)"),
   captcha: z4.boolean().optional().describe("Managed captcha solving. Implies stealth. Starter+ (402 on Free)"),
   verify: z4.boolean().optional().describe(
-    "Default true: after check, audit the receipt in a headless sandbox (HTTP fetch + OCR). Pass false to skip. Do not also call auspex_verify when this is true."
+    "Default true (anonymous sandbox HTTP fetch + OCR) except name=consistencyhub, which defaults to false because anonymous fetch cannot see auth-gated UI. Pass true or verifyWithProfile to force verify for consistencyhub. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs."
   ),
   verifyWithProfile: z4.boolean().optional().describe(
     "Enable profile-seeded claim verification: uploads profile cookies/sessionStorage to sandbox, returns claimOkProfile instead of claimOk. For name=consistencyhub, also enables verify step (which defaults off without explicit verify flag). Use for auth-gated SaaS where anonymous verify cannot see logged-in UI."
@@ -2329,6 +2344,10 @@ var auspexReapInputSchema = z4.object({
   vmId: z4.string().optional().describe("Extra sandbox/desktop id to kill"),
   packReceipts: z4.boolean().optional().describe("Copy last receipts per URL into .auspex/pack for an agent to attach to a PR"),
   accountWide: z4.boolean().optional().describe("Also list/kill every holding sandbox/desktop on this Solari key. Default reap only ledger ids plus --session/--vm.")
+});
+var auspexFinalizeLoginInputSchema = z4.object({
+  profile: profileNameSchema.describe("Profile name to finalize (SSO + save-profile; captures sessionStorage)"),
+  url: httpUrlSchema.optional().describe("Optional http(s) URL (defaults to ConsistencyHub)")
 });
 var auspexProfileStatusInputSchema = z4.object({
   profile: profileNameSchema.optional().describe("Solari profile name"),
@@ -2489,16 +2508,28 @@ function createProgress(opts = {}) {
 var noopProgress = () => void 0;
 
 // src/check.ts
+async function runFinalizeLogin(opts) {
+  const saved = resolveSavedCheck("consistencyhub");
+  return runCheck({
+    url: opts.url || saved.url,
+    expect: saved.expect,
+    profile: requireProfileName(opts.profile),
+    sso: true,
+    ssoProvider: "microsoft",
+    saveProfile: true,
+    onProgress: opts.onProgress
+  });
+}
 function toReceiptPath(absPath) {
-  return path9.relative(packageRoot, absPath).replaceAll("\\", "/");
+  return path10.relative(packageRoot, absPath).replaceAll("\\", "/");
 }
 function runDirFromResult(result) {
-  const abs = path9.isAbsolute(result.screenshotPath) ? result.screenshotPath : path9.join(packageRoot, result.screenshotPath);
-  return path9.dirname(abs);
+  const abs = path10.isAbsolute(result.screenshotPath) ? result.screenshotPath : path10.join(packageRoot, result.screenshotPath);
+  return path10.dirname(abs);
 }
 function runDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path9.join(packageRoot, ".auspex", "runs", stamp);
+  return path10.join(packageRoot, ".auspex", "runs", stamp);
 }
 async function extractPage(page, selector, signal) {
   return observeAbort(
@@ -2517,7 +2548,7 @@ async function extractPage(page, selector, signal) {
 async function writeFittedScreenshot(abs) {
   const png = await readFile5(abs);
   const fitted = fitPngUnderCap(png, MAX_IMAGE_BYTES);
-  if (fitted !== png) await writeFile3(abs, fitted);
+  if (fitted !== png) await writeFile4(abs, fitted);
 }
 async function runCheck(opts) {
   requireExpect(opts.expect);
@@ -2532,7 +2563,7 @@ async function runCheck(opts) {
   let sessionId = "";
   const outDir = runDir();
   await mkdir4(outDir, { recursive: true });
-  const screenshotAbs = path9.join(outDir, "screenshot.png");
+  const screenshotAbs = path10.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
   let finalUrl = "";
@@ -2571,7 +2602,7 @@ async function runCheck(opts) {
       sessionId = browser.id;
       await rememberLive("browser", sessionId).catch(() => void 0);
       if (isCancelled()) return;
-      profileSeed = seedFromStorageState(browser.session.storageState);
+      profileSeed = seedFromStorageState(browser.session.storageState, originOf(opts.url));
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile));
       }
@@ -2724,7 +2755,7 @@ async function runCheck(opts) {
       throw new AuspexError(explainSolariError(workError), {
         issue: classifySolariError(workError),
         sessionId: sessionId || void 0,
-        screenshotPath: existsSync3(screenshotAbs) ? screenshotPath : void 0,
+        screenshotPath: existsSync4(screenshotAbs) ? screenshotPath : void 0,
         cause: workError
       });
     }
@@ -2739,7 +2770,7 @@ async function runCheck(opts) {
     const blockedHuman = special === "needsHuman" || needsHuman;
     const savedOk = !opts.saveProfile || profileSaved?.ok === true;
     const protocolOk = Boolean(
-      finalUrl && existsSync3(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && special !== "recordedLoggedIn"
+      finalUrl && existsSync4(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && special !== "recordedLoggedIn"
     );
     const reason = deriveCheckReason({
       special,
@@ -2748,7 +2779,7 @@ async function runCheck(opts) {
       networkIdle,
       finalUrl,
       excerpt,
-      screenshotOk: existsSync3(screenshotAbs)
+      screenshotOk: existsSync4(screenshotAbs)
     });
     let next;
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
@@ -2763,7 +2794,8 @@ async function runCheck(opts) {
       excludeDir: outDir
     });
     const result = {
-      ok: protocolOk,
+      ok: agentReceiptOk({ protocolOk, reason }),
+      protocolOk,
       reason,
       url: opts.url,
       expect: opts.expect,
@@ -2784,8 +2816,7 @@ async function runCheck(opts) {
       profileSeed,
       profileSaved
     };
-    await writeFile3(path9.join(outDir, "manifest.json"), `${JSON.stringify(stampSchema(result), null, 2)}
-`);
+    await persistAgentManifest(result);
     return result;
   } finally {
     try {
@@ -2799,13 +2830,31 @@ async function runCheck(opts) {
   }
 }
 
+// src/fail-closed.ts
+function isNoRetryReason(reason) {
+  return reason === "loggedOut" || reason === "needsHuman";
+}
+function mayRetryCheck(reason) {
+  return !isNoRetryReason(reason);
+}
+function shouldVerifyAfterCheck(reason) {
+  return mayRetryCheck(reason) && reason !== "recordedLoggedIn";
+}
+function shouldVerifyCheck(opts) {
+  if (opts.verify === false) return false;
+  if (opts.verify === true) return true;
+  if (opts.verifyWithProfile) return true;
+  if (opts.name?.trim().toLowerCase() === "consistencyhub") return false;
+  return true;
+}
+
 // src/content.ts
 import { readFile as readFile6 } from "node:fs/promises";
-import path10 from "node:path";
+import path11 from "node:path";
 import { fileURLToPath as fileURLToPath6 } from "node:url";
-var packageRoot4 = path10.resolve(path10.dirname(fileURLToPath6(import.meta.url)), "..");
+var packageRoot4 = path11.resolve(path11.dirname(fileURLToPath6(import.meta.url)), "..");
 function resolveScreenshotPath(p) {
-  return path10.isAbsolute(p) ? p : path10.join(packageRoot4, p);
+  return path11.isAbsolute(p) ? p : path11.join(packageRoot4, p);
 }
 function pngNote(text) {
   return { type: "text", text };
@@ -2876,7 +2925,7 @@ async function packToolFailure(err) {
 
 // src/desktop.ts
 import { mkdirSync, writeFileSync } from "node:fs";
-import path11 from "node:path";
+import path12 from "node:path";
 import { SolariClient } from "@solarisdk/sdk";
 
 // src/desktop-probe.ts
@@ -3117,7 +3166,7 @@ function defaultDesktopDeps() {
 }
 function newRunDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path11.join(packageRoot, ".auspex", "runs", stamp);
+  return path12.join(packageRoot, ".auspex", "runs", stamp);
 }
 async function waitReady(desktop, sleepFn, healthMs = DESKTOP_HEALTH_MS) {
   const deadline = Date.now() + healthMs;
@@ -3188,7 +3237,7 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         const png = await desktop.screenshot();
         const dir = newRunDir();
         mkdirSync(dir, { recursive: true });
-        const abs = path11.join(dir, "screenshot.png");
+        const abs = path12.join(dir, "screenshot.png");
         writeFileSync(abs, png);
         const desktopId = desktop.sessionId;
         const streamUrl = desktop.streamUrl;
@@ -3259,9 +3308,9 @@ ${summary}`;
 
 // src/qr-gen.ts
 import QRCode from "qrcode";
-import path12 from "node:path";
+import path13 from "node:path";
 async function generateQRCode(url, runDir2) {
-  const qrPath = path12.join(runDir2, "handoff-qr.png");
+  const qrPath = path13.join(runDir2, "handoff-qr.png");
   await QRCode.toFile(qrPath, url, {
     errorCorrectionLevel: "M",
     type: "png",
@@ -3302,7 +3351,7 @@ async function profileStatus(opts, deps) {
     const missing = !row;
     return {
       ok: false,
-      reason: "loggedOut",
+      reason: "emptySave",
       profile,
       url,
       populated: false,
@@ -3311,6 +3360,7 @@ async function profileStatus(opts, deps) {
       skipReason: missing ? `profile ${profile} not found. Human SSO once (agent never types a password).` : `profile ${profile} is empty. Human SSO once (agent never types a password).`
     };
   }
+  const willLive = Boolean(url);
   let seed;
   if (deps?.inspectSeed) {
     try {
@@ -3318,11 +3368,10 @@ async function profileStatus(opts, deps) {
     } catch {
       seed = void 0;
     }
-  } else {
+  } else if (!willLive) {
     const solari = createClient();
     try {
-      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : void 0);
-      seed = inspected;
+      seed = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : void 0);
     } catch {
       seed = void 0;
     } finally {
@@ -3377,7 +3426,7 @@ async function profileStatus(opts, deps) {
     if (/0 cookies|empty Save|profile not found/i.test(msg)) {
       return {
         ok: false,
-        reason: "loggedOut",
+        reason: "emptySave",
         profile,
         url,
         populated: row.populated,
@@ -3391,6 +3440,9 @@ async function profileStatus(opts, deps) {
     }
     throw err;
   }
+  if (!seed && result.profileSeed) seed = result.profileSeed;
+  const liveHasOrigins = seed && (seed.cookies > 0 || seed.origins > 0);
+  const liveNoSessionStorage = seed && seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
   if (result.needsHuman || result.reason === "needsHuman") {
     return {
       ok: false,
@@ -3417,7 +3469,25 @@ async function profileStatus(opts, deps) {
     auth = false;
   }
   const matchedClaim = Boolean(claim) && result.matched === true;
-  if (result.reason === "loggedOut" || landed && isLoggedOutLanding(landed, { matched: matchedClaim }) || auth) {
+  const loggedOutLive = result.reason === "loggedOut" || landed && isLoggedOutLanding(landed, { matched: matchedClaim }) || auth;
+  if (loggedOutLive && liveHasOrigins && liveNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+    return {
+      ok: false,
+      reason: "weakSeed",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      finalUrl: landed,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage
+    };
+  }
+  if (loggedOutLive) {
     return {
       ok: false,
       reason: "loggedOut",
@@ -3453,24 +3523,24 @@ async function profileStatus(opts, deps) {
 import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 
 // src/receipt-pack.ts
-import { copyFile, mkdir as mkdir5, readFile as readFile7, writeFile as writeFile4 } from "node:fs/promises";
-import path13 from "node:path";
+import { copyFile, mkdir as mkdir5, readFile as readFile7, writeFile as writeFile5 } from "node:fs/promises";
+import path14 from "node:path";
 function relToPackage(abs) {
-  return path13.relative(packageRoot, abs).replaceAll("\\", "/");
+  return path14.relative(packageRoot, abs).replaceAll("\\", "/");
 }
 function packDirRoot() {
-  return path13.join(packageRoot, ".auspex", "pack");
+  return path14.join(packageRoot, ".auspex", "pack");
 }
 async function packLastReceipts(opts) {
   const runsDir = opts?.runsDir ?? RUNS_DIR;
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  const packDir = opts?.destDir ?? path13.join(packDirRoot(), stamp);
+  const packDir = opts?.destDir ?? path14.join(packDirRoot(), stamp);
   await mkdir5(packDir, { recursive: true });
   const dirs = await listCompleteRunDirs(runsDir);
   const chosen = [];
   const seenUrl = /* @__PURE__ */ new Set();
   for (const dir of dirs) {
-    const raw = await readFile7(path13.join(dir, "manifest.json"), "utf8").catch(() => "");
+    const raw = await readFile7(path14.join(dir, "manifest.json"), "utf8").catch(() => "");
     let manifest = {};
     try {
       manifest = JSON.parse(raw);
@@ -3485,12 +3555,12 @@ async function packLastReceipts(opts) {
   }
   const packed = [];
   for (const dir of chosen) {
-    const dest = path13.join(packDir, path13.basename(dir));
+    const dest = path14.join(packDir, path14.basename(dir));
     await mkdir5(dest, { recursive: true });
-    const manifestAbs = path13.join(dest, "manifest.json");
-    const shotAbs = path13.join(dest, "screenshot.png");
-    await copyFile(path13.join(dir, "manifest.json"), manifestAbs);
-    await copyFile(path13.join(dir, "screenshot.png"), shotAbs);
+    const manifestAbs = path14.join(dest, "manifest.json");
+    const shotAbs = path14.join(dest, "screenshot.png");
+    await copyFile(path14.join(dir, "manifest.json"), manifestAbs);
+    await copyFile(path14.join(dir, "screenshot.png"), shotAbs);
     const raw = await readFile7(manifestAbs, "utf8");
     let manifest = {};
     try {
@@ -3507,7 +3577,7 @@ async function packLastReceipts(opts) {
       runDir: relToPackage(dest)
     });
   }
-  await writeFile4(path13.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
+  await writeFile5(path14.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
 `);
   return { packDir: relToPackage(packDir), packed };
 }
@@ -3618,19 +3688,6 @@ async function reapLeftovers(opts = {}, deps) {
 
 // src/sandbox.ts
 import { SolariClient as SolariClient3 } from "@solarisdk/sdk";
-
-// src/fail-closed.ts
-function isNoRetryReason(reason) {
-  return reason === "loggedOut" || reason === "needsHuman";
-}
-function mayRetryCheck(reason) {
-  return !isNoRetryReason(reason);
-}
-function shouldVerifyAfterCheck(reason) {
-  return mayRetryCheck(reason) && reason !== "recordedLoggedIn";
-}
-
-// src/sandbox.ts
 var SANDBOX_ASSERT_TIMEOUT_MS = 6e4;
 var VERIFY_OVERALL_MS = 9e4;
 var CHECK_THEN_VERIFY_WORST_MS = OVERALL_TIMEOUT_MS + CLOSE_TIMEOUT_MS + VERIFY_OVERALL_MS;
@@ -3886,7 +3943,11 @@ async function checkThenVerify(opts, deps) {
     if (verifyWithProfile && opts.profile) {
       if (!deps?.verify) {
         const solari = createClient();
-        profileId = await resolveProfileId(solari, opts.profile);
+        try {
+          profileId = await resolveProfileId(solari, opts.profile);
+        } finally {
+          await solari.close().catch(() => void 0);
+        }
       } else {
         profileId = opts.profile;
       }
@@ -3895,6 +3956,7 @@ async function checkThenVerify(opts, deps) {
       ...defaultVerifyDeps(),
       skipAnonymousClaim: verifyWithProfile && Boolean(profileId)
     }, profileId ? { profileId } : void 0);
+    await persistAgentManifest(check, { verify }).catch(() => void 0);
     return { check, verify };
   } catch (err) {
     return {
@@ -3911,18 +3973,43 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Pass verify=true or verifyWithProfile to verify ConsistencyHub; pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. Show the packet, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman for a named Solari profile. Live probe never uses --sso or --record and never types a password. Empty or missing profile is loggedOut (human SSO once). Microsoft or Google password/OTP wall is needsHuman \u2014 skip live, do not ping the user. Path / is loggedOut unless expect matched.";
+var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed = cookies/origins but no sessionStorage (auth-gated SaaS likely insufficient). Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
+var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Defaults to ConsistencyHub URL and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {
   return JSON.stringify(stampSchema(obj), null, 2);
 }
 function progressFromExtra(extra) {
   return createProgress({ extra });
+}
+async function executeAuspexCheck(args, deps) {
+  const merged = applySavedCheckName(args);
+  const url = merged.url;
+  const expect = merged.expect;
+  if (!url || !expect) {
+    throw new Error("auspex_check requires name or url+expect");
+  }
+  const { verify, name, ...rest } = merged;
+  const opts = { ...rest, url, expect };
+  assertPageActionsAllowed({ ...opts, name });
+  assertRecordProfileAllowed({ ...opts, name });
+  assertRecordNotLoggedIn(opts);
+  const verified = shouldVerifyCheck({
+    name,
+    verify,
+    verifyWithProfile: opts.verifyWithProfile
+  });
+  if (verified) {
+    const both = await (deps?.checkThenVerify ?? checkThenVerify)(opts);
+    return { receipt: toAgentReceipt(both.check, { verify: both.verify }), verified: true };
+  }
+  const result = await (deps?.runCheck ?? runCheck)(opts);
+  return { receipt: toAgentReceipt(result), verified: false };
 }
 function registerAuspexTools(server2) {
   server2.registerTool(
@@ -3935,27 +4022,7 @@ function registerAuspexTools(server2) {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_check");
-        const merged = applySavedCheckName(args);
-        const url = merged.url;
-        const expect = merged.expect;
-        if (!url || !expect) {
-          throw new Error("auspex_check requires name or url+expect");
-        }
-        const { verify, name, ...rest } = merged;
-        const opts = { ...rest, url, expect, onProgress };
-        assertPageActionsAllowed({ ...opts, name });
-        assertRecordProfileAllowed({ ...opts, name });
-        assertRecordNotLoggedIn(opts);
-        const shouldVerify = verify !== false;
-        if (shouldVerify) {
-          const both = await checkThenVerify(opts);
-          const receipt2 = toAgentReceipt(both.check, { verify: both.verify });
-          const packed2 = await buildCheckToolContent(receipt2);
-          packed2.content[0] = { type: "text", text: toolJson(receipt2) };
-          return packed2;
-        }
-        const result = await runCheck(opts);
-        const receipt = toAgentReceipt(result);
+        const { receipt } = await executeAuspexCheck({ ...args, onProgress });
         const packed = await buildCheckToolContent(receipt);
         packed.content[0] = { type: "text", text: toolJson(receipt) };
         return packed;
@@ -4000,6 +4067,26 @@ function registerAuspexTools(server2) {
       try {
         const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs });
         return { content: [{ type: "text", text: toolJson({ ok: result.status === "completed", ...result }) }] };
+      } catch (err) {
+        return packToolFailure(err);
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_finalize_login",
+    {
+      description: FINALIZE_LOGIN_DESCRIPTION,
+      inputSchema: auspexFinalizeLoginInputSchema
+    },
+    async ({ profile, url }, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_finalize_login");
+        const result = await runFinalizeLogin({ profile, url, onProgress });
+        const receipt = toAgentReceipt(result);
+        const packed = await buildCheckToolContent(receipt);
+        packed.content[0] = { type: "text", text: toolJson(receipt) };
+        return packed;
       } catch (err) {
         return packToolFailure(err);
       }
