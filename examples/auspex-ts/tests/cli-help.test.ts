@@ -510,6 +510,23 @@ test("parseArgv ad-hoc auth URL + profile skips anonymous verify; public marketi
   if (publicWithProfile.status === "ok" && publicWithProfile.command.cmd === "check") {
     assert.equal(publicWithProfile.command.verifyAfter, true, "public marketing still verifies with a leftover profile")
   }
+  const unknownHost = parseArgv([
+    "check",
+    "https://app.example.com",
+    "--expect",
+    "Dashboard",
+    "--profile",
+    "acme",
+  ])
+  assert.equal(unknownHost.status, "ok")
+  if (unknownHost.status === "ok" && unknownHost.command.cmd === "check") {
+    assert.equal(unknownHost.command.verifyAfter, false, "unknown host + profile skips anonymous verify")
+  }
+  const noProfile = parseArgv(["check", "https://app.example.com", "--expect", "Dashboard"])
+  assert.equal(noProfile.status, "ok")
+  if (noProfile.status === "ok" && noProfile.command.cmd === "check") {
+    assert.equal(noProfile.command.verifyAfter, true, "no profile still verifies")
+  }
 })
 
 test("parseArgv --verify-with-profile enables verifyAfter for consistencyhub", () => {

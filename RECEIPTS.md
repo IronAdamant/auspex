@@ -14,7 +14,7 @@ Three distinct booleans in the receipt, each telling you something different:
 
 **For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
 
-**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` as the right signal. `name=consistencyhub`, `profile=consistencyhub`, or a profile on consistencyhub.io / onedrive.live.com skip anonymous verify by default. Other ad-hoc auth URLs (no profile, or an unknown host) still default-verify → `ok=false` even when the live check matched. `--verify` on those paths is still anonymous.
+**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` as the right signal. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL skip anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is still anonymous.
 
 ## Verified Dogfood (2026-09-18 AEST)
 
@@ -80,7 +80,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 ```
 **Result:** `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** — sandbox reuses profile cookies, sees logged-in UI.
 
-**⚠️ Gotcha:** `--verify` on an auth-gated URL still runs **anonymous** verify and will print `ok=false` on a live match. Named `consistencyhub`, `profile=consistencyhub`, and a profile on consistencyhub.io / onedrive.live.com now **skip** anonymous verify by default. Other ad-hoc auth URLs (no profile, or an unknown host) still default-verify. Use `--no-verify` for smoke tests or `--verify-with-profile` for claim verification — not `--verify`.
+**⚠️ Gotcha:** `--verify` on an auth-gated URL still runs **anonymous** verify and will print `ok=false` on a live match. Named `consistencyhub`, `profile=consistencyhub`, and any attached profile on a non-public-marketing URL now **skip** anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. Use `--no-verify` for smoke tests or `--verify-with-profile` for claim verification — not `--verify`.
 
 ## Ironadamant.com Check (Public Marketing)
 
@@ -150,7 +150,7 @@ For golden examples of actual schema v1 receipts, see the committed receipts in 
 
 ## Verification Deep Dive
 
-Auspex defaults to **anonymous sandbox verification** for public marketing pages (`--verify` is default, not `--no-verify`). **`name=consistencyhub`**, **`profile=consistencyhub`**, or a **profile on consistencyhub.io / onedrive.live.com** defaults to **no** sandbox. `--verify` on those paths is anonymous and will poison `ok`. `--verify-with-profile` is the dogfood claim recheck. Here's how anonymous verify works when it runs:
+Auspex defaults to **anonymous sandbox verification** for public marketing pages (`--verify` is default, not `--no-verify`). **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** defaults to **no** sandbox. Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is anonymous and will poison `ok`. `--verify-with-profile` is the dogfood claim recheck. Here's how anonymous verify works when it runs:
 
 1. Re-fetches the target URL via HTTP (no cookies/auth)
 2. OCRs the committed PNG

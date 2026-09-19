@@ -2304,7 +2304,7 @@ var auspexCheckInputObject = z4.object({
   proxySticky: z4.string().optional().describe("Sticky proxy session id (with proxy country)"),
   captcha: z4.boolean().optional().describe("Managed captcha solving. Implies stealth. Starter+ (402 on Free)"),
   verify: z4.boolean().optional().describe(
-    "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or a profile on consistencyhub.io / onedrive.live.com (anonymous fetch cannot see auth-gated UI). Pass true / --verify to force anonymous verify \u2014 that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs."
+    "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (anonymous fetch cannot see auth-gated UI). Public marketing still verifies with a leftover profile. No profile still verifies. Pass true / --verify to force anonymous verify \u2014 that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs."
   ),
   verifyWithProfile: z4.boolean().optional().describe(
     "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. ok requires only integrity verify.ok when anonymous claim is skipped \u2014 read claimOkProfile separately; do not treat ok as the triad. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true)."
@@ -2386,7 +2386,13 @@ var auspexReapInputSchema = z4.object({
 });
 var auspexFinalizeLoginInputSchema = z4.object({
   profile: profileNameSchema.describe("Profile name to finalize (SSO + save-profile; captures sessionStorage)"),
-  url: httpUrlSchema.optional().describe("Optional http(s) URL (defaults to ConsistencyHub)")
+  url: httpUrlSchema.optional().describe(
+    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub)"
+  ),
+  expect: expectSchema.optional().describe(
+    "Claim substring. Required with url unless profile matches a saved check (e.g. consistencyhub)"
+  ),
+  ssoProvider: z4.enum(["microsoft", "google", "auto"]).optional().describe("SSO vendor (structural enum). Default auto tries Microsoft, then Google, then a generic Sign in with button")
 });
 var auspexProfileStatusInputSchema = z4.object({
   profile: profileNameSchema.optional().describe("Solari profile name"),
@@ -2547,14 +2553,25 @@ function createProgress(opts = {}) {
 var noopProgress = () => void 0;
 
 // src/check.ts
+function resolveFinalizeLoginTarget(opts) {
+  const saved = savedCheckForProfile(opts.profile);
+  const url = opts.url || saved?.url;
+  const expect = opts.expect || saved?.expect;
+  if (!url || !expect) {
+    throw new Error(
+      "finalize-login requires --url and --expect unless --profile matches a saved check (e.g. consistencyhub)"
+    );
+  }
+  return { url, expect };
+}
 async function runFinalizeLogin(opts) {
-  const saved = resolveSavedCheck("consistencyhub");
+  const { url, expect } = resolveFinalizeLoginTarget(opts);
   return runCheck({
-    url: opts.url || saved.url,
-    expect: saved.expect,
+    url,
+    expect,
     profile: requireProfileName(opts.profile),
     sso: true,
-    ssoProvider: "microsoft",
+    ssoProvider: opts.ssoProvider ?? "auto",
     saveProfile: true,
     onProgress: opts.onProgress
   });
@@ -2879,25 +2896,6 @@ function mayRetryCheck(reason) {
 function shouldVerifyAfterCheck(reason) {
   return mayRetryCheck(reason) && reason !== "recordedLoggedIn";
 }
-var AUTH_GATED_ANONYMOUS_VERIFY_HOSTS = ["consistencyhub.io", "onedrive.live.com"];
-function hostnameOf(url) {
-  if (!url?.trim()) return void 0;
-  try {
-    return new URL(url).hostname.toLowerCase();
-  } catch {
-    return void 0;
-  }
-}
-function hostIs2(hostname, domain) {
-  const h = hostname.toLowerCase();
-  const d = domain.toLowerCase();
-  return h === d || h.endsWith(`.${d}`);
-}
-function isAuthGatedAnonymousVerifyHost(url) {
-  const host = hostnameOf(url);
-  if (!host) return false;
-  return AUTH_GATED_ANONYMOUS_VERIFY_HOSTS.some((d) => hostIs2(host, d));
-}
 function shouldVerifyCheck(opts) {
   if (opts.verify === false) return false;
   if (opts.verify === true) return true;
@@ -2905,7 +2903,7 @@ function shouldVerifyCheck(opts) {
   const name = opts.name?.trim().toLowerCase();
   const profile = opts.profile?.trim().toLowerCase();
   if (name === "consistencyhub" || profile === "consistencyhub") return false;
-  if (profile && isAuthGatedAnonymousVerifyHost(opts.url)) return false;
+  if (profile && !(opts.url && isPublicMarketingUrl(opts.url))) return false;
   return true;
 }
 
@@ -4082,13 +4080,13 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub (or profile=consistencyhub, or a profile on consistencyhub.io / onedrive.live.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. Show the packet, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed = cookies/origins but no sessionStorage (auth-gated SaaS likely insufficient). Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
-var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Defaults to ConsistencyHub URL and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
+var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {
   return JSON.stringify(stampSchema(obj), null, 2);
@@ -4189,11 +4187,11 @@ function registerAuspexTools(server2) {
       description: FINALIZE_LOGIN_DESCRIPTION,
       inputSchema: auspexFinalizeLoginInputSchema
     },
-    async ({ profile, url }, extra) => {
+    async ({ profile, url, expect, ssoProvider }, extra) => {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_finalize_login");
-        const result = await runFinalizeLogin({ profile, url, onProgress });
+        const result = await runFinalizeLogin({ profile, url, expect, ssoProvider, onProgress });
         const receipt = toAgentReceipt(result);
         const packed = await buildCheckToolContent(receipt);
         packed.content[0] = { type: "text", text: toolJson(receipt) };

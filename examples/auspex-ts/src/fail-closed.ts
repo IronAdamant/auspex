@@ -1,4 +1,5 @@
 import type { CheckReason } from "./check-reason.ts"
+import { isPublicMarketingUrl } from "./saved-checks.ts"
 
 /**
  * Fail-closed retry and verify helpers.
@@ -67,10 +68,11 @@ export function isAuthGatedAnonymousVerifyHost(url?: string): boolean {
  * Skip anonymous verify unless the caller passed explicit verify=true (`--verify`)
  * or verifyWithProfile, when:
  * - `--name consistencyhub` / `name=consistencyhub`
- * - `--profile consistencyhub` / `profile=consistencyhub` (ad-hoc CH or OneDrive)
- * - a profile is attached and the URL host is auth-gated (consistencyhub.io, onedrive.live.com)
+ * - `--profile consistencyhub` / `profile=consistencyhub`
+ * - a profile is attached and the URL is not a public marketing host
  *
  * Public marketing hosts still verify by default even with a leftover profile.
+ * No profile still verifies (unknown host included).
  * verify=false (`--no-verify`) always skips.
  * verify=true is **anonymous** verify (poisons `ok` on auth-gated pages).
  * verifyWithProfile is the dogfood path (integrity + claimOkProfile). They are not the same.
@@ -88,6 +90,6 @@ export function shouldVerifyCheck(opts: {
   const name = opts.name?.trim().toLowerCase()
   const profile = opts.profile?.trim().toLowerCase()
   if (name === "consistencyhub" || profile === "consistencyhub") return false
-  if (profile && isAuthGatedAnonymousVerifyHost(opts.url)) return false
+  if (profile && !(opts.url && isPublicMarketingUrl(opts.url))) return false
   return true
 }

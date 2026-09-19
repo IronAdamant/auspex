@@ -24,7 +24,7 @@ import {
   originOf,
   PUBLIC_PROFILE_SAVE_ERROR,
 } from "./profile-storage.ts"
-import { resolveSavedCheck } from "./saved-checks.ts"
+import { savedCheckForProfile } from "./saved-checks.ts"
 import { requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
@@ -114,19 +114,40 @@ export type CheckResult = {
 
 export { packageRoot } from "./paths.ts"
 
-/** CLI/MCP finalize-login: SSO + save-profile to capture sessionStorage (CH recipe). */
+export type FinalizeLoginTargetOpts = {
+  profile: string
+  url?: string
+  expect?: string
+}
+
+/** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */
+export function resolveFinalizeLoginTarget(opts: FinalizeLoginTargetOpts): { url: string; expect: string } {
+  const saved = savedCheckForProfile(opts.profile)
+  const url = opts.url || saved?.url
+  const expect = opts.expect || saved?.expect
+  if (!url || !expect) {
+    throw new Error(
+      "finalize-login requires --url and --expect unless --profile matches a saved check (e.g. consistencyhub)",
+    )
+  }
+  return { url, expect }
+}
+
+/** CLI/MCP finalize-login: SSO + save-profile to capture sessionStorage. */
 export async function runFinalizeLogin(opts: {
   profile: string
   url?: string
+  expect?: string
+  ssoProvider?: SsoProvider
   onProgress?: ProgressFn
 }): Promise<CheckResult> {
-  const saved = resolveSavedCheck("consistencyhub")
+  const { url, expect } = resolveFinalizeLoginTarget(opts)
   return runCheck({
-    url: opts.url || saved.url,
-    expect: saved.expect,
+    url,
+    expect,
     profile: requireProfileName(opts.profile),
     sso: true,
-    ssoProvider: "microsoft",
+    ssoProvider: opts.ssoProvider ?? "auto",
     saveProfile: true,
     onProgress: opts.onProgress,
   })

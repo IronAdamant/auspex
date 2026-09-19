@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "auspex": {
-      "command": "node",
-      "args": ["/absolute/path/to/auspex/bin/auspex-mcp.mjs"],
-      "cwd": "/absolute/path/to/auspex"
+      "command": "npx",
+      "args": ["auspex-mcp"],
+      "cwd": "/path/to/auspex"
     }
   }
 }

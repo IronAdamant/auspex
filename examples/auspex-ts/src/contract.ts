@@ -72,6 +72,8 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
     fields: [
       { json: "profile", flag: "--profile", kind: "string" },
       { json: "url", flag: "--url", kind: "string" },
+      { json: "expect", flag: "--expect", kind: "string" },
+      { json: "ssoProvider", flag: "--sso-provider", kind: "string" },
     ],
   },
   {

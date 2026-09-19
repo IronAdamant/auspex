@@ -30,7 +30,7 @@ import {
 export const USAGE = `Usage:
   npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
   npx auspex verify [runDir]
-  npx auspex finalize-login --profile <name> [--url <url>]
+  npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login --profile <name> [--url <hint>] [--wait]
@@ -44,7 +44,7 @@ Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, clo
 CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
-check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or a profile on consistencyhub.io / onedrive.live.com, which default to --no-verify because anonymous fetch cannot see auth-gated UI. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which default to --no-verify because anonymous fetch cannot see auth-gated UI. Public marketing still verifies with a leftover profile. No profile still verifies. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
 Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
 ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman). matched is the expect substring; reason is always set. CLI exit 0 requires agent ok.
 --mobile emulates iPhone viewport/UA. --device <name> uses a specific device profile (iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
@@ -68,7 +68,7 @@ export type CliCommand =
   | { cmd: "help" }
   | { cmd: "mcp" }
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
-  | { cmd: "finalize-login"; profile: string; url?: string }
+  | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
   | { cmd: "profiles" }
@@ -262,6 +262,8 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const profile = takeOption(args, "--profile")
     const url = takeOption(args, "--url")
+    const expect = takeOption(args, "--expect", { rejectHttp: true })
+    const ssoProviderRaw = takeOption(args, "--sso-provider")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profile) return { status: "error", message: "finalize-login requires --profile <name>" }
     let profileName: string
@@ -273,7 +275,11 @@ export function parseArgv(argv: string[]): ParseResult {
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
     }
-    return { status: "ok", command: { cmd: "finalize-login", profile: profileName, url } }
+    const ssoProvider = parseSsoProvider(ssoProviderRaw)
+    if (ssoProviderRaw && !ssoProvider) {
+      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
+    }
+    return { status: "ok", command: { cmd: "finalize-login", profile: profileName, url, expect, ssoProvider } }
   }
   if (cmd === "login") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -432,6 +438,8 @@ export async function main(argv: string[]): Promise<number> {
       const result = await runFinalizeLogin({
         profile: parsed.command.profile,
         url: parsed.command.url,
+        expect: parsed.command.expect,
+        ssoProvider: parsed.command.ssoProvider,
       })
       const receipt = toAgentReceipt(result)
       writeStdoutJson(receipt)

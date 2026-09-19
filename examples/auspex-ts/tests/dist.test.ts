@@ -20,7 +20,7 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /auspex_await_login/)
   assert.match(dist, /auspex_finalize_login/)
   assert.match(dist, /shouldVerifyCheck/)
-  assert.match(dist, /isAuthGatedAnonymousVerifyHost|onedrive\.live\.com/)
+  assert.match(dist, /isPublicMarketingUrl|isAuthGatedAnonymousVerifyHost|onedrive\.live\.com/)
   assert.match(dist, /They are not equivalent/)
   assert.match(dist, /saveProfile/)
   assert.match(dist, /waitForLoadState/)

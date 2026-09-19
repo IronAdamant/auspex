@@ -1,17 +1,18 @@
 # Auspex MCP (check → verify → reap → kill). Copy into ~/.grok/config.toml.
-# Any-host door from the repo root: node /absolute/path/to/auspex/bin/auspex-mcp.mjs
+# Primary door from the repo root after npm install: npx auspex-mcp
 # Cursor/Claude reviewers: see mcp.cursor.example.json and mcp.claude.example.json.
 # Secret is env SOLARI_API_KEY only (optional gitignored .env). Restart Grok after changing MCP config.
 
-# Use an absolute node binary. Grok's MCP spawn PATH often lacks `node`,
-# so the tsx shebang (`#!/usr/bin/env node`) dies with "node: No such file or directory".
 [mcp_servers.auspex]
-command = "/absolute/path/to/node"
-args = ["/absolute/path/to/auspex/examples/auspex-ts/dist/mcp.mjs"]
-cwd = "/absolute/path/to/auspex/examples/auspex-ts"
+command = "npx"
+args = ["auspex-mcp"]
+cwd = "/path/to/auspex"
 enabled = true
 startup_timeout_sec = 30
 tool_timeout_sec = 300
+
+# If Grok PATH lacks node, pin command to an absolute node binary and
+# args to bin/auspex-mcp.mjs at the repo root (do not hero dist/mcp.mjs).
 
 # Official Solari MCP (browser / sandbox / desktop). Separate from Auspex.
 # dist/solari-mcp.mjs starts @solarisdk/mcp only if SOLARI_API_KEY is in env or .env;

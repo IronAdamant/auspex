@@ -90,3 +90,20 @@ test("shouldVerifyCheck skips anonymous verify for ad-hoc auth hosts with a prof
   assert.equal(isAuthGatedAnonymousVerifyHost("https://ironadamant.com"), false)
   assert.equal(isAuthGatedAnonymousVerifyHost("https://example.com"), false)
 })
+
+test("shouldVerifyCheck skips anonymous verify for any attached profile except public marketing", () => {
+  assert.equal(shouldVerifyCheck({ profile: "acme", url: "https://app.example.com" }), false)
+  assert.equal(shouldVerifyCheck({ profile: "acme", url: "https://ironadamant.com" }), true)
+  assert.equal(shouldVerifyCheck({ url: "https://app.example.com" }), true)
+  assert.equal(shouldVerifyCheck({ name: "consistencyhub" }), false)
+  assert.equal(shouldVerifyCheck({ name: "consistencyhub", verify: true }), true)
+  assert.equal(shouldVerifyCheck({ name: "consistencyhub", verifyWithProfile: true }), true)
+  assert.equal(
+    shouldVerifyCheck({
+      url: "https://ironadamant.com",
+      profile: "other-ms",
+    }),
+    true,
+    "leftover profile on ironadamant still verifies",
+  )
+})

@@ -163,7 +163,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or a profile on consistencyhub.io / onedrive.live.com (anonymous fetch cannot see auth-gated UI). Pass true / --verify to force anonymous verify — that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
+      "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (anonymous fetch cannot see auth-gated UI). Public marketing still verifies with a leftover profile. No profile still verifies. Pass true / --verify to force anonymous verify — that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
     ),
   verifyWithProfile: z
     .boolean()
@@ -292,7 +292,16 @@ export const auspexReapInputSchema = z.object({
 
 export const auspexFinalizeLoginInputSchema = z.object({
   profile: profileNameSchema.describe("Profile name to finalize (SSO + save-profile; captures sessionStorage)"),
-  url: httpUrlSchema.optional().describe("Optional http(s) URL (defaults to ConsistencyHub)"),
+  url: httpUrlSchema.optional().describe(
+    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub)",
+  ),
+  expect: expectSchema.optional().describe(
+    "Claim substring. Required with url unless profile matches a saved check (e.g. consistencyhub)",
+  ),
+  ssoProvider: z
+    .enum(["microsoft", "google", "auto"])
+    .optional()
+    .describe("SSO vendor (structural enum). Default auto tries Microsoft, then Google, then a generic Sign in with button"),
 })
 
 export const auspexProfileStatusInputSchema = z.object({
