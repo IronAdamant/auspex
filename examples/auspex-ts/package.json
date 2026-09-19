@@ -28,5 +28,8 @@
     "esbuild": "^0.25.12",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "@puppeteer/browsers": ">=3.2.2"
   }
 }
