@@ -90,6 +90,42 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.match(first, /npx auspex-mcp/)
   assert.match(first, /[Pp]ublic check/)
   assert.match(first, /[Aa]uth-gated/)
+  assert.match(first, /no public GitHub Issues tracker/)
+})
+
+test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () => {
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const license = readFileSync(path.join(repo, "LICENSE"), "utf8")
+  const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
+  const deferred = readFileSync(path.join(pkg, "docs", "deferred-check-2026-09-19.md"), "utf8")
+
+  assert.match(rootReadme, /named Solari sandbox Mousepad demo/)
+  assert.match(rootReadme, /402 on Free/)
+  assert.match(packReadme, /named Solari sandbox demo \(default Mousepad\)/)
+  assert.match(packReadme, /402 on Free/)
+  assert.match(USAGE, /desktop/)
+
+  assert.match(license, /Copyright \(c\) 2026 Pinetree Research/)
+  assert.match(license, /Copyright \(c\) 2026 Iron Adamant/)
+
+  assert.match(rootReadme, /auth \+ hygiene doors/)
+  assert.match(rootAgents, /auth \+ hygiene doors/)
+  assert.match(packAgents, /auth \+ hygiene doors/)
+  assert.match(pitch, /auth \+ hygiene doors/)
+
+  assert.match(rootAgents, /no committed OneDrive PNG\/receipt/)
+  assert.match(packAgents, /no committed OneDrive PNG\/receipt/)
+  assert.match(receipts, /no committed OneDrive PNG\/receipt/)
+  assert.match(receipts, /weekly live coverage is \*\*not\*\* running/)
+  assert.match(rootReadme, /weekly live coverage is not running/)
+
+  assert.match(deferred, /fixed in #42/)
+  assert.match(deferred, /vwp-magic-sleeps-2026-09-19/)
+  assert.match(deferred, /Do not claim timeout still invents an anonymous miss/)
 })
 
 test("showcase landing and Discord packet hero the jsDelivr watch URL", () => {

@@ -12,6 +12,7 @@ The ironadamant one-liner is a **public check (no login)**. It does **not** prov
 | **Public check (no login)** | `npx auspex check --name ironadamant` |
 | **Any host** | `npx auspex check https://example.com --expect "Example Domain"` |
 | **MCP** | `npx auspex-mcp` |
+| **Issues** | This fork has no public GitHub Issues tracker (`has_issues` is false). |
 | **Do not** | Type passwords · `--record` logged-in ConsistencyHub · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
 ```bash
@@ -87,13 +88,14 @@ npx auspex-mcp
 
 Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
 
-Weekly public checks: `npx auspex check --name ironadamant` and `--name checkpoint`, or from `examples/auspex-ts`, `npm run public-check`. The GitHub Actions `public` job is Monday + `workflow_dispatch` and skips without env `SOLARI_API_KEY`. A **repo** secret named `SOLARI_API_KEY` is required for that job to run; this repository does not add the secret, and missing it does not fail pull requests.
+The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. Run locally: `npx auspex check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
 
 ## Links
 
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
+- This fork has no public GitHub Issues tracker (`has_issues` is false)
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 

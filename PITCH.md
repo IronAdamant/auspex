@@ -96,7 +96,7 @@ npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
 
 ## One-liner wedge
 
-**Auspex = agent web-eyes that stay honest on auth-gated first-party SaaS.**
+**Auspex = agent web-eyes that stay honest on auth-gated first-party SaaS.** Primitives are check / verify / desktop; login, finalize-login, profile-status, and reap are the auth + hygiene doors.
 
 - **Check:** live browser with profile → `matched`
 - **Verify:** anonymous sandbox fetch/OCR → `claimOk` (integrity + claim)

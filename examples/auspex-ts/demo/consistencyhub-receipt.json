@@ -25,5 +25,5 @@
     "cookies": 78,
     "origins": 5
   },
-  "demoNote": "Redacted public demo of a live 2026-09-19 AEST --verify-with-profile run. sessionId/sandbox ids omitted. PNG is blurred auth-gated UI, not a blank fail."
+  "demoNote": "Redacted public demo of a live 2026-09-19 AEST --verify-with-profile run. sessionId/sandbox ids omitted. PNG is blurred auth-gated UI, not a blank fail. sessionStorage was present on the live seed and omitted from this public JSON."
 }

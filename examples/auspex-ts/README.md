@@ -69,7 +69,7 @@ npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 
 Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, then `title`, `finalUrl`, `matched`, `excerpt`, `sessionId`, `networkIdle`, optional `diff` / `verify` / `replayReady` / action fields. Files land in `.auspex/runs/<timestamp>/`. `--record` does not put a presigned replay URL on the receipt. Refresh the public demo with `npx tsx scripts/save-demo-receipt.ts`.
 
-`desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. **FAIL-CLOSED `--type`** refuses password/OTP-like strings. `streamUrl` is the live VNC; Auspex still kills after the shot.
+`desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. 402 on Free. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. **FAIL-CLOSED `--type`** refuses password/OTP-like strings. `streamUrl` is the live VNC; Auspex still kills after the shot.
 
 `profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` = cookies/origins but no sessionStorage. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
 
@@ -91,7 +91,7 @@ Tools:
 - `auspex_verify` — only after `verify=false`. Headless VM independently audits expect, then **kill**
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs; `packReceipts` for PR attach
 - `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`)
-- `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac.
+- `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac. 402 on Free.
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.
 

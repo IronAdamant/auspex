@@ -31,10 +31,9 @@ npx auspex check --name consistencyhub --verify-with-profile
 npx auspex check https://onedrive.live.com/ --expect "My files" \
   --profile consistencyhub --verify-with-profile
 ```
-**Result:** ✅ `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`**  
-**Live page title:** "Home - OneDrive"
+Live dogfood on a **local** Microsoft profile. **No committed OneDrive PNG/receipt** (PII). Recipe only — not a public artifact.
 
-**Key insight:** The ConsistencyHub profile seed (Microsoft cookies + sessionStorage) works for both ConsistencyHub and OneDrive. Profile-seeded verification sees the logged-in content that anonymous fetch cannot.
+**Key insight:** The ConsistencyHub profile seed (Microsoft cookies + sessionStorage) can be reused for OneDrive. Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot.
 
 ## ConsistencyHub (Auth-Gated SaaS Golden Path)
 
@@ -64,21 +63,19 @@ npx auspex check --name consistencyhub --verify-with-profile
 
 ## OneDrive (Microsoft Cookie Reuse Recipe)
 
-**Use case:** Check OneDrive (verified) or other Microsoft hosts that accept the same cookie seed, using the ConsistencyHub profile.
+**Use case:** Check OneDrive or other Microsoft hosts that accept the same cookie seed, using the ConsistencyHub profile. Live dogfood on a local Microsoft profile; **no committed OneDrive PNG/receipt** (PII).
 
 **Smoke test (skip verify):**
 ```bash
 npx auspex check https://onedrive.live.com/ --expect "My files" \
   --profile consistencyhub --no-verify
 ```
-**Result:** `ok=true`, `reason=matched` — browser sees logged-in UI, no verify ran.
 
 **Claim verification (profile-seeded):**
 ```bash
 npx auspex check https://onedrive.live.com/ --expect "My files" \
   --profile consistencyhub --verify-with-profile
 ```
-**Result:** `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** — sandbox reuses profile cookies, sees logged-in UI.
 
 **⚠️ Gotcha:** `--verify` on an auth-gated URL still runs **anonymous** verify and will print `ok=false` on a live match. Named `consistencyhub`, `profile=consistencyhub`, and any attached profile on a non-public-marketing URL now **skip** anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. Use `--no-verify` for smoke tests or `--verify-with-profile` for claim verification — not `--verify`.
 
@@ -182,4 +179,4 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) in GitHub Actions runs weekly (Mondays + `workflow_dispatch`) to verify the saved checks still work against live sites. **The workflow does not commit artifacts** — it only runs the checks to ensure they pass. The demo PNG/receipt/replay files in this repo are manually committed when refreshed.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. This fork has no public GitHub Issues tracker (`has_issues` is false).

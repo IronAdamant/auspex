@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
@@ -50,6 +50,30 @@ test("demo ironadamant-receipt.json is schema v1", () => {
   assert.equal(receipt.sessionId, DEMO_SYNTHETIC_SESSION_ID)
   assert.equal(receipt.verify?.claimOk, true)
   assert.equal("replayUrl" in raw, false)
+})
+
+test("demo consistencyhub-receipt.json notes omitted sessionStorage or counts it", () => {
+  const raw = JSON.parse(readFileSync(path.join(demo, "consistencyhub-receipt.json"), "utf8")) as Record<
+    string,
+    unknown
+  >
+  const receipt = parseReceiptV1(raw)
+  assert.equal(receipt.schemaVersion, 1)
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.verify?.claimOkProfile, true)
+  const note = typeof raw.demoNote === "string" ? raw.demoNote : ""
+  const seed = raw.profileSeed as { sessionStorage?: number } | undefined
+  const count = seed?.sessionStorage
+  const notesOmit = /sessionStorage/i.test(note) && /omitted/i.test(note)
+  assert.ok(
+    typeof count === "number" || notesOmit,
+    "CH receipt must have numeric profileSeed.sessionStorage or demoNote that sessionStorage was omitted",
+  )
+})
+
+test("no committed OneDrive receipt artifact", () => {
+  assert.equal(existsSync(path.join(demo, "onedrive-receipt.json")), false)
+  assert.equal(existsSync(path.join(demo, "onedrive.png")), false)
 })
 
 test("demo PNG is a real PNG", () => {

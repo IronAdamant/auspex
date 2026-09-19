@@ -1,5 +1,7 @@
 # Deferred-items check — 2026-09-19 (post-#40)
 
+> **Superseded (Item 3):** VWP timeout poison was fixed in #42 (`vwp-magic-sleeps-2026-09-19.md`). Sleeps remain as a later item. Do not claim timeout still invents an anonymous miss.
+
 **Auditor:** Grok (Cursor cloud agent). Report only — no product code.  
 **Tip:** `1e57185` (`Merge pull request #40`, 2026-09-19). Re-read on GitHub `main` after fetch, not the stale VM checkout (`ff156ad` / #38).  
 **Baseline:** leave-nothing #40 (`da47c72`) + closed report-only #39 at `ff156ad`.  
@@ -16,7 +18,7 @@ CoS / founder cut: **still ship-with-nits. No new P0. No P1 one-file burn.** The
 |---|---|---|---|
 | 1. `looksLikeAppProfile` kebab / slug heuristic | False `weakSeed` on a live logged-out cookie-only slug profile. Inspect-only path is **dead in production**. | Unchanged | **leave** |
 | 2. Fail-closed gates copied four ways | None. Runtime holds. Zod gap is unused on the MCP door. | Unchanged (descriptions only) | **leave** |
-| 3. VWP / profile-claim magic sleeps | Live Solari only. Inside the **90s** verify envelope, not CI. Timeout poisons `ok` and can leave a second browser until `finally`. | #38 closed the client. Sleeps untouched. | **real eng later** |
+| 3. VWP / profile-claim magic sleeps | Sleeps remain (later). Timeout poison (anonymous miss on VWP envelope) **fixed in #42**. | #42 `vwp-magic-sleeps-2026-09-19.md` | **sleeps later; timeout honesty shipped** |
 | 4. Fold `claimOkProfile` into `ok` | Thesis tension only. Folding would lie on auth-gated SaaS. | #40 documented “read the triad.” Code unchanged. | **leave** |
 | 5. Device / QR zero unit tests | Advertised + wired, best-effort. Not dead. Unknown `--device` throws **after** launch (slot released). | #35 shipped + honesty. #40 advertised more. Tests still zero. | **leave** (tests later if the table grows) |
 | 6. Origin-allowlist tautology | Still deferred. Named-host lines are dead given the first `www.` strip. No integrity hole on the three marketing hosts. | Unchanged since #33 | **leave** |
@@ -132,11 +134,13 @@ The profile claim uses `new AbortController().signal` (**120**), **not** the ver
 
 ### Real risk today
 
+**Update (post-#42):** Timeout poison is **fixed**. A VWP envelope miss keeps `anonymousClaimSkipped` and sets `claimOkProfile=false`; it does not invent an anonymous miss. Sleeps remain as a later item. Historical notes below describe the pre-#42 path.
+
 **Live Solari only. Not CI.** Unit tests mock `profileClaimCheck` / `verify` (`lifecycle.test.ts`, `mcp-check-verify.test.ts`). The 2s/3s sleeps never run in `npm test`.
 
-Budget: 45s goto + 20s idle + 5s sleeps can still sit on top of a slow sandbox assert. If the **90s** envelope loses, `checkThenVerify` catch (**391–401**) returns `verify.ok=false`, `claimOk=false`, **no** `anonymousClaimSkipped`. `agentReceiptOk` then requires `verify.ok && claimOk` → **`ok=false`** even though the live check matched. That is a poisoned VWP receipt, not a silent pass. The second browser should still close; a hung `chromium.connect` can hold a slot until the host 300s tool timeout.
+Budget: 45s goto + 20s idle + 5s sleeps can still sit on top of a slow sandbox assert. Pre-#42, if the **90s** envelope lost, `checkThenVerify` catch (**391–401**) returned `verify.ok=false`, `claimOk=false`, **no** `anonymousClaimSkipped`. `agentReceiptOk` then required `verify.ok && claimOk` → **`ok=false`** even though the live check matched. That was a poisoned VWP receipt, not a silent pass. #42 stopped that lie. The second browser should still close; a hung `chromium.connect` can hold a slot until the host 300s tool timeout.
 
-Dogfood 2026-09-18 finished in time. #38 closed the `createClient()` leak. This is flake + slot-hold on a slow day, not a contract lie.
+Dogfood 2026-09-18 finished in time. #38 closed the `createClient()` leak. Sleeps are flake + slot-hold on a slow day, not a contract lie.
 
 ### #40 / #38
 
