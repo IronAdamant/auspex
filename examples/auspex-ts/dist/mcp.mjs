@@ -186,8 +186,73 @@ function toAgentReceipt(check, extras) {
 
 // src/check.ts
 import { existsSync as existsSync3 } from "node:fs";
-import { mkdir as mkdir3, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
+import { mkdir as mkdir4, readFile as readFile5, writeFile as writeFile3 } from "node:fs/promises";
 import path9 from "node:path";
+
+// src/device-emulation.ts
+var DEVICES = {
+  "iphone-12": {
+    viewport: { width: 390, height: 844 },
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true
+  },
+  "iphone-13-pro": {
+    viewport: { width: 390, height: 844 },
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true
+  },
+  "pixel-5": {
+    viewport: { width: 393, height: 851 },
+    userAgent: "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
+    deviceScaleFactor: 2.75,
+    isMobile: true,
+    hasTouch: true
+  },
+  "galaxy-s21": {
+    viewport: { width: 360, height: 800 },
+    userAgent: "Mozilla/5.0 (Linux; Android 11; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36",
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true
+  },
+  "ipad-pro": {
+    viewport: { width: 1024, height: 1366 },
+    userAgent: "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true
+  }
+};
+function parseDeviceOptions(opts) {
+  if (opts.device) {
+    const device = DEVICES[opts.device.toLowerCase()];
+    if (!device) {
+      const available = Object.keys(DEVICES).join(", ");
+      throw new Error(`Unknown device: ${opts.device}. Available: ${available}`);
+    }
+    return {
+      viewport: device.viewport,
+      userAgent: device.userAgent,
+      deviceScaleFactor: device.deviceScaleFactor,
+      isMobile: device.isMobile,
+      hasTouch: device.hasTouch
+    };
+  }
+  if (opts.mobile) {
+    return {
+      viewport: { width: 390, height: 844 },
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+      deviceScaleFactor: 3,
+      isMobile: true,
+      hasTouch: true
+    };
+  }
+  return void 0;
+}
 
 // src/http-url.ts
 import { isIP } from "node:net";
@@ -294,13 +359,22 @@ import { z as z2 } from "zod";
 
 // src/profile-lock.ts
 import { randomBytes } from "node:crypto";
-import { open, mkdir, readFile, rename, stat, unlink } from "node:fs/promises";
+import { open, mkdir as mkdir2, readFile, rename, stat, unlink } from "node:fs/promises";
 import path2 from "node:path";
 
 // src/paths.ts
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 var packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+async function ensureRunDir() {
+  const auspexDir = path.join(packageRoot, ".auspex");
+  const runsDir = path.join(auspexDir, "runs");
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
+  const runDir2 = path.join(runsDir, stamp);
+  await mkdir(runDir2, { recursive: true });
+  return runDir2;
+}
 
 // src/profile-lock.ts
 var PROFILE_BUSY_CODE = "ProfileBusy";
@@ -354,7 +428,7 @@ async function stealIfDead(lockPath) {
 async function withProfileLock(profile, work, opts = {}) {
   const name = requireProfileName(profile);
   const dir = opts.lockDir ?? defaultLockDir();
-  await mkdir(dir, { recursive: true });
+  await mkdir2(dir, { recursive: true });
   const lockPath = path2.join(dir, lockFileName(name));
   let fh;
   try {
@@ -503,8 +577,8 @@ function stillOnAuth(url) {
   if (idpAuthHost(url.hostname)) {
     return true;
   }
-  const path13 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/login" || path13.startsWith("/login/") || path13 === "/auth" || path13.startsWith("/auth/")) {
+  const path14 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path14 === "/login" || path14.startsWith("/login/") || path14 === "/auth" || path14.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -679,8 +753,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/" || path13 === "/landing" || path13 === "/login" || path13 === "/signup" || path13.startsWith("/auth")) {
+  const path14 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path14 === "/" || path14 === "/landing" || path14 === "/login" || path14 === "/signup" || path14.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -693,9 +767,9 @@ function isLoggedOutLanding(url, opts) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path13 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path13 === "/landing" || path13.startsWith("/landing/")) return true;
-  if (path13 === "/") return opts?.matched !== true;
+  const path14 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path14 === "/landing" || path14.startsWith("/landing/")) return true;
+  if (path14 === "/") return opts?.matched !== true;
   return false;
 }
 function cookiesForOrigin(cookies, origin) {
@@ -882,12 +956,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path13 = url;
+    let path14 = url;
     try {
-      path13 = new URL(url, BROWSER_API_BASE).pathname;
+      path14 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path13);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path14);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -1065,7 +1139,7 @@ async function launchBrowser(solari, options = {}, signal, deps = defaultLaunchD
 async function resolveProfileId(solari, name) {
   return findProfileId(await solari.profiles.list(), name);
 }
-async function pageForSession(browser) {
+async function pageForSession(browser, contextOptions) {
   const existing = browser.contexts()[0];
   const state = browser.session.storageState;
   const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] };
@@ -1080,7 +1154,8 @@ async function pageForSession(browser) {
   const hasState = storageStateIsPopulated(pw);
   let ctx = existing;
   if (!ctx) {
-    ctx = await browser.newContext(hasState ? { storageState: pw } : {});
+    const baseOptions = hasState ? { storageState: pw } : {};
+    ctx = await browser.newContext({ ...baseOptions, ...contextOptions });
   }
   const page = ctx.pages()[0] ?? await ctx.newPage();
   await installSessionStorageRestore(ctx, state, page);
@@ -1266,6 +1341,9 @@ function awaitNext(status, profile, version, seed) {
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
   }
+  if (status === "waiting") {
+    return `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`;
+  }
   return `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`;
 }
 async function waitForProfileSave(name, opts) {
@@ -1280,7 +1358,7 @@ async function waitForProfileSave(name, opts) {
   const since = opts.sinceVersion ?? profile.version ?? 0;
   let version = profile.version ?? since;
   let seed = { cookies: 0, origins: 0 };
-  let status = "timeout";
+  let status = "waiting";
   const isConsistencyHub = want.toLowerCase() === "consistencyhub";
   const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : void 0;
   while (now() < deadline) {
@@ -1294,8 +1372,14 @@ async function waitForProfileSave(name, opts) {
       break;
     }
     const remain = deadline - now();
-    if (remain <= 0) break;
+    if (remain <= 0) {
+      status = "timeout";
+      break;
+    }
     await sleepFn(Math.min(HANDOFF_POLL_MS, remain));
+  }
+  if (status === "waiting") {
+    status = "timeout";
   }
   return {
     status,
@@ -1337,19 +1421,26 @@ function requireProfileName(value) {
   return name;
 }
 var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
-function loginInstructions(profile, urlHint, handoff) {
+function loginInstructions(profile, urlHint, handoff, qrPath) {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
   const hangGuidance = " If handoff Chromium is blank/spinning >2\u20133 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
   if (handoff?.url) {
+    const handoffPacket = {
+      url: handoff.url,
+      openOnPhone: "Open this login URL on your phone to sign in from anywhere",
+      oneLiner: `Auspex login: ${handoff.url}`,
+      qrPath
+    };
     return {
       profileId: profile.id,
       name: profile.name,
       consoleUrl: CONSOLE_PROFILES_URL,
+      handoff: handoffPacket,
       url: handoff.url,
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`
+      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`
     };
   }
   return {
@@ -1363,8 +1454,8 @@ function loginInstructions(profile, urlHint, handoff) {
 async function defaultProfileHttp() {
   const key = requireApiKey();
   return {
-    post: async (path13, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path13}`, {
+    post: async (path14, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path14}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -1403,7 +1494,7 @@ async function ensureProfile(name) {
     await solari.close();
   }
 }
-async function loginProfile(name, urlHint, http) {
+async function loginProfile(name, urlHint, http, qrPath) {
   const profile = await ensureProfile(name);
   const client = http ?? await defaultProfileHttp();
   const handoff = await requestLoginHandoff(
@@ -1411,7 +1502,7 @@ async function loginProfile(name, urlHint, http) {
     `Auspex login for profile ${profile.name}`,
     client
   );
-  return loginInstructions(profile, urlHint, handoff);
+  return loginInstructions(profile, urlHint, handoff, qrPath);
 }
 async function listProfiles() {
   const solari = createClient();
@@ -1918,7 +2009,7 @@ async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
 }
 
 // src/session-ledger.ts
-import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
+import { mkdir as mkdir3, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
 import path6 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 var packageRoot3 = path6.resolve(path6.dirname(fileURLToPath4(import.meta.url)), "..");
@@ -1939,7 +2030,7 @@ async function readLiveLedger(file = LIVE_LEDGER_PATH) {
   }
 }
 async function writeLiveLedger(ledger, file = LIVE_LEDGER_PATH) {
-  await mkdir2(path6.dirname(file), { recursive: true });
+  await mkdir3(path6.dirname(file), { recursive: true });
   await writeFile2(file, `${JSON.stringify(ledger, null, 2)}
 `);
 }
@@ -2172,7 +2263,9 @@ var auspexCheckInputObject = z4.object({
   ),
   saveProfile: z4.boolean().optional().describe(
     "After the check, persist cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save. FAIL-CLOSED: Cannot be used with record=true (recordings capture logged-in sessions) (call-time validation). FAIL-CLOSED: Refuses an empty seed, a public /landing session, or a save with no bytes for the page origin (call-time validation)."
-  )
+  ),
+  mobile: z4.boolean().optional().describe("Emulate iPhone viewport and user agent (390x844, iOS Safari UA, mobile touch). Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides."),
+  device: z4.string().optional().describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides.")
 });
 var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
   if (!val.name && (!val.url || !val.expect)) {
@@ -2438,7 +2531,7 @@ async function runCheck(opts) {
   const closer = new ReadyRelease();
   let sessionId = "";
   const outDir = runDir();
-  await mkdir3(outDir, { recursive: true });
+  await mkdir4(outDir, { recursive: true });
   const screenshotAbs = path9.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
@@ -2482,7 +2575,8 @@ async function runCheck(opts) {
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile));
       }
-      const page = await pageForSession(browser);
+      const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device });
+      const page = await pageForSession(browser, deviceContextOptions);
       if (isCancelled()) return;
       onProgress("goto");
       await gotoWithSessionRestore(page, {
@@ -3163,6 +3257,20 @@ ${summary}`;
   }
 }
 
+// src/qr-gen.ts
+import QRCode from "qrcode";
+import path12 from "node:path";
+async function generateQRCode(url, runDir2) {
+  const qrPath = path12.join(runDir2, "handoff-qr.png");
+  await QRCode.toFile(qrPath, url, {
+    errorCorrectionLevel: "M",
+    type: "png",
+    width: 400,
+    margin: 2
+  });
+  return { qrPath };
+}
+
 // src/profile-status.ts
 function resolveStatusTarget(opts, deps) {
   let profile = opts.profile?.trim();
@@ -3203,6 +3311,44 @@ async function profileStatus(opts, deps) {
       skipReason: missing ? `profile ${profile} not found. Human SSO once (agent never types a password).` : `profile ${profile} is empty. Human SSO once (agent never types a password).`
     };
   }
+  let seed;
+  if (deps?.inspectSeed) {
+    try {
+      seed = await deps.inspectSeed(row.id, url ? new URL(url).origin : void 0);
+    } catch {
+      seed = void 0;
+    }
+  } else {
+    const solari = createClient();
+    try {
+      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : void 0);
+      seed = inspected;
+    } catch {
+      seed = void 0;
+    } finally {
+      await solari.close().catch(() => void 0);
+    }
+  }
+  const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0);
+  const hasNoSessionStorage = seed && seed.sessionStorage !== void 0 && seed.sessionStorage === 0;
+  const profileLc = profile.trim().toLowerCase();
+  const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3;
+  const isConsistencyHub = profileLc === "consistencyhub";
+  if (hasOrigins && hasNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+    return {
+      ok: false,
+      reason: "weakSeed",
+      profile,
+      url,
+      populated: true,
+      live: false,
+      skippedLive: true,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage
+    };
+  }
   if (!url) {
     return {
       ok: false,
@@ -3211,7 +3357,10 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: "no url to probe; pass --url or --name. Not pinging the user."
+      skipReason: "no url to probe; pass --url or --name. Not pinging the user.",
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage
     };
   }
   const check = deps?.runCheck ?? runCheck;
@@ -3234,7 +3383,10 @@ async function profileStatus(opts, deps) {
         populated: row.populated,
         live: false,
         skippedLive: true,
-        skipReason: `${msg} Human SSO once (agent never types a password).`
+        skipReason: `${msg} Human SSO once (agent never types a password).`,
+        cookies: seed?.cookies,
+        origins: seed?.origins,
+        sessionStorage: seed?.sessionStorage
       };
     }
     throw err;
@@ -3251,7 +3403,10 @@ async function profileStatus(opts, deps) {
       skipReason: "password/OTP wall. Skip live; human SSO once. Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
-      screenshotPath: result.screenshotPath
+      screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage
     };
   }
   const landed = result.finalUrl || "";
@@ -3272,7 +3427,10 @@ async function profileStatus(opts, deps) {
       live: true,
       finalUrl: landed,
       excerpt: result.excerpt,
-      screenshotPath: result.screenshotPath
+      screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage
     };
   }
   return {
@@ -3284,7 +3442,10 @@ async function profileStatus(opts, deps) {
     live: true,
     finalUrl: landed,
     excerpt: result.excerpt,
-    screenshotPath: result.screenshotPath
+    screenshotPath: result.screenshotPath,
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage
   };
 }
 
@@ -3292,24 +3453,24 @@ async function profileStatus(opts, deps) {
 import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 
 // src/receipt-pack.ts
-import { copyFile, mkdir as mkdir4, readFile as readFile7, writeFile as writeFile4 } from "node:fs/promises";
-import path12 from "node:path";
+import { copyFile, mkdir as mkdir5, readFile as readFile7, writeFile as writeFile4 } from "node:fs/promises";
+import path13 from "node:path";
 function relToPackage(abs) {
-  return path12.relative(packageRoot, abs).replaceAll("\\", "/");
+  return path13.relative(packageRoot, abs).replaceAll("\\", "/");
 }
 function packDirRoot() {
-  return path12.join(packageRoot, ".auspex", "pack");
+  return path13.join(packageRoot, ".auspex", "pack");
 }
 async function packLastReceipts(opts) {
   const runsDir = opts?.runsDir ?? RUNS_DIR;
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  const packDir = opts?.destDir ?? path12.join(packDirRoot(), stamp);
-  await mkdir4(packDir, { recursive: true });
+  const packDir = opts?.destDir ?? path13.join(packDirRoot(), stamp);
+  await mkdir5(packDir, { recursive: true });
   const dirs = await listCompleteRunDirs(runsDir);
   const chosen = [];
   const seenUrl = /* @__PURE__ */ new Set();
   for (const dir of dirs) {
-    const raw = await readFile7(path12.join(dir, "manifest.json"), "utf8").catch(() => "");
+    const raw = await readFile7(path13.join(dir, "manifest.json"), "utf8").catch(() => "");
     let manifest = {};
     try {
       manifest = JSON.parse(raw);
@@ -3324,12 +3485,12 @@ async function packLastReceipts(opts) {
   }
   const packed = [];
   for (const dir of chosen) {
-    const dest = path12.join(packDir, path12.basename(dir));
-    await mkdir4(dest, { recursive: true });
-    const manifestAbs = path12.join(dest, "manifest.json");
-    const shotAbs = path12.join(dest, "screenshot.png");
-    await copyFile(path12.join(dir, "manifest.json"), manifestAbs);
-    await copyFile(path12.join(dir, "screenshot.png"), shotAbs);
+    const dest = path13.join(packDir, path13.basename(dir));
+    await mkdir5(dest, { recursive: true });
+    const manifestAbs = path13.join(dest, "manifest.json");
+    const shotAbs = path13.join(dest, "screenshot.png");
+    await copyFile(path13.join(dir, "manifest.json"), manifestAbs);
+    await copyFile(path13.join(dir, "screenshot.png"), shotAbs);
     const raw = await readFile7(manifestAbs, "utf8");
     let manifest = {};
     try {
@@ -3346,7 +3507,7 @@ async function packLastReceipts(opts) {
       runDir: relToPackage(dest)
     });
   }
-  await writeFile4(path12.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
+  await writeFile4(path13.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
 `);
   return { packDir: relToPackage(packDir), packed };
 }
@@ -3750,7 +3911,7 @@ async function checkThenVerify(opts, deps) {
 }
 
 // src/mcp-tools.ts
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry.";
+var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR). Pass verify=false to skip; do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Show the url, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
@@ -3811,7 +3972,12 @@ function registerAuspexTools(server2) {
     },
     async ({ profile, url, wait }) => {
       try {
+        const runDir2 = await ensureRunDir();
         const result = await loginProfile(profile, url);
+        if (result.handoff?.url) {
+          const qr = await generateQRCode(result.handoff.url, runDir2);
+          result.handoff.qrPath = qr.qrPath;
+        }
         if (!wait) {
           return { content: [{ type: "text", text: toolJson({ ok: true, ...result }) }] };
         }

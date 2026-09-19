@@ -42,6 +42,8 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "allowRecordProfile", flag: "--allow-record-profile", kind: "boolean" },
       { json: "allowPageActions", flag: "--allow-page-actions", kind: "boolean" },
       { json: "saveProfile", flag: "--save-profile", kind: "boolean" },
+      { json: "mobile", flag: "--mobile", kind: "boolean" },
+      { json: "device", flag: "--device", kind: "string" },
     ],
   },
   {

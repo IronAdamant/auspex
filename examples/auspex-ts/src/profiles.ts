@@ -28,11 +28,19 @@ export type LoginHandoff = {
   version?: number
 }
 
+export type HandoffPacket = {
+  url: string
+  openOnPhone?: string
+  oneLiner?: string
+  qrPath?: string
+}
+
 export type LoginResult = {
   profileId: string
   name: string
   consoleUrl: string
   next: string
+  handoff?: HandoffPacket
   url?: string
   handoffId?: string
   expiresAt?: string
@@ -47,19 +55,27 @@ export function loginInstructions(
   profile: ProfileInfo,
   urlHint?: string,
   handoff?: LoginHandoff,
+  qrPath?: string,
 ): LoginResult {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in."
   const hangGuidance = " If handoff Chromium is blank/spinning >2–3 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
   if (handoff?.url) {
+    const handoffPacket: HandoffPacket = {
+      url: handoff.url,
+      openOnPhone: "Open this login URL on your phone to sign in from anywhere",
+      oneLiner: `Auspex login: ${handoff.url}`,
+      qrPath,
+    }
     return {
       profileId: profile.id,
       name: profile.name,
       consoleUrl: CONSOLE_PROFILES_URL,
+      handoff: handoffPacket,
       url: handoff.url,
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`,
+      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`,
     }
   }
   return {
@@ -129,6 +145,7 @@ export async function loginProfile(
   name: string,
   urlHint?: string,
   http?: ProfileHttp,
+  qrPath?: string,
 ): Promise<LoginResult> {
   const profile = await ensureProfile(name)
   const client = http ?? (await defaultProfileHttp())
@@ -137,7 +154,7 @@ export async function loginProfile(
     `Auspex login for profile ${profile.name}`,
     client,
   )
-  return loginInstructions(profile, urlHint, handoff)
+  return loginInstructions(profile, urlHint, handoff, qrPath)
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {

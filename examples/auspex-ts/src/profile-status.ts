@@ -1,10 +1,12 @@
-import { isLoggedOutLanding } from "./profile-storage.ts"
+import { isLoggedOutLanding, originStoreCounts } from "./profile-storage.ts"
 import { listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
+import { asFiniteNumber, inspectProfileSeed } from "./profile-persist.ts"
+import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
 import { resolveSavedCheck, savedCheckForProfile, type SavedCheck } from "./saved-checks.ts"
 
-export type ProfileStatusReason = "loggedIn" | "loggedOut" | "needsHuman"
+export type ProfileStatusReason = "loggedIn" | "loggedOut" | "needsHuman" | "weakSeed" | "emptySave"
 
 export type ProfileStatusResult = {
   ok: boolean
@@ -18,6 +20,9 @@ export type ProfileStatusResult = {
   finalUrl?: string
   excerpt?: string
   screenshotPath?: string
+  cookies?: number
+  origins?: number
+  sessionStorage?: number
 }
 
 export type ProfileStatusOpts = {
@@ -31,6 +36,7 @@ export type ProfileStatusDeps = {
   runCheck?: (opts: CheckOptions) => Promise<CheckResult>
   savedForName?: (name: string) => SavedCheck
   savedForProfile?: (profile: string) => SavedCheck | undefined
+  inspectSeed?: (profileId: string, origin?: string) => Promise<{ cookies: number; origins: number; sessionStorage?: number }>
 }
 
 function resolveStatusTarget(opts: ProfileStatusOpts, deps?: ProfileStatusDeps): {
@@ -86,6 +92,48 @@ export async function profileStatus(
         : `profile ${profile} is empty. Human SSO once (agent never types a password).`,
     }
   }
+  
+  let seed: { cookies: number; origins: number; sessionStorage?: number } | undefined
+  if (deps?.inspectSeed) {
+    try {
+      seed = await deps.inspectSeed(row.id, url ? new URL(url).origin : undefined)
+    } catch {
+      seed = undefined
+    }
+  } else {
+    const solari = createClient()
+    try {
+      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
+      seed = inspected
+    } catch {
+      seed = undefined
+    } finally {
+      await solari.close().catch(() => undefined)
+    }
+  }
+
+  const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0)
+  const hasNoSessionStorage = seed && seed.sessionStorage !== undefined && seed.sessionStorage === 0
+  const profileLc = profile.trim().toLowerCase()
+  const looksLikeAppProfile = /^[a-z0-9]+(-[a-z0-9]+)*$/.test(profileLc) && profileLc.length > 3
+  const isConsistencyHub = profileLc === "consistencyhub"
+  
+  if (hasOrigins && hasNoSessionStorage && (isConsistencyHub || looksLikeAppProfile)) {
+    return {
+      ok: false,
+      reason: "weakSeed",
+      profile,
+      url,
+      populated: true,
+      live: false,
+      skippedLive: true,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage${isConsistencyHub ? " for consistencyhub.io" : ""}. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
+    }
+  }
+  
   if (!url) {
     return {
       ok: false,
@@ -95,6 +143,9 @@ export async function profileStatus(
       live: false,
       skippedLive: true,
       skipReason: "no url to probe; pass --url or --name. Not pinging the user.",
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
     }
   }
   const check = deps?.runCheck ?? runCheck
@@ -118,6 +169,9 @@ export async function profileStatus(
         live: false,
         skippedLive: true,
         skipReason: `${msg} Human SSO once (agent never types a password).`,
+        cookies: seed?.cookies,
+        origins: seed?.origins,
+        sessionStorage: seed?.sessionStorage,
       }
     }
     throw err
@@ -135,6 +189,9 @@ export async function profileStatus(
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
     }
   }
   const landed = result.finalUrl || ""
@@ -156,6 +213,9 @@ export async function profileStatus(
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
     }
   }
   return {
@@ -168,5 +228,8 @@ export async function profileStatus(
     finalUrl: landed,
     excerpt: result.excerpt,
     screenshotPath: result.screenshotPath,
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage,
   }
 }

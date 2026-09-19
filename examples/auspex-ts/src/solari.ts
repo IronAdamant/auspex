@@ -8,7 +8,7 @@ import {
   type CreateSessionOptions,
   type StorageState,
 } from "@solarisdk/browser"
-import { chromium } from "patchright-core"
+import { chromium, type BrowserContextOptions } from "patchright-core"
 import {
   boundPromise,
   CHROMIUM_CONNECT_TIMEOUT_MS,
@@ -296,7 +296,7 @@ export async function resolveProfileId(solari: Solari, name: string): Promise<st
  * new context and register sessionStorage restore (baked `__auspex_ss__:`
  * keys plus a localStorage copy) before the caller navigates.
  */
-export async function pageForSession(browser: BrowserSession) {
+export async function pageForSession(browser: BrowserSession, contextOptions?: Partial<BrowserContextOptions>) {
   const existing = browser.contexts()[0]
   const state = browser.session.storageState
   const raw = state ? toPlaywrightStorageState(state) : { cookies: [], origins: [] }
@@ -311,7 +311,8 @@ export async function pageForSession(browser: BrowserSession) {
   const hasState = storageStateIsPopulated(pw)
   let ctx = existing
   if (!ctx) {
-    ctx = await browser.newContext(hasState ? { storageState: pw } : {})
+    const baseOptions = hasState ? { storageState: pw } : {}
+    ctx = await browser.newContext({ ...baseOptions, ...contextOptions })
   }
   const page = ctx.pages()[0] ?? (await ctx.newPage())
   await installSessionStorageRestore(ctx, state, page)
