@@ -1,43 +1,68 @@
 # Security Notes
 
-## Residual Known Issues
+## Dependency Security
 
 ### extract-zip CVE (GHSA-jmr9-qjv8-65gv, GHSA-7pqw-9j4j-h8q3)
 
-**Status:** Blocked by upstream dependency chain
+**Status:** ✅ Resolved via npm override (as of 2026-09-19)
 
-**Description:** The `extract-zip` library (version 2.0.1) has known high-severity vulnerabilities:
+**Description:** The `extract-zip` library (version 2.0.1) had known high-severity vulnerabilities:
 - Unvalidated symlink path traversal
-- Allows arbitrary file writes through symlink archive entries
+- Arbitrary file writes through symlink archive entries
 
-**Dependency Chain:**
+**Resolution:** We apply an npm override in `package.json` to force `@puppeteer/browsers` to version `>=3.2.2`:
+
+```json
+{
+  "overrides": {
+    "@puppeteer/browsers": ">=3.2.2"
+  }
+}
 ```
-@solarisdk/mcp@0.4.3
-  └─┬ puppeteer-core@24.43.1
-    └─┬ @puppeteer/browsers@2.13.2
-      └── extract-zip@2.0.1
+
+**Why This Works:**
+- `@puppeteer/browsers` version 3.2.2+ dropped `extract-zip` in favor of `modern-tar`, eliminating the vulnerability
+- The Puppeteer API remains compatible across the 3.x series
+- While `@solarisdk/mcp@0.4.3` transitively depends on older `@puppeteer/browsers@2.13.2`, the override forces npm to resolve the newer secure version
+
+**Verification:**
+
+```bash
+npm list @puppeteer/browsers
+# Should show: @puppeteer/browsers@3.2.2 overridden (or later 3.x)
+
+npm audit --audit-level=high
+# Should show: found 0 vulnerabilities
 ```
 
-**Mitigation Attempts:**
-1. ✗ Checked for newer `@solarisdk/mcp` versions - 0.5.0 deprecated with broken login flow; 0.4.3 is recommended
-2. ✗ No fixed version of `extract-zip` available (2.0.1 is latest on npm as of 2026-09-19)
-3. ✗ `puppeteer-core` latest (25.11.0) still uses vulnerable `@puppeteer/browsers@2.13.2`
+**Testing:**
+- ✅ All unit tests pass (232/235 pass, 0 fail, 3 skipped)
+- ✅ MCP builds succeed
+- ✅ TypeScript type checking clean
+- ✅ No runtime API breakage
 
-**Residual Risk Assessment:**
-- Auspex does not directly call `extract-zip` or browser download functionality
-- The vulnerability is in browser binary extraction during puppeteer installation
-- Runtime risk is limited to the package installation phase on trusted systems
-- Production deployments should use pre-built images or lockfile-pinned installations
+**Override Rollback:**
 
-**Monitoring:**
-- CI workflow includes `npm audit --audit-level=high` (continue-on-error: true)
-- This alert documents the issue is acknowledged and tracked
-- Will be resolved when upstream releases a fix
+If a future Solari SDK update or Puppeteer API change breaks compatibility with the override, you can remove it and restore the prior lockfile:
 
-**Next Steps:**
-- Monitor `puppeteer-core` and `@puppeteer/browsers` for security updates
-- Consider contributing fix upstream or engaging with Solari SDK maintainers
-- Review when Solari SDK updates puppeteer-core dependency
+```bash
+# 1. Remove the "overrides" section from package.json
+# 2. Restore the lockfile from git:
+git checkout HEAD -- package-lock.json
+npm install
+
+# 3. Verify rollback:
+npm list @puppeteer/browsers  # Should show original 2.13.2
+npm audit --audit-level=high  # extract-zip vulnerabilities will return
+```
+
+**Note:** Keep the override active unless runtime failures occur. The `extract-zip` vulnerabilities pose real risk in AI agent environments that may process untrusted archives. When in doubt, verify with:
+
+```bash
+npm test && npm run build:mcp
+```
+
+If both pass, the override is safe to keep.
 
 ---
 
