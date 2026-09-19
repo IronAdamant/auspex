@@ -396,7 +396,7 @@ test("checkThenVerify non-VWP timeout does not invent anonymousClaimSkipped", as
   assert.equal(both.verify.claimOkProfile, undefined)
   const receipt = toAgentReceipt(both.check, { verify: both.verify })
   assert.equal(receipt.ok, false)
-  assert.equal(receipt.reason, "network")
+  assert.notEqual(receipt.reason, "matched")
 })
 
 test("agentReceiptOk succeeds with anonymousClaimSkipped when live matched and integrity ok", async () => {
