@@ -10,11 +10,11 @@ Use it when a live page, JS paint, a login, or an audit still is the point. Do n
 
 Grok 4.6 in Grok Build wrote the CLI, MCP server, and Solari wiring. I pointed it at the intern challenge, the cookbook, and my own sites (ironadamant.com, Checkpoint, ConsistencyHub). AI used: the Solari SDK, not a stub; Microsoft/Google SSO click-through after a real console profile save; Grok MCP handshake (Content-Length + absolute `node`). I ran the live checks, saved the Solari profile, and wrote the public post. Private research notes never left this machine.
 
-Public receipt of a **`--record`** check on a JS page (ironadamant.com, not a login):
+Public watch tape is ConsistencyHub’s Microsoft wall (not a logged-in session). Ironadamant still has a still + JSON:
 
 - Still: [demo/ironadamant.png](demo/ironadamant.png)
 - JSON + `sessionId`: [demo/receipt.json](demo/receipt.json) (**marketing summary** with `sessionId` + verify flags; agent contract is schema v1 on CLI/MCP stdout — see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen))
-- 60-second watch: [demo/replay.html](demo/replay.html) (rrweb of that Solari session). After clone, open that file locally, or the [Pages player](https://ironadamant.com/auspex/demo/replay.html) (jsDelivr serves this file as plain text).
+- Watch: [demo/replay.html](demo/replay.html) (rrweb of ConsistencyHub → Sign in with Microsoft → empty Microsoft box). Emails and passwords are stripped. After clone, open that file locally, or the [Pages player](https://ironadamant.com/auspex/demo/replay.html) (jsDelivr serves this file as plain text).
 - Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
 
 `--record` does not put a presigned replay URL on the JSON receipt. It does poll until replay is ready (`replayReady`) and may write `replay.ndjson` next to the receipt. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).

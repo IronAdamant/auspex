@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { DEMO_SYNTHETIC_SESSION_ID, replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
+import { assertNoCredentialLeak } from "../src/replay-redact.ts"
 import { parseReceiptV1 } from "../src/receipt-schema.ts"
 
 const demo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "demo")
@@ -109,4 +110,13 @@ test("demo replay.ndjson is rrweb events and replay.html inlines them", () => {
   for (const tag of remoteScripts) {
     assert.match(tag, /integrity=/)
   }
+})
+
+test("watch replay is ConsistencyHub Microsoft wall with emails and passwords stripped", () => {
+  const html = readFileSync(path.join(demo, "replay.html"), "utf8")
+  const ndjson = readFileSync(path.join(demo, "replay.ndjson"), "utf8")
+  assert.match(html, /consistencyhub\.io/)
+  assert.match(html, /Microsoft/)
+  assert.equal(assertNoCredentialLeak(html).length, 0)
+  assert.equal(assertNoCredentialLeak(ndjson).length, 0)
 })

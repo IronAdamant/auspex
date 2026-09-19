@@ -4,7 +4,7 @@ Aron posts this from the personal Discord (nickname **Iron Adamant**). The agent
 
 Do not paste live API keys, `.env`, unredacted dashboards, live session ids, or promo codes. The `slr_live_…` line is an ellipsis placeholder.
 
-Watch URL is GitHub Pages (`https://ironadamant.com/auspex/`). Do not hero jsDelivr `replay.html`: it is served as `text/plain`, so the browser prints the source.
+Watch URL is GitHub Pages (`https://ironadamant.com/auspex/`). The player is ConsistencyHub + Microsoft with emails and passwords stripped. Do not hero jsDelivr `replay.html`: it is served as `text/plain`, so the browser prints the source.
 
 ## Post
 
@@ -15,7 +15,7 @@ Watch (no clone, no key):
 https://ironadamant.com/auspex/
 Player (not the jsDelivr source dump): https://ironadamant.com/auspex/demo/replay.html
 
-Two different sites. The video is ironadamant.com (public marketing, no login) so anyone can watch. The logged-in product is ConsistencyHub: blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a live login recording.
+The video is consistencyhub.io: Sign in with Microsoft, then the empty Microsoft box. Emails and passwords are stripped. Nobody typed them. The logged-in dashboard is a blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a logged-in recording.
 
 Repo (cookbook fork, current HEAD): https://github.com/IronAdamant/auspex
 

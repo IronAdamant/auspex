@@ -90,7 +90,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 - **[Screenshot](examples/auspex-ts/demo/ironadamant.png)** — PNG from cloud Chrome (337 KB)
 - **[Schema v1 receipt](examples/auspex-ts/demo/ironadamant-receipt.json)** — Frozen agent contract (`parseReceiptV1`). Synthetic `sessionId`. No `replayUrl`.
 - **[Marketing summary](examples/auspex-ts/demo/receipt.json)** — Human-oriented JSON with `sessionId` and verify flags; **not** schema v1
-- **[Replay HTML](examples/auspex-ts/demo/replay.html)** — rrweb recording ([Pages player](https://ironadamant.com/auspex/demo/replay.html); jsDelivr serves this file as plain text)
+- **[Replay HTML](examples/auspex-ts/demo/replay.html)** — ConsistencyHub public landing and empty Microsoft sign-in box; emails and passwords stripped ([Pages player](https://ironadamant.com/auspex/demo/replay.html))
 - **[Replay NDJSON](examples/auspex-ts/demo/replay.ndjson)** — Raw recording data ([view via jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.ndjson))
 
 **Result:** ✅ Claim matched. Sandbox verify passed (`claimOk=true`, `verifyOk=true`).

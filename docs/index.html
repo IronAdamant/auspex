@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auspex — two demos, one public and one logged-in</title>
-  <meta name="description" content="Auspex drives a cloud Chrome, then checks the claim on a second machine. ironadamant.com is the public watch tape. ConsistencyHub is the logged-in product. They are not the same site."/>
+  <title>Auspex — ConsistencyHub with Microsoft, no passwords on the tape</title>
+  <meta name="description" content="Auspex drives a cloud Chrome, then checks the claim on a second machine. The watch tape is ConsistencyHub Sign in with Microsoft. Emails and passwords are stripped. The logged-in dashboard stays a blurred still."/>
   <style>
     :root {
       --bg: #111;
@@ -75,10 +75,10 @@
       <strong>second machine</strong> checks the same claim. It never types a password.
     </p>
     <p class="callout">
-      You are looking at <strong>two different sites</strong>.
-      <a href="https://ironadamant.com/">ironadamant.com</a> is a public marketing page. It has no login.
-      That is why the video has no login. The logged-in product is
-      <strong>ConsistencyHub</strong>, shown below as a blurred still. We cannot put a live password session on the internet.
+      The video is <a href="https://consistencyhub.io/">consistencyhub.io</a>.
+      You will see <strong>Sign in with Microsoft</strong>, then Microsoft’s empty sign-in box.
+      Nobody typed an email or a password. Those fields are stripped from the tape.
+      The logged-in dashboard is the blurred still below. We do not publish that session.
     </p>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>
@@ -86,22 +86,23 @@
     </p>
   </header>
   <main>
-    <h2>1. What you can watch (no login)</h2>
+    <h2>1. What you can watch (Microsoft, no secrets)</h2>
     <p>
-      This recording is Solari cloud Chrome opening <a href="https://ironadamant.com/">ironadamant.com</a>
-      and checking that the page still says “One office job.” Anyone can watch it. No API key, no account.
-      It proves the public loop: open page, snapshot, independent check, close.
+      This recording is Solari cloud Chrome opening <a href="https://consistencyhub.io/">consistencyhub.io</a>,
+      clicking <strong>Sign in with Microsoft</strong>, and stopping at the empty sign-in box.
+      Anyone can watch it. No API key. Emails and passwords are stripped from the recording.
+      The agent never types them.
     </p>
     <iframe
       class="watch"
-      title="Public check of ironadamant.com. No login. Marketing site, not ConsistencyHub."
+      title="Public ConsistencyHub landing and empty Microsoft sign-in box. Emails and passwords stripped."
       src="demo/replay.html"
       loading="lazy"
       referrerpolicy="no-referrer"
     ></iframe>
     <p>
-      If you expected a login screen, you are in the right place to be confused. That site is not an app.
-      The app is the next section.
+      If you wanted the logged-in dashboard in the video: that session is not on the public internet.
+      The next section is the honest still.
     </p>
 
     <h2>2. What the product is for (logged-in SaaS)</h2>

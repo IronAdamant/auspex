@@ -1,12 +1,15 @@
 /**
- * Refresh demo/ from a public --record check (ironadamant.com).
+ * Refresh demo/ from a public --record check (ironadamant.com),
+ * or write the watch player from AUSPEX_WATCH_SESSION_ID (ConsistencyHub Microsoft wall).
  * Does not write replayUrl (presigned, ~15 min). Does not record logins.
+ * Watch replay is redacted: emails and password/email field values are stripped.
  */
 import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { gunzipSync } from "node:zlib"
 import { fileURLToPath } from "node:url"
 import { runCheck, packageRoot, runDirFromResult } from "../src/check.ts"
+import { assertNoCredentialLeak, redactRrwebNdjson } from "../src/replay-redact.ts"
 import { verifyReceipt } from "../src/sandbox.ts"
 import { createClient } from "../src/solari.ts"
 
@@ -31,8 +34,38 @@ export function asNdjson(raw: Uint8Array): string {
   return Buffer.from(raw).toString("utf8")
 }
 
-export function replayHtmlFromNdjson(ndjson: string): string {
-  const events = ndjson
+export type ReplayPageCopy = {
+  title?: string
+  href?: string
+  hostLabel?: string
+  note?: string
+}
+
+export const IRONADAMANT_REPLAY_COPY: Required<ReplayPageCopy> = {
+  title: "Auspex — Solari cloud Chrome replay (ironadamant.com)",
+  href: "https://ironadamant.com/",
+  hostLabel: "ironadamant.com",
+  note: "public JS page, not a login. rrweb player; no window on the author's Mac.",
+}
+
+export const CONSISTENCYHUB_MICROSOFT_REPLAY_COPY: Required<ReplayPageCopy> = {
+  title: "Auspex — Solari cloud Chrome replay (consistencyhub.io)",
+  href: "https://consistencyhub.io/",
+  hostLabel: "consistencyhub.io",
+  note: "Sign in with Microsoft on the public landing, then the empty Microsoft sign-in box. Emails and passwords are stripped. Nobody typed a password. rrweb player; no window on the author's Mac.",
+}
+
+export function replayHtmlFromNdjson(ndjson: string, copy: ReplayPageCopy = {}): string {
+  const title = copy.title ?? IRONADAMANT_REPLAY_COPY.title
+  const href = copy.href ?? IRONADAMANT_REPLAY_COPY.href
+  const hostLabel = copy.hostLabel ?? IRONADAMANT_REPLAY_COPY.hostLabel
+  const note = copy.note ?? IRONADAMANT_REPLAY_COPY.note
+  const redacted = redactRrwebNdjson(ndjson)
+  const leaks = assertNoCredentialLeak(redacted)
+  if (leaks.length) {
+    throw new Error(`refusing to write a replay that still has credentials: ${leaks.join(", ")}`)
+  }
+  const events = redacted
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
@@ -43,7 +76,7 @@ export function replayHtmlFromNdjson(ndjson: string): string {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auspex — Solari cloud Chrome replay (ironadamant.com)</title>
+  <title>${title}</title>
   <link rel="stylesheet" href="${RRWEB_CSS}" integrity="${RRWEB_CSS_SRI}" crossorigin="anonymous"/>
   <style>
     body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #111; color: #eee; }
@@ -55,8 +88,8 @@ export function replayHtmlFromNdjson(ndjson: string): string {
 <body>
   <header>
     <strong>Auspex</strong> — recorded Solari cloud Chrome on
-    <a href="https://ironadamant.com/">ironadamant.com</a>
-    (public JS page, not a login). rrweb player; no window on the author's Mac.
+    <a href="${href}">${hostLabel}</a>
+    (${note})
   </header>
   <div id="player"></div>
   <script src="${RRWEB_JS}" integrity="${RRWEB_JS_SRI}" crossorigin="anonymous"></script>
@@ -134,8 +167,12 @@ export async function saveDemoReceipt(): Promise<void> {
           `${[...verify.errors, ...verify.claimErrors].join("; ")}`.trim(),
       )
     }
-    const ndjson = asNdjson(blob)
+    const ndjson = redactRrwebNdjson(asNdjson(blob))
     const text = ndjson.endsWith("\n") ? ndjson : `${ndjson}\n`
+    const leaks = assertNoCredentialLeak(text)
+    if (leaks.length) {
+      throw new Error(`demo replay still has credentials: ${leaks.join(", ")}`)
+    }
     const receipt = {
       ok: result.ok,
       expect: result.expect,
@@ -153,7 +190,7 @@ export async function saveDemoReceipt(): Promise<void> {
     await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
     await writeFile(path.join(staging, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)
     await writeFile(path.join(staging, "replay.ndjson"), text)
-    await writeFile(path.join(staging, "replay.html"), replayHtmlFromNdjson(text))
+    await writeFile(path.join(staging, "replay.html"), replayHtmlFromNdjson(text, IRONADAMANT_REPLAY_COPY))
     for (const name of ["ironadamant.png", "receipt.json", "replay.ndjson", "replay.html"]) {
       await rename(path.join(staging, name), path.join(demoDir, name))
     }
@@ -163,7 +200,34 @@ export async function saveDemoReceipt(): Promise<void> {
   }
 }
 
+export async function saveWatchReplayFromSession(sessionId: string): Promise<void> {
+  const id = sessionId.trim()
+  if (!id) throw new Error("AUSPEX_WATCH_SESSION_ID is empty")
+  await mkdir(demoDir, { recursive: true })
+  const solari = createClient()
+  try {
+    const blob = await downloadDemoReplay(id, solari)
+    const ndjson = redactRrwebNdjson(asNdjson(blob))
+    const leaks = assertNoCredentialLeak(ndjson)
+    if (leaks.length) {
+      throw new Error(`watch replay still has credentials: ${leaks.join(", ")}`)
+    }
+    await writeFile(path.join(demoDir, "replay.ndjson"), ndjson)
+    await writeFile(
+      path.join(demoDir, "replay.html"),
+      replayHtmlFromNdjson(ndjson, CONSISTENCYHUB_MICROSOFT_REPLAY_COPY),
+    )
+  } finally {
+    await solari.close()
+  }
+}
+
 async function main(): Promise<void> {
+  const watchSession = process.env.AUSPEX_WATCH_SESSION_ID?.trim()
+  if (watchSession) {
+    await saveWatchReplayFromSession(watchSession)
+    return
+  }
   await saveDemoReceipt()
 }
 

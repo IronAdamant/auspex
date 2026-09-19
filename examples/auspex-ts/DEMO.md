@@ -66,7 +66,8 @@ MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok to
 
 Public demo artifacts (Solari cloud Chrome, not a local window):
 
-- **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`) + [demo/replay.html](demo/replay.html). Marketing summary with `sessionId` and verify flags.
+- **Watch (ConsistencyHub Microsoft wall):** [demo/replay.html](demo/replay.html). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard.
+- **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`). Marketing summary with `sessionId` and verify flags.
 - **ConsistencyHub (auth-gated, redacted):** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
 
 **Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen)). Do not post unredacted logged-in ConsistencyHub dashboards.
