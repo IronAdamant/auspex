@@ -47,6 +47,7 @@ test("profileStatus reports loggedIn when live lands off login", async () => {
     {
       listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
       savedForName: () => hubSaved,
+      inspectSeed: async () => ({ cookies: 5, origins: 1, sessionStorage: 2 }),
       runCheck: async (opts) => {
         assert.equal(opts.profile, "consistencyhub")
         assert.equal(opts.sso, undefined)
@@ -78,6 +79,7 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
     {
       listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
       savedForProfile: () => hubSaved,
+      inspectSeed: async () => ({ cookies: 5, origins: 1, sessionStorage: 2 }),
       runCheck: async () =>
         ({
           ok: false,
@@ -102,6 +104,7 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
     {
       listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
       savedForProfile: () => hubSaved,
+      inspectSeed: async () => ({ cookies: 5, origins: 1, sessionStorage: 2 }),
       runCheck: async () =>
         ({
           ok: false,
@@ -130,6 +133,7 @@ test("profileStatus treats unmatched / as loggedOut even if check reason is mism
     {
       listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
       savedForName: () => hubSaved,
+      inspectSeed: async () => ({ cookies: 5, origins: 1, sessionStorage: 2 }),
       runCheck: async () =>
         ({
           ok: false,

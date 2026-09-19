@@ -36,6 +36,7 @@ export type ProfileStatusDeps = {
   runCheck?: (opts: CheckOptions) => Promise<CheckResult>
   savedForName?: (name: string) => SavedCheck
   savedForProfile?: (profile: string) => SavedCheck | undefined
+  inspectSeed?: (profileId: string, origin?: string) => Promise<{ cookies: number; origins: number; sessionStorage?: number }>
 }
 
 function resolveStatusTarget(opts: ProfileStatusOpts, deps?: ProfileStatusDeps): {
@@ -92,15 +93,23 @@ export async function profileStatus(
     }
   }
   
-  const solari = createClient()
   let seed: { cookies: number; origins: number; sessionStorage?: number } | undefined
-  try {
-    const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
-    seed = inspected
-  } catch {
-    seed = undefined
-  } finally {
-    await solari.close().catch(() => undefined)
+  if (deps?.inspectSeed) {
+    try {
+      seed = await deps.inspectSeed(row.id, url ? new URL(url).origin : undefined)
+    } catch {
+      seed = undefined
+    }
+  } else {
+    const solari = createClient()
+    try {
+      const inspected = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
+      seed = inspected
+    } catch {
+      seed = undefined
+    } finally {
+      await solari.close().catch(() => undefined)
+    }
   }
 
   const hasOrigins = seed && (seed.cookies > 0 || seed.origins > 0)
