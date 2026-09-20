@@ -1489,13 +1489,9 @@ function parseUnixSeconds(value) {
   const parsed = Date.parse(raw);
   return Number.isFinite(parsed) ? Math.trunc(parsed / 1e3) : void 0;
 }
-function jwtExpSeconds(token) {
-  const raw = (token ?? "").trim();
-  if (!raw) return void 0;
-  const parts = raw.split(".");
-  if (parts.length < 2 || !parts[1]) return void 0;
+function decodeJwtSegmentExp(segment) {
   try {
-    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
     const pad = b64 + "=".repeat((4 - b64.length % 4) % 4);
     const json = Buffer.from(pad, "base64").toString("utf8");
     const payload = JSON.parse(json);
@@ -1507,10 +1503,28 @@ function jwtExpSeconds(token) {
     return void 0;
   }
 }
+function jwtExpSeconds(token) {
+  const raw = (token ?? "").trim();
+  if (!raw) return void 0;
+  const parts = raw.split(".");
+  let earliest;
+  const limit = Math.min(parts.length, 2);
+  for (let i = 0; i < limit; i++) {
+    const part = parts[i];
+    if (!part) continue;
+    const exp = decodeJwtSegmentExp(part);
+    if (exp === void 0) continue;
+    earliest = earliest === void 0 ? exp : Math.min(earliest, exp);
+  }
+  return earliest;
+}
 function resolvePhoneExpirySeconds(opts) {
   const fromAt = parseUnixSeconds(opts.expiresAt);
-  if (fromAt !== void 0) return { exp: fromAt, source: "expiresAt" };
   const fromJwt = jwtExpSeconds(opts.jwt);
+  if (fromAt !== void 0 && fromJwt !== void 0) {
+    return fromJwt < fromAt ? { exp: fromJwt, source: "jwt" } : { exp: fromAt, source: "expiresAt" };
+  }
+  if (fromAt !== void 0) return { exp: fromAt, source: "expiresAt" };
   if (fromJwt !== void 0) return { exp: fromJwt, source: "jwt" };
   return { source: "unknown" };
 }

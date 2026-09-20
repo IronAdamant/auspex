@@ -73,7 +73,7 @@
     <header>
       <strong>Auspex phone login</strong>
       <div id="ttl">Checking how long this link is active…</div>
-      <div id="status">Tap the remote Chrome to click. Type in the field below so the phone keyboard opens. Keys go into the remote Chrome, not into chat.</div>
+      <div id="status">Tap the remote Chrome to click. Type in the field below so the phone keyboard opens. Keys go into the remote Chrome, not into chat. This VNC link is short-lived (~5 min).</div>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -155,21 +155,26 @@
 
       function jwtExpSeconds(rawToken) {
         var parts = String(rawToken || "").split(".")
-        if (parts.length < 2 || !parts[1]) return null
-        try {
-          var b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
-          while (b64.length % 4) b64 += "="
-          var payload = JSON.parse(atob(b64))
-          return parseUnixSeconds(payload && payload.exp)
-        } catch (e) {
-          return null
+        var earliest = null
+        var limit = parts.length < 2 ? parts.length : 2
+        for (var i = 0; i < limit; i++) {
+          if (!parts[i]) continue
+          try {
+            var b64 = parts[i].replace(/-/g, "+").replace(/_/g, "/")
+            while (b64.length % 4) b64 += "="
+            var payload = JSON.parse(atob(b64))
+            var exp = parseUnixSeconds(payload && payload.exp)
+            if (exp) earliest = earliest == null ? exp : Math.min(earliest, exp)
+          } catch (e) {}
         }
+        return earliest
       }
 
       function resolveExpirySeconds() {
         var fromHash = parseUnixSeconds(params.get("exp"))
-        if (fromHash) return fromHash
-        return jwtExpSeconds(token)
+        var fromJwt = jwtExpSeconds(token)
+        if (fromHash && fromJwt) return Math.min(fromHash, fromJwt)
+        return fromHash || fromJwt
       }
 
       function formatRemain(sec) {
@@ -259,7 +264,7 @@
           )
           return
         }
-        ttl.textContent = "Link active for " + formatRemain(left)
+        ttl.textContent = "Link active for " + formatRemain(left) + " · VNC ~5 min"
         ttl.className = left <= 120 ? "warn" : ""
       }
       tick()
