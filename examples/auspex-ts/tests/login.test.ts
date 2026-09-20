@@ -5,35 +5,55 @@ import {
   attachHandoffQr,
   formatLogin,
   loginInstructions,
+  qrPayloadForHandoff,
   requestLoginHandoff,
 } from "../src/profiles.ts"
 
-test("loginInstructions with handoff includes url not only Open editor", () => {
+test("loginInstructions returns two labeled URLs: phone handoff and computer console", () => {
+  const phone = "https://console.getsolari.com/handoff/abc"
   const result = loginInstructions(
     { id: "prof_test_id", name: "auspex-goal-test" },
     "https://example.com/login",
-    { url: "https://console.getsolari.com/handoff/abc", handoffId: "h1", expiresAt: "soon", version: 7 },
+    { url: phone, handoffId: "h1", expiresAt: "soon", version: 7 },
   )
   assert.equal(result.profileId, "prof_test_id")
   assert.equal(result.name, "auspex-goal-test")
-  assert.equal(result.url, "https://console.getsolari.com/handoff/abc")
+  assert.equal(result.url, phone)
   assert.equal(result.handoffId, "h1")
   assert.equal(result.sinceVersion, 7)
-  assert.match(result.next, /handoff|url/i)
-  assert.match(result.next, /await_login|await-login|cookies or origins/)
+  assert.equal(result.handoff?.url, phone)
+  assert.equal(result.handoff?.mobileUrl, phone)
+  assert.equal(result.handoff?.desktopUrl, CONSOLE_PROFILES_URL)
+  assert.equal("gateUrl" in (result.handoff ?? {}), false)
+  assert.match(result.next, /Show BOTH URLs, labeled/)
+  assert.match(result.next, /handoff\.mobileUrl/)
+  assert.match(result.next, /handoff\.desktopUrl/)
+  assert.match(result.next, /Open editor/)
+  assert.match(result.next, /await_login|await-login/)
   assert.match(result.next, /finalize_login|finalize-login/)
-  assert.match(result.next, /phone keyboard/)
   assert.match(result.next, /Never paste/)
   assert.match(result.next, /30 minutes/)
+  assert.match(result.next, /Never open handoff\.desktopUrl on a phone/)
+  assert.match(result.next, /remote Chromium live view/)
+  assert.match(result.next, /software keyboard will not open/)
   assert.equal(result.next.includes("handoff.qrPath"), false)
-  assert.equal(result.next.includes("Open editor"), false)
+  assert.equal(result.next.includes("gateUrl"), false)
   assert.equal(/or check --profile/.test(result.next), false)
-  assert.match(result.handoff?.openOnPhone ?? "", /phone keyboard/)
-  assert.match(result.handoff?.oneLiner ?? "", /handoff\/abc/)
+  assert.match(result.handoff?.openOnPhone ?? "", /handoff\.mobileUrl/)
+  assert.match(result.handoff?.openOnPhone ?? "", /software keyboard/)
+  assert.match(result.handoff?.openOnDesktop ?? "", /handoff\.desktopUrl/)
+  assert.match(result.handoff?.openOnDesktop ?? "", /Open editor/)
+  assert.equal(result.handoff?.oneLiner, `Auspex login (phone): ${phone}`)
+  assert.match(result.handoff?.desktopOneLiner ?? "", /Auspex login \(computer\): https:\/\/console\.getsolari\.com/)
+  assert.match(result.handoff?.desktopOneLiner ?? "", /Open editor/)
+  assert.equal(qrPayloadForHandoff(result.handoff!), phone)
   const printed = formatLogin(result)
   assert.match(printed, /handoff\/abc/)
   assert.match(printed, /auspex-goal-test/)
   assert.match(printed, /prof_test_id/)
+  assert.match(printed, /"mobileUrl"/)
+  assert.match(printed, /"desktopUrl"/)
+  assert.equal(printed.includes("gateUrl"), false)
   assert.equal(result.consoleUrl, CONSOLE_PROFILES_URL)
 })
 

@@ -30,25 +30,46 @@ export type LoginHandoff = {
 
 export type HandoffPacket = {
   url: string
+  /** Phone: Solari login-handoff. Same as url. Open in the phone's own Safari or Chrome. */
+  mobileUrl?: string
+  /** Computer: Solari console. Hardware keyboard in Chromium. Do not open this on a phone. */
+  desktopUrl?: string
   openOnPhone?: string
+  openOnDesktop?: string
   oneLiner?: string
+  desktopOneLiner?: string
   qrPath?: string
 }
 
+/** Phone must not use the console Chromium live view. */
+export const HANDOFF_PHONE_DOOR_BAN =
+  "Never open handoff.desktopUrl on a phone and do not click the remote Chromium live view there: that stream is a picture of Chrome, so the phone software keyboard will not open."
+
 export const HANDOFF_OPEN_ON_PHONE =
-  "Away from a laptop: open this URL on your phone. Type the password on the phone keyboard in the Solari card, then Save. Never paste the password into chat."
+  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome (a real tab). Type the password on the phone keyboard, then Save. " +
+  HANDOFF_PHONE_DOOR_BAN +
+  " Never paste the password into chat."
+
+export function handoffOpenOnDesktop(profileName: string): string {
+  return `Computer: open handoff.desktopUrl, then Profiles → ${profileName} → Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`
+}
 
 const HANDOFF_HANG_GUIDANCE =
   " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
 
-export function formatHandoffNext(opts: { urlHint?: string; qrPath?: string }): string {
+export function formatHandoffNext(opts: {
+  urlHint?: string
+  qrPath?: string
+  profileName?: string
+}): string {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
   const qrBit = opts.qrPath
-    ? " If you are next to a laptop, you can scan the QR PNG at handoff.qrPath."
+    ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)."
     : ""
+  const profile = opts.profileName?.trim() || "<profile>"
   return (
-    `Show the human handoff.url now (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save (must store cookies or origins). Never paste or type the password through the agent.${where} ` +
-    `Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner to the phone.${qrBit}${HANDOFF_HANG_GUIDANCE}`
+    `Show BOTH URLs, labeled. Phone: handoff.mobileUrl (same as handoff.url). Open in the phone's own Safari or Chrome, type the password on the phone keyboard, then Save. Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
+    `Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
 
@@ -56,8 +77,16 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
   if (!result.handoff) return result
   if (qrPath) result.handoff.qrPath = qrPath
   else delete result.handoff.qrPath
-  result.next = formatHandoffNext({ urlHint, qrPath: result.handoff.qrPath })
+  result.next = formatHandoffNext({
+    urlHint,
+    qrPath: result.handoff.qrPath,
+    profileName: result.name,
+  })
   return result
+}
+
+export function qrPayloadForHandoff(handoff: HandoffPacket): string {
+  return handoff.mobileUrl || handoff.url
 }
 
 export type LoginResult = {
@@ -86,8 +115,12 @@ export function loginInstructions(
   if (handoff?.url) {
     const handoffPacket: HandoffPacket = {
       url: handoff.url,
+      mobileUrl: handoff.url,
+      desktopUrl: CONSOLE_PROFILES_URL,
       openOnPhone: HANDOFF_OPEN_ON_PHONE,
-      oneLiner: `Auspex login: ${handoff.url}`,
+      openOnDesktop: handoffOpenOnDesktop(profile.name),
+      oneLiner: `Auspex login (phone): ${handoff.url}`,
+      desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
       qrPath,
     }
     return {
@@ -99,7 +132,7 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: formatHandoffNext({ urlHint, qrPath }),
+      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name }),
     }
   }
   return {
@@ -107,7 +140,7 @@ export function loginInstructions(
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
+    next: `Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
   }
 }
 

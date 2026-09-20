@@ -1,5 +1,5 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
-import { listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
+import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
 import { emptyProfileGuidance, finalizeLoginGuidance, inspectProfileSeed, isWeakSeed } from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
@@ -189,7 +189,10 @@ export async function profileStatus(
       populated: true,
       live: true,
       skippedLive: true,
-      skipReason: "password/OTP wall. Skip live; human SSO once. Agent never types a password.",
+      skipReason:
+        "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl in the phone's own Safari or Chrome. Computer: handoff.desktopUrl (console Open editor). " +
+        HANDOFF_PHONE_DOOR_BAN +
+        " Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
