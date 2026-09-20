@@ -149,7 +149,8 @@ test("waitForProfileSave warns when consistencyhub has cookies but no sessionSto
   assert.match(completed.next, /warning/i)
   assert.match(completed.next, /sessionStorage/i)
   assert.match(completed.next, /consistencyhub\.io/i)
-  assert.match(completed.next, /--sso --save-profile/i)
+  assert.match(completed.next, /finalize-login/)
+  assert.equal(completed.next.includes("--sso --save-profile"), false)
 })
 
 test("waitForProfileSave does not warn for non-consistencyhub profiles", async () => {

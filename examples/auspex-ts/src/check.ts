@@ -11,6 +11,7 @@ import { runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import {
   emptyProfileSeedError,
+  finalizeLoginGuidance,
   isEmptySeed,
   persistLiveProfile,
   seedFromStorageState,
@@ -118,6 +119,11 @@ export type FinalizeLoginTargetOpts = {
   profile: string
   url?: string
   expect?: string
+}
+
+/** Agent `next` when a profile-seeded check lands logged-out with cookies. */
+export function checkLoggedOutNext(profile: string, cookies: number): string {
+  return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`
 }
 
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */
@@ -435,7 +441,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     
     let next: string | undefined
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Prefer: remint with auspex_login, complete human SSO in handoff, then run check --profile <name> --sso --save-profile to capture sessionStorage. Console Save is insufficient for apps like ConsistencyHub.`
+      next = checkLoggedOutNext(opts.profile ?? "<name>", profileSeed.cookies)
     } else if (reason === "needsHuman") {
       next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`
     }

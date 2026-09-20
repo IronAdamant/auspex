@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { isWeakSeed } from "../src/profile-persist.ts"
+import { checkLoggedOutNext } from "../src/check.ts"
 import { profileStatus } from "../src/profile-status.ts"
 import type { CheckResult } from "../src/check.ts"
 
@@ -32,6 +33,10 @@ test("profileStatus reports emptySave for missing or empty profiles without live
   assert.equal(missing.live, false)
   assert.equal(missing.skippedLive, true)
   assert.match(missing.skipReason ?? "", /never types a password/i)
+  assert.match(missing.skipReason ?? "", /login --profile/)
+  assert.match(missing.skipReason ?? "", /await-login/)
+  assert.match(missing.skipReason ?? "", /Do not finalize-login/)
+  assert.equal((missing.skipReason ?? "").includes("--sso --save-profile"), false)
 
   const empty = await profileStatus(
     { profile: "consistencyhub" },
@@ -104,6 +109,8 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
   )
   assert.equal(loggedOut.reason, "loggedOut")
   assert.equal(loggedOut.ok, false)
+  assert.match(loggedOut.skipReason ?? "", /finalize-login/)
+  assert.equal((loggedOut.skipReason ?? "").includes("--sso --save-profile"), false)
 
   const human = await profileStatus(
     { profile: "consistencyhub" },
@@ -131,6 +138,7 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
   assert.equal(human.reason, "needsHuman")
   assert.equal(human.skippedLive, true)
   assert.match(human.skipReason ?? "", /never types a password/i)
+  assert.equal((human.skipReason ?? "").includes("finalize-login"), false)
 })
 
 test("profileStatus treats unmatched / as loggedOut even if check reason is mismatch", async () => {
@@ -295,4 +303,13 @@ test("profileStatus derives weakSeed from live profileSeed when inspect is skipp
   assert.equal(result.reason, "weakSeed")
   assert.equal(result.live, true)
   assert.equal(result.sessionStorage, 0)
+  assert.match(result.skipReason ?? "", /finalize-login/)
+  assert.equal((result.skipReason ?? "").includes("--sso --save-profile"), false)
+})
+
+test("loggedOut check next names finalize-login not remint sso save-profile", () => {
+  const next = checkLoggedOutNext("consistencyhub", 78)
+  assert.match(next, /finalize-login/)
+  assert.match(next, /auspex_finalize_login/)
+  assert.equal(next.includes("--sso --save-profile"), false)
 })

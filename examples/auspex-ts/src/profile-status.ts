@@ -1,6 +1,6 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
-import { inspectProfileSeed, isWeakSeed } from "./profile-persist.ts"
+import { emptyProfileGuidance, finalizeLoginGuidance, inspectProfileSeed, isWeakSeed } from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
@@ -87,9 +87,7 @@ export async function profileStatus(
       populated: false,
       live: false,
       skippedLive: true,
-      skipReason: missing
-        ? `profile ${profile} not found. Human SSO once (agent never types a password).`
-        : `profile ${profile} is empty. Human SSO once (agent never types a password).`,
+      skipReason: emptyProfileGuidance(profile),
     }
   }
 
@@ -132,7 +130,7 @@ export async function profileStatus(
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage,
@@ -173,7 +171,7 @@ export async function profileStatus(
         populated: row.populated,
         live: false,
         skippedLive: true,
-        skipReason: `${msg} Human SSO once (agent never types a password).`,
+        skipReason: `${msg} ${emptyProfileGuidance(profile)}`,
         cookies: seed?.cookies,
         origins: seed?.origins,
         sessionStorage: seed?.sessionStorage,
@@ -228,7 +226,7 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -238,6 +236,7 @@ export async function profileStatus(
     }
   }
   if (loggedOutLive) {
+    const hasCookies = (seed?.cookies ?? 0) > 0 || (seed?.origins ?? 0) > 0
     return {
       ok: false,
       reason: "loggedOut",
@@ -245,6 +244,9 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
+      skipReason: hasCookies
+        ? finalizeLoginGuidance(profile)
+        : emptyProfileGuidance(profile),
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,

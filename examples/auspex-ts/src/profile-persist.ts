@@ -107,6 +107,18 @@ export function emptyProfileSeedError(name: string): string {
   return `profile ${n} ${EMPTY_PROFILE_SEED_ERROR}`
 }
 
+/** Agent next/skipReason after Save when sessionStorage is still missing or the live probe is loggedOut with cookies. */
+export function finalizeLoginGuidance(profile: string): string {
+  const name = profile.trim() || "<name>"
+  return `Run npx auspex finalize-login --profile ${name} (MCP: auspex_finalize_login). Console Save is not enough for Microsoft OAuth SPAs. Never --record a logged-in session.`
+}
+
+/** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
+export function emptyProfileGuidance(profile: string): string {
+  const name = profile.trim() || "<name>"
+  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name}. Do not finalize-login on an empty profile. Agent never types a password.`
+}
+
 export function asFiniteNumber(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string" && value.trim() !== "") {
@@ -226,7 +238,7 @@ function awaitNext(
         sessionStorage: seed.sessionStorage,
       })
     ) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile.name)}`
     }
     return base
   }
