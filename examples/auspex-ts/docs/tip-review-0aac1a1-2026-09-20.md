@@ -239,4 +239,5 @@ Small, in this order, only if someone already has the file open. No cleanup PR f
 - Confirmed `7a537d6` is the merge-base; 14 commits; 57 files; no open PRs (`Github.list_pull_requests`).
 - Read: `check.ts` finalize + next, `fail-closed.ts`, `check-reason.ts`, `profile-persist.ts` / `profile-status.ts`, `sandbox.ts` poll + #42 budget, `tool-schema.ts` Zod + asserts, `device-emulation.ts`, `qr-gen.ts`, `replay-redact.ts`, `assert_receipt.py` origin, `contract.ts`, CLI/MCP/USAGE, both AGENTS, root + package README, RECEIPTS, PITCH, LICENSE, PLAN.md, DISCORD.md, `docs/index.html`, `pages.yml`, `.cursor/rules/auspex.mdc`, `.cursor/mcp.json`, grok/claude examples, package.json + lock, SECURITY.md, demo receipts, `save-demo-receipt.ts`, tests listed above, memos `deferred-check` / `leave-nothing` / `vwp-magic-sleeps`.
 - HTTP: Pages landing + replay, jsDelivr content-type, github.io redirect.
-- Did not change product code. Did not run live Solari. Tests on this tip were run after the draft PR (see follow-up commit if the log is attached).
+- `npm test --prefix examples/auspex-ts` on this tip: **293 tests, 290 pass, 0 fail, 3 skipped** (live Solari opt-in via `AUSPEX_LIVE=1`). `extract-zip` still absent from the lock; `@puppeteer/browsers@3.2.2 overridden`.
+- Did not change product code. Did not run live Solari.
