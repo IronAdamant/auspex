@@ -37,7 +37,7 @@
       <div id="row">
         <button type="button" id="backspace">Delete</button>
         <button type="button" id="enter">Enter</button>
-        <a id="save" class="ghost" href="#">Save on Solari</a>
+        <button type="button" id="save" class="ghost">Save</button>
       </div>
     </div>
   </div>
@@ -49,7 +49,7 @@
       var XK_RETURN = 0xff0d
       var params = new URLSearchParams(location.hash.replace(/^#/, ""))
       var token = params.get("v") || ""
-      var saveUrl = params.get("h") || ""
+      var profileName = params.get("n") || ""
       var status = document.getElementById("status")
       var ime = document.getElementById("ime")
       var screen = document.getElementById("screen")
@@ -62,15 +62,12 @@
         status.className = err ? "err" : ""
       }
 
-      if (saveUrl) {
-        save.href = saveUrl
-        save.addEventListener("click", function (e) {
-          e.preventDefault()
-          location.href = saveUrl
-        })
-      } else {
-        save.style.display = "none"
-      }
+      save.addEventListener("click", function () {
+        var cmd = profileName
+          ? "auspex await-login --profile " + profileName + " --save-editor"
+          : "auspex await-login --save-editor"
+        setStatus("Stay on this page. Tell the agent you tapped Save. They run " + cmd + ". Do not open Solari on the phone (GET editor HTTP 401).")
+      })
 
       if (!token) {
         setStatus("This page needs a live link from auspex login. Remint and open the phone URL.", true)

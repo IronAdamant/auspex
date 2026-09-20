@@ -1,5 +1,8 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import path from "node:path"
 import { z } from "zod"
 import { asFiniteNumber } from "./profile-persist.ts"
+import { packageRoot } from "./paths.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
@@ -11,13 +14,55 @@ export function isPhoneImeUrl(url: string | undefined): boolean {
   return Boolean(url?.startsWith(PHONE_HANDOFF_PAGE))
 }
 
-export function phoneHandoffUrl(vncToken: string, handoffUrl: string): string {
+export function phoneHandoffUrl(
+  vncToken: string,
+  handoffUrl: string,
+  extra?: { profileId?: string; profileName?: string; handoffToken?: string },
+): string {
   const token = vncToken.trim()
   const save = handoffUrl.trim()
   if (!token) return ""
   const hash = new URLSearchParams({ v: token })
   if (save) hash.set("h", save)
+  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim())
+  if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim())
+  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim())
   return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`
+}
+
+export type EditorSaveHandle = {
+  profileId: string
+  name: string
+  handoffToken: string
+  expiresAt?: string
+}
+
+export function editorSavePath(name: string, root = packageRoot): string {
+  return path.join(root, ".auspex", "editor-save", `${requireProfileName(name)}.json`)
+}
+
+export async function persistEditorSave(handle: EditorSaveHandle, root = packageRoot): Promise<void> {
+  const file = editorSavePath(handle.name, root)
+  await mkdir(path.dirname(file), { recursive: true })
+  await writeFile(file, JSON.stringify(handle), "utf8")
+}
+
+export async function loadEditorSave(name: string, root = packageRoot): Promise<EditorSaveHandle | undefined> {
+  try {
+    const raw = JSON.parse(await readFile(editorSavePath(name, root), "utf8")) as Partial<EditorSaveHandle>
+    const profileId = typeof raw.profileId === "string" ? raw.profileId.trim() : ""
+    const handoffToken = typeof raw.handoffToken === "string" ? raw.handoffToken.trim() : ""
+    const profileName = typeof raw.name === "string" ? raw.name.trim() : requireProfileName(name)
+    if (!profileId || !handoffToken) return undefined
+    return {
+      profileId,
+      name: profileName,
+      handoffToken,
+      expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : undefined,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 export function requireProfileName(value: string): string {
@@ -61,7 +106,7 @@ export const HANDOFF_PHONE_DOOR_BAN =
   "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone."
 
 export const HANDOFF_OPEN_ON_PHONE =
-  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then Save on Solari. " +
+  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Do not open Solari's handoff page on a phone: GET editor HTTP 401. After Save, call auspex_await_login with saveEditor true. " +
   HANDOFF_PHONE_DOOR_BAN +
   " Never paste the password into chat."
 
@@ -89,7 +134,7 @@ export function formatHandoffNext(opts: {
     : ""
   const profile = opts.profileName?.trim() || "<profile>"
   const phone = opts.hasPhoneIme
-    ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, then Save on Solari."
+    ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page, then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
     : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
   return (
     `${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
@@ -282,6 +327,16 @@ export async function fetchEditorVncToken(
   return undefined
 }
 
+export async function saveProfileEditor(
+  handle: EditorSaveHandle,
+  opts?: { post?: EditorPost },
+): Promise<{ ok: boolean; status: number; error?: string }> {
+  const post = opts?.post ?? (await defaultEditorPost(handle.handoffToken))
+  const got = await post(`/api/profiles/${encodeURIComponent(handle.profileId)}/editor/save`)
+  const error = typeof got.json.error === "string" ? got.json.error : undefined
+  return { ok: got.status === 200 || got.status === 201, status: got.status, error }
+}
+
 export async function loginProfile(
   name: string,
   urlHint?: string,
@@ -300,8 +355,22 @@ export async function loginProfile(
   let mobileUrl: string | undefined
   const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
   try {
+    if (handoffToken) {
+      await persistEditorSave({
+        profileId: profile.id,
+        name: profile.name,
+        handoffToken,
+        expiresAt: handoff.expiresAt,
+      })
+    }
     const vnc = await fetchEditorVncToken(profile.id, handoffToken)
-    if (vnc) mobileUrl = phoneHandoffUrl(vnc, handoff.url)
+    if (vnc) {
+      mobileUrl = phoneHandoffUrl(vnc, handoff.url, {
+        profileId: profile.id,
+        profileName: profile.name,
+        handoffToken,
+      })
+    }
   } catch {
     mobileUrl = undefined
   }

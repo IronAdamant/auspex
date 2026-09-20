@@ -139,6 +139,12 @@ test("parseArgv login and profiles", () => {
   if (awaitLogin.status === "ok" && awaitLogin.command.cmd === "await-login") {
     assert.equal(awaitLogin.command.profile, "auspex-demo")
     assert.equal(awaitLogin.command.sinceVersion, 10)
+    assert.equal(awaitLogin.command.saveEditor, false)
+  }
+  const saveEditor = parseArgv(["await-login", "--profile", "auspex-demo", "--save-editor"])
+  assert.equal(saveEditor.status, "ok")
+  if (saveEditor.status === "ok" && saveEditor.command.cmd === "await-login") {
+    assert.equal(saveEditor.command.saveEditor, true)
   }
 })
 
@@ -153,6 +159,7 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /desktop/)
   assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
   assert.match(help.stdout, /await-login/)
+  assert.match(help.stdout, /--save-editor/)
   assert.match(help.stdout, /--save-profile/)
   assert.match(help.stdout, /--name/)
   assert.match(help.stdout, /profile-status/)
