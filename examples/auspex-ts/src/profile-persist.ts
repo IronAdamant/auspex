@@ -54,6 +54,7 @@ export type AwaitLoginResult = {
   origins: number
   sessionStorage?: number
   next: string
+  editorSave?: { ok: boolean; status: number; error?: string }
 }
 
 export type AwaitLoginDeps = {
@@ -335,11 +336,21 @@ export async function waitForProfileSave(
 
 export async function liveAwaitLogin(
   name: string,
-  opts: { sinceVersion?: number; timeoutMs?: number } = {},
+  opts: { sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean } = {},
 ): Promise<AwaitLoginResult> {
   const solari = createClient()
   try {
-    return await waitForProfileSave(name, {
+    let editorSave: AwaitLoginResult["editorSave"]
+    if (opts.saveEditor) {
+      const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
+      const handle = await loadEditorSave(name)
+      if (!handle) {
+        editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" }
+      } else {
+        editorSave = await saveProfileEditor(handle)
+      }
+    }
+    const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion,
       timeoutMs: opts.timeoutMs,
       deps: {
@@ -352,6 +363,7 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
+    return editorSave ? { ...waited, editorSave } : waited
   } finally {
     await solari.close().catch(() => undefined)
   }

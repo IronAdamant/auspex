@@ -37,7 +37,7 @@ const VERIFY_DESCRIPTION =
 const LOGIN_DESCRIPTION =
   "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
   HANDOFF_PHONE_DOOR_BAN +
-  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
+  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
 const DESKTOP_DESCRIPTION =
   "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
@@ -164,12 +164,12 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_await_login",
     {
       description:
-        "Wait until the human Save on an auspex_login handoff stores cookies or origins (default 30 minutes so they can Save from a phone off-site). A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
+        "Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401). A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
       inputSchema: auspexAwaitLoginInputSchema,
     },
-    async ({ profile, sinceVersion, timeoutMs }) => {
+    async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {
       try {
-        const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs })
+        const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs, saveEditor })
         return { content: [{ type: "text" as const, text: toolJson({ ok: result.status === "completed", ...result }) }] }
       } catch (err) {
         return packToolFailure(err)

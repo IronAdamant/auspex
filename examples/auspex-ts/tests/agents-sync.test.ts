@@ -28,6 +28,8 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "desktopUrl",
     "real text field",
     "phone.html",
+    "saveEditor",
+    "GET editor HTTP 401",
   ]) {
     assert.match(root, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `root AGENTS missing ${needle}`)
     assert.match(pack, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `package AGENTS missing ${needle}`)
@@ -42,6 +44,7 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(USAGE, /mobileUrl/)
   assert.match(USAGE, /desktopUrl/)
   assert.match(USAGE, /real text field/)
+  assert.match(USAGE, /--save-editor/)
   assert.match(tools, /mobileUrl/)
   assert.match(tools, /desktopUrl/)
   assert.match(tools, /real text field/)
@@ -156,7 +159,7 @@ test("AGENTS first calls put profile-status before the consistencyhub check", ()
     assert.ok(login > status, `${label} must run login after profile-status`)
     assert.ok(awaitLogin > login, `${label} must run await-login after login`)
     assert.ok(finalize > awaitLogin, `${label} must run finalize-login after await-login`)
-    const saveBeat = first.indexOf("consent in the handoff, then Save")
+    const saveBeat = first.indexOf("tap Save on that page")
     const genericAwait = first.indexOf("await-login --profile myapp")
     assert.ok(saveBeat > genericLogin, `${label} must name human Save after generic login`)
     assert.ok(saveBeat < genericAwait, `${label} must put human Save before generic await-login`)

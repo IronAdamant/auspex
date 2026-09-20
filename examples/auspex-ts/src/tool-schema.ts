@@ -265,6 +265,12 @@ export const auspexAwaitLoginInputSchema = z.object({
     .optional()
     .describe("Version from auspex_login; completion is a newer version with cookies or origins"),
   timeoutMs: z.number().optional().describe("Cap wait in ms (default 1800000, max 1800000). Matches the 30-minute cold login-handoff so a human can Save from a phone off-site."),
+  saveEditor: z
+    .boolean()
+    .optional()
+    .describe(
+      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+    ),
 })
 
 export const auspexDesktopInputSchema = z.object({

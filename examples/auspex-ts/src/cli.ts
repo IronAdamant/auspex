@@ -35,7 +35,7 @@ export const USAGE = `Usage:
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login --profile <name> [--url <hint>] [--wait]
-  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
+  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
   npx auspex profiles
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
   npx auspex mcp
@@ -53,7 +53,7 @@ desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. W
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
 profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: phone uses handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Open editor, hardware keyboard). The agent never types a password. Never type in Solari noVNC on a phone (that stream will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
 login creates or reuses a named Solari profile and prints TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (real text field so the phone keyboard can open). Solari's own handoff is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. Never open handoff.desktopUrl on a phone. The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL). --wait then blocks until Save stores cookies or origins (default 30 minutes).
-await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). Returns status: completed | timeout | empty-save | waiting.
+await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). --save-editor POSTs Solari editor/save from the agent (phone Save must not open Solari: GET editor HTTP 401). Returns status: completed | timeout | empty-save | waiting.
 profiles lists names, ids, version, and whether storage is populated.
 --save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
 Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile on a public marketing host. --allow-record-profile is refused for consistencyhub. Recording is not started at session create when a profile is attached unless the URL is ironadamant.com or checkpointprojects.com.
@@ -71,7 +71,7 @@ export type CliCommand =
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean }
-  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number }
+  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean }
   | { cmd: "profiles" }
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
   | { cmd: "verify"; runDir?: string }
@@ -309,6 +309,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const profile = takeOption(args, "--profile")
     const sinceRaw = takeOption(args, "--since-version")
     const timeoutRaw = takeOption(args, "--timeout-ms")
+    const saveEditor = takeFlag(args, "--save-editor")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profile) return { status: "error", message: "await-login requires --profile <name>" }
     let profileName: string
@@ -329,7 +330,7 @@ export function parseArgv(argv: string[]): ParseResult {
       if (!Number.isFinite(n)) return { status: "error", message: "--timeout-ms must be a number" }
       timeoutMs = n
     }
-    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs } }
+    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor } }
   }
   if (cmd === "verify") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -468,6 +469,7 @@ export async function main(argv: string[]): Promise<number> {
       const waited = await liveAwaitLogin(parsed.command.profile, {
         sinceVersion: parsed.command.sinceVersion,
         timeoutMs: parsed.command.timeoutMs,
+        saveEditor: parsed.command.saveEditor,
       })
       const payload = stampSchema({ ok: waited.status === "completed", ...waited })
       writeStdoutJson(payload)

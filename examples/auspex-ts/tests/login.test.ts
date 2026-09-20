@@ -9,6 +9,7 @@ import {
   attachHandoffQr,
   fetchEditorVncToken,
   formatLogin,
+  saveProfileEditor,
   handoffTokenFromUrl,
   loginInstructions,
   phoneHandoffUrl,
@@ -73,6 +74,15 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   const params = new URLSearchParams(hash)
   assert.equal(params.get("v"), "tok.en")
   assert.equal(params.get("h"), "https://console.getsolari.com/handoff/abc")
+  const withIds = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
+    profileId: "prof_1",
+    profileName: "demo",
+    handoffToken: "hand_1",
+  })
+  const extra = new URLSearchParams(new URL(withIds).hash.slice(1))
+  assert.equal(extra.get("p"), "prof_1")
+  assert.equal(extra.get("n"), "demo")
+  assert.equal(extra.get("t"), "hand_1")
   assert.equal(new URL(url).search, "")
   assert.equal(handoffTokenFromUrl("https://console.getsolari.com/handoff/WS2-abc"), "WS2-abc")
 })
@@ -102,7 +112,26 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /novnc-rfb\.js/)
   assert.match(html, /phone keyboard/)
   assert.match(html, /NoVNCRFB\.default/)
+  assert.match(html, /save-editor/)
+  assert.match(html, /GET editor HTTP 401/)
+  assert.equal(html.includes("location.href = saveUrl"), false)
   assert.equal(html.includes("console.log"), false)
+})
+
+test("saveProfileEditor POSTs editor/save", async () => {
+  const calls: string[] = []
+  const saved = await saveProfileEditor(
+    { profileId: "prof_1", name: "demo", handoffToken: "hand_1" },
+    {
+      post: async (p) => {
+        calls.push(p)
+        return { status: 200, json: { editorStatus: "idle" } }
+      },
+    },
+  )
+  assert.equal(saved.ok, true)
+  assert.equal(saved.status, 200)
+  assert.equal(calls[0]?.endsWith("/editor/save"), true)
 })
 
 test("attachHandoffQr mentions qrPath only when a PNG was written", () => {
