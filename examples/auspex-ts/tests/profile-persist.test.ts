@@ -2,14 +2,25 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { pageForSession, toPlaywrightStorageState } from "../src/solari.ts"
 import {
+  AWAIT_LOGIN_DEFAULT_MS,
+  AWAIT_LOGIN_MAX_MS,
   EMPTY_ORIGIN_SAVE_ERROR,
   EMPTY_PROFILE_SAVE_ERROR,
   bindInspectProfileSeed,
+  clampAwaitLoginTimeoutMs,
   persistProfileState,
   seedFromStorageState,
   waitForProfileSave,
 } from "../src/profile-persist.ts"
 import { PUBLIC_CHECKS, publicCheckExitCode, runPublicChecks } from "../scripts/public-check.ts"
+
+test("await-login default and max match the 30-minute cold handoff", () => {
+  assert.equal(AWAIT_LOGIN_DEFAULT_MS, 1_800_000)
+  assert.equal(AWAIT_LOGIN_MAX_MS, 1_800_000)
+  assert.equal(clampAwaitLoginTimeoutMs(), 1_800_000)
+  assert.equal(clampAwaitLoginTimeoutMs(1_000), 5_000)
+  assert.equal(clampAwaitLoginTimeoutMs(9_000_000), 1_800_000)
+})
 
 test("seedFromStorageState counts cookies and origins without requiring values", () => {
   assert.deepEqual(seedFromStorageState(undefined), { cookies: 0, origins: 0 })

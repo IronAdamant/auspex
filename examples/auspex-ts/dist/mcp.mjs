@@ -1282,7 +1282,12 @@ var EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a S
 var EMPTY_ORIGIN_SAVE_ERROR = "refusing to save: no cookies, localStorage, or sessionStorage landed for the page origin";
 var PROFILE_EDITOR_OPEN_ERROR = "profile editor is open; close it, then --save-profile with the live session";
 var HANDOFF_POLL_MS = 2e3;
-var AWAIT_LOGIN_DEFAULT_MS = 3e5;
+var AWAIT_LOGIN_DEFAULT_MS = 18e5;
+var AWAIT_LOGIN_MIN_MS = 5e3;
+var AWAIT_LOGIN_MAX_MS = 18e5;
+function clampAwaitLoginTimeoutMs(timeoutMs) {
+  return Math.min(Math.max(timeoutMs ?? AWAIT_LOGIN_DEFAULT_MS, AWAIT_LOGIN_MIN_MS), AWAIT_LOGIN_MAX_MS);
+}
 function seedFromStorageState(state, origin) {
   const seed = {
     cookies: (state?.cookies ?? []).filter((c) => Boolean(c?.name)).length,
@@ -1437,7 +1442,7 @@ function awaitNext(status, profile, version, seed) {
 async function waitForProfileSave(name, opts) {
   const want = name.trim();
   if (!want) throw new Error("profile name must be non-empty");
-  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? AWAIT_LOGIN_DEFAULT_MS, 5e3), 6e5);
+  const timeoutMs = clampAwaitLoginTimeoutMs(opts.timeoutMs);
   const sleepFn = opts.deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const now = opts.deps.now ?? Date.now;
   const deadline = now() + timeoutMs;
@@ -1509,13 +1514,26 @@ function requireProfileName(value) {
   return name;
 }
 var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
+var HANDOFF_OPEN_ON_PHONE = "Away from a laptop: open this URL on your phone. Type the password on the phone keyboard in the Solari card, then Save. Never paste the password into chat.";
+var HANDOFF_HANG_GUIDANCE = " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
+function formatHandoffNext(opts) {
+  const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in.";
+  const qrBit = opts.qrPath ? " If you are next to a laptop, you can scan the QR PNG at handoff.qrPath." : "";
+  return `Show the human handoff.url now (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save (must store cookies or origins). Never paste or type the password through the agent.${where} Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner to the phone.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+}
+function attachHandoffQr(result, qrPath, urlHint) {
+  if (!result.handoff) return result;
+  if (qrPath) result.handoff.qrPath = qrPath;
+  else delete result.handoff.qrPath;
+  result.next = formatHandoffNext({ urlHint, qrPath: result.handoff.qrPath });
+  return result;
+}
 function loginInstructions(profile, urlHint, handoff, qrPath) {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
-  const hangGuidance = " If handoff Chromium is blank/spinning >2\u20133 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
   if (handoff?.url) {
     const handoffPacket = {
       url: handoff.url,
-      openOnPhone: "Open this login URL on your phone to sign in from anywhere",
+      openOnPhone: HANDOFF_OPEN_ON_PHONE,
       oneLiner: `Auspex login: ${handoff.url}`,
       qrPath
     };
@@ -1528,7 +1546,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`
+      next: formatHandoffNext({ urlHint, qrPath })
     };
   }
   return {
@@ -1536,7 +1554,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${hangGuidance}`
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`
   };
 }
 async function defaultProfileHttp() {
@@ -2402,7 +2420,7 @@ var auspexLoginInputSchema = z4.object({
 var auspexAwaitLoginInputSchema = z4.object({
   profile: profileNameSchema.describe("Profile name from auspex_login"),
   sinceVersion: z4.number().optional().describe("Version from auspex_login; completion is a newer version with cookies or origins"),
-  timeoutMs: z4.number().optional().describe("Cap wait in ms (default 300000, max 600000)")
+  timeoutMs: z4.number().optional().describe("Cap wait in ms (default 1800000, max 1800000). Matches the 30-minute cold login-handoff so a human can Save from a phone off-site.")
 });
 var auspexDesktopInputSchema = z4.object({
   open: z4.string().optional().describe("App to open on the named Solari sandbox desktop demo (default mousepad). Not the user's Mac."),
@@ -2593,7 +2611,7 @@ function checkLoggedOutNext(profile, cookies) {
   return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`;
 }
 function needsHumanNext() {
-  return "Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record.";
+  return "Stop. Microsoft or Google password/OTP wall detected. Show the human the Solari login handoff URL from auspex_login (Messages, email, or chat). They open it on their phone and type the password on the phone keyboard. Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record.";
 }
 function resolveFinalizeLoginTarget(opts) {
   const saved = savedCheckForProfile(opts.profile);
@@ -4144,7 +4162,7 @@ async function checkThenVerify(opts, deps) {
 // src/mcp-tools.ts
 var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. url is a start hint in the handoff reason. Show the packet, then call auspex_await_login (or pass wait=true), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not ping the user.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL. Show handoff.url to the human (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save. The agent never copies the password. Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath, plus a QR PNG image attach when qrPath writes. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
@@ -4214,15 +4232,19 @@ function registerAuspexTools(server2) {
         const result = await loginProfile(profile, url);
         if (result.handoff?.url) {
           const qr = await generateQRCode(result.handoff.url, runDir);
-          if (qr.qrPath) result.handoff.qrPath = qr.qrPath;
+          if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url);
         }
         if (!wait) {
-          return { content: [{ type: "text", text: toolJson({ ok: true, ...result }) }] };
+          const payload2 = stampSchema({ ok: true, ...result });
+          return buildReceiptToolContent(payload2, result.handoff?.qrPath);
         }
         const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion });
-        return {
-          content: [{ type: "text", text: toolJson({ ok: waited.status === "completed", ...result, wait: waited }) }]
-        };
+        const payload = stampSchema({
+          ok: waited.status === "completed",
+          ...result,
+          wait: waited
+        });
+        return buildReceiptToolContent(payload, result.handoff?.qrPath);
       } catch (err) {
         return packToolFailure(err);
       }
@@ -4231,7 +4253,7 @@ function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_await_login",
     {
-      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ping the user.",
+      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins (default 30 minutes so they can Save from a phone off-site). A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
       inputSchema: auspexAwaitLoginInputSchema
     },
     async ({ profile, sinceVersion, timeoutMs }) => {
