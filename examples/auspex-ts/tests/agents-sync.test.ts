@@ -275,6 +275,23 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
 })
 
+test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["USAGE", USAGE],
+    ["mcp-tools.ts", tools],
+    ["Cursor rule", cursorRule],
+  ] as const) {
+    assert.match(text, /remint or finalize-now|Remint now/, `${label} must push remint or finalize-now`)
+    assert.match(text, /dead fold|claimOkProfile will not pass/, `${label} must not imply VWP on a dead fold`)
+  }
+})
+
 test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason network", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")

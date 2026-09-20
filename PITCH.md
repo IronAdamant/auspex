@@ -1,5 +1,7 @@
 # Auspex — agent web eyes that stay honest on auth-gated SaaS
 
+**`ok` ≠ `claimOk` ≠ `claimOkProfile`.** Those three receipt booleans are not interchangeable. We do **not** claim Alice-vs-Bob wrong-account detection — a seeded profile that is still the wrong Microsoft user can still match expect.
+
 ## The problem: agents lie about logged-in state
 
 Agents scraping first-party SaaS repeatedly hit the same failure mode:

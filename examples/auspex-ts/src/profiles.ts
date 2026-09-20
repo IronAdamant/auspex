@@ -3,6 +3,7 @@ import path from "node:path"
 import { z } from "zod"
 import { asFiniteNumber } from "./profile-persist.ts"
 import { packageRoot } from "./paths.ts"
+import { resolvePhoneExpirySeconds } from "./phone-expiry.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
@@ -17,7 +18,7 @@ export function isPhoneImeUrl(url: string | undefined): boolean {
 export function phoneHandoffUrl(
   vncToken: string,
   handoffUrl: string,
-  extra?: { profileId?: string; profileName?: string; handoffToken?: string },
+  extra?: { profileId?: string; profileName?: string; handoffToken?: string; expiresAt?: string },
 ): string {
   const token = vncToken.trim()
   const save = handoffUrl.trim()
@@ -27,6 +28,8 @@ export function phoneHandoffUrl(
   if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim())
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim())
   if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim())
+  const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token })
+  if (expiry.exp !== undefined) hash.set("exp", String(expiry.exp))
   return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`
 }
 
@@ -106,9 +109,9 @@ export type HandoffPacket = {
 export function phoneSavePaste(profileName?: string): string {
   const name = (profileName ?? "").trim()
   if (name) {
-    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid.`
+    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now — do not expect verify-with-profile on a dead fold.`
   }
-  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid."
+  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now — do not expect verify-with-profile on a dead fold."
 }
 
 /** Solari's handoff/editor is noVNC. iOS will not raise the software keyboard there. */
@@ -341,11 +344,11 @@ export async function fetchEditorVncToken(
 export async function saveProfileEditor(
   handle: EditorSaveHandle,
   opts?: { post?: EditorPost },
-): Promise<{ ok: boolean; status: number; error?: string }> {
+): Promise<{ ok: boolean; status: number; error?: string; json?: Record<string, unknown> }> {
   const post = opts?.post ?? (await defaultEditorPost(handle.handoffToken))
   const got = await post(`/api/profiles/${encodeURIComponent(handle.profileId)}/editor/save`)
   const error = typeof got.json.error === "string" ? got.json.error : undefined
-  return { ok: got.status === 200 || got.status === 201, status: got.status, error }
+  return { ok: got.status === 200 || got.status === 201, status: got.status, error, json: got.json }
 }
 
 export async function loginProfile(
@@ -380,6 +383,7 @@ export async function loginProfile(
         profileId: profile.id,
         profileName: profile.name,
         handoffToken,
+        expiresAt: handoff.expiresAt,
       })
     }
   } catch {

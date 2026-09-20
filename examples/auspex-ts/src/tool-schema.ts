@@ -269,7 +269,7 @@ export const auspexAwaitLoginInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
     ),
 })
 
