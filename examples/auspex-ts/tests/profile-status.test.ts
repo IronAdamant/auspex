@@ -358,6 +358,8 @@ test("profileStatus reports weakSeed when inspect finds stale folded expiresOn",
   assert.match(result.skipReason ?? "", /expiresOn|stale folded/i)
   assert.match(result.skipReason ?? "", /save-editor does not refresh folded sessionStorage/)
   assert.match(result.skipReason ?? "", /finalize-login/)
+  assert.match(result.skipReason ?? "", /Remint now/)
+  assert.match(result.skipReason ?? "", /claimOkProfile will not pass/)
 })
 
 test("profileStatus derives weakSeed from live stale profileSeed when inspect is skipped", async () => {
@@ -388,6 +390,7 @@ test("profileStatus derives weakSeed from live stale profileSeed when inspect is
   assert.equal(result.sessionStorage, 2)
   assert.equal(result.sessionStorageStale, true)
   assert.match(result.skipReason ?? "", /stale folded sessionStorage expiresOn/)
+  assert.match(result.skipReason ?? "", /Remint now|claimOkProfile will not pass/)
   assert.equal((result.skipReason ?? "").includes("--sso --save-profile"), false)
 })
 

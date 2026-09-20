@@ -1,6 +1,6 @@
 # Auspex
 
-Cloud Chrome check → independent sandbox verify → tear-down. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Never types passwords.
+Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `claimOk` ≠ `claimOkProfile`.** We do not claim Alice-vs-Bob wrong-account detection. Never types passwords.
 
 ## For Reviewers
 
@@ -45,7 +45,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 
-- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing, or folded `expiresOn` is stale. **`--save-editor` does not refresh folded sessionStorage**; ConsistencyHub still needs `finalize-login` while the token is valid. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
+- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing, or folded `expiresOn` is stale. Stale/weak `next` remints or finalize-now — do not run `--verify-with-profile` on a dead fold. **`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok`. ConsistencyHub still needs `finalize-login` while the token is valid. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
 
 - **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Saved-check profiles (e.g. `consistencyhub`) supply URL and expect; unknown profiles require `--url` and `--expect`. Same as `check --profile … --sso --save-profile`.
 
@@ -67,7 +67,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 ## ConsistencyHub recipe (auth-gated example)
 
-Console Save and `--save-editor` do not refresh folded sessionStorage. ConsistencyHub still needs `finalize-login` while the token is valid (`accessToken` + `expiresOn` in sessionStorage).
+Console Save and `--save-editor` do not refresh folded sessionStorage unless `editorFold.ok`. ConsistencyHub still needs `finalize-login` while the token is valid (`accessToken` + `expiresOn` in sessionStorage). If await-login/`profile-status` says stale or weakSeed, remint or finalize-now — do not expect `--verify-with-profile` to succeed on a dead fold.
 
 ```bash
 npx auspex login --profile consistencyhub

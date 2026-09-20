@@ -9,6 +9,9 @@
     #wrap { display: flex; flex-direction: column; height: 100%; }
     header { padding: 10px 12px 8px; font-size: 14px; }
     header strong { display: block; font-size: 16px; }
+    #ttl { margin-top: 6px; font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; }
+    #ttl.warn { color: #fc6; }
+    #ttl.dead { color: #f88; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
     #stage { flex: 1; min-height: 120px; position: relative; background: #0b0f14; }
     #screen { position: absolute; inset: 0; }
@@ -26,6 +29,17 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     #bootText { margin: 0; color: #9ab; font-size: 15px; }
+    #expired {
+      display: none; position: absolute; inset: 0; z-index: 5;
+      align-items: center; justify-content: center; padding: 24px;
+      background: rgba(11, 15, 20, 0.92);
+    }
+    #expired.show { display: flex; }
+    #expiredBox {
+      max-width: 28rem; background: #1a2230; border: 1px solid #f88; border-radius: 12px;
+      padding: 18px 16px; text-align: center;
+    }
+    #expiredBox strong { display: block; font-size: 18px; margin-bottom: 8px; color: #f88; }
     #bar { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #121821; border-top: 1px solid #243044; }
     #ime, #paste {
       width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
@@ -49,6 +63,8 @@
     }
     #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
     #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
+    body.locked #screen { pointer-events: none; }
+    body.locked #ime, body.locked #row button { opacity: 0.45; }
     .err { color: #f88; }
   </style>
 </head>
@@ -56,6 +72,7 @@
   <div id="wrap">
     <header>
       <strong>Auspex phone login</strong>
+      <div id="ttl">Checking how long this link is active…</div>
       <div id="status">Tap the remote Chrome to click. Type in the field below so the phone keyboard opens. Keys go into the remote Chrome, not into chat.</div>
     </header>
     <div id="stage">
@@ -64,6 +81,12 @@
         <p id="bootText">Opening remote Chrome…</p>
       </div>
       <div id="screen"></div>
+      <div id="expired" role="alertdialog" aria-modal="true" aria-labelledby="expiredTitle">
+        <div id="expiredBox">
+          <strong id="expiredTitle">This login link has expired</strong>
+          <p id="expiredText">Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page.</p>
+        </div>
+      </div>
     </div>
     <div id="bar">
       <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" />
@@ -89,15 +112,23 @@
       var status = document.getElementById("status")
       var boot = document.getElementById("boot")
       var bootText = document.getElementById("bootText")
+      var ttl = document.getElementById("ttl")
+      var expired = document.getElementById("expired")
+      var expiredTitle = document.getElementById("expiredTitle")
+      var expiredText = document.getElementById("expiredText")
       var ime = document.getElementById("ime")
       var paste = document.getElementById("paste")
       var scratch = document.getElementById("copyScratch")
       var copied = document.getElementById("copied")
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
+      var backspace = document.getElementById("backspace")
+      var enter = document.getElementById("enter")
       var rfb = null
       var last = ""
       var bootTimer = null
+      var tickTimer = null
+      var locked = false
 
       function setStatus(text, err) {
         status.textContent = text
@@ -110,11 +141,73 @@
         else boot.classList.remove("hidden")
       }
 
+      function parseUnixSeconds(value) {
+        if (value == null || value === "") return null
+        var raw = String(value).trim()
+        if (/^\d+(\.\d+)?$/.test(raw)) {
+          var n = Number(raw)
+          if (!isFinite(n) || n <= 0) return null
+          return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n)
+        }
+        var parsed = Date.parse(raw)
+        return isFinite(parsed) ? Math.floor(parsed / 1000) : null
+      }
+
+      function jwtExpSeconds(rawToken) {
+        var parts = String(rawToken || "").split(".")
+        if (parts.length < 2 || !parts[1]) return null
+        try {
+          var b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+          while (b64.length % 4) b64 += "="
+          var payload = JSON.parse(atob(b64))
+          return parseUnixSeconds(payload && payload.exp)
+        } catch (e) {
+          return null
+        }
+      }
+
+      function resolveExpirySeconds() {
+        var fromHash = parseUnixSeconds(params.get("exp"))
+        if (fromHash) return fromHash
+        return jwtExpSeconds(token)
+      }
+
+      function formatRemain(sec) {
+        if (sec < 0) sec = 0
+        var m = Math.floor(sec / 60)
+        var s = sec % 60
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+      }
+
+      function lockUi(title, message) {
+        if (locked) return
+        locked = true
+        document.body.classList.add("locked")
+        ime.disabled = true
+        save.disabled = true
+        backspace.disabled = true
+        enter.disabled = true
+        screen.style.pointerEvents = "none"
+        expiredTitle.textContent = title
+        expiredText.textContent = message
+        expired.classList.add("show")
+        ttl.textContent = title
+        ttl.className = "dead"
+        setStatus(message, true)
+        setBoot(title, false)
+        if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
+        if (bootTimer) { clearInterval(bootTimer); bootTimer = null }
+        if (rfb && typeof rfb.disconnect === "function") {
+          try { rfb.disconnect() } catch (e) {}
+        }
+        rfb = null
+      }
+
       function savePasteLine(name) {
         if (name) {
-          return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid."
+          return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now — do not expect verify-with-profile on a dead fold."
         }
-        return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid."
+        return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now — do not expect verify-with-profile on a dead fold."
       }
 
       function copyOnTap(text) {
@@ -140,6 +233,7 @@
       }
 
       save.addEventListener("click", function () {
+        if (locked) return
         var line = savePasteLine(profileName)
         paste.value = line
         copyOnTap(line)
@@ -147,15 +241,41 @@
         showCopied()
       })
 
+      var expSec = resolveExpirySeconds()
+      if (!expSec) {
+        lockUi(
+          "Link expiry unknown — remint",
+          "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+        )
+        return
+      }
+
+      function tick() {
+        var left = expSec - Math.floor(Date.now() / 1000)
+        if (left <= 0) {
+          lockUi(
+            "This login link has expired",
+            "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+          )
+          return
+        }
+        ttl.textContent = "Link active for " + formatRemain(left)
+        ttl.className = left <= 120 ? "warn" : ""
+      }
+      tick()
+      tickTimer = setInterval(tick, 1000)
+      if (locked) return
+
       if (!token) {
-        setBoot("This page needs a live link from auspex login. Remint and open the phone URL.", false)
-        setStatus("This page needs a live link from auspex login. Remint and open the phone URL.", true)
-        ime.disabled = true
+        lockUi(
+          "This page needs a live link from auspex login",
+          "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+        )
         return
       }
 
       function sendKey(keysym, code) {
-        if (!rfb || typeof rfb.sendKey !== "function") return
+        if (locked || !rfb || typeof rfb.sendKey !== "function") return
         rfb.sendKey(keysym, code)
       }
 
@@ -179,11 +299,13 @@
       }
 
       ime.addEventListener("input", function () {
+        if (locked) return
         var next = ime.value
         sendDiff(last, next)
         last = next
       })
       ime.addEventListener("keydown", function (e) {
+        if (locked) { e.preventDefault(); return }
         if (e.key === "Enter") {
           e.preventDefault()
           sendKey(XK_RETURN, "Enter")
@@ -195,7 +317,8 @@
           sendBackspace()
         }
       })
-      document.getElementById("backspace").addEventListener("click", function () {
+      backspace.addEventListener("click", function () {
+        if (locked) return
         if (ime.value) {
           ime.value = ime.value.slice(0, -1)
           sendDiff(last, ime.value)
@@ -205,7 +328,8 @@
         }
         ime.focus()
       })
-      document.getElementById("enter").addEventListener("click", function () {
+      enter.addEventListener("click", function () {
+        if (locked) return
         sendKey(XK_RETURN, "Enter")
         ime.focus()
       })
@@ -221,6 +345,7 @@
         var tries = 0
         if (bootTimer) clearInterval(bootTimer)
         bootTimer = setInterval(function () {
+          if (locked) { clearInterval(bootTimer); bootTimer = null; return }
           tries++
           var canvas = screen.querySelector("canvas")
           if (canvas && canvas.width > 2 && canvas.height > 2) {
@@ -247,10 +372,18 @@
         rfb.resizeSession = true
         rfb.background = "#0b0f14"
         rfb.addEventListener("connect", function () {
+          if (locked) {
+            if (rfb && typeof rfb.disconnect === "function") {
+              try { rfb.disconnect() } catch (e) {}
+            }
+            rfb = null
+            return
+          }
           setBoot("Opening Chromium…")
           hideBootWhenReady()
         })
         rfb.addEventListener("disconnect", function () {
+          if (locked) return
           if (bootTimer) clearInterval(bootTimer)
           setBoot("Disconnected. Remint auspex login if this sat idle.", false)
           setStatus("Disconnected. Remint auspex login if this sat idle.", true)
