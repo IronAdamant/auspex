@@ -1,17 +1,20 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  FOLDED_EXPIRES_ON_SKEW_MS,
   SESSION_STORAGE_PREFIX,
   captureStorageState,
   foldSessionStorage,
   hydrateSessionStorageInMemory,
   hydrateSessionStorageSource,
   installSessionStorageRestore,
+  isFoldedExpiresOnStale,
   isLoggedOutLanding,
   isPersistableAppUrl,
   mergeStorageStates,
   originHasLandedBytes,
   originStoreCounts,
+  parseFoldedExpiresOnMs,
   sessionItemsByOrigin,
 } from "../src/profile-storage.ts"
 
@@ -130,6 +133,38 @@ test("isLoggedOutLanding is /landing, login, or unmatched /", () => {
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/"), true)
   assert.equal(isLoggedOutLanding("https://consistencyhub.io/", { matched: true }), false)
   assert.equal(isLoggedOutLanding("https://ironadamant.com/", { matched: true }), false)
+})
+
+test("parseFoldedExpiresOnMs accepts epoch ms, unix seconds, and ISO", () => {
+  assert.equal(parseFoldedExpiresOnMs("1758370272000"), 1_758_370_272_000)
+  assert.equal(parseFoldedExpiresOnMs("1758370272"), 1_758_370_272_000)
+  assert.equal(parseFoldedExpiresOnMs("2026-09-20T11:51:12.000Z"), Date.parse("2026-09-20T11:51:12.000Z"))
+  assert.equal(parseFoldedExpiresOnMs(""), undefined)
+  assert.equal(parseFoldedExpiresOnMs("not-a-date"), undefined)
+  assert.equal(parseFoldedExpiresOnMs("-1"), undefined)
+})
+
+test("isFoldedExpiresOnStale is past or within 5m skew; leftover count is ignored", () => {
+  const now = 1_758_370_272_000
+  const origin = "https://consistencyhub.io"
+  const folded = (expiresOn: string) =>
+    foldSessionStorage({ cookies: [], origins: [] }, origin, [
+      { name: "accessToken", value: "tok" },
+      { name: "expiresOn", value: expiresOn },
+    ])
+  assert.equal(FOLDED_EXPIRES_ON_SKEW_MS, 5 * 60 * 1000)
+  assert.equal(isFoldedExpiresOnStale(folded(String(now - 1)), origin, { now }), true)
+  assert.equal(isFoldedExpiresOnStale(folded(String(now + 60_000)), origin, { now }), true)
+  assert.equal(isFoldedExpiresOnStale(folded(String(now + FOLDED_EXPIRES_ON_SKEW_MS)), origin, { now }), true)
+  assert.equal(
+    isFoldedExpiresOnStale(folded(String(now + FOLDED_EXPIRES_ON_SKEW_MS + 1)), origin, { now }),
+    false,
+  )
+  assert.equal(
+    isFoldedExpiresOnStale(foldSessionStorage({ cookies: [], origins: [] }, origin, [{ name: "accessToken", value: "tok" }]), origin, { now }),
+    false,
+  )
+  assert.equal(originStoreCounts(folded(String(now - 1)), origin).sessionStorage, 2)
 })
 
 test("captureStorageState folds sessionStorage from open pages", async () => {

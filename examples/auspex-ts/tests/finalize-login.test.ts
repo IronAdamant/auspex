@@ -47,6 +47,8 @@ test("finalizeLoginGuidance names --url/--expect only for unknown profiles", () 
   assert.match(unknown, /finalize-login --profile acme --url <url> --expect <string>/)
   assert.match(unknown, /required unless the profile matches a saved check/)
   assert.equal(unknown.includes("Document Editor"), false)
+  assert.match(saved, /--save-editor do not refresh folded sessionStorage/)
+  assert.match(saved, /while the token is valid/)
 })
 
 test("needsHuman next is finalize-login after Save, not retry check", () => {

@@ -115,6 +115,7 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /phone keyboard/)
   assert.match(html, /NoVNCRFB\.default/)
   assert.match(html, /save-editor/)
+  assert.match(html, /does not refresh folded sessionStorage/)
   assert.match(html, /GET editor HTTP 401/)
   assert.match(html, /Opening remote Chrome/)
   assert.match(html, /clipboard\.writeText/)
@@ -135,6 +136,8 @@ test("phoneSavePaste is a line any agent chat can run", () => {
   assert.match(line, /--profile consistencyhub/)
   assert.match(line, /--save-editor/)
   assert.match(line, /saveEditor true/)
+  assert.match(line, /does not refresh folded sessionStorage/)
+  assert.match(line, /finalize-login while the token is valid/)
 })
 
 test("saveProfileEditor POSTs editor/save", async () => {

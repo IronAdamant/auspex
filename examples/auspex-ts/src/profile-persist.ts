@@ -1,7 +1,7 @@
 import type { Solari, StorageState } from "@solarisdk/browser"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
-import { originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
+import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
 
@@ -31,6 +31,8 @@ export type ProfileSeed = {
   cookies: number
   origins: number
   sessionStorage?: number
+  /** Folded `__auspex_ss__:expiresOn` is past or within ~5m. Count alone is not fresh. */
+  sessionStorageStale?: boolean
 }
 
 export type ProfileSaveResult = {
@@ -53,6 +55,7 @@ export type AwaitLoginResult = {
   cookies: number
   origins: number
   sessionStorage?: number
+  sessionStorageStale?: boolean
   next: string
   editorSave?: { ok: boolean; status: number; error?: string }
 }
@@ -71,6 +74,7 @@ export function seedFromStorageState(state: StorageState | null | undefined, ori
   }
   if (origin && state) {
     seed.sessionStorage = originStoreCounts(state, origin).sessionStorage
+    if (isFoldedExpiresOnStale(state, origin)) seed.sessionStorageStale = true
   }
   return seed
 }
@@ -94,9 +98,10 @@ export function isConsistencyHubTarget(opts: { name?: string; profile?: string; 
 }
 
 /**
- * weakSeed when cookies/origins exist and sessionStorage is counted 0.
+ * weakSeed when cookies/origins exist and sessionStorage is counted 0,
+ * or folded `__auspex_ss__:expiresOn` is past / within ~5m (leftover count is not fresh).
  * Public marketing saved checks (ironadamant, checkpoint) stay loggedOut.
- * Unknown sessionStorage (no origin) is not weakSeed.
+ * Unknown sessionStorage (no origin, and not stale) is not weakSeed.
  */
 export function isWeakSeed(opts: {
   name?: string
@@ -105,10 +110,13 @@ export function isWeakSeed(opts: {
   cookies?: number
   origins?: number
   sessionStorage?: number
+  sessionStorageStale?: boolean
 }): boolean {
-  if (opts.sessionStorage === undefined) return false
+  const missingSs = opts.sessionStorage === 0
+  const staleSs = opts.sessionStorageStale === true
+  if (!missingSs && !staleSs) return false
   const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0
-  if (!hasStore || opts.sessionStorage !== 0) return false
+  if (!hasStore) return false
   if (isConsistencyHubTarget(opts)) return true
   const raw = opts.url?.trim()
   if (raw && isPublicMarketingUrl(raw)) return false
@@ -136,7 +144,21 @@ export function finalizeLoginGuidance(profile: string): string {
   const saved = savedCheckForProfile(name)
   const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check."
-  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save is not enough for Microsoft OAuth SPAs. Never --record a logged-in session.`
+  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. ConsistencyHub still needs finalize-login while the token is valid. Never --record a logged-in session.`
+}
+
+/** Agent skipReason / await-login Warning when the seed is missing or stale sessionStorage. */
+export function weakSeedWarning(
+  profile: string,
+  seed?: { sessionStorage?: number; sessionStorageStale?: boolean },
+): string {
+  if (seed?.sessionStorageStale) {
+    return (
+      `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
+      `--save-editor does not refresh folded sessionStorage. ${finalizeLoginGuidance(profile)}`
+    )
+  }
+  return `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`
 }
 
 /** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
@@ -262,9 +284,10 @@ function awaitNext(
         cookies: seed.cookies,
         origins: seed.origins,
         sessionStorage: seed.sessionStorage,
+        sessionStorageStale: seed.sessionStorageStale,
       })
     ) {
-      base += `. Warning: profile has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile.name)}`
+      base += `. Warning: ${weakSeedWarning(profile.name, seed)}`
     }
     return base
   }
@@ -330,6 +353,7 @@ export async function waitForProfileSave(
     cookies: seed.cookies,
     origins: seed.origins,
     sessionStorage: seed.sessionStorage,
+    sessionStorageStale: seed.sessionStorageStale,
     next: awaitNext(status, profile, version, seed),
   }
 }
