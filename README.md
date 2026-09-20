@@ -26,7 +26,7 @@ npx auspex check https://example.com --expect "Example Domain"
 npx auspex-mcp
 ```
 
-On npm the publish name is **`auspex-solari`** (`npx auspex-solari`). Do not install npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
+On npm: **`npx auspex-solari`**. Do not install npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
