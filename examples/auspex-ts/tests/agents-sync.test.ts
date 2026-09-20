@@ -104,7 +104,8 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.match(first, /npx auspex-mcp/)
   assert.match(first, /[Pp]ublic check/)
   assert.match(first, /[Aa]uth-gated/)
-  assert.match(first, /no public GitHub Issues tracker/)
+  assert.match(first, /Issues.*skip/i)
+  assert.equal(first.includes("no public GitHub Issues tracker"), false)
 })
 
 test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLoginTarget", () => {

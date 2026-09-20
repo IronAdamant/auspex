@@ -12,7 +12,7 @@ The ironadamant one-liner is a **public check (no login)**. It does **not** prov
 | **Public check (no login)** | `npx auspex check --name ironadamant` |
 | **Any host** | `npx auspex check https://example.com --expect "Example Domain"` |
 | **MCP** | `npx auspex-mcp` |
-| **Issues** | This fork has no public GitHub Issues tracker (`has_issues` is false). |
+| **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
 | **Do not** | Type passwords · `--record` logged-in ConsistencyHub · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
 ```bash
@@ -95,7 +95,7 @@ The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
-- This fork has no public GitHub Issues tracker (`has_issues` is false)
+- Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set).
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 

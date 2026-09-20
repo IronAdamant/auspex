@@ -101,7 +101,7 @@ IDs are stable. Do not drop an ID.
 | U9 | Desktop is Mousepad billed as a product door | `MOUSEPAD_CLICK` is an “old layout guess”; Free plan 402s. Help must still list `desktop`. | **Demote, do not delete.** First screen: check → verify → tear-down. Desktop one line: named sandbox demo, not the Mac, 402 on Free. Keep CLI/MCP/tests. Optional committed demo receipt only if a live 200 exists; never fake `ok`. |
 | U10 | Easy any-host not first | Hero is `--name ironadamant` only. | Quick start fence: `npx auspex check https://example.com --expect "Example Domain"` then saved names. |
 | U11 | `tsx` / `esbuild` are **devDependencies** | `bin/run.mjs` only finds local `tsx`. `npm ci --omit=dev` cannot `--help`. Nested esbuild platform binary already bit this machine. | Move `tsx` (and `esbuild` if MCP rebuild is a door) to `dependencies`, **or** compile `cli` to `dist/cli.mjs` and point bins at `node dist/…`. Test: `npm ci --omit=dev` then `node bin/auspex.mjs --help` exits 0. |
-| U12 | GitHub Issues disabled; weekly `public` job skips without secret | Fork default `has_issues: false`. Actions `public`/`live` exit 0 if no repo secret. | Enable Issues (or Discussions). Hero must not imply weekly live coverage unless the secret is set. |
+| U12 | GitHub Issues disabled; weekly `public` job skips without secret | Fork default `has_issues: false`. Actions `public`/`live` exit 0 if no repo secret. | **Done (Issues on).** Hero still must not imply weekly live coverage unless the secret is set. |
 
 ### Honesty / artifacts
 

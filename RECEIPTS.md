@@ -179,4 +179,4 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. This fork has no public GitHub Issues tracker (`has_issues` is false).
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
