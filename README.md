@@ -51,7 +51,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_verify`** — only if you passed `verify=false`. Headless sandbox re-checks PNG + JSON. Integrity `ok` is separate from claim `claimOk`. Kills the VM.
 
-- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` = cookies/origins but no sessionStorage. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
+- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is ConsistencyHub (name / profile / host) with a counted `sessionStorage === 0`. Other cookie-only landings are `loggedOut`. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
 
 - **`auspex_reap`** — list/kill leftover **ledger** sessions after `429`. `--account-wide` wipes all VMs. `--pack-receipts` copies last receipts per URL into `.auspex/pack/`.
 
@@ -71,6 +71,7 @@ Console Save alone is insufficient (sessionStorage not persisted). ConsistencyHu
 
 ```bash
 npx auspex login --profile consistencyhub
+# human: Microsoft + OneDrive consent in the handoff, then Save. Do not intern-ping.
 npx auspex await-login --profile consistencyhub
 npx auspex finalize-login --profile consistencyhub
 npx auspex check --name consistencyhub

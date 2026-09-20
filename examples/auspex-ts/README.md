@@ -71,7 +71,7 @@ Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, t
 
 `desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. 402 on Free. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. **FAIL-CLOSED `--type`** refuses password/OTP-like strings. `streamUrl` is the live VNC; Auspex still kills after the shot.
 
-`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` = cookies/origins but no sessionStorage. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
+`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is ConsistencyHub (name / profile / host) with a counted `sessionStorage === 0`. Other cookie-only landings are `loggedOut`. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
 
 ## MCP
 

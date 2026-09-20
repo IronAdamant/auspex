@@ -1318,6 +1318,17 @@ function emptyProfileSeedError(name) {
   const n = name.trim();
   return `profile ${n} ${EMPTY_PROFILE_SEED_ERROR}`;
 }
+function finalizeLoginGuidance(profile) {
+  const name = profile.trim() || "<name>";
+  const saved = savedCheckForProfile(name);
+  const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`;
+  const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check.";
+  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save is not enough for Microsoft OAuth SPAs. Never --record a logged-in session.`;
+}
+function emptyProfileGuidance(profile) {
+  const name = profile.trim() || "<name>";
+  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name}. Do not finalize-login on an empty profile. Agent never types a password.`;
+}
 function asFiniteNumber(value) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() !== "") {
@@ -1403,7 +1414,7 @@ function awaitNext(status, profile, version, seed) {
       origins: seed.origins,
       sessionStorage: seed.sessionStorage
     })) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may still return loggedOut. Run check --profile ${profile.name} --sso --save-profile once after human IdP to capture sessionStorage.`;
+      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile.name)}`;
     }
     return base;
   }
@@ -2570,6 +2581,12 @@ function createProgress(opts = {}) {
 var noopProgress = () => void 0;
 
 // src/check.ts
+function checkLoggedOutNext(profile, cookies) {
+  return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`;
+}
+function needsHumanNext() {
+  return "Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record.";
+}
 function resolveFinalizeLoginTarget(opts) {
   const saved = savedCheckForProfile(opts.profile);
   const url = opts.url || saved?.url;
@@ -2851,9 +2868,9 @@ async function runCheck(opts) {
     });
     let next;
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = `Profile has ${profileSeed.cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). Prefer: remint with auspex_login, complete human SSO in handoff, then run check --profile <name> --sso --save-profile to capture sessionStorage. Console Save is insufficient for apps like ConsistencyHub.`;
+      next = checkLoggedOutNext(opts.profile ?? "<name>", profileSeed.cookies);
     } else if (reason === "needsHuman") {
-      next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`;
+      next = needsHumanNext();
     }
     const diff = await diffAgainstLastReceipt({
       url: opts.url,
@@ -3432,7 +3449,7 @@ async function profileStatus(opts, deps) {
       populated: false,
       live: false,
       skippedLive: true,
-      skipReason: missing ? `profile ${profile} not found. Human SSO once (agent never types a password).` : `profile ${profile} is empty. Human SSO once (agent never types a password).`
+      skipReason: emptyProfileGuidance(profile)
     };
   }
   const willLive = Boolean(url);
@@ -3473,7 +3490,7 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage
@@ -3513,7 +3530,7 @@ async function profileStatus(opts, deps) {
         populated: row.populated,
         live: false,
         skippedLive: true,
-        skipReason: `${msg} Human SSO once (agent never types a password).`,
+        skipReason: `${msg} ${emptyProfileGuidance(profile)}`,
         cookies: seed?.cookies,
         origins: seed?.origins,
         sessionStorage: seed?.sessionStorage
@@ -3564,7 +3581,7 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. If this is an auth-gated SaaS, check may return loggedOut. Run check --profile ${profile} --sso --save-profile once after human IdP to capture sessionStorage.`,
+      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -3574,6 +3591,7 @@ async function profileStatus(opts, deps) {
     };
   }
   if (loggedOutLive) {
+    const hasCookies = (seed?.cookies ?? 0) > 0 || (seed?.origins ?? 0) > 0;
     return {
       ok: false,
       reason: "loggedOut",
@@ -3581,6 +3599,7 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
+      skipReason: hasCookies ? finalizeLoginGuidance(profile) : emptyProfileGuidance(profile),
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -4120,7 +4139,7 @@ var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-di
 var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. Show the packet, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed = cookies/origins but no sessionStorage (auth-gated SaaS likely insufficient). Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
+var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is ConsistencyHub (name/profile/host) with a counted sessionStorage of 0; other cookie-only landings are loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
 var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {
