@@ -64,6 +64,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "profile", flag: "--profile", kind: "string" },
       { json: "sinceVersion", flag: "--since-version", kind: "number" },
       { json: "timeoutMs", flag: "--timeout-ms", kind: "number" },
+      { json: "saveEditor", flag: "--save-editor", kind: "boolean" },
     ],
   },
   {
