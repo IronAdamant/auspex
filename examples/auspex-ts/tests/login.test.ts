@@ -9,6 +9,7 @@ import {
   attachHandoffQr,
   fetchEditorVncToken,
   formatLogin,
+  phoneSavePaste,
   saveProfileEditor,
   handoffTokenFromUrl,
   loginInstructions,
@@ -61,6 +62,7 @@ test("loginInstructions with phone IME URL labels the real text-field page", () 
   assert.match(result.handoff?.openOnPhone ?? "", /real text field/)
   assert.match(result.handoff?.openOnDesktop ?? "", /Open editor/)
   assert.equal(result.handoff?.oneLiner, `Auspex login (phone): ${mobile}`)
+  assert.equal(result.handoff?.savePaste, phoneSavePaste("auspex-goal-test"))
   assert.equal(qrPayloadForHandoff(result.handoff!), mobile)
   const printed = formatLogin(result)
   assert.match(printed, /phone\.html/)
@@ -114,8 +116,21 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /NoVNCRFB\.default/)
   assert.match(html, /save-editor/)
   assert.match(html, /GET editor HTTP 401/)
+  assert.match(html, /Opening remote Chrome/)
+  assert.match(html, /clipboard\.writeText/)
+  assert.match(html, /id="boot"/)
+  assert.match(html, /class="spin"/)
+  assert.match(html, /id="paste"/)
   assert.equal(html.includes("location.href = saveUrl"), false)
   assert.equal(html.includes("console.log"), false)
+})
+
+test("phoneSavePaste is a line any agent chat can run", () => {
+  const line = phoneSavePaste("consistencyhub")
+  assert.match(line, /I tapped Save/)
+  assert.match(line, /--profile consistencyhub/)
+  assert.match(line, /--save-editor/)
+  assert.match(line, /saveEditor true/)
 })
 
 test("saveProfileEditor POSTs editor/save", async () => {
