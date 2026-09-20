@@ -8,10 +8,12 @@ import {
   EMPTY_PROFILE_SAVE_ERROR,
   bindInspectProfileSeed,
   clampAwaitLoginTimeoutMs,
+  isWeakSeed,
   persistProfileState,
   seedFromStorageState,
   waitForProfileSave,
 } from "../src/profile-persist.ts"
+import { SESSION_STORAGE_PREFIX } from "../src/profile-storage.ts"
 import { PUBLIC_CHECKS, publicCheckExitCode, runPublicChecks } from "../scripts/public-check.ts"
 
 test("await-login default and max match the 30-minute cold handoff", () => {
@@ -216,6 +218,93 @@ test("bindInspectProfileSeed forwards origin so live await-login can warn", asyn
   assert.equal(completed.sessionStorage, 0)
   assert.match(completed.next, /warning/i)
   assert.match(completed.next, /sessionStorage/i)
+})
+
+test("seedFromStorageState marks stale folded expiresOn without dropping the count", () => {
+  const past = String(Date.now() - 60_000)
+  const near = String(Date.now() + 60_000)
+  const fresh = String(Date.now() + 20 * 60_000)
+  const state = (expiresOn: string) => ({
+    cookies: [{ name: "sid", value: "1", domain: "consistencyhub.io" }],
+    origins: [
+      {
+        origin: "https://consistencyhub.io",
+        localStorage: [
+          { name: `${SESSION_STORAGE_PREFIX}accessToken`, value: "tok" },
+          { name: `${SESSION_STORAGE_PREFIX}expiresOn`, value: expiresOn },
+        ],
+      },
+    ],
+  })
+  const stale = seedFromStorageState(state(past), "https://consistencyhub.io")
+  assert.equal(stale.sessionStorage, 2)
+  assert.equal(stale.sessionStorageStale, true)
+  const skew = seedFromStorageState(state(near), "https://consistencyhub.io")
+  assert.equal(skew.sessionStorage, 2)
+  assert.equal(skew.sessionStorageStale, true)
+  const ok = seedFromStorageState(state(fresh), "https://consistencyhub.io")
+  assert.equal(ok.sessionStorage, 2)
+  assert.equal(ok.sessionStorageStale, undefined)
+})
+
+test("waitForProfileSave warns when consistencyhub folded expiresOn is stale even if count is 2", async () => {
+  const completed = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 37,
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 38 }],
+      inspect: async () => ({ cookies: 74, origins: 5, sessionStorage: 2, sessionStorageStale: true }),
+    },
+  })
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.sessionStorage, 2)
+  assert.equal(completed.sessionStorageStale, true)
+  assert.match(completed.next, /warning/i)
+  assert.match(completed.next, /expiresOn|stale leftover|stale folded/i)
+  assert.match(completed.next, /save-editor does not refresh folded sessionStorage/)
+  assert.match(completed.next, /finalize-login/)
+  assert.equal(isWeakSeed({ profile: "consistencyhub", cookies: 74, origins: 5, sessionStorage: 2 }), false)
+  assert.equal(
+    isWeakSeed({
+      profile: "consistencyhub",
+      cookies: 74,
+      origins: 5,
+      sessionStorage: 2,
+      sessionStorageStale: true,
+    }),
+    true,
+  )
+})
+
+test("waitForProfileSave does not warn on a fresh folded expiresOn with count 2", async () => {
+  const completed = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 35,
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 36 }],
+      inspect: async () => ({ cookies: 74, origins: 5, sessionStorage: 2 }),
+    },
+  })
+  assert.equal(completed.status, "completed")
+  assert.equal(completed.sessionStorage, 2)
+  assert.equal(completed.sessionStorageStale, undefined)
+  assert.equal(/warning/i.test(completed.next), false)
 })
 
 test("seedFromStorageState counts sessionStorage when origin is passed", () => {

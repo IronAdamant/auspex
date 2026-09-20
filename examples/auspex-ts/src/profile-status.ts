@@ -1,6 +1,13 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
-import { emptyProfileGuidance, finalizeLoginGuidance, inspectProfileSeed, isWeakSeed } from "./profile-persist.ts"
+import {
+  emptyProfileGuidance,
+  finalizeLoginGuidance,
+  inspectProfileSeed,
+  isWeakSeed,
+  weakSeedWarning,
+  type ProfileSeed,
+} from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
@@ -23,6 +30,7 @@ export type ProfileStatusResult = {
   cookies?: number
   origins?: number
   sessionStorage?: number
+  sessionStorageStale?: boolean
 }
 
 export type ProfileStatusOpts = {
@@ -36,7 +44,21 @@ export type ProfileStatusDeps = {
   runCheck?: (opts: CheckOptions) => Promise<CheckResult>
   savedForName?: (name: string) => SavedCheck
   savedForProfile?: (profile: string) => SavedCheck | undefined
-  inspectSeed?: (profileId: string, origin?: string) => Promise<{ cookies: number; origins: number; sessionStorage?: number }>
+  inspectSeed?: (profileId: string, origin?: string) => Promise<ProfileSeed>
+}
+
+function seedCounts(seed?: ProfileSeed): {
+  cookies?: number
+  origins?: number
+  sessionStorage?: number
+  sessionStorageStale?: boolean
+} {
+  return {
+    cookies: seed?.cookies,
+    origins: seed?.origins,
+    sessionStorage: seed?.sessionStorage,
+    ...(seed?.sessionStorageStale ? { sessionStorageStale: true } : {}),
+  }
 }
 
 function resolveStatusTarget(opts: ProfileStatusOpts, deps?: ProfileStatusDeps): {
@@ -92,7 +114,7 @@ export async function profileStatus(
   }
 
   const willLive = Boolean(url)
-  let seed: { cookies: number; origins: number; sessionStorage?: number } | undefined
+  let seed: ProfileSeed | undefined
   if (deps?.inspectSeed) {
     try {
       seed = await deps.inspectSeed(row.id, url ? new URL(url).origin : undefined)
@@ -120,6 +142,7 @@ export async function profileStatus(
     cookies: seed?.cookies,
     origins: seed?.origins,
     sessionStorage: seed?.sessionStorage,
+    sessionStorageStale: seed?.sessionStorageStale,
   }
   if (isWeakSeed(weakOpts)) {
     return {
@@ -130,10 +153,8 @@ export async function profileStatus(
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`,
-      cookies: seed?.cookies,
-      origins: seed?.origins,
-      sessionStorage: seed?.sessionStorage,
+      skipReason: weakSeedWarning(profile, seed),
+      ...seedCounts(seed),
     }
   }
   
@@ -146,9 +167,7 @@ export async function profileStatus(
       live: false,
       skippedLive: true,
       skipReason: "no url to probe; pass --url or --name. Not pinging the user.",
-      cookies: seed?.cookies,
-      origins: seed?.origins,
-      sessionStorage: seed?.sessionStorage,
+      ...seedCounts(seed),
     }
   }
   const check = deps?.runCheck ?? runCheck
@@ -172,9 +191,7 @@ export async function profileStatus(
         live: false,
         skippedLive: true,
         skipReason: `${msg} ${emptyProfileGuidance(profile)}`,
-        cookies: seed?.cookies,
-        origins: seed?.origins,
-        sessionStorage: seed?.sessionStorage,
+        ...seedCounts(seed),
       }
     }
     throw err
@@ -196,9 +213,7 @@ export async function profileStatus(
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      cookies: seed?.cookies,
-      origins: seed?.origins,
-      sessionStorage: seed?.sessionStorage,
+      ...seedCounts(seed),
     }
   }
   const landed = result.finalUrl || ""
@@ -220,6 +235,7 @@ export async function profileStatus(
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage,
+      sessionStorageStale: seed?.sessionStorageStale,
     })
   ) {
     return {
@@ -229,13 +245,11 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`,
+      skipReason: weakSeedWarning(profile, seed),
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      cookies: seed?.cookies,
-      origins: seed?.origins,
-      sessionStorage: seed?.sessionStorage,
+      ...seedCounts(seed),
     }
   }
   if (loggedOutLive) {
@@ -253,9 +267,7 @@ export async function profileStatus(
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      cookies: seed?.cookies,
-      origins: seed?.origins,
-      sessionStorage: seed?.sessionStorage,
+      ...seedCounts(seed),
     }
   }
   return {
@@ -268,8 +280,6 @@ export async function profileStatus(
     finalUrl: landed,
     excerpt: result.excerpt,
     screenshotPath: result.screenshotPath,
-    cookies: seed?.cookies,
-    origins: seed?.origins,
-    sessionStorage: seed?.sessionStorage,
+    ...seedCounts(seed),
   }
 }

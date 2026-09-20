@@ -137,6 +137,48 @@ export function sessionItemsByOrigin(
   return out
 }
 
+/** Near-expiry skew for folded `__auspex_ss__:expiresOn` (leftover access-token honesty). */
+export const FOLDED_EXPIRES_ON_SKEW_MS = 5 * 60 * 1000
+
+/** Parse folded `expiresOn` (epoch ms, unix seconds, or ISO) to epoch ms. Does not log values. */
+export function parseFoldedExpiresOnMs(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined
+  const raw = String(value).trim()
+  if (!raw) return undefined
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const n = Number(raw)
+    if (!Number.isFinite(n) || n <= 0) return undefined
+    return n < 1e12 ? Math.trunc(n * 1000) : Math.trunc(n)
+  }
+  // Date.parse("-1") / other garbage is a real epoch in V8. Only accept date-shaped strings.
+  if (!/^\d{4}-\d{2}-\d{2}/.test(raw) && !/^\w{3},?\s+\d{1,2}\s+\w{3}/.test(raw)) {
+    return undefined
+  }
+  const parsed = Date.parse(raw)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+export function foldedExpiresOnMs(
+  state: StorageState,
+  origin: string,
+  prefix = SESSION_STORAGE_PREFIX,
+): number | undefined {
+  return parseFoldedExpiresOnMs(sessionItemsByOrigin(state, prefix)[origin]?.expiresOn)
+}
+
+/** True when folded expiresOn is past or within skew. Missing/unparseable is not stale. */
+export function isFoldedExpiresOnStale(
+  state: StorageState,
+  origin: string,
+  opts?: { now?: number; skewMs?: number; prefix?: string },
+): boolean {
+  const expiresMs = foldedExpiresOnMs(state, origin, opts?.prefix)
+  if (expiresMs === undefined) return false
+  const now = opts?.now ?? Date.now()
+  const skewMs = opts?.skewMs ?? FOLDED_EXPIRES_ON_SKEW_MS
+  return expiresMs <= now + skewMs
+}
+
 export function cookieKey(c: CookieRecord): string {
   return `${c.domain ?? ""}\0${c.name}\0${c.path ?? "/"}`
 }
