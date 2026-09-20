@@ -16,14 +16,9 @@ export function parseUnixSeconds(value: string | number | undefined | null): num
   return Number.isFinite(parsed) ? Math.trunc(parsed / 1000) : undefined
 }
 
-/** Decode JWT `exp` without verifying the signature. Missing/garbage is unknown. */
-export function jwtExpSeconds(token: string | undefined | null): number | undefined {
-  const raw = (token ?? "").trim()
-  if (!raw) return undefined
-  const parts = raw.split(".")
-  if (parts.length < 2 || !parts[1]) return undefined
+function decodeJwtSegmentExp(segment: string): number | undefined {
   try {
-    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const b64 = segment.replace(/-/g, "+").replace(/_/g, "/")
     const pad = b64 + "=".repeat((4 - (b64.length % 4)) % 4)
     const json = Buffer.from(pad, "base64").toString("utf8")
     const payload = JSON.parse(json) as { exp?: unknown }
@@ -36,16 +31,43 @@ export function jwtExpSeconds(token: string | undefined | null): number | undefi
   }
 }
 
+/**
+ * Decode JWT `exp` without verifying the signature.
+ * Solari VNC editor tokens put the payload in segment 0 (lifetime ~305s);
+ * standard JWTs use segment 1. Try both. Missing/garbage is unknown.
+ */
+export function jwtExpSeconds(token: string | undefined | null): number | undefined {
+  const raw = (token ?? "").trim()
+  if (!raw) return undefined
+  const parts = raw.split(".")
+  let earliest: number | undefined
+  const limit = Math.min(parts.length, 2)
+  for (let i = 0; i < limit; i++) {
+    const part = parts[i]
+    if (!part) continue
+    const exp = decodeJwtSegmentExp(part)
+    if (exp === undefined) continue
+    earliest = earliest === undefined ? exp : Math.min(earliest, exp)
+  }
+  return earliest
+}
+
 export type PhoneExpirySource = "expiresAt" | "jwt" | "unknown"
 
-/** Prefer handoff expiresAt; else VNC JWT exp; else unknown (phone UI fail-closed). */
+/**
+ * Earliest of handoff expiresAt (~30m) and VNC JWT exp (~5m).
+ * One readable value is enough; none is unknown (phone UI fail-closed).
+ */
 export function resolvePhoneExpirySeconds(opts: {
   expiresAt?: string
   jwt?: string
 }): { exp?: number; source: PhoneExpirySource } {
   const fromAt = parseUnixSeconds(opts.expiresAt)
-  if (fromAt !== undefined) return { exp: fromAt, source: "expiresAt" }
   const fromJwt = jwtExpSeconds(opts.jwt)
+  if (fromAt !== undefined && fromJwt !== undefined) {
+    return fromJwt < fromAt ? { exp: fromJwt, source: "jwt" } : { exp: fromAt, source: "expiresAt" }
+  }
+  if (fromAt !== undefined) return { exp: fromAt, source: "expiresAt" }
   if (fromJwt !== undefined) return { exp: fromJwt, source: "jwt" }
   return { source: "unknown" }
 }

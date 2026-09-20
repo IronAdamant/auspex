@@ -3,10 +3,18 @@ import test from "node:test"
 import { jwtExpSeconds, parseUnixSeconds, resolvePhoneExpirySeconds } from "../src/phone-expiry.ts"
 import { phoneHandoffUrl } from "../src/profiles.ts"
 
+/** Standard JWT: header.payload.sig — exp in segment 1. */
 function jwtWithExp(exp: number): string {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")
   const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url")
   return `${header}.${payload}.sig`
+}
+
+/** Solari VNC editor token: payload in segment 0 (nbf + exp, ~305s lifetime). */
+function solariVncJwt(exp: number, nbf = exp - 305): string {
+  const payload = Buffer.from(JSON.stringify({ nbf, exp })).toString("base64url")
+  const extra = Buffer.from("not-json").toString("base64url")
+  return `${payload}.${extra}.sig`
 }
 
 test("parseUnixSeconds accepts ISO, unix seconds, and epoch ms", () => {
@@ -17,37 +25,60 @@ test("parseUnixSeconds accepts ISO, unix seconds, and epoch ms", () => {
   assert.equal(parseUnixSeconds(""), undefined)
 })
 
-test("jwtExpSeconds reads exp and ignores garbage", () => {
+test("jwtExpSeconds reads exp from segment 1 or segment 0", () => {
   const exp = 1_800_000_000
   assert.equal(jwtExpSeconds(jwtWithExp(exp)), exp)
+  assert.equal(jwtExpSeconds(solariVncJwt(exp)), exp)
   assert.equal(jwtExpSeconds("vnc.jwt.token"), undefined)
   assert.equal(jwtExpSeconds("not-a-jwt"), undefined)
   assert.equal(jwtExpSeconds(""), undefined)
 })
 
-test("resolvePhoneExpirySeconds prefers expiresAt over JWT", () => {
-  const jwt = jwtWithExp(1_700_000_000)
-  const iso = resolvePhoneExpirySeconds({
+test("resolvePhoneExpirySeconds uses the earliest of expiresAt and JWT", () => {
+  const handoffIso = "2026-09-20T12:30:00.000Z"
+  const handoffExp = Date.parse(handoffIso) / 1000
+  const vncExp = handoffExp - 25 * 60
+  const jwt = solariVncJwt(vncExp)
+  const minned = resolvePhoneExpirySeconds({ expiresAt: handoffIso, jwt })
+  assert.equal(minned.source, "jwt")
+  assert.equal(minned.exp, vncExp)
+
+  const earlierAt = resolvePhoneExpirySeconds({
     expiresAt: "2026-09-20T12:00:00.000Z",
-    jwt,
+    jwt: jwtWithExp(handoffExp),
   })
-  assert.equal(iso.source, "expiresAt")
-  assert.equal(iso.exp, Date.parse("2026-09-20T12:00:00.000Z") / 1000)
+  assert.equal(earlierAt.source, "expiresAt")
+  assert.equal(earlierAt.exp, Date.parse("2026-09-20T12:00:00.000Z") / 1000)
+
   const fromJwt = resolvePhoneExpirySeconds({ jwt })
   assert.equal(fromJwt.source, "jwt")
-  assert.equal(fromJwt.exp, 1_700_000_000)
+  assert.equal(fromJwt.exp, vncExp)
+
+  const fromAt = resolvePhoneExpirySeconds({ expiresAt: handoffIso, jwt: "vnc.jwt.token" })
+  assert.equal(fromAt.source, "expiresAt")
+  assert.equal(fromAt.exp, handoffExp)
+
   assert.deepEqual(resolvePhoneExpirySeconds({ expiresAt: "soon", jwt: "vnc.jwt.token" }), { source: "unknown" })
 })
 
-test("phoneHandoffUrl writes exp from expiresAt or JWT", () => {
-  const exp = Math.trunc(Date.parse("2026-09-20T15:00:00.000Z") / 1000)
+test("phoneHandoffUrl writes min(handoffExpiresAt, vncJwtExp)", () => {
+  const handoffIso = "2026-09-20T15:00:00.000Z"
+  const handoffExp = Math.trunc(Date.parse(handoffIso) / 1000)
   const fromAt = phoneHandoffUrl("vnc.jwt.token", "https://console.getsolari.com/handoff/abc", {
-    expiresAt: "2026-09-20T15:00:00.000Z",
+    expiresAt: handoffIso,
   })
-  assert.equal(new URLSearchParams(new URL(fromAt).hash.slice(1)).get("exp"), String(exp))
-  const jwt = jwtWithExp(1_800_000_000)
-  const fromJwt = phoneHandoffUrl(jwt, "https://console.getsolari.com/handoff/abc")
+  assert.equal(new URLSearchParams(new URL(fromAt).hash.slice(1)).get("exp"), String(handoffExp))
+
+  const vncExp = handoffExp - 25 * 60
+  const jwt = solariVncJwt(vncExp)
+  const minned = phoneHandoffUrl(jwt, "https://console.getsolari.com/handoff/abc", {
+    expiresAt: handoffIso,
+  })
+  assert.equal(new URLSearchParams(new URL(minned).hash.slice(1)).get("exp"), String(vncExp))
+
+  const fromJwt = phoneHandoffUrl(jwtWithExp(1_800_000_000), "https://console.getsolari.com/handoff/abc")
   assert.equal(new URLSearchParams(new URL(fromJwt).hash.slice(1)).get("exp"), "1800000000")
+
   const unknown = phoneHandoffUrl("vnc.jwt.token", "https://console.getsolari.com/handoff/abc")
   assert.equal(new URLSearchParams(new URL(unknown).hash.slice(1)).get("exp"), null)
 })
