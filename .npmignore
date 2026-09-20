@@ -1,0 +1,7 @@
+**/*.pyc
+**/__pycache__/
+.auspex/
+.env
+.env.*
+*.tgz
+.DS_Store

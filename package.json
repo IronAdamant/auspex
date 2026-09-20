@@ -1,8 +1,11 @@
 {
   "name": "auspex-solari",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Agent web eyes on Solari cloud Chrome. CLI and MCP, same JSON contract. Not the npm package named auspex.",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "auspex": "bin/auspex.mjs",
