@@ -150,6 +150,10 @@ export function parseFoldedExpiresOnMs(value: string | null | undefined): number
     if (!Number.isFinite(n) || n <= 0) return undefined
     return n < 1e12 ? Math.trunc(n * 1000) : Math.trunc(n)
   }
+  // Date.parse("-1") / other garbage is a real epoch in V8. Only accept date-shaped strings.
+  if (!/^\d{4}-\d{2}-\d{2}/.test(raw) && !/^\w{3},?\s+\d{1,2}\s+\w{3}/.test(raw)) {
+    return undefined
+  }
   const parsed = Date.parse(raw)
   return Number.isFinite(parsed) ? parsed : undefined
 }
