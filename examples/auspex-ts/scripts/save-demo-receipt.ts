@@ -52,7 +52,7 @@ export const CONSISTENCYHUB_MICROSOFT_REPLAY_COPY: Required<ReplayPageCopy> = {
   title: "Auspex — Solari cloud Chrome replay (consistencyhub.io)",
   href: "https://consistencyhub.io/",
   hostLabel: "consistencyhub.io",
-  note: "Sign in with Microsoft on the public landing, then the empty Microsoft sign-in box. Emails and passwords are stripped. Nobody typed a password. rrweb player; no window on the author's Mac.",
+  note: "Sign in with Microsoft, then the empty box. Emails and passwords stripped.",
 }
 
 export function replayHtmlFromNdjson(ndjson: string, copy: ReplayPageCopy = {}): string {

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auspex — ConsistencyHub with Microsoft, no passwords on the tape</title>
-  <meta name="description" content="Auspex drives a cloud Chrome, then checks the claim on a second machine. The watch tape is ConsistencyHub Sign in with Microsoft. Emails and passwords are stripped. The logged-in dashboard stays a blurred still."/>
+  <title>Auspex</title>
+  <meta name="description" content="Cloud Chrome reads a page. A second machine checks the claim. Watch ConsistencyHub Sign in with Microsoft. Emails and passwords are stripped."/>
   <style>
     :root {
       --bg: #111;
@@ -27,17 +27,9 @@
     header p, main p, li { color: var(--muted); max-width: 46rem; }
     h1 { font-size: 1.6rem; margin: 0 0 0.4rem; color: var(--fg); }
     h2 { font-size: 1.15rem; margin: 1.6rem 0 0.6rem; color: var(--fg); }
-    .callout {
-      max-width: 46rem;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 14px;
-      color: var(--fg);
-    }
     .watch {
       width: 100%;
-      min-height: 640px;
+      min-height: 520px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: #000;
@@ -71,14 +63,8 @@
   <header>
     <h1>Auspex</h1>
     <p>
-      An AI agent opens a <strong>cloud Chrome</strong> (not your laptop), reads a page, then a
+      An agent opens <strong>cloud Chrome</strong> (not your laptop), reads a page, then a
       <strong>second machine</strong> checks the same claim. It never types a password.
-    </p>
-    <p class="callout">
-      The video is <a href="https://consistencyhub.io/">consistencyhub.io</a>.
-      You will see <strong>Sign in with Microsoft</strong>, then Microsoft’s empty sign-in box.
-      Nobody typed an email or a password. Those fields are stripped from the tape.
-      The logged-in dashboard is the blurred still below. We do not publish that session.
     </p>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>
@@ -86,35 +72,20 @@
     </p>
   </header>
   <main>
-    <h2>1. What you can watch (Microsoft, no secrets)</h2>
-    <p>
-      This recording is Solari cloud Chrome opening <a href="https://consistencyhub.io/">consistencyhub.io</a>,
-      clicking <strong>Sign in with Microsoft</strong>, and stopping at the empty sign-in box.
-      Anyone can watch it. No API key. Emails and passwords are stripped from the recording.
-      The agent never types them.
-    </p>
     <iframe
       class="watch"
-      title="Public ConsistencyHub landing and empty Microsoft sign-in box. Emails and passwords stripped."
+      title="ConsistencyHub Sign in with Microsoft. Emails and passwords stripped."
       src="demo/replay.html"
       loading="lazy"
       referrerpolicy="no-referrer"
     ></iframe>
     <p>
-      If you wanted the logged-in dashboard in the video: that session is not on the public internet.
-      The next section is the honest still.
+      The tape is <a href="https://consistencyhub.io/">consistencyhub.io</a>:
+      <strong>Sign in with Microsoft</strong>, then the empty box.
+      Emails and passwords are stripped. The logged-in dashboard is the blur below.
+      We do not publish that session.
     </p>
 
-    <h2>2. What the product is for (logged-in SaaS)</h2>
-    <p>
-      Auspex is built for pages behind a login: your own SaaS, a dashboard, Microsoft SSO.
-      You sign in once in a handoff window. Auspex saves the session. Later checks reuse it.
-      The agent never types the password.
-    </p>
-    <p>
-      Dogfood is <strong>ConsistencyHub</strong>. We cannot publish a replay of that session (it is a real dashboard).
-      You get a blurred screenshot and an honest receipt instead.
-    </p>
     <div class="shots">
       <figure>
         <img
@@ -122,8 +93,8 @@
           alt="Cloud Chrome on ironadamant.com, a public page with no login"
         />
         <figcaption>
-          Public site. No login. Receipt:
-          <a href="demo/ironadamant-receipt.json">ironadamant-receipt.json</a>
+          Public site. No login.
+          <a href="demo/ironadamant-receipt.json">Receipt</a>
         </figcaption>
       </figure>
       <figure>
@@ -132,28 +103,21 @@
           alt="Blurred ConsistencyHub dashboard. Blur protects PII. Not a blank fail."
         />
         <figcaption>
-          Logged-in ConsistencyHub. Blur is on purpose, not a failed load.
-          Anonymous check cannot see the dashboard (<code>claimOk=false</code>).
-          With the saved login it can (<code>claimOkProfile=true</code>).
-          Receipt: <a href="demo/consistencyhub-receipt.json">consistencyhub-receipt.json</a>
+          Logged-in ConsistencyHub. Blur is on purpose.
+          <a href="demo/consistencyhub-receipt.json">Receipt</a>
         </figcaption>
       </figure>
     </div>
 
-    <h2>Try the public loop</h2>
+    <h2>Try it</h2>
     <pre>git clone https://github.com/IronAdamant/auspex.git
 cd auspex
 npm install
 export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
 npx auspex check --name ironadamant</pre>
-    <p>
-      That command hits the public site. For a logged-in app you use a saved profile
-      (<code>login</code> → human signs in → <code>finalize-login</code> → <code>check --profile …</code>).
-      ConsistencyHub is one example, not the only host.
-    </p>
   </main>
   <footer>
-    <p>Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>. Never type passwords.</p>
+    <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>
   </footer>
 </body>
 </html>
