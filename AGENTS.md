@@ -2,6 +2,20 @@
 
 Source of truth for CLI, Cursor, Claude Code, Codex, and raw shell. Cursor rules in this repo are a pointer, not the only how-to-run.
 
+## First calls
+
+From the repository root after `npm install` and `export SOLARI_API_KEY`:
+
+```bash
+npx auspex check --name ironadamant
+npx auspex profile-status --name consistencyhub
+npx auspex check --name consistencyhub          # only if status is loggedIn; never --record
+npx auspex reap                                 # after 429
+npx auspex-mcp
+```
+
+Never type passwords. Never `--record` a logged-in ConsistencyHub session. Do not call `auspex_verify` after a default check.
+
 Use Auspex when you need **evidence from a live web page**. You drive a **Solari cloud Chrome** (its own remote instance, not the human's local browser). Snapshot text + PNG, check a claim, close. The human does not watch that window.
 
 Do **not** use it for pages you can already curl, for generic research crawls, or instead of Browser Use when the job is "click around in the user's already-open Chrome."

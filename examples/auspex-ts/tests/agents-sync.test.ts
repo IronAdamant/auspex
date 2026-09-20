@@ -79,6 +79,23 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /weakSeed/)
 })
 
+test("AGENTS first calls put profile-status before the consistencyhub check", () => {
+  for (const [label, file] of [
+    ["root AGENTS.md", path.join(repo, "AGENTS.md")],
+    ["package AGENTS.md", path.join(pkg, "AGENTS.md")],
+  ] as const) {
+    const first = readFileSync(file, "utf8").split("\n").slice(0, 40).join("\n")
+    const iron = first.indexOf("check --name ironadamant")
+    const status = first.indexOf("profile-status --name consistencyhub")
+    const ch = first.indexOf("check --name consistencyhub")
+    assert.notEqual(iron, -1, `${label} missing ironadamant check`)
+    assert.ok(status > iron, `${label} must run profile-status after ironadamant and before CH check`)
+    assert.ok(ch > status, `${label} must run consistencyhub check after profile-status`)
+    assert.match(first, /auspex reap/)
+    assert.match(first, /never --record/)
+  }
+})
+
 test("root README first screen is For Reviewers + watch URL", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const first = rootReadme.split("\n").slice(0, 80).join("\n")
