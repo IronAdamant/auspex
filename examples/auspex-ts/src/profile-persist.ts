@@ -2,7 +2,7 @@ import type { Solari, StorageState } from "@solarisdk/browser"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
-import { savedCheckForProfile } from "./saved-checks.ts"
+import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
@@ -86,8 +86,9 @@ export function isConsistencyHubTarget(opts: { name?: string; profile?: string; 
 }
 
 /**
- * weakSeed only when ConsistencyHub (name/profile/host) has cookies/origins and a counted
- * sessionStorage of 0. Unknown sessionStorage (no origin) is not weakSeed.
+ * weakSeed when cookies/origins exist and sessionStorage is counted 0.
+ * Public marketing saved checks (ironadamant, checkpoint) stay loggedOut.
+ * Unknown sessionStorage (no origin) is not weakSeed.
  */
 export function isWeakSeed(opts: {
   name?: string
@@ -97,10 +98,23 @@ export function isWeakSeed(opts: {
   origins?: number
   sessionStorage?: number
 }): boolean {
-  if (!isConsistencyHubTarget(opts)) return false
   if (opts.sessionStorage === undefined) return false
   const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0
-  return hasStore && opts.sessionStorage === 0
+  if (!hasStore || opts.sessionStorage !== 0) return false
+  if (isConsistencyHubTarget(opts)) return true
+  const raw = opts.url?.trim()
+  if (raw && isPublicMarketingUrl(raw)) return false
+  const name = (opts.name ?? "").trim().toLowerCase()
+  const profile = (opts.profile ?? "").trim().toLowerCase()
+  if (
+    name === "ironadamant" ||
+    name === "checkpoint" ||
+    profile === "ironadamant" ||
+    profile === "checkpoint"
+  ) {
+    return false
+  }
+  return true
 }
 
 export function emptyProfileSeedError(name: string): string {
@@ -242,7 +256,7 @@ function awaitNext(
         sessionStorage: seed.sessionStorage,
       })
     ) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile.name)}`
+      base += `. Warning: profile has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile.name)}`
     }
     return base
   }

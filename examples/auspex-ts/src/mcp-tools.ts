@@ -35,7 +35,7 @@ const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
-  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. Show the packet, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user."
+  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. url is a start hint in the handoff reason. Show the packet, then call auspex_await_login (or pass wait=true), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not ping the user."
 
 const DESKTOP_DESCRIPTION =
   "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
@@ -44,7 +44,7 @@ const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
 
 const PROFILE_STATUS_DESCRIPTION =
-  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is ConsistencyHub (name/profile/host) with a counted sessionStorage of 0; other cookie-only landings are loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman — do not ping the user. Path / is loggedOut unless expect matched."
+  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman — do not ping the user. Path / is loggedOut unless expect matched."
 
 const FINALIZE_LOGIN_DESCRIPTION =
   "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient."
@@ -156,7 +156,7 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_await_login",
     {
       description:
-        "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no sessionStorage (console Save is not enough for ConsistencyHub; run auspex_finalize_login). Then pass this profile to auspex_check. Do not ping the user.",
+        "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ping the user.",
       inputSchema: auspexAwaitLoginInputSchema,
     },
     async ({ profile, sinceVersion, timeoutMs }) => {

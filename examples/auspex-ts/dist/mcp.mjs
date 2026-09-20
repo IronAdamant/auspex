@@ -1309,10 +1309,18 @@ function isConsistencyHubTarget(opts) {
   }
 }
 function isWeakSeed(opts) {
-  if (!isConsistencyHubTarget(opts)) return false;
   if (opts.sessionStorage === void 0) return false;
   const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0;
-  return hasStore && opts.sessionStorage === 0;
+  if (!hasStore || opts.sessionStorage !== 0) return false;
+  if (isConsistencyHubTarget(opts)) return true;
+  const raw = opts.url?.trim();
+  if (raw && isPublicMarketingUrl(raw)) return false;
+  const name = (opts.name ?? "").trim().toLowerCase();
+  const profile = (opts.profile ?? "").trim().toLowerCase();
+  if (name === "ironadamant" || name === "checkpoint" || profile === "ironadamant" || profile === "checkpoint") {
+    return false;
+  }
+  return true;
 }
 function emptyProfileSeedError(name) {
   const n = name.trim();
@@ -1414,7 +1422,7 @@ function awaitNext(status, profile, version, seed) {
       origins: seed.origins,
       sessionStorage: seed.sessionStorage
     })) {
-      base += `. Warning: profile has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile.name)}`;
+      base += `. Warning: profile has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile.name)}`;
     }
     return base;
   }
@@ -1520,7 +1528,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`
+      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`
     };
   }
   return {
@@ -1528,7 +1536,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`
+    next: `Open ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${hangGuidance}`
   };
 }
 async function defaultProfileHttp() {
@@ -1579,7 +1587,7 @@ async function loginProfile(name, urlHint, http, qrPath) {
   const client = http ?? await defaultProfileHttp();
   const handoff = await requestLoginHandoff(
     profile.id,
-    `Auspex login for profile ${profile.name}`,
+    urlHint ? `Auspex login for profile ${profile.name}; start at ${urlHint}` : `Auspex login for profile ${profile.name}`,
     client
   );
   return loginInstructions(profile, urlHint, handoff, qrPath);
@@ -3490,7 +3498,7 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
+      skipReason: `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`,
       cookies: seed?.cookies,
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage
@@ -3581,7 +3589,7 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
-      skipReason: `profile ${profile} has cookies/origins but no sessionStorage for consistencyhub.io. ${finalizeLoginGuidance(profile)}`,
+      skipReason: `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -4136,10 +4144,10 @@ async function checkThenVerify(opts, deps) {
 // src/mcp-tools.ts
 var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. Show the packet, then call auspex_await_login (or pass wait=true). A Save with 0 cookies is not success. Do not ping the user.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. url is a start hint in the handoff reason. Show the packet, then call auspex_await_login (or pass wait=true), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not ping the user.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is ConsistencyHub (name/profile/host) with a counted sessionStorage of 0; other cookie-only landings are loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
+var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman \u2014 do not ping the user. Path / is loggedOut unless expect matched.";
 var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {
@@ -4223,7 +4231,7 @@ function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_await_login",
     {
-      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no sessionStorage (console Save is not enough for ConsistencyHub; run auspex_finalize_login). Then pass this profile to auspex_check. Do not ping the user.",
+      description: "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ping the user.",
       inputSchema: auspexAwaitLoginInputSchema
     },
     async ({ profile, sinceVersion, timeoutMs }) => {

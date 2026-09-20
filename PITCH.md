@@ -82,8 +82,8 @@ npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
 
 ### The fix (after P0/P1 implementation)
 1. Human completes Microsoft + OneDrive in handoff → clicks **Save** (78 cookies)
-2. `await-login` → `status: completed` with **Warning: no sessionStorage for consistencyhub.io. Run check --profile consistencyhub --sso --save-profile...**
-3. Agent runs `check --profile consistencyhub --sso --save-profile` (or `finalize-login --profile consistencyhub`)
+2. `await-login` → `status: completed` with a **Warning: no counted sessionStorage. Run finalize-login...**
+3. Agent runs `finalize-login --profile consistencyhub` (unknown profiles need `--url` and `--expect`)
    - Agent clicks SSO, human completes any remaining IdP
    - Auspex captures cookies + localStorage + **sessionStorage** (slim, <1 MiB)
 4. Later: `check --name consistencyhub` → `matched: true`, verify skipped by default (auth-gated)

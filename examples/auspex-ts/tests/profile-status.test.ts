@@ -192,7 +192,7 @@ test("inspect without URL does not claim a sessionStorage count (E8)", async () 
   assert.equal(live, 0)
 })
 
-test("isWeakSeed is ConsistencyHub-only and requires a counted sessionStorage of 0", () => {
+test("isWeakSeed is counted sessionStorage 0 except public marketing saved checks", () => {
   assert.equal(
     isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1, sessionStorage: 0 }),
     true,
@@ -207,7 +207,7 @@ test("isWeakSeed is ConsistencyHub-only and requires a counted sessionStorage of
   )
   assert.equal(
     isWeakSeed({ profile: "other-profile", cookies: 10, origins: 2, sessionStorage: 0 }),
-    false,
+    true,
   )
   assert.equal(
     isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1 }),

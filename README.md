@@ -11,6 +11,7 @@ The ironadamant one-liner is a **public check (no login)**. It does **not** prov
 | **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (ConsistencyHub, Microsoft, emails/passwords stripped) |
 | **Public check (no login)** | `npx auspex check --name ironadamant` |
 | **Any host** | `npx auspex check https://example.com --expect "Example Domain"` |
+| **Any Microsoft-gated host** | `login --profile myapp --url <https>` then `await-login` then `finalize-login --profile myapp --url <https> --expect "<claim>"` then `check` with the same flags. Never `--record`. |
 | **MCP** | `npx auspex-mcp` |
 | **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
 | **Do not** | Type passwords · `--record` logged-in ConsistencyHub · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
@@ -24,6 +25,8 @@ npx auspex check --name ironadamant
 npx auspex check https://example.com --expect "Example Domain"
 npx auspex-mcp
 ```
+
+On npm the publish name is **`auspex-solari`** (`npx auspex-solari`). Do not install npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
@@ -51,7 +54,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_verify`** — only if you passed `verify=false`. Headless sandbox re-checks PNG + JSON. Integrity `ok` is separate from claim `claimOk`. Kills the VM.
 
-- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is ConsistencyHub (name / profile / host) with a counted `sessionStorage === 0`. Other cookie-only landings are `loggedOut`. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
+- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is cookies/origins with a counted `sessionStorage === 0` (Microsoft OAuth SPAs). Public marketing saved checks stay `loggedOut`. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
 
 - **`auspex_reap`** — list/kill leftover **ledger** sessions after `429`. `--account-wide` wipes all VMs. `--pack-receipts` copies last receipts per URL into `.auspex/pack/`.
 

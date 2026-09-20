@@ -114,7 +114,10 @@
 cd auspex
 npm install
 export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
-npx auspex check --name ironadamant</pre>
+npx auspex check --name ironadamant
+npx auspex check https://example.com --expect "Example Domain"
+npx auspex login --profile myapp --url https://app.example
+npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"</pre>
   </main>
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>

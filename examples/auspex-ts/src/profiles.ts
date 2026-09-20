@@ -75,7 +75,7 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`,
+      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`,
     }
   }
   return {
@@ -83,7 +83,7 @@ export function loginInstructions(
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login or check --profile ${profile.name}.${hangGuidance}`,
+    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${hangGuidance}`,
   }
 }
 
@@ -151,7 +151,9 @@ export async function loginProfile(
   const client = http ?? (await defaultProfileHttp())
   const handoff = await requestLoginHandoff(
     profile.id,
-    `Auspex login for profile ${profile.name}`,
+    urlHint
+      ? `Auspex login for profile ${profile.name}; start at ${urlHint}`
+      : `Auspex login for profile ${profile.name}`,
     client,
   )
   return loginInstructions(profile, urlHint, handoff, qrPath)

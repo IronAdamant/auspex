@@ -89,7 +89,8 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   )
   assert.match(cursorRule, /any attached profile on a non-public-marketing URL/)
   assert.match(cursorRule, /unknown profiles require `--url` and `--expect`/)
-  assert.match(cursorRule, /weakSeed.*ConsistencyHub|ConsistencyHub.*weakSeed/)
+  assert.match(cursorRule, /weakSeed/)
+  assert.match(cursorRule, /counted `sessionStorage === 0`|counted sessionStorage/)
 })
 
 test("AGENTS first calls put profile-status before the consistencyhub check", () => {
@@ -97,22 +98,31 @@ test("AGENTS first calls put profile-status before the consistencyhub check", ()
     ["root AGENTS.md", path.join(repo, "AGENTS.md")],
     ["package AGENTS.md", path.join(pkg, "AGENTS.md")],
   ] as const) {
-    const first = readFileSync(file, "utf8").split("\n").slice(0, 50).join("\n")
+    const first = readFileSync(file, "utf8").split("\n").slice(0, 80).join("\n")
     const iron = first.indexOf("check --name ironadamant")
+    const anyHost = first.indexOf('check https://example.com --expect "Example Domain"')
+    const genericStatus = first.indexOf("profile-status --profile myapp --url")
+    const genericLogin = first.indexOf("login --profile myapp --url")
+    const genericFinalize = first.indexOf("finalize-login --profile myapp --url")
     const status = first.indexOf("profile-status --name consistencyhub")
     const login = first.indexOf("login --profile consistencyhub")
     const awaitLogin = first.indexOf("await-login --profile consistencyhub")
     const finalize = first.indexOf("finalize-login --profile consistencyhub")
     const ch = first.indexOf("check --name consistencyhub")
     assert.notEqual(iron, -1, `${label} missing ironadamant check`)
-    assert.ok(status > iron, `${label} must run profile-status after ironadamant and before CH check`)
+    assert.ok(anyHost > iron, `${label} must show any-host check after ironadamant`)
+    assert.ok(genericStatus > anyHost, `${label} must show --profile --url --expect after any-host`)
+    assert.ok(genericLogin > genericStatus, `${label} must login myapp after generic status`)
+    assert.ok(genericFinalize > genericLogin, `${label} must finalize-login myapp with --url`)
+    assert.ok(status > genericFinalize, `${label} must keep CH dogfood after generic loop`)
     assert.ok(ch > status, `${label} must run consistencyhub check after profile-status`)
     assert.ok(login > status, `${label} must run login after profile-status`)
     assert.ok(awaitLogin > login, `${label} must run await-login after login`)
     assert.ok(finalize > awaitLogin, `${label} must run finalize-login after await-login`)
     const saveBeat = first.indexOf("consent in the handoff, then Save")
-    assert.ok(saveBeat > login, `${label} must name human Save after login`)
-    assert.ok(saveBeat < awaitLogin, `${label} must put human Save before await-login`)
+    const genericAwait = first.indexOf("await-login --profile myapp")
+    assert.ok(saveBeat > genericLogin, `${label} must name human Save after generic login`)
+    assert.ok(saveBeat < genericAwait, `${label} must put human Save before generic await-login`)
     assert.match(first, /Do not intern-ping/)
     assert.match(first, /auspex reap/)
     assert.match(first, /never --record/)
@@ -242,7 +252,7 @@ test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason networ
       false,
       `${label} must not teach generic weakSeed`,
     )
-    assert.match(text, /weakSeed is ConsistencyHub|weakSeed.*ConsistencyHub/)
+    assert.match(text, /counted `sessionStorage === 0`|counted sessionStorage === 0|cookies\/origins with a counted/)
   }
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],

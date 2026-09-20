@@ -148,12 +148,12 @@ test("waitForProfileSave warns when consistencyhub has cookies but no sessionSto
   assert.equal(completed.sessionStorage, 0)
   assert.match(completed.next, /warning/i)
   assert.match(completed.next, /sessionStorage/i)
-  assert.match(completed.next, /consistencyhub\.io/i)
+  assert.match(completed.next, /counted sessionStorage|sessionStorage/)
   assert.match(completed.next, /finalize-login/)
   assert.equal(completed.next.includes("--sso --save-profile"), false)
 })
 
-test("waitForProfileSave does not warn for non-consistencyhub profiles", async () => {
+test("waitForProfileSave warns cookie-only sessionStorage 0 for unknown profiles", async () => {
   const completed = await waitForProfileSave("other-profile", {
     sinceVersion: 1,
     timeoutMs: 5_000,
@@ -174,7 +174,8 @@ test("waitForProfileSave does not warn for non-consistencyhub profiles", async (
   assert.equal(completed.cookies, 10)
   assert.equal(completed.origins, 2)
   assert.equal(completed.sessionStorage, 0)
-  assert.equal(completed.next.includes("Warning"), false)
+  assert.match(completed.next, /warning/i)
+  assert.match(completed.next, /finalize-login/)
 })
 
 test("bindInspectProfileSeed forwards origin so live await-login can warn", async () => {
