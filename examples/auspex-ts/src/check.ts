@@ -126,6 +126,11 @@ export function checkLoggedOutNext(profile: string, cookies: number): string {
   return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`
 }
 
+/** Agent `next` on a Microsoft/Google password wall. Finalize only after human Save — never during the wall. */
+export function needsHumanNext(): string {
+  return "Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record."
+}
+
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */
 export function resolveFinalizeLoginTarget(opts: FinalizeLoginTargetOpts): { url: string; expect: string } {
   const saved = savedCheckForProfile(opts.profile)
@@ -443,7 +448,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
       next = checkLoggedOutNext(opts.profile ?? "<name>", profileSeed.cookies)
     } else if (reason === "needsHuman") {
-      next = `Stop. Microsoft or Google password/OTP wall detected. Show human the Solari login handoff URL (auspex_login) to complete IdP sign-in, or have them complete sign-in in the handoff Chromium card. Never fill password via agent tools. After human completes sign-in and Save, call auspex_await_login or retry check --profile <name>.`
+      next = needsHumanNext()
     }
     
     const diff = await diffAgainstLastReceipt({

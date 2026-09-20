@@ -77,6 +77,19 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /verify-with-profile/)
   assert.match(cursorRule, /auspex_finalize_login/)
   assert.match(cursorRule, /weakSeed/)
+  assert.equal(
+    cursorRule.includes("profile on consistencyhub.io / onedrive.live.com"),
+    false,
+    "Cursor rule must not teach the old two-host anonymous-verify skip",
+  )
+  assert.equal(
+    /defaults to ConsistencyHub/i.test(cursorRule),
+    false,
+    "Cursor rule must not teach finalize-login always defaulting to ConsistencyHub",
+  )
+  assert.match(cursorRule, /any attached profile on a non-public-marketing URL/)
+  assert.match(cursorRule, /unknown profiles require `--url` and `--expect`/)
+  assert.match(cursorRule, /weakSeed.*ConsistencyHub|ConsistencyHub.*weakSeed/)
 })
 
 test("AGENTS first calls put profile-status before the consistencyhub check", () => {
@@ -97,6 +110,10 @@ test("AGENTS first calls put profile-status before the consistencyhub check", ()
     assert.ok(login > status, `${label} must run login after profile-status`)
     assert.ok(awaitLogin > login, `${label} must run await-login after login`)
     assert.ok(finalize > awaitLogin, `${label} must run finalize-login after await-login`)
+    const saveBeat = first.indexOf("consent in the handoff, then Save")
+    assert.ok(saveBeat > login, `${label} must name human Save after login`)
+    assert.ok(saveBeat < awaitLogin, `${label} must put human Save before await-login`)
+    assert.match(first, /Do not intern-ping/)
     assert.match(first, /auspex reap/)
     assert.match(first, /never --record/)
     assert.equal(/\bnpx auspex desktop\b/.test(first), false, `${label} must not put desktop in First calls`)
@@ -130,6 +147,7 @@ test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLog
   )
   assert.match(rootReadme, /any attached profile on a non-public-marketing URL/)
   assert.match(rootReadme, /unknown profiles require `--url` and `--expect`/)
+  assert.match(rootReadme, /consent in the handoff, then Save/)
   assert.match(pagesYml, /enablement:\s*true/)
 })
 
@@ -180,10 +198,14 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
+  const plan = readFileSync(path.join(repo, "PLAN.md"), "utf8")
+  assert.match(plan, /executed on `0aac1a1`/)
+  assert.equal(/plan only\. Do not execute/i.test(plan), false, "PLAN.md must not still say do not execute")
   for (const [label, text] of [
     ["package README", packReadme],
     ["RECEIPTS.md", receipts],
     ["Discord packet", discord],
+    ["PLAN.md", plan],
   ] as const) {
     assert.equal(
       text.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
@@ -197,4 +219,36 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(discord, /ok.*claimOk.*claimOkProfile/)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(index), false)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
+})
+
+test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason network", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["root README.md", rootReadme],
+    ["package README.md", packReadme],
+    ["USAGE", USAGE],
+    ["mcp-tools.ts", tools],
+    ["Cursor rule", cursorRule],
+  ] as const) {
+    assert.equal(
+      text.includes("weakSeed = cookies/origins but no sessionStorage"),
+      false,
+      `${label} must not teach generic weakSeed`,
+    )
+    assert.match(text, /weakSeed is ConsistencyHub|weakSeed.*ConsistencyHub/)
+  }
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+  ] as const) {
+    assert.match(text, /overlay `reason` is `network` \(intentional, retry-shaped\)/)
+    assert.match(text, /do not fold `claimOkProfile` into `ok`/)
+  }
 })

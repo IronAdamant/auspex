@@ -44,7 +44,7 @@ const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
 
 const PROFILE_STATUS_DESCRIPTION =
-  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed = cookies/origins but no sessionStorage (auth-gated SaaS likely insufficient). Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman — do not ping the user. Path / is loggedOut unless expect matched."
+  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is ConsistencyHub (name/profile/host) with a counted sessionStorage of 0; other cookie-only landings are loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman — do not ping the user. Path / is loggedOut unless expect matched."
 
 const FINALIZE_LOGIN_DESCRIPTION =
   "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient."

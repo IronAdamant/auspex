@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { resolveFinalizeLoginTarget } from "../src/check.ts"
+import { needsHumanNext, resolveFinalizeLoginTarget } from "../src/check.ts"
 import { parseArgv } from "../src/cli.ts"
+import { finalizeLoginGuidance } from "../src/profile-persist.ts"
 
 test("resolveFinalizeLoginTarget requires url and expect for unknown profiles", () => {
   assert.throws(
@@ -35,6 +36,27 @@ test("parseArgv finalize-login accepts unknown profile without url at parse time
     assert.equal(parsed.command.url, undefined)
     assert.equal(parsed.command.expect, undefined)
   }
+})
+
+test("finalizeLoginGuidance names --url/--expect only for unknown profiles", () => {
+  const saved = finalizeLoginGuidance("consistencyhub")
+  assert.match(saved, /finalize-login --profile consistencyhub/)
+  assert.equal(saved.includes("--url"), false)
+  assert.equal(saved.includes("Document Editor"), false)
+  const unknown = finalizeLoginGuidance("acme")
+  assert.match(unknown, /finalize-login --profile acme --url <url> --expect <string>/)
+  assert.match(unknown, /required unless the profile matches a saved check/)
+  assert.equal(unknown.includes("Document Editor"), false)
+})
+
+test("needsHuman next is finalize-login after Save, not retry check", () => {
+  const next = needsHumanNext()
+  assert.match(next, /^Stop\./)
+  assert.match(next, /Never fill password/)
+  assert.match(next, /After human completes sign-in and Save: await-login then finalize-login/)
+  assert.match(next, /Do not retry check on cookies alone/)
+  assert.equal(next.includes("retry check --profile"), false)
+  assert.equal(next.includes("or retry check"), false)
 })
 
 test("parseArgv finalize-login parses --url and --expect", () => {

@@ -1,22 +1,20 @@
 # Auspex — fix-everything plan (usability + completeness)
 
-**Status:** plan only. Do not execute until the next prompt says go.  
-**HEAD this plan was written against:** `7a537d6` (`main`, public `IronAdamant/auspex`).  
-**Date:** 2026-09-19.  
-**Owner of execution:** next Grok session, with worktree-isolated sub-agents as listed in §8.  
+**Status:** executed on `0aac1a1` (2026-09-20). Do not re-run as a greenfield plan. Residuals from the tip review (Cursor rule, guidance strings, first-calls Save beat, weakSeed docs, Discord/PLAN watch-URL honesty) are a follow-up, not a second execute of this file.  
+**HEAD this plan was written against:** `7a537d6`. **Shipped on:** `0aac1a1` (`main`, public `IronAdamant/auspex`).  
+**Date:** 2026-09-19 (executed 2026-09-20).  
+**Watch / Discord truth:** [`docs/showcase/DISCORD.md`](docs/showcase/DISCORD.md) + Pages (`https://ironadamant.com/auspex/`). Do **not** hero jsDelivr `replay.html` (served as `text/plain`). Do not execute §6 as originally written.  
 **Human-only step:** Discord `#showcase` post (Aron posts; agent prepares the packet).
 
-This is the runbook for making Auspex easy to watch, easy to run, and complete against every leftover called out in the intern review, competitor pass, and deferred-items memos. Needle is irrelevant: **every item ships**.
+This was the runbook for making Auspex easy to watch, easy to run, and complete against leftovers from the intern review, competitor pass, and deferred-items memos. The inventory below is historical; shipped truth is `main`.
 
 ---
 
-## 0. How to run this in the next prompt
+## 0. How this was run
 
-Paste something like:
+This plan shipped on `0aac1a1`. Do **not** execute it again from §5. Branch from current `origin/main` for residuals only.
 
-> Execute `PLAN.md` from the repo root. Work the workstreams in order. Use worktree-isolated sub-agents for independent PRs. Merge to `main` as each stream goes green so Harry always opens current HEAD. Do not skip items. Stop only for Discord `#showcase` (I post) and any live Solari 402/429.
-
-Do **not** start from unmerged `origin/cursor/*`. Branch from current `origin/main`.
+Watch / Discord copy lives in `docs/showcase/DISCORD.md`. Pages is the hero (`https://ironadamant.com/auspex/`). jsDelivr `replay.html` is `text/plain` — do not post that URL as the watch door.
 
 ---
 
@@ -24,7 +22,7 @@ Do **not** start from unmerged `origin/cursor/*`. Branch from current `origin/ma
 
 Make Auspex:
 
-1. **Watchable without clone or API key** (GitHub Pages + existing jsDelivr replay + receipts).
+1. **Watchable without clone or API key** (GitHub Pages player + receipts). jsDelivr `replay.html` is `text/plain` and is not the watch door.
 2. **Trivial after clone** (`npm install` → `npx auspex check --name ironadamant` with a key).
 3. **Usable on someone else’s SaaS**, not only ConsistencyHub.
 4. **MCP-startable** with `npx auspex-mcp` from the repo root (no absolute-path ritual as the primary door).
@@ -56,7 +54,7 @@ Make Auspex:
 
 A person with **no clone** can:
 
-- Open a Pages URL (or jsDelivr fallback) and **watch** the ironadamant rrweb.
+- Open the Pages URL (`https://ironadamant.com/auspex/`) and **watch** the labeled replay (ConsistencyHub → Microsoft wall; emails/passwords stripped). jsDelivr `replay.html` is `text/plain` — not the watch door.
 - See the CH triad (`ok` / `claimOk` / `claimOkProfile`) as JSON + blurred PNG, with “not a blank fail” in one sentence.
 - Copy one command if they have a Solari key.
 
@@ -91,7 +89,7 @@ IDs are stable. Do not drop an ID.
 | ID | Item | Why it is broken today | Fix |
 |---|---|---|---|
 | U1 | GitHub Pages off (`has_pages: false`) | Competitors have a click URL. Homepage is a tree path. | Enable Pages from `docs/showcase/` (or `examples/auspex-ts/demo/` wrapped by a small `index.html`). Set repo `homepage` to that URL. |
-| U2 | jsDelivr replay buried | Replay **already works**: `https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html`. Root README does not lead with it. | Hero link: Watch (Pages) · jsDelivr fallback · CH receipt. |
+| U2 | jsDelivr replay buried | Replay **already works** on Pages (`https://ironadamant.com/auspex/demo/replay.html`, `text/html`). jsDelivr `replay.html` is `text/plain` and is not the hero. | Hero link: Watch (Pages) · CH receipt. Do not hero jsDelivr. |
 | U3 | No “For Reviewers” box | Harry at fork 200 will not read AGENTS.md. | 8-line table at top of root `README.md`: watch, triad, clone command, MCP, what not to do. |
 | U4 | Discord `#showcase` unused | Team queue + public proof of need. | Packet in `docs/showcase/DISCORD.md`. Aron posts. |
 | U5 | Clone still needs esbuild platform binary | Local `npx auspex --help` died on nested `tsx` `@esbuild/darwin-arm64`. CI is green. | Document `npm install` from root; add a postinstall or help that prints `NotInstalled` / missing-esbuild recovery; ensure lockfile optional deps install on macOS/linux CI. |
@@ -187,7 +185,7 @@ Parallelism: items in the same wave may use **worktree-isolated** sub-agents. Wa
 **W1 — Showcase site + README front door** (U1, U2, U3, U10, H6, H8)
 
 - Add `docs/index.html` + `docs/.nojekyll`. Landing embeds/links existing `replay.html` (do not duplicate the huge blob). Copy demo PNG/JSON/replay in a Pages workflow; do **not** publish the whole cookbook tree as `/`.
-- Human: Settings → Pages → Source **GitHub Actions**. **URL caveat:** `https://ironadamant.github.io/auspex/` has bounced toward `ironadamant.com/auspex` (404). After enable, only set repo `homepage` to a URL that **200s and plays**. Until then, hero the live jsDelivr URL.
+- Human: Settings → Pages → Source **GitHub Actions**. Live watch URL is `https://ironadamant.com/auspex/` (`200` `text/html`). Do not hero jsDelivr `replay.html` (`text/plain`).
 - Root `README.md` first screen: For Reviewers table, Watch link, public-check vs auth-gated labeled, clone command, MCP. Cookbook tables collapsed or moved down. Do not imply `--name ironadamant` proves logged-in honesty.
 - Tests: `agents-sync` needles for jsDelivr (and Pages if live), `For Reviewers`, first 80 lines. HTML exists. No secrets.
 
@@ -277,14 +275,16 @@ See §7. Fix anything that failed. Then Aron posts `#showcase` if not posted aft
 
 Aron posts from the personal Discord, nickname **Iron Adamant**. Do not include API keys, session ids, unredacted dashboards, or promo codes.
 
+Canonical copy: [`docs/showcase/DISCORD.md`](docs/showcase/DISCORD.md). Pages is the hero. Do **not** post the jsDelivr `replay.html` URL (browser dumps source).
+
 ```
 Auspex — agent web eyes that stay honest on auth-gated SaaS.
 
 Watch (no clone, no key):
-https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html
-(Pages, once it 200s: <PAGES_URL>)
+https://ironadamant.com/auspex/
+Player (not the jsDelivr source dump): https://ironadamant.com/auspex/demo/replay.html
 
-What you’re seeing: Solari cloud Chrome checking ironadamant.com, then an independent sandbox verify. Auth-gated dogfood (ConsistencyHub) keeps the triad honest: ok=true, claimOk=false (anonymous skipped), claimOkProfile=true. Blur ≠ blank fail.
+The video is consistencyhub.io: Sign in with Microsoft, then the empty Microsoft box. Emails and passwords are stripped. Nobody typed them. The logged-in dashboard is a blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a logged-in recording.
 
 Repo (cookbook fork, current HEAD): https://github.com/IronAdamant/auspex
 
@@ -292,11 +292,10 @@ Try it:
 git clone https://github.com/IronAdamant/auspex.git && cd auspex && npm install
 export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
 npx auspex check --name ironadamant
+npx auspex check https://example.com --expect "Example Domain"
 
 MCP: npx auspex-mcp
 ```
-
-Replace `<PAGES_URL>` after W1. If Pages lags, ship the jsDelivr URL alone rather than waiting.
 
 ---
 
@@ -311,7 +310,7 @@ Run from repo root after the last merge. Record output.
 5. `npx tsc --noEmit --prefix examples/auspex-ts` (or package script).
 6. `npm run build:mcp --prefix examples/auspex-ts && git diff --exit-code -- examples/auspex-ts/dist/`
 7. `git grep -n 'slr_live_[A-Za-z0-9]' -- ':!.env.example' ':!**/tests/**'` — no live keys. `.env` gitignored.
-8. Open Pages URL **and** jsDelivr replay in a browser. Replay plays. CH PNG is blurred with overlay. Schema-v1 ironadamant receipt exists.
+8. Open the Pages landing **and** Pages player (`https://ironadamant.com/auspex/`, `/demo/replay.html`). Replay is `text/html`. Do not treat jsDelivr `replay.html` as the watch door (`text/plain`). CH PNG is blurred with overlay. Schema-v1 ironadamant receipt exists.
 9. Root README first screen: Watch link, For Reviewers, clone command, **no** cookbook table above the fold.
 10. `shouldVerifyCheck({ profile: "myapp", url: "https://example-app.example/app" }) === false` and ironadamant still verifies (unit tests, not live).
 11. `finalize-login` without url on a non-CH profile errors or requires flags (unit).
@@ -380,5 +379,4 @@ Every ID in §4 is either shipped on `main` or explicitly X1 (forbidden).
 
 ## 11. Next prompt
 
-Aron: run the execute line in §0.  
-This file is the source of truth. If HEAD has moved past `7a537d6`, re-read `main` then execute anyway — do not wait for a new plan unless a constraint in §2 would break.
+This plan shipped on `0aac1a1`. Do not re-execute §0. Residuals (Cursor rule, guidance strings, first-calls Save beat, weakSeed docs, Discord/PLAN watch-URL honesty) are a follow-up PR against current `main`. Watch truth is `docs/showcase/DISCORD.md` + Pages.

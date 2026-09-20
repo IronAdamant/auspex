@@ -2,6 +2,7 @@ import type { Solari, StorageState } from "@solarisdk/browser"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
+import { savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
@@ -110,7 +111,10 @@ export function emptyProfileSeedError(name: string): string {
 /** Agent next/skipReason after Save when sessionStorage is still missing or the live probe is loggedOut with cookies. */
 export function finalizeLoginGuidance(profile: string): string {
   const name = profile.trim() || "<name>"
-  return `Run npx auspex finalize-login --profile ${name} (MCP: auspex_finalize_login). Console Save is not enough for Microsoft OAuth SPAs. Never --record a logged-in session.`
+  const saved = savedCheckForProfile(name)
+  const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`
+  const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check."
+  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save is not enough for Microsoft OAuth SPAs. Never --record a logged-in session.`
 }
 
 /** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
