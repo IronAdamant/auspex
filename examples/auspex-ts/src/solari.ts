@@ -16,7 +16,7 @@ import {
   closeThenRelease,
   observeAbort,
 } from "./timeout.ts"
-import { hydrateSessionStorage, installSessionStorageRestore, isPersistableAppUrl } from "./profile-storage.ts"
+import { hydrateSessionStorage, installSessionStorageRestore } from "./profile-storage.ts"
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -328,7 +328,9 @@ export type GotoWithSessionRestoreOpts = {
 }
 
 /**
- * Navigate + hydrate sessionStorage + conditional re-goto.
+ * Navigate + hydrate sessionStorage + re-goto when a profile restored keys.
+ * Init script does not populate sessionStorage before first paint; re-goto
+ * after hydrate so SPAs boot with tokens on persistable deep links too.
  * Shared by live check and profile-seeded claim verification.
  */
 export async function gotoWithSessionRestore(
@@ -341,7 +343,7 @@ export async function gotoWithSessionRestore(
     signal: opts.signal,
   })
   const restored = await hydrateSessionStorage(page)
-  if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+  if (opts.profile && restored > 0) {
     await page.goto(opts.url, {
       timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
       waitUntil: opts.waitUntil ?? "domcontentloaded",
