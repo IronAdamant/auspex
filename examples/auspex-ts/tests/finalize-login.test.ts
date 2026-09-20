@@ -54,7 +54,7 @@ test("needsHuman next is finalize-login after Save, not retry check", () => {
   assert.match(next, /^Stop\./)
   assert.match(next, /Never fill password/)
   assert.match(next, /phone keyboard/)
-  assert.match(next, /phone's own Safari or Chrome/)
+  assert.match(next, /real text field/)
   assert.match(next, /handoff\.mobileUrl/)
   assert.match(next, /handoff\.desktopUrl/)
   assert.match(next, /Never open handoff\.desktopUrl on a phone/)

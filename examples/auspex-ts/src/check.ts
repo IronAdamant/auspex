@@ -129,7 +129,7 @@ export function checkLoggedOutNext(profile: string, cookies: number): string {
 /** Agent `next` on a Microsoft/Google password wall. Finalize only after human Save — never during the wall. */
 export function needsHumanNext(): string {
   return (
-    "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl in the phone's own Safari or Chrome (type the password on the phone keyboard). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " +
+    "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " +
     HANDOFF_PHONE_DOOR_BAN +
     " Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record."
   )

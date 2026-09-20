@@ -23,9 +23,11 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "auspex_finalize_login",
     "verify=false",
     "phone's own Safari or Chrome",
-    "remote Chromium live view",
+    "noVNC",
     "mobileUrl",
     "desktopUrl",
+    "real text field",
+    "phone.html",
   ]) {
     assert.match(root, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `root AGENTS missing ${needle}`)
     assert.match(pack, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `package AGENTS missing ${needle}`)
@@ -36,11 +38,14 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(USAGE, /weakSeed/)
   assert.match(USAGE, /finalize-login/)
   assert.match(USAGE, /phone's own Safari or Chrome/)
-  assert.match(USAGE, /remote Chromium live view/)
+  assert.match(USAGE, /noVNC|remote Chromium live view/)
   assert.match(USAGE, /mobileUrl/)
   assert.match(USAGE, /desktopUrl/)
+  assert.match(USAGE, /real text field/)
   assert.match(tools, /mobileUrl/)
   assert.match(tools, /desktopUrl/)
+  assert.match(tools, /real text field/)
+  assert.match(tools, /phone.html/)
   assert.match(tools, /HANDOFF_PHONE_DOOR_BAN/)
   for (const [label, text] of [
     ["root AGENTS.md", root],
@@ -99,7 +104,9 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /phone's own Safari or Chrome/)
   assert.match(cursorRule, /mobileUrl/)
   assert.match(cursorRule, /desktopUrl/)
-  assert.match(cursorRule, /remote Chromium live view/)
+  assert.match(cursorRule, /noVNC|remote Chromium live view/)
+  assert.match(cursorRule, /real text field/)
+  assert.match(cursorRule, /phone.html/)
   assert.equal(cursorRule.includes("gateUrl"), false, "Cursor rule must not teach the detecting-gate URL")
   assert.match(cursorRule, /weakSeed/)
   assert.equal(

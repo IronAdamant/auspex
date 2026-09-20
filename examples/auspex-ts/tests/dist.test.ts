@@ -38,6 +38,8 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /PROFILE_CLAIM_RETURN_BUFFER_MS/)
   assert.match(dist, /mobileUrl/)
   assert.match(dist, /desktopUrl/)
+  assert.match(dist, /real text field/)
+  assert.match(dist, /phone.html/)
   assert.equal(dist.includes("gateUrl"), false, "dist MCP must not ship the detecting-gate URL")
   assert.equal(dist.includes("login-gate"), false, "dist MCP must not bundle login-gate.ts")
 })

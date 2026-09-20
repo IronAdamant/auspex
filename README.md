@@ -45,7 +45,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 
-- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl`. Computer: `handoff.desktopUrl` (Solari console Open editor). Never open the computer URL on a phone. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing.
+- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing.
 
 - **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Saved-check profiles (e.g. `consistencyhub`) supply URL and expect; unknown profiles require `--url` and `--expect`. Same as `check --profile … --sso --save-profile`.
 
