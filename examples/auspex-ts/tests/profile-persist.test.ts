@@ -163,6 +163,9 @@ test("waitForProfileSave warns when consistencyhub has cookies but no sessionSto
   assert.match(completed.next, /sessionStorage/i)
   assert.match(completed.next, /counted sessionStorage|sessionStorage/)
   assert.match(completed.next, /finalize-login/)
+  assert.match(completed.next, /Finalize-login NOW/)
+  assert.match(completed.next, /claimOkProfile will not pass/)
+  assert.equal(completed.next.includes("Run auspex check"), false)
   assert.equal(completed.next.includes("--sso --save-profile"), false)
 })
 
@@ -189,6 +192,8 @@ test("waitForProfileSave warns cookie-only sessionStorage 0 for unknown profiles
   assert.equal(completed.sessionStorage, 0)
   assert.match(completed.next, /warning/i)
   assert.match(completed.next, /finalize-login/)
+  assert.match(completed.next, /claimOkProfile will not pass/)
+  assert.equal(completed.next.includes("Run auspex check"), false)
 })
 
 test("bindInspectProfileSeed forwards origin so live await-login can warn", async () => {
@@ -271,6 +276,9 @@ test("waitForProfileSave warns when consistencyhub folded expiresOn is stale eve
   assert.match(completed.next, /expiresOn|stale leftover|stale folded/i)
   assert.match(completed.next, /save-editor does not refresh folded sessionStorage/)
   assert.match(completed.next, /finalize-login/)
+  assert.match(completed.next, /Remint now/)
+  assert.match(completed.next, /claimOkProfile will not pass/)
+  assert.equal(completed.next.includes("Run auspex check"), false)
   assert.equal(isWeakSeed({ profile: "consistencyhub", cookies: 74, origins: 5, sessionStorage: 2 }), false)
   assert.equal(
     isWeakSeed({

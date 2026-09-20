@@ -129,229 +129,6 @@ var init_http_url = __esm({
   }
 });
 
-// src/profile-lock.ts
-import { randomBytes } from "node:crypto";
-import { open, mkdir as mkdir2, readFile, rename, stat, unlink } from "node:fs/promises";
-import path3 from "node:path";
-function defaultLockDir() {
-  return path3.join(packageRoot, ".auspex", "locks");
-}
-function lockFileName(profile) {
-  const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_");
-  return `${safe}.lock`;
-}
-function pidAlive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-async function stealIfDead(lockPath) {
-  try {
-    const st1 = await stat(lockPath);
-    const raw = await readFile(lockPath, "utf8");
-    const pid = Number((raw.split("\n")[0] ?? "").trim());
-    if (pidAlive(pid)) return false;
-    const st2 = await stat(lockPath);
-    if (st1.ino !== st2.ino || st1.mtimeMs !== st2.mtimeMs || st1.size !== st2.size) {
-      return false;
-    }
-    const trash = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}`;
-    await rename(lockPath, trash);
-    await unlink(trash).catch(() => void 0);
-    return true;
-  } catch (err) {
-    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
-    if (code === "ENOENT") return true;
-    return false;
-  }
-}
-async function withProfileLock(profile, work, opts = {}) {
-  const name = requireProfileName(profile);
-  const dir = opts.lockDir ?? defaultLockDir();
-  await mkdir2(dir, { recursive: true });
-  const lockPath = path3.join(dir, lockFileName(name));
-  let fh;
-  try {
-    fh = await open(lockPath, "wx");
-  } catch (err) {
-    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
-    if (code !== "EEXIST") throw err;
-    if (await stealIfDead(lockPath)) {
-      try {
-        fh = await open(lockPath, "wx");
-      } catch (retryErr) {
-        const retryCode = retryErr && typeof retryErr === "object" && "code" in retryErr ? String(retryErr.code) : "";
-        if (retryCode === "EEXIST") throw new ProfileBusyError(name);
-        throw retryErr;
-      }
-    } else {
-      throw new ProfileBusyError(name);
-    }
-  }
-  try {
-    await fh.writeFile(`${process.pid}
-${Date.now()}
-`);
-    return await work();
-  } finally {
-    await fh.close().catch(() => void 0);
-    await unlink(lockPath).catch(() => void 0);
-  }
-}
-var PROFILE_BUSY_CODE, ProfileBusyError;
-var init_profile_lock = __esm({
-  "src/profile-lock.ts"() {
-    "use strict";
-    init_paths();
-    init_profiles();
-    PROFILE_BUSY_CODE = "ProfileBusy";
-    ProfileBusyError = class extends Error {
-      code = PROFILE_BUSY_CODE;
-      profile;
-      constructor(profile) {
-        super(
-          `profile ${profile} is locked by another Auspex process (refusing to save over it). Do not retry in a loop.`
-        );
-        this.name = "ProfileBusyError";
-        this.profile = profile;
-      }
-    };
-  }
-});
-
-// src/timeout.ts
-async function boundPromise(p, ms, message) {
-  return raceWithTimeout(async () => p, ms, message);
-}
-function abortableSleep(ms, signal) {
-  if (!signal) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-  if (signal.aborted) {
-    return Promise.reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-  }
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
-function linkAbortSignal(parent) {
-  const ac = new AbortController();
-  const onParent = () => {
-    if (!ac.signal.aborted) ac.abort();
-  };
-  if (parent?.aborted) {
-    ac.abort();
-  } else {
-    parent?.addEventListener("abort", onParent, { once: true });
-  }
-  return {
-    signal: ac.signal,
-    abort: () => {
-      if (!ac.signal.aborted) ac.abort();
-    },
-    dispose: () => {
-      parent?.removeEventListener("abort", onParent);
-    }
-  };
-}
-async function observeAbort(p, signal) {
-  if (signal.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-    p.then(
-      (v) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(v);
-      },
-      (e) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(e);
-      }
-    );
-  });
-}
-async function closeThenRelease(close, release, ms) {
-  try {
-    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
-  } catch (err) {
-    try {
-      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
-    } catch {
-    }
-    throw err;
-  }
-}
-async function raceWithTimeout(work, ms, message) {
-  let timer;
-  let cancelled = false;
-  const ac = new AbortController();
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      cancelled = true;
-      ac.abort();
-      reject(new Error(message));
-    }, ms);
-  });
-  const pending = work(() => cancelled, ac.signal);
-  void pending.catch(() => {
-  });
-  try {
-    return await Promise.race([pending, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-var CLOSE_TIMEOUT_MS, LAUNCH_SETTLE_MS, CHROMIUM_CONNECT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS, ReadyRelease;
-var init_timeout = __esm({
-  "src/timeout.ts"() {
-    "use strict";
-    CLOSE_TIMEOUT_MS = 15e3;
-    LAUNCH_SETTLE_MS = 5e4;
-    CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
-    SCREENSHOT_TIMEOUT_MS = 3e4;
-    ReadyRelease = class {
-      mark;
-      ready;
-      fn;
-      constructor() {
-        this.ready = new Promise((r) => {
-          this.mark = r;
-        });
-      }
-      set(fn) {
-        this.fn = fn;
-        this.mark();
-      }
-      skip() {
-        this.mark();
-      }
-      async release(settleMs = LAUNCH_SETTLE_MS) {
-        await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
-          () => void 0
-        );
-        if (this.fn) await this.fn();
-      }
-    };
-  }
-});
-
 // src/sso.ts
 function hostIs(hostname, domain) {
   const h = hostname.toLowerCase();
@@ -777,6 +554,335 @@ var init_profile_storage = __esm({
   }
 });
 
+// src/editor-fold.ts
+function asPlaywrightEndpoint(value) {
+  if (typeof value !== "string") return void 0;
+  const s = value.trim();
+  if (!WS_RE.test(s)) return void 0;
+  if (/vnc/i.test(s)) return void 0;
+  return s;
+}
+function attachFromRecord(rec) {
+  const ws = asPlaywrightEndpoint(rec.wsEndpoint) ?? asPlaywrightEndpoint(rec.browserWSEndpoint) ?? asPlaywrightEndpoint(rec.connectUrl);
+  const cdp = asPlaywrightEndpoint(rec.cdpEndpoint) ?? asPlaywrightEndpoint(rec.cdpUrl);
+  const sessionRaw = rec.sessionId;
+  const sessionId = typeof sessionRaw === "string" && sessionRaw.trim() ? sessionRaw.trim() : void 0;
+  if (!ws && !cdp) return void 0;
+  return {
+    ...ws ? { wsEndpoint: ws } : {},
+    ...cdp ? { cdpEndpoint: cdp } : {},
+    ...sessionId ? { sessionId } : {}
+  };
+}
+function pickEditorCdp(json) {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return void 0;
+  const rec = json;
+  const direct = attachFromRecord(rec);
+  if (direct) return direct;
+  for (const key of ["session", "editor", "browser", "connect"]) {
+    const nested = rec[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const hit = attachFromRecord(nested);
+      if (hit) return hit;
+    }
+  }
+  return void 0;
+}
+function foldedSessionStorageCount(state, origin) {
+  if (origin) return originStoreCounts(state, origin).sessionStorage;
+  let n = 0;
+  for (const o of state.origins ?? []) {
+    for (const row of o.localStorage ?? []) {
+      if (row?.name?.startsWith(SESSION_STORAGE_PREFIX)) n += 1;
+    }
+  }
+  return n;
+}
+async function defaultConnectAndCapture(attach) {
+  const { chromium: chromium2 } = await import("patchright-core");
+  const ws = attach.wsEndpoint;
+  const cdp = attach.cdpEndpoint;
+  const browser = ws ? await chromium2.connect(ws, { timeout: 15e3 }) : await chromium2.connectOverCDP(cdp, { timeout: 15e3 });
+  try {
+    return await captureStorageState(browser);
+  } finally {
+    await browser.close().catch(() => void 0);
+  }
+}
+async function captureEditorFoldState(opts = {}) {
+  const attach = [opts.saveJson, ...opts.probeJson ?? []].map(pickEditorCdp).find((row) => row);
+  if (!attach) return { fold: { ok: false, reason: "no-cdp", error: EDITOR_FOLD_NO_CDP } };
+  const connect = opts.connectAndCapture ?? defaultConnectAndCapture;
+  try {
+    const state = await connect(attach);
+    const folded = foldedSessionStorageCount(state);
+    if (folded <= 0) {
+      return { attach, state, fold: { ok: false, reason: "capture-empty", error: EDITOR_FOLD_CAPTURE_EMPTY } };
+    }
+    return {
+      attach,
+      state,
+      fold: { ok: false, reason: "attached", via: "editor-cdp", folded }
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return { attach, fold: { ok: false, reason: "connect-failed", error } };
+  }
+}
+async function persistCapturedEditorFold(opts) {
+  const { state, fold } = opts.captured;
+  if (fold.reason !== "attached" || !state) return fold;
+  try {
+    const saved = await opts.persist(state);
+    if (!saved.ok) {
+      return {
+        ok: false,
+        reason: "persist-blocked",
+        via: "editor-cdp",
+        folded: fold.folded,
+        error: saved.error ?? "profiles.save refused the editor fold"
+      };
+    }
+    return { ok: true, reason: "attached", via: "editor-cdp", folded: fold.folded };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: "persist-blocked", via: "editor-cdp", folded: fold.folded, error };
+  }
+}
+var EDITOR_FOLD_NO_CDP, EDITOR_FOLD_CAPTURE_EMPTY, WS_RE;
+var init_editor_fold = __esm({
+  "src/editor-fold.ts"() {
+    "use strict";
+    init_profile_storage();
+    EDITOR_FOLD_NO_CDP = "Solari profile editor exposes no Playwright CDP after save (noVNC / editor/save is cookies+localStorage only). wsEndpoint and cdpEndpoint exist on POST /sessions, not on the handoff editor. --save-editor did not refresh folded sessionStorage.";
+    EDITOR_FOLD_CAPTURE_EMPTY = "Editor CDP attach returned no live sessionStorage; refusing to persist (would not refresh the fold).";
+    WS_RE = /^wss?:\/\//i;
+  }
+});
+
+// src/profile-lock.ts
+import { randomBytes } from "node:crypto";
+import { open, mkdir as mkdir2, readFile, rename, stat, unlink } from "node:fs/promises";
+import path3 from "node:path";
+function defaultLockDir() {
+  return path3.join(packageRoot, ".auspex", "locks");
+}
+function lockFileName(profile) {
+  const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_");
+  return `${safe}.lock`;
+}
+function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function stealIfDead(lockPath) {
+  try {
+    const st1 = await stat(lockPath);
+    const raw = await readFile(lockPath, "utf8");
+    const pid = Number((raw.split("\n")[0] ?? "").trim());
+    if (pidAlive(pid)) return false;
+    const st2 = await stat(lockPath);
+    if (st1.ino !== st2.ino || st1.mtimeMs !== st2.mtimeMs || st1.size !== st2.size) {
+      return false;
+    }
+    const trash = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}`;
+    await rename(lockPath, trash);
+    await unlink(trash).catch(() => void 0);
+    return true;
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+    if (code === "ENOENT") return true;
+    return false;
+  }
+}
+async function withProfileLock(profile, work, opts = {}) {
+  const name = requireProfileName(profile);
+  const dir = opts.lockDir ?? defaultLockDir();
+  await mkdir2(dir, { recursive: true });
+  const lockPath = path3.join(dir, lockFileName(name));
+  let fh;
+  try {
+    fh = await open(lockPath, "wx");
+  } catch (err) {
+    const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+    if (code !== "EEXIST") throw err;
+    if (await stealIfDead(lockPath)) {
+      try {
+        fh = await open(lockPath, "wx");
+      } catch (retryErr) {
+        const retryCode = retryErr && typeof retryErr === "object" && "code" in retryErr ? String(retryErr.code) : "";
+        if (retryCode === "EEXIST") throw new ProfileBusyError(name);
+        throw retryErr;
+      }
+    } else {
+      throw new ProfileBusyError(name);
+    }
+  }
+  try {
+    await fh.writeFile(`${process.pid}
+${Date.now()}
+`);
+    return await work();
+  } finally {
+    await fh.close().catch(() => void 0);
+    await unlink(lockPath).catch(() => void 0);
+  }
+}
+var PROFILE_BUSY_CODE, ProfileBusyError;
+var init_profile_lock = __esm({
+  "src/profile-lock.ts"() {
+    "use strict";
+    init_paths();
+    init_profiles();
+    PROFILE_BUSY_CODE = "ProfileBusy";
+    ProfileBusyError = class extends Error {
+      code = PROFILE_BUSY_CODE;
+      profile;
+      constructor(profile) {
+        super(
+          `profile ${profile} is locked by another Auspex process (refusing to save over it). Do not retry in a loop.`
+        );
+        this.name = "ProfileBusyError";
+        this.profile = profile;
+      }
+    };
+  }
+});
+
+// src/timeout.ts
+async function boundPromise(p, ms, message) {
+  return raceWithTimeout(async () => p, ms, message);
+}
+function abortableSleep(ms, signal) {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  if (signal.aborted) {
+    return Promise.reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+function linkAbortSignal(parent) {
+  const ac = new AbortController();
+  const onParent = () => {
+    if (!ac.signal.aborted) ac.abort();
+  };
+  if (parent?.aborted) {
+    ac.abort();
+  } else {
+    parent?.addEventListener("abort", onParent, { once: true });
+  }
+  return {
+    signal: ac.signal,
+    abort: () => {
+      if (!ac.signal.aborted) ac.abort();
+    },
+    dispose: () => {
+      parent?.removeEventListener("abort", onParent);
+    }
+  };
+}
+async function observeAbort(p, signal) {
+  if (signal.aborted) {
+    throw signal.reason instanceof Error ? signal.reason : new Error("aborted");
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+async function closeThenRelease(close, release, ms) {
+  try {
+    await boundPromise(close(), ms, `session close timed out after ${ms}ms`);
+  } catch (err) {
+    try {
+      await boundPromise(release(), ms, `session release timed out after ${ms}ms`);
+    } catch {
+    }
+    throw err;
+  }
+}
+async function raceWithTimeout(work, ms, message) {
+  let timer;
+  let cancelled = false;
+  const ac = new AbortController();
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      cancelled = true;
+      ac.abort();
+      reject(new Error(message));
+    }, ms);
+  });
+  const pending = work(() => cancelled, ac.signal);
+  void pending.catch(() => {
+  });
+  try {
+    return await Promise.race([pending, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+var CLOSE_TIMEOUT_MS, LAUNCH_SETTLE_MS, CHROMIUM_CONNECT_TIMEOUT_MS, SCREENSHOT_TIMEOUT_MS, ReadyRelease;
+var init_timeout = __esm({
+  "src/timeout.ts"() {
+    "use strict";
+    CLOSE_TIMEOUT_MS = 15e3;
+    LAUNCH_SETTLE_MS = 5e4;
+    CHROMIUM_CONNECT_TIMEOUT_MS = 45e3;
+    SCREENSHOT_TIMEOUT_MS = 3e4;
+    ReadyRelease = class {
+      mark;
+      ready;
+      fn;
+      constructor() {
+        this.ready = new Promise((r) => {
+          this.mark = r;
+        });
+      }
+      set(fn) {
+        this.fn = fn;
+        this.mark();
+      }
+      skip() {
+        this.mark();
+      }
+      async release(settleMs = LAUNCH_SETTLE_MS) {
+        await boundPromise(this.ready, settleMs, `session ready timed out after ${settleMs}ms`).catch(
+          () => void 0
+        );
+        if (this.fn) await this.fn();
+      }
+    };
+  }
+});
+
 // src/solari.ts
 import { existsSync as existsSync2, readFileSync } from "node:fs";
 import path4 from "node:path";
@@ -1134,11 +1240,15 @@ function finalizeLoginGuidance(profile) {
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check.";
   return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. ConsistencyHub still needs finalize-login while the token is valid. Never --record a logged-in session.`;
 }
+function remintLoginGuidance(profile) {
+  const name = profile.trim() || "<name>";
+  return `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`;
+}
 function weakSeedWarning(profile, seed) {
   if (seed?.sessionStorageStale) {
-    return `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). --save-editor does not refresh folded sessionStorage. ${finalizeLoginGuidance(profile)}`;
+    return `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). --save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remintLoginGuidance(profile)} finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ${finalizeLoginGuidance(profile)}`;
   }
-  return `profile ${profile} has cookies/origins but no counted sessionStorage. ${finalizeLoginGuidance(profile)}`;
+  return `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW. ${DEAD_FOLD_VWP_BAN} ${finalizeLoginGuidance(profile)}`;
 }
 function emptyProfileGuidance(profile) {
   const name = profile.trim() || "<name>";
@@ -1222,17 +1332,17 @@ function bindInspectProfileSeed(inspect, solari) {
 }
 function awaitNext(status, profile, version, seed) {
   if (status === "completed") {
-    let base = `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
-    if (isWeakSeed({
+    const weak = isWeakSeed({
       profile: profile.name,
       cookies: seed.cookies,
       origins: seed.origins,
       sessionStorage: seed.sessionStorage,
       sessionStorageStale: seed.sessionStorageStale
-    })) {
-      base += `. Warning: ${weakSeedWarning(profile.name, seed)}`;
+    });
+    if (weak) {
+      return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${weakSeedWarning(profile.name, seed)}`;
     }
-    return base;
+    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`;
   }
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
@@ -1293,13 +1403,31 @@ async function liveAwaitLogin(name, opts = {}) {
   const solari = createClient();
   try {
     let editorSave;
+    let editorFold;
     if (opts.saveEditor) {
       const { loadEditorSave: loadEditorSave2, saveProfileEditor: saveProfileEditor2 } = await Promise.resolve().then(() => (init_profiles(), profiles_exports));
       const handle = await loadEditorSave2(name);
       if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" };
       } else {
-        editorSave = await saveProfileEditor2(handle);
+        const saved = await saveProfileEditor2(handle);
+        editorSave = { ok: saved.ok, status: saved.status, error: saved.error };
+        if (saved.ok) {
+          const captured = await captureEditorFoldState({
+            saveJson: saved.json,
+            ...opts.foldCapture
+          });
+          editorFold = await persistCapturedEditorFold({
+            handle,
+            captured,
+            persist: (state) => persistLiveProfile({
+              solari,
+              profileId: handle.profileId,
+              state,
+              lockName: handle.name
+            })
+          });
+        }
       }
     }
     const waited = await waitForProfileSave(name, {
@@ -1314,15 +1442,19 @@ async function liveAwaitLogin(name, opts = {}) {
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari)
       }
     });
-    return editorSave ? { ...waited, editorSave } : waited;
+    if (editorSave || editorFold) {
+      return { ...waited, ...editorSave ? { editorSave } : {}, ...editorFold ? { editorFold } : {} };
+    }
+    return waited;
   } finally {
     await solari.close().catch(() => void 0);
   }
 }
-var EMPTY_PROFILE_SEED_ERROR, EMPTY_PROFILE_SAVE_ERROR, EMPTY_ORIGIN_SAVE_ERROR, PROFILE_EDITOR_OPEN_ERROR, HANDOFF_POLL_MS, AWAIT_LOGIN_DEFAULT_MS, AWAIT_LOGIN_MIN_MS, AWAIT_LOGIN_MAX_MS;
+var EMPTY_PROFILE_SEED_ERROR, EMPTY_PROFILE_SAVE_ERROR, EMPTY_ORIGIN_SAVE_ERROR, PROFILE_EDITOR_OPEN_ERROR, HANDOFF_POLL_MS, AWAIT_LOGIN_DEFAULT_MS, AWAIT_LOGIN_MIN_MS, AWAIT_LOGIN_MAX_MS, DEAD_FOLD_VWP_BAN;
 var init_profile_persist = __esm({
   "src/profile-persist.ts"() {
     "use strict";
+    init_editor_fold();
     init_profile_lock();
     init_solari();
     init_profile_storage();
@@ -1336,6 +1468,55 @@ var init_profile_persist = __esm({
     AWAIT_LOGIN_DEFAULT_MS = 18e5;
     AWAIT_LOGIN_MIN_MS = 5e3;
     AWAIT_LOGIN_MAX_MS = 18e5;
+    DEAD_FOLD_VWP_BAN = "Do not run check --verify-with-profile on this seed \u2014 claimOkProfile will not pass on a dead fold.";
+  }
+});
+
+// src/phone-expiry.ts
+function parseUnixSeconds(value) {
+  if (value == null) return void 0;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return void 0;
+    return value > 1e12 ? Math.trunc(value / 1e3) : Math.trunc(value);
+  }
+  const raw = String(value).trim();
+  if (!raw) return void 0;
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return void 0;
+    return n > 1e12 ? Math.trunc(n / 1e3) : Math.trunc(n);
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? Math.trunc(parsed / 1e3) : void 0;
+}
+function jwtExpSeconds(token) {
+  const raw = (token ?? "").trim();
+  if (!raw) return void 0;
+  const parts = raw.split(".");
+  if (parts.length < 2 || !parts[1]) return void 0;
+  try {
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64 + "=".repeat((4 - b64.length % 4) % 4);
+    const json = Buffer.from(pad, "base64").toString("utf8");
+    const payload = JSON.parse(json);
+    if (typeof payload.exp === "number" || typeof payload.exp === "string") {
+      return parseUnixSeconds(payload.exp);
+    }
+    return void 0;
+  } catch {
+    return void 0;
+  }
+}
+function resolvePhoneExpirySeconds(opts) {
+  const fromAt = parseUnixSeconds(opts.expiresAt);
+  if (fromAt !== void 0) return { exp: fromAt, source: "expiresAt" };
+  const fromJwt = jwtExpSeconds(opts.jwt);
+  if (fromJwt !== void 0) return { exp: fromJwt, source: "jwt" };
+  return { source: "unknown" };
+}
+var init_phone_expiry = __esm({
+  "src/phone-expiry.ts"() {
+    "use strict";
   }
 });
 
@@ -1386,6 +1567,8 @@ function phoneHandoffUrl(vncToken, handoffUrl, extra) {
   if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
   if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
+  const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
+  if (expiry.exp !== void 0) hash.set("exp", String(expiry.exp));
   return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`;
 }
 function editorSavePath(name, root = packageRoot) {
@@ -1421,9 +1604,9 @@ function requireProfileName(value) {
 function phoneSavePaste(profileName) {
   const name = (profileName ?? "").trim();
   if (name) {
-    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid.`;
+    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now \u2014 do not expect verify-with-profile on a dead fold.`;
   }
-  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid.";
+  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok; if next says stale/weakSeed remint or finalize-now \u2014 do not expect verify-with-profile on a dead fold.";
 }
 function handoffOpenOnDesktop(profileName) {
   return `Computer: open handoff.desktopUrl, then Profiles \u2192 ${profileName} \u2192 Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`;
@@ -1583,7 +1766,7 @@ async function saveProfileEditor(handle, opts) {
   const post = opts?.post ?? await defaultEditorPost(handle.handoffToken);
   const got = await post(`/api/profiles/${encodeURIComponent(handle.profileId)}/editor/save`);
   const error = typeof got.json.error === "string" ? got.json.error : void 0;
-  return { ok: got.status === 200 || got.status === 201, status: got.status, error };
+  return { ok: got.status === 200 || got.status === 201, status: got.status, error, json: got.json };
 }
 async function loginProfile(name, urlHint, http, qrPath) {
   const profile = await ensureProfile(name);
@@ -1609,7 +1792,8 @@ async function loginProfile(name, urlHint, http, qrPath) {
       mobileUrl = phoneHandoffUrl(vnc, handoff.url, {
         profileId: profile.id,
         profileName: profile.name,
-        handoffToken
+        handoffToken,
+        expiresAt: handoff.expiresAt
       });
     }
   } catch {
@@ -1642,6 +1826,7 @@ var init_profiles = __esm({
     "use strict";
     init_profile_persist();
     init_paths();
+    init_phone_expiry();
     init_solari();
     CONSOLE_PROFILES_URL = "https://console.getsolari.com";
     PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
@@ -2758,7 +2943,7 @@ var auspexAwaitLoginInputSchema = z4.object({
   sinceVersion: z4.number().optional().describe("Version from auspex_login; completion is a newer version with cookies or origins"),
   timeoutMs: z4.number().optional().describe("Cap wait in ms (default 1800000, max 1800000). Matches the 30-minute cold login-handoff so a human can Save from a phone off-site."),
   saveEditor: z4.boolean().optional().describe(
-    "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing."
+    "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing."
   )
 });
 var auspexDesktopInputSchema = z4.object({
@@ -4529,11 +4714,11 @@ async function checkThenVerify(opts, deps) {
 init_saved_checks();
 var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). saveEditor / --save-editor does not refresh folded sessionStorage; ConsistencyHub still needs auspex_finalize_login while the token is valid. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If next says stale/weakSeed: remint or finalize-now. Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
-var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage. ConsistencyHub still needs finalize-login while the token is valid.";
+var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). ConsistencyHub still needs finalize-login while the token is valid.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {
   return JSON.stringify(stampSchema(obj), null, 2);
@@ -4620,7 +4805,7 @@ function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_await_login",
     {
-      description: "Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401). A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). --save-editor / saveEditor does not refresh folded sessionStorage; ConsistencyHub still needs auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
+      description: "Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). next then remint or finalize-now; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. ConsistencyHub still needs auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
       inputSchema: auspexAwaitLoginInputSchema
     },
     async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {

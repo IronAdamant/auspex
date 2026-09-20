@@ -126,8 +126,16 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /id="boot"/)
   assert.match(html, /class="spin"/)
   assert.match(html, /id="paste"/)
+  assert.match(html, /id="ttl"/)
+  assert.match(html, /id="expired"/)
+  assert.match(html, /Link expiry unknown — remint/)
+  assert.match(html, /regenerate the login link/)
+  assert.match(html, /jwtExpSeconds/)
+  assert.match(html, /params\.get\("exp"\)/)
+  assert.match(html, /body\.classList\.add\("locked"\)/)
   assert.equal(html.includes("location.href = saveUrl"), false)
   assert.equal(html.includes("console.log"), false)
+  assert.equal(/reconnect/i.test(html), false)
 })
 
 test("phoneSavePaste is a line any agent chat can run", () => {
@@ -137,7 +145,8 @@ test("phoneSavePaste is a line any agent chat can run", () => {
   assert.match(line, /--save-editor/)
   assert.match(line, /saveEditor true/)
   assert.match(line, /does not refresh folded sessionStorage/)
-  assert.match(line, /finalize-login while the token is valid/)
+  assert.match(line, /remint or finalize-now/)
+  assert.match(line, /verify-with-profile/)
 })
 
 test("saveProfileEditor POSTs editor/save", async () => {
