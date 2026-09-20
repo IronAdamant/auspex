@@ -110,14 +110,11 @@
     </div>
 
     <h2>Try it</h2>
-    <pre>git clone https://github.com/IronAdamant/auspex.git
-cd auspex
-npm install
-export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
-npx auspex check --name ironadamant
-npx auspex check https://example.com --expect "Example Domain"
-npx auspex login --profile myapp --url https://app.example
-npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"</pre>
+    <pre>export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
+npx auspex-solari check --name ironadamant
+npx auspex-solari check https://example.com --expect "Example Domain"
+npx auspex-solari login --profile myapp --url https://app.example
+npx auspex-solari finalize-login --profile myapp --url https://app.example --expect "Dashboard"</pre>
   </main>
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>

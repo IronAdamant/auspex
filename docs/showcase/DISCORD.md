@@ -20,10 +20,9 @@ The video is consistencyhub.io: Sign in with Microsoft, then the empty Microsoft
 Repo (cookbook fork, current HEAD): https://github.com/IronAdamant/auspex
 
 Try it:
-git clone https://github.com/IronAdamant/auspex.git && cd auspex && npm install
 export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
-npx auspex check --name ironadamant
-npx auspex check https://example.com --expect "Example Domain"
+npx auspex-solari check --name ironadamant
+npx auspex-solari check https://example.com --expect "Example Domain"
 
-MCP: npx auspex-mcp
+MCP: npx -p auspex-solari auspex-mcp
 ```

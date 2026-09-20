@@ -4,6 +4,8 @@ Canonical any-host instructions: [AGENTS.md](../../AGENTS.md) at the repository 
 
 ## First calls
 
+From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
+
 From the **repository root** after `npm install` and `export SOLARI_API_KEY`:
 
 ```bash
