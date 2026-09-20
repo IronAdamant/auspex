@@ -1110,7 +1110,7 @@ async function gotoWithSessionRestore(page, opts) {
     signal: opts.signal
   });
   const restored = await hydrateSessionStorage(page);
-  if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
+  if (opts.profile && restored > 0) {
     await page.goto(opts.url, {
       timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
       waitUntil: opts.waitUntil ?? "domcontentloaded",
