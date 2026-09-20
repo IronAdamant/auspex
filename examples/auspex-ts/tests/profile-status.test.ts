@@ -217,6 +217,30 @@ test("isWeakSeed is counted sessionStorage 0 except public marketing saved check
     isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1 }),
     false,
   )
+  assert.equal(
+    isWeakSeed({ profile: "consistencyhub", cookies: 5, origins: 1, sessionStorage: 2 }),
+    false,
+  )
+  assert.equal(
+    isWeakSeed({
+      profile: "consistencyhub",
+      cookies: 5,
+      origins: 1,
+      sessionStorage: 2,
+      sessionStorageStale: true,
+    }),
+    true,
+  )
+  assert.equal(
+    isWeakSeed({
+      profile: "ironadamant",
+      cookies: 5,
+      origins: 1,
+      sessionStorage: 2,
+      sessionStorageStale: true,
+    }),
+    false,
+  )
   const kebab = "/^[a-z0-9]+(-[a-z0-9]+)*$/"
   assert.equal(readFileSync(path.join(srcRoot, "profile-status.ts"), "utf8").includes(kebab), false)
   assert.equal(readFileSync(path.join(srcRoot, "profile-persist.ts"), "utf8").includes(kebab), false)
@@ -308,6 +332,62 @@ test("profileStatus derives weakSeed from live profileSeed when inspect is skipp
   assert.equal(result.live, true)
   assert.equal(result.sessionStorage, 0)
   assert.match(result.skipReason ?? "", /finalize-login/)
+  assert.equal((result.skipReason ?? "").includes("--sso --save-profile"), false)
+})
+
+test("profileStatus reports weakSeed when inspect finds stale folded expiresOn", async () => {
+  let live = 0
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      inspectSeed: async () => ({ cookies: 74, origins: 5, sessionStorage: 2, sessionStorageStale: true }),
+      runCheck: async () => {
+        live += 1
+        throw new Error("should not live-check a stale seed")
+      },
+    },
+  )
+  assert.equal(result.reason, "weakSeed")
+  assert.equal(result.ok, false)
+  assert.equal(result.skippedLive, true)
+  assert.equal(result.sessionStorage, 2)
+  assert.equal(result.sessionStorageStale, true)
+  assert.equal(live, 0)
+  assert.match(result.skipReason ?? "", /expiresOn|stale folded/i)
+  assert.match(result.skipReason ?? "", /save-editor does not refresh folded sessionStorage/)
+  assert.match(result.skipReason ?? "", /finalize-login/)
+})
+
+test("profileStatus derives weakSeed from live stale profileSeed when inspect is skipped", async () => {
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      runCheck: async () =>
+        ({
+          ok: false,
+          reason: "loggedOut",
+          url: "https://consistencyhub.io",
+          expect: "Document Editor",
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Landing",
+          finalUrl: "https://consistencyhub.io/landing",
+          matched: false,
+          excerpt: "loggedOut",
+          sessionId: "s",
+          networkIdle: true,
+          profileSeed: { cookies: 74, origins: 5, sessionStorage: 2, sessionStorageStale: true },
+        }) satisfies CheckResult,
+    },
+  )
+  assert.equal(result.reason, "weakSeed")
+  assert.equal(result.live, true)
+  assert.equal(result.sessionStorage, 2)
+  assert.equal(result.sessionStorageStale, true)
+  assert.match(result.skipReason ?? "", /stale folded sessionStorage expiresOn/)
   assert.equal((result.skipReason ?? "").includes("--sso --save-profile"), false)
 })
 

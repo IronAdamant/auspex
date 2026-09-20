@@ -14,6 +14,11 @@ import {
   SolariError
 } from "@solarisdk/browser";
 import { chromium } from "patchright-core";
+
+// src/profile-storage.ts
+var FOLDED_EXPIRES_ON_SKEW_MS = 5 * 60 * 1e3;
+
+// src/solari.ts
 var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
 var REPO_DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..", ".env");
 function readSolariKeyFromFile(file) {

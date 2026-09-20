@@ -106,9 +106,9 @@ export type HandoffPacket = {
 export function phoneSavePaste(profileName?: string): string {
   const name = (profileName ?? "").trim()
   if (name) {
-    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401).`
+    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid.`
   }
-  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401)."
+  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage; run finalize-login while the token is valid."
 }
 
 /** Solari's handoff/editor is noVNC. iOS will not raise the software keyboard there. */

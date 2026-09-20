@@ -45,13 +45,13 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 
-- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
+- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing, or folded `expiresOn` is stale. **`--save-editor` does not refresh folded sessionStorage**; ConsistencyHub still needs `finalize-login` while the token is valid. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
 
 - **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Saved-check profiles (e.g. `consistencyhub`) supply URL and expect; unknown profiles require `--url` and `--expect`. Same as `check --profile … --sso --save-profile`.
 
 - **`auspex_verify`** — only if you passed `verify=false`. Headless sandbox re-checks PNG + JSON. Integrity `ok` is separate from claim `claimOk`. Kills the VM.
 
-- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is cookies/origins with a counted `sessionStorage === 0` (Microsoft OAuth SPAs). Public marketing saved checks stay `loggedOut`. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
+- **`auspex_profile_status`** — `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or folded `__auspex_ss__:expiresOn` past/within ~5m (leftover count is not fresh). Public marketing saved checks stay `loggedOut`. `emptySave` = profile not found or empty. Human SSO once; **the agent never types a password.**
 
 - **`auspex_reap`** — list/kill leftover **ledger** sessions after `429`. `--account-wide` wipes all VMs. `--pack-receipts` copies last receipts per URL into `.auspex/pack/`.
 
@@ -67,7 +67,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 ## ConsistencyHub recipe (auth-gated example)
 
-Console Save alone is insufficient (sessionStorage not persisted). ConsistencyHub needs `accessToken` in sessionStorage.
+Console Save and `--save-editor` do not refresh folded sessionStorage. ConsistencyHub still needs `finalize-login` while the token is valid (`accessToken` + `expiresOn` in sessionStorage).
 
 ```bash
 npx auspex login --profile consistencyhub
