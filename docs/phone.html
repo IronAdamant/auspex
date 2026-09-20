@@ -31,14 +31,24 @@
       width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
       border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
     }
-    #paste { display: none; margin-top: 8px; min-height: 5.5em; font-size: 14px; }
+    #paste { display: none; margin-top: 8px; min-height: 4.5em; font-size: 14px; }
     #paste.show { display: block; }
+    #copied {
+      display: none; margin-top: 8px; padding: 12px; border-radius: 8px;
+      background: #1f6a3a; color: #e8eef4; font-weight: 600; text-align: center; font-size: 16px;
+    }
+    #copied.show { display: block; }
+    #copyScratch {
+      position: fixed; left: 0; top: 0; width: 1px; height: 1px;
+      opacity: 0.01; border: 0; padding: 0; margin: 0;
+    }
     #row { display: flex; gap: 8px; margin-top: 8px; }
     #row button {
       flex: 1; text-align: center; color: #0b0f14;
       background: #e8eef4; border: 0; border-radius: 8px; padding: 10px; font-size: 15px; font-weight: 600;
     }
     #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
+    #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
     .err { color: #f88; }
   </style>
 </head>
@@ -57,6 +67,8 @@
     </div>
     <div id="bar">
       <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" />
+      <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>
+      <div id="copied">Copied. Paste it in your AI chat.</div>
       <textarea id="paste" readonly></textarea>
       <div id="row">
         <button type="button" id="backspace">Delete</button>
@@ -79,6 +91,8 @@
       var bootText = document.getElementById("bootText")
       var ime = document.getElementById("ime")
       var paste = document.getElementById("paste")
+      var scratch = document.getElementById("copyScratch")
+      var copied = document.getElementById("copied")
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
       var rfb = null
@@ -103,27 +117,34 @@
         return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401)."
       }
 
-      function copyText(text) {
+      function copyOnTap(text) {
+        scratch.value = text
+        scratch.removeAttribute("readonly")
+        scratch.focus()
+        scratch.setSelectionRange(0, text.length)
+        var ok = false
+        try { ok = document.execCommand("copy") } catch (e) {}
+        scratch.setAttribute("readonly", "readonly")
+        scratch.blur()
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          return navigator.clipboard.writeText(text)
+          navigator.clipboard.writeText(text).then(function () { ok = true }).catch(function () {})
         }
-        paste.focus()
-        paste.select()
-        try { document.execCommand("copy") } catch (e) {}
-        return Promise.resolve()
+        return ok
+      }
+
+      function showCopied() {
+        copied.classList.add("show")
+        save.textContent = "Copied"
+        save.classList.add("copied")
+        setStatus("Copied. Paste it in your AI chat, then stay on this page.")
       }
 
       save.addEventListener("click", function () {
         var line = savePasteLine(profileName)
         paste.value = line
+        copyOnTap(line)
         paste.classList.add("show")
-        paste.focus()
-        paste.select()
-        copyText(line).then(function () {
-          setStatus("Copied. Paste into any agent chat, then stay on this page.")
-        }).catch(function () {
-          setStatus("Select the text below, copy, and paste into any agent chat. Stay on this page.")
-        })
+        showCopied()
       })
 
       if (!token) {
