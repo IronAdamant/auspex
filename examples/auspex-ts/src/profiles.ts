@@ -98,7 +98,17 @@ export type HandoffPacket = {
   openOnDesktop?: string
   oneLiner?: string
   desktopOneLiner?: string
+  /** Copied on phone Save; paste into any agent chat. */
+  savePaste?: string
   qrPath?: string
+}
+
+export function phoneSavePaste(profileName?: string): string {
+  const name = (profileName ?? "").trim()
+  if (name) {
+    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401).`
+  }
+  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401)."
 }
 
 /** Solari's handoff/editor is noVNC. iOS will not raise the software keyboard there. */
@@ -106,7 +116,7 @@ export const HANDOFF_PHONE_DOOR_BAN =
   "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone."
 
 export const HANDOFF_OPEN_ON_PHONE =
-  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Do not open Solari's handoff page on a phone: GET editor HTTP 401. After Save, call auspex_await_login with saveEditor true. " +
+  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Save copies handoff.savePaste; paste that line into any agent chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " +
   HANDOFF_PHONE_DOOR_BAN +
   " Never paste the password into chat."
 
@@ -134,7 +144,7 @@ export function formatHandoffNext(opts: {
     : ""
   const profile = opts.profileName?.trim() || "<profile>"
   const phone = opts.hasPhoneIme
-    ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page, then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
+    ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies a paste line for any agent chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
     : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
   return (
     `${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
@@ -194,6 +204,7 @@ export function loginInstructions(
       openOnDesktop: handoffOpenOnDesktop(profile.name),
       oneLiner: `Auspex login (phone): ${phone}`,
       desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
+      savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : undefined,
       qrPath,
     }
     return {

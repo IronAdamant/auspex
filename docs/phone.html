@@ -10,18 +10,35 @@
     header { padding: 10px 12px 8px; font-size: 14px; }
     header strong { display: block; font-size: 16px; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
-    #screen { flex: 1; min-height: 120px; background: #0b0f14; }
+    #stage { flex: 1; min-height: 120px; position: relative; background: #0b0f14; }
+    #screen { position: absolute; inset: 0; }
+    #boot {
+      position: absolute; inset: 0; z-index: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; background: #0b0f14; text-align: center; padding: 24px;
+    }
+    #boot.hidden { display: none; }
+    .spin {
+      width: 36px; height: 36px;
+      border: 3px solid #243044; border-top-color: #e8eef4;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #bootText { margin: 0; color: #9ab; font-size: 15px; }
     #bar { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #121821; border-top: 1px solid #243044; }
-    #ime {
+    #ime, #paste {
       width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
       border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
     }
+    #paste { display: none; margin-top: 8px; min-height: 5.5em; font-size: 14px; }
+    #paste.show { display: block; }
     #row { display: flex; gap: 8px; margin-top: 8px; }
-    #row button, #row a {
-      flex: 1; text-align: center; text-decoration: none; color: #0b0f14;
+    #row button {
+      flex: 1; text-align: center; color: #0b0f14;
       background: #e8eef4; border: 0; border-radius: 8px; padding: 10px; font-size: 15px; font-weight: 600;
     }
-    #row button.ghost, #row a.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
+    #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
     .err { color: #f88; }
   </style>
 </head>
@@ -31,9 +48,16 @@
       <strong>Auspex phone login</strong>
       <div id="status">Tap the remote Chrome to click. Type in the field below so the phone keyboard opens. Keys go into the remote Chrome, not into chat.</div>
     </header>
-    <div id="screen"></div>
+    <div id="stage">
+      <div id="boot" aria-live="polite">
+        <div class="spin" aria-hidden="true"></div>
+        <p id="bootText">Opening remote Chrome…</p>
+      </div>
+      <div id="screen"></div>
+    </div>
     <div id="bar">
       <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" />
+      <textarea id="paste" readonly></textarea>
       <div id="row">
         <button type="button" id="backspace">Delete</button>
         <button type="button" id="enter">Enter</button>
@@ -51,25 +75,59 @@
       var token = params.get("v") || ""
       var profileName = params.get("n") || ""
       var status = document.getElementById("status")
+      var boot = document.getElementById("boot")
+      var bootText = document.getElementById("bootText")
       var ime = document.getElementById("ime")
+      var paste = document.getElementById("paste")
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
       var rfb = null
       var last = ""
+      var bootTimer = null
 
       function setStatus(text, err) {
         status.textContent = text
         status.className = err ? "err" : ""
       }
 
+      function setBoot(text, hide) {
+        bootText.textContent = text
+        if (hide) boot.classList.add("hidden")
+        else boot.classList.remove("hidden")
+      }
+
+      function savePasteLine(name) {
+        if (name) {
+          return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401)."
+        }
+        return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401)."
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text)
+        }
+        paste.focus()
+        paste.select()
+        try { document.execCommand("copy") } catch (e) {}
+        return Promise.resolve()
+      }
+
       save.addEventListener("click", function () {
-        var cmd = profileName
-          ? "auspex await-login --profile " + profileName + " --save-editor"
-          : "auspex await-login --save-editor"
-        setStatus("Stay on this page. Tell the agent you tapped Save. They run " + cmd + ". Do not open Solari on the phone (GET editor HTTP 401).")
+        var line = savePasteLine(profileName)
+        paste.value = line
+        paste.classList.add("show")
+        paste.focus()
+        paste.select()
+        copyText(line).then(function () {
+          setStatus("Copied. Paste into any agent chat, then stay on this page.")
+        }).catch(function () {
+          setStatus("Select the text below, copy, and paste into any agent chat. Stay on this page.")
+        })
       })
 
       if (!token) {
+        setBoot("This page needs a live link from auspex login. Remint and open the phone URL.", false)
         setStatus("This page needs a live link from auspex login. Remint and open the phone URL.", true)
         ime.disabled = true
         return
@@ -133,9 +191,34 @@
 
       var RFB = (window.NoVNCRFB && window.NoVNCRFB.default) || window.NoVNCRFB
       if (typeof RFB !== "function") {
+        setBoot("Phone viewer failed to load. Remint auspex login.", false)
         setStatus("Phone viewer failed to load. Remint auspex login.", true)
         return
       }
+
+      function hideBootWhenReady() {
+        var tries = 0
+        if (bootTimer) clearInterval(bootTimer)
+        bootTimer = setInterval(function () {
+          tries++
+          var canvas = screen.querySelector("canvas")
+          if (canvas && canvas.width > 2 && canvas.height > 2) {
+            clearInterval(bootTimer)
+            bootTimer = null
+            setBoot("Ready", true)
+            setStatus("Connected. Tap the remote Chrome to click, then type in the field below.")
+            ime.focus()
+          } else if (tries === 16) {
+            setBoot("Still opening remote Chrome…")
+          } else if (tries > 60) {
+            clearInterval(bootTimer)
+            bootTimer = null
+            setBoot("Ready", true)
+            setStatus("Connected. If the window is still blank, wait a few seconds or remint.")
+          }
+        }, 500)
+      }
+
       var ws = "wss://api.getsolari.com/vnc-proxy/ws?token=" + encodeURIComponent(token)
       try {
         rfb = new RFB(screen, ws)
@@ -143,13 +226,16 @@
         rfb.resizeSession = true
         rfb.background = "#0b0f14"
         rfb.addEventListener("connect", function () {
-          setStatus("Connected. Tap the remote Chrome to click, then type in the field below.")
-          ime.focus()
+          setBoot("Opening Chromium…")
+          hideBootWhenReady()
         })
         rfb.addEventListener("disconnect", function () {
+          if (bootTimer) clearInterval(bootTimer)
+          setBoot("Disconnected. Remint auspex login if this sat idle.", false)
           setStatus("Disconnected. Remint auspex login if this sat idle.", true)
         })
       } catch (err) {
+        setBoot("Could not open the remote Chrome. Remint auspex login.", false)
         setStatus("Could not open the remote Chrome. Remint auspex login.", true)
       }
     })()
