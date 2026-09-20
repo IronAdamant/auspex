@@ -8,7 +8,7 @@ import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
 import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
-import { listProfiles, loginProfile } from "./profiles.ts"
+import { attachHandoffQr, listProfiles, loginProfile } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
@@ -35,7 +35,7 @@ const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
-  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL for the human (agent never handles the password). Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath. url is a start hint in the handoff reason. Show the packet, then call auspex_await_login (or pass wait=true), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not ping the user."
+  "Create or reuse a named Solari browser profile and return a single-use login-handoff URL. Show handoff.url to the human (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save. The agent never copies the password. Returns a mobile-first handoff packet: handoff.url, handoff.openOnPhone, handoff.oneLiner, handoff.qrPath, plus a QR PNG image attach when qrPath writes. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
 const DESKTOP_DESCRIPTION =
   "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
@@ -137,15 +137,19 @@ export function registerAuspexTools(server: McpServer): void {
         const result = await loginProfile(profile, url)
         if (result.handoff?.url) {
           const qr = await generateQRCode(result.handoff.url, runDir)
-          if (qr.qrPath) result.handoff.qrPath = qr.qrPath
+          if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url)
         }
         if (!wait) {
-          return { content: [{ type: "text" as const, text: toolJson({ ok: true, ...result }) }] }
+          const payload = stampSchema({ ok: true, ...result })
+          return buildReceiptToolContent(payload, result.handoff?.qrPath)
         }
         const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion })
-        return {
-          content: [{ type: "text" as const, text: toolJson({ ok: waited.status === "completed", ...result, wait: waited }) }],
-        }
+        const payload = stampSchema({
+          ok: waited.status === "completed",
+          ...result,
+          wait: waited,
+        })
+        return buildReceiptToolContent(payload, result.handoff?.qrPath)
       } catch (err) {
         return packToolFailure(err)
       }
@@ -156,7 +160,7 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_await_login",
     {
       description:
-        "Wait until the human Save on an auspex_login handoff stores cookies or origins. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ping the user.",
+        "Wait until the human Save on an auspex_login handoff stores cookies or origins (default 30 minutes so they can Save from a phone off-site). A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage (console Save is not enough for Microsoft OAuth SPAs; run auspex_finalize_login with --url and --expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
       inputSchema: auspexAwaitLoginInputSchema,
     },
     async ({ profile, sinceVersion, timeoutMs }) => {

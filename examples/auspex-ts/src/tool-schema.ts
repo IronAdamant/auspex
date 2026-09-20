@@ -264,7 +264,7 @@ export const auspexAwaitLoginInputSchema = z.object({
     .number()
     .optional()
     .describe("Version from auspex_login; completion is a newer version with cookies or origins"),
-  timeoutMs: z.number().optional().describe("Cap wait in ms (default 300000, max 600000)"),
+  timeoutMs: z.number().optional().describe("Cap wait in ms (default 1800000, max 1800000). Matches the 30-minute cold login-handoff so a human can Save from a phone off-site."),
 })
 
 export const auspexDesktopInputSchema = z.object({

@@ -18,7 +18,14 @@ export const PROFILE_EDITOR_OPEN_ERROR =
   "profile editor is open; close it, then --save-profile with the live session"
 
 export const HANDOFF_POLL_MS = 2_000
-export const AWAIT_LOGIN_DEFAULT_MS = 300_000
+/** Cold login-handoff URLs live 30 minutes (Solari changelog 2026-09-03). */
+export const AWAIT_LOGIN_DEFAULT_MS = 1_800_000
+export const AWAIT_LOGIN_MIN_MS = 5_000
+export const AWAIT_LOGIN_MAX_MS = 1_800_000
+
+export function clampAwaitLoginTimeoutMs(timeoutMs?: number): number {
+  return Math.min(Math.max(timeoutMs ?? AWAIT_LOGIN_DEFAULT_MS, AWAIT_LOGIN_MIN_MS), AWAIT_LOGIN_MAX_MS)
+}
 
 export type ProfileSeed = {
   cookies: number
@@ -279,7 +286,7 @@ export async function waitForProfileSave(
 ): Promise<AwaitLoginResult> {
   const want = name.trim()
   if (!want) throw new Error("profile name must be non-empty")
-  const timeoutMs = Math.min(Math.max(opts.timeoutMs ?? AWAIT_LOGIN_DEFAULT_MS, 5_000), 600_000)
+  const timeoutMs = clampAwaitLoginTimeoutMs(opts.timeoutMs)
   const sleepFn = opts.deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
   const now = opts.deps.now ?? Date.now
   const deadline = now() + timeoutMs

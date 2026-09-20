@@ -53,6 +53,7 @@ test("needsHuman next is finalize-login after Save, not retry check", () => {
   const next = needsHumanNext()
   assert.match(next, /^Stop\./)
   assert.match(next, /Never fill password/)
+  assert.match(next, /phone keyboard/)
   assert.match(next, /After human completes sign-in and Save: await-login then finalize-login/)
   assert.match(next, /Do not retry check on cookies alone/)
   assert.equal(next.includes("retry check --profile"), false)

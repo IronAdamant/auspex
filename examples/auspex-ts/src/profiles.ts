@@ -35,6 +35,31 @@ export type HandoffPacket = {
   qrPath?: string
 }
 
+export const HANDOFF_OPEN_ON_PHONE =
+  "Away from a laptop: open this URL on your phone. Type the password on the phone keyboard in the Solari card, then Save. Never paste the password into chat."
+
+const HANDOFF_HANG_GUIDANCE =
+  " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
+
+export function formatHandoffNext(opts: { urlHint?: string; qrPath?: string }): string {
+  const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
+  const qrBit = opts.qrPath
+    ? " If you are next to a laptop, you can scan the QR PNG at handoff.qrPath."
+    : ""
+  return (
+    `Show the human handoff.url now (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save (must store cookies or origins). Never paste or type the password through the agent.${where} ` +
+    `Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner to the phone.${qrBit}${HANDOFF_HANG_GUIDANCE}`
+  )
+}
+
+export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: string): LoginResult {
+  if (!result.handoff) return result
+  if (qrPath) result.handoff.qrPath = qrPath
+  else delete result.handoff.qrPath
+  result.next = formatHandoffNext({ urlHint, qrPath: result.handoff.qrPath })
+  return result
+}
+
 export type LoginResult = {
   profileId: string
   name: string
@@ -58,11 +83,10 @@ export function loginInstructions(
   qrPath?: string,
 ): LoginResult {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in."
-  const hangGuidance = " If handoff Chromium is blank/spinning >2–3 minutes, refresh the page once; if still unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
   if (handoff?.url) {
     const handoffPacket: HandoffPacket = {
       url: handoff.url,
-      openOnPhone: "Open this login URL on your phone to sign in from anywhere",
+      openOnPhone: HANDOFF_OPEN_ON_PHONE,
       oneLiner: `Auspex login: ${handoff.url}`,
       qrPath,
     }
@@ -75,7 +99,7 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: `Open the handoff.url (single-use Solari login handoff; no password through the agent).${where} Save when done (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Mobile: scan the QR code at handoff.qrPath or use handoff.oneLiner.${hangGuidance}`,
+      next: formatHandoffNext({ urlHint, qrPath }),
     }
   }
   return {
@@ -83,7 +107,7 @@ export function loginInstructions(
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${hangGuidance}`,
+    next: `Open ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
   }
 }
 

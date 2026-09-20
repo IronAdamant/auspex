@@ -226,6 +226,8 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.ok(awaitLogin, "auspex_await_login missing from ListTools")
     assert.match(awaitLogin.description ?? "", /empty-save|cookies or origins/i)
     assert.match(awaitLogin.description ?? "", /sessionStorage|weak-seed|finalize_login/i)
+    assert.match(awaitLogin.description ?? "", /30 minutes/)
+    assert.match(login.description ?? "", /phone keyboard|never copies the password/i)
     const finalize = listed.tools.find((t) => t.name === "auspex_finalize_login")
     assert.ok(finalize, "auspex_finalize_login missing from ListTools")
     assert.match(finalize.description ?? "", /sessionStorage|save-profile|SSO/i)
