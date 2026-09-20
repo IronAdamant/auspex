@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Auspex phone login</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
+    #wrap { display: flex; flex-direction: column; height: 100%; }
+    header { padding: 10px 12px 8px; font-size: 14px; }
+    header strong { display: block; font-size: 16px; }
+    #status { color: #9ab; font-size: 13px; margin-top: 4px; }
+    #screen { flex: 1; min-height: 120px; background: #0b0f14; }
+    #bar { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #121821; border-top: 1px solid #243044; }
+    #ime {
+      width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
+      border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
+    }
+    #row { display: flex; gap: 8px; margin-top: 8px; }
+    #row button, #row a {
+      flex: 1; text-align: center; text-decoration: none; color: #0b0f14;
+      background: #e8eef4; border: 0; border-radius: 8px; padding: 10px; font-size: 15px; font-weight: 600;
+    }
+    #row button.ghost, #row a.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
+    .err { color: #f88; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <strong>Auspex phone login</strong>
+      <div id="status">Tap the remote Chrome to click. Type in the field below so the phone keyboard opens. Keys go into the remote Chrome, not into chat.</div>
+    </header>
+    <div id="screen"></div>
+    <div id="bar">
+      <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" />
+      <div id="row">
+        <button type="button" id="backspace">Delete</button>
+        <button type="button" id="enter">Enter</button>
+        <a id="save" class="ghost" href="#">Save on Solari</a>
+      </div>
+    </div>
+  </div>
+  <script src="./novnc-rfb.js"></script>
+  <script>
+    (function () {
+      var XK_BACKSPACE = 0xff08
+      var XK_TAB = 0xff09
+      var XK_RETURN = 0xff0d
+      var params = new URLSearchParams(location.hash.replace(/^#/, ""))
+      var token = params.get("v") || ""
+      var saveUrl = params.get("h") || ""
+      var status = document.getElementById("status")
+      var ime = document.getElementById("ime")
+      var screen = document.getElementById("screen")
+      var save = document.getElementById("save")
+      var rfb = null
+      var last = ""
+
+      function setStatus(text, err) {
+        status.textContent = text
+        status.className = err ? "err" : ""
+      }
+
+      if (saveUrl) {
+        save.href = saveUrl
+        save.addEventListener("click", function (e) {
+          e.preventDefault()
+          location.href = saveUrl
+        })
+      } else {
+        save.style.display = "none"
+      }
+
+      if (!token) {
+        setStatus("This page needs a live link from auspex login. Remint and open the phone URL.", true)
+        ime.disabled = true
+        return
+      }
+
+      function sendKey(keysym, code) {
+        if (!rfb || typeof rfb.sendKey !== "function") return
+        rfb.sendKey(keysym, code)
+      }
+
+      function sendChar(ch) {
+        var cp = ch.codePointAt(0)
+        if (!cp) return
+        var keysym = cp < 0x80 ? cp : (0x01000000 | cp)
+        sendKey(keysym, "Unidentified")
+      }
+
+      function sendBackspace() {
+        sendKey(XK_BACKSPACE, "Backspace")
+      }
+
+      function sendDiff(prev, next) {
+        var i = 0
+        var max = Math.min(prev.length, next.length)
+        while (i < max && prev.charAt(i) === next.charAt(i)) i++
+        for (var k = prev.length; k > i; k--) sendBackspace()
+        for (var n = i; n < next.length; n++) sendChar(next.charAt(n))
+      }
+
+      ime.addEventListener("input", function () {
+        var next = ime.value
+        sendDiff(last, next)
+        last = next
+      })
+      ime.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault()
+          sendKey(XK_RETURN, "Enter")
+        } else if (e.key === "Tab") {
+          e.preventDefault()
+          sendKey(XK_TAB, "Tab")
+        } else if (e.key === "Backspace" && ime.value === "") {
+          e.preventDefault()
+          sendBackspace()
+        }
+      })
+      document.getElementById("backspace").addEventListener("click", function () {
+        if (ime.value) {
+          ime.value = ime.value.slice(0, -1)
+          sendDiff(last, ime.value)
+          last = ime.value
+        } else {
+          sendBackspace()
+        }
+        ime.focus()
+      })
+      document.getElementById("enter").addEventListener("click", function () {
+        sendKey(XK_RETURN, "Enter")
+        ime.focus()
+      })
+
+      var RFB = (window.NoVNCRFB && window.NoVNCRFB.default) || window.NoVNCRFB
+      if (typeof RFB !== "function") {
+        setStatus("Phone viewer failed to load. Remint auspex login.", true)
+        return
+      }
+      var ws = "wss://api.getsolari.com/vnc-proxy/ws?token=" + encodeURIComponent(token)
+      try {
+        rfb = new RFB(screen, ws)
+        rfb.scaleViewport = true
+        rfb.resizeSession = true
+        rfb.background = "#0b0f14"
+        rfb.addEventListener("connect", function () {
+          setStatus("Connected. Tap the remote Chrome to click, then type in the field below.")
+          ime.focus()
+        })
+        rfb.addEventListener("disconnect", function () {
+          setStatus("Disconnected. Remint auspex login if this sat idle.", true)
+        })
+      } catch (err) {
+        setStatus("Could not open the remote Chrome. Remint auspex login.", true)
+      }
+    })()
+  </script>
+</body>
+</html>

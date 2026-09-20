@@ -1507,15 +1507,28 @@ async function liveAwaitLogin(name, opts = {}) {
 
 // src/profiles.ts
 var CONSOLE_PROFILES_URL = "https://console.getsolari.com";
+var PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
 var PROFILE_NAME_ERROR = "profile name must be non-empty";
+function isPhoneImeUrl(url) {
+  return Boolean(url?.startsWith(PHONE_HANDOFF_PAGE));
+}
+function phoneHandoffUrl(vncToken, handoffUrl) {
+  const token = vncToken.trim();
+  const save = handoffUrl.trim();
+  if (!token) return "";
+  const hash = new URLSearchParams({ v: token });
+  if (save) hash.set("h", save);
+  return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`;
+}
 function requireProfileName(value) {
   const name = value.trim();
   if (!name) throw new Error(PROFILE_NAME_ERROR);
   return name;
 }
 var profileNameSchema = z2.string().trim().min(1, { message: PROFILE_NAME_ERROR });
-var HANDOFF_PHONE_DOOR_BAN = "Never open handoff.desktopUrl on a phone and do not click the remote Chromium live view there: that stream is a picture of Chrome, so the phone software keyboard will not open.";
-var HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome (a real tab). Type the password on the phone keyboard, then Save. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+var HANDOFF_PHONE_DOOR_BAN = "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone.";
+var HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then Save on Solari. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+var HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK = "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
 function handoffOpenOnDesktop(profileName) {
   return `Computer: open handoff.desktopUrl, then Profiles \u2192 ${profileName} \u2192 Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`;
 }
@@ -1524,7 +1537,8 @@ function formatHandoffNext(opts) {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in.";
   const qrBit = opts.qrPath ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)." : "";
   const profile = opts.profileName?.trim() || "<profile>";
-  return `Show BOTH URLs, labeled. Phone: handoff.mobileUrl (same as handoff.url). Open in the phone's own Safari or Chrome, type the password on the phone keyboard, then Save. Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+  const phone = opts.hasPhoneIme ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, then Save on Solari." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
+  return `${phone} Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
 }
 function attachHandoffQr(result, qrPath, urlHint) {
   if (!result.handoff) return result;
@@ -1533,23 +1547,26 @@ function attachHandoffQr(result, qrPath, urlHint) {
   result.next = formatHandoffNext({
     urlHint,
     qrPath: result.handoff.qrPath,
-    profileName: result.name
+    profileName: result.name,
+    hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl)
   });
   return result;
 }
 function qrPayloadForHandoff(handoff) {
   return handoff.mobileUrl || handoff.url;
 }
-function loginInstructions(profile, urlHint, handoff, qrPath) {
+function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl) {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
   if (handoff?.url) {
+    const phone = mobileUrl?.trim() || handoff.url;
+    const hasPhoneIme = isPhoneImeUrl(phone);
     const handoffPacket = {
       url: handoff.url,
-      mobileUrl: handoff.url,
+      mobileUrl: phone,
       desktopUrl: CONSOLE_PROFILES_URL,
-      openOnPhone: HANDOFF_OPEN_ON_PHONE,
+      openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
       openOnDesktop: handoffOpenOnDesktop(profile.name),
-      oneLiner: `Auspex login (phone): ${handoff.url}`,
+      oneLiner: `Auspex login (phone): ${phone}`,
       desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor`,
       qrPath
     };
@@ -1562,7 +1579,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath) {
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name })
+      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme })
     };
   }
   return {
@@ -1616,6 +1633,52 @@ async function ensureProfile(name) {
     await solari.close();
   }
 }
+function handoffTokenFromUrl(url) {
+  try {
+    const path15 = new URL(url).pathname;
+    const parts = path15.split("/").filter(Boolean);
+    const i = parts.lastIndexOf("handoff");
+    return i >= 0 ? parts[i + 1] ?? "" : "";
+  } catch {
+    return "";
+  }
+}
+async function defaultEditorPost(handoffToken) {
+  return async (path15) => {
+    const res = await fetch(`${CONSOLE_PROFILES_URL}${path15}`, {
+      method: "POST",
+      headers: {
+        "x-handoff-token": handoffToken,
+        Origin: CONSOLE_PROFILES_URL,
+        Referer: `${CONSOLE_PROFILES_URL}/handoff/${handoffToken}`,
+        Accept: "application/json"
+      }
+    });
+    const json = await res.json().catch(() => ({}));
+    return { status: res.status, json };
+  };
+}
+async function fetchEditorVncToken(profileId, handoffToken, opts) {
+  const token = handoffToken.trim();
+  const id = profileId.trim();
+  if (!token || !id) return void 0;
+  const post = opts?.post ?? await defaultEditorPost(token);
+  const tries = opts?.tries ?? 20;
+  const sleepMs = opts?.sleepMs ?? 1e3;
+  const start = await post(`/api/profiles/${encodeURIComponent(id)}/editor`);
+  if (start.status !== 200 && start.status !== 201 && start.status !== 409) {
+    return void 0;
+  }
+  for (let i = 0; i < tries; i++) {
+    const got = await post(`/api/profiles/${encodeURIComponent(id)}/editor/token`);
+    const vnc = typeof got.json.token === "string" ? got.json.token.trim() : "";
+    if (got.status === 200 && vnc) return vnc;
+    if (i + 1 < tries && sleepMs > 0) {
+      await new Promise((r) => setTimeout(r, sleepMs));
+    }
+  }
+  return void 0;
+}
 async function loginProfile(name, urlHint, http, qrPath) {
   const profile = await ensureProfile(name);
   const client = http ?? await defaultProfileHttp();
@@ -1624,7 +1687,15 @@ async function loginProfile(name, urlHint, http, qrPath) {
     urlHint ? `Auspex login for profile ${profile.name}; start at ${urlHint}` : `Auspex login for profile ${profile.name}`,
     client
   );
-  return loginInstructions(profile, urlHint, handoff, qrPath);
+  let mobileUrl;
+  const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url);
+  try {
+    const vnc = await fetchEditorVncToken(profile.id, handoffToken);
+    if (vnc) mobileUrl = phoneHandoffUrl(vnc, handoff.url);
+  } catch {
+    mobileUrl = void 0;
+  }
+  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl);
 }
 async function listProfiles() {
   const solari = createClient();
@@ -2627,7 +2698,7 @@ function checkLoggedOutNext(profile, cookies) {
   return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`;
 }
 function needsHumanNext() {
-  return "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl in the phone's own Safari or Chrome (type the password on the phone keyboard). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " + HANDOFF_PHONE_DOOR_BAN + " Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record.";
+  return "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " + HANDOFF_PHONE_DOOR_BAN + " Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record.";
 }
 function resolveFinalizeLoginTarget(opts) {
   const saved = savedCheckForProfile(opts.profile);
@@ -3590,7 +3661,7 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: true,
       skippedLive: true,
-      skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl in the phone's own Safari or Chrome. Computer: handoff.desktopUrl (console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
+      skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -4178,10 +4249,10 @@ async function checkThenVerify(opts, deps) {
 // src/mcp-tools.ts
 var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl (same as handoff.url). Open in the phone's own Safari or Chrome so the software keyboard can open. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl on the phone, handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
+var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
 var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save alone is insufficient.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 function toolJson(obj) {

@@ -35,7 +35,7 @@ const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
-  "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl (same as handoff.url). Open in the phone's own Safari or Chrome so the software keyboard can open. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
+  "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
   HANDOFF_PHONE_DOOR_BAN +
   " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. Then call auspex_await_login (or pass wait=true; waits up to 30 minutes), then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
@@ -46,7 +46,7 @@ const PROFILES_DESCRIPTION =
   "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
 
 const PROFILE_STATUS_DESCRIPTION =
-  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl on the phone, handoff.desktopUrl on the computer). " +
+  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " +
   HANDOFF_PHONE_DOOR_BAN +
   " Path / is loggedOut unless expect matched."
 

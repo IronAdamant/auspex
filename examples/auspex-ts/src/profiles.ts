@@ -3,7 +3,22 @@ import { asFiniteNumber } from "./profile-persist.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
+/** Pages viewer with a real text field so the phone software keyboard can open. */
+export const PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html"
 export const PROFILE_NAME_ERROR = "profile name must be non-empty"
+
+export function isPhoneImeUrl(url: string | undefined): boolean {
+  return Boolean(url?.startsWith(PHONE_HANDOFF_PAGE))
+}
+
+export function phoneHandoffUrl(vncToken: string, handoffUrl: string): string {
+  const token = vncToken.trim()
+  const save = handoffUrl.trim()
+  if (!token) return ""
+  const hash = new URLSearchParams({ v: token })
+  if (save) hash.set("h", save)
+  return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`
+}
 
 export function requireProfileName(value: string): string {
   const name = value.trim()
@@ -30,7 +45,7 @@ export type LoginHandoff = {
 
 export type HandoffPacket = {
   url: string
-  /** Phone: Solari login-handoff. Same as url. Open in the phone's own Safari or Chrome. */
+  /** Phone: Auspex phone.html (real text field) when a VNC token was minted; else Solari handoff. */
   mobileUrl?: string
   /** Computer: Solari console. Hardware keyboard in Chromium. Do not open this on a phone. */
   desktopUrl?: string
@@ -41,12 +56,17 @@ export type HandoffPacket = {
   qrPath?: string
 }
 
-/** Phone must not use the console Chromium live view. */
+/** Solari's handoff/editor is noVNC. iOS will not raise the software keyboard there. */
 export const HANDOFF_PHONE_DOOR_BAN =
-  "Never open handoff.desktopUrl on a phone and do not click the remote Chromium live view there: that stream is a picture of Chrome, so the phone software keyboard will not open."
+  "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone."
 
 export const HANDOFF_OPEN_ON_PHONE =
-  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome (a real tab). Type the password on the phone keyboard, then Save. " +
+  "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then Save on Solari. " +
+  HANDOFF_PHONE_DOOR_BAN +
+  " Never paste the password into chat."
+
+export const HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK =
+  "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " +
   HANDOFF_PHONE_DOOR_BAN +
   " Never paste the password into chat."
 
@@ -61,14 +81,18 @@ export function formatHandoffNext(opts: {
   urlHint?: string
   qrPath?: string
   profileName?: string
+  hasPhoneIme?: boolean
 }): string {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
   const qrBit = opts.qrPath
     ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)."
     : ""
   const profile = opts.profileName?.trim() || "<profile>"
+  const phone = opts.hasPhoneIme
+    ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open). Tap the remote Chrome to click, type in the field at the bottom, then Save on Solari."
+    : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
   return (
-    `Show BOTH URLs, labeled. Phone: handoff.mobileUrl (same as handoff.url). Open in the phone's own Safari or Chrome, type the password on the phone keyboard, then Save. Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
+    `${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
     `Then auspex_await_login (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
@@ -81,6 +105,7 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
     urlHint,
     qrPath: result.handoff.qrPath,
     profileName: result.name,
+    hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
   })
   return result
 }
@@ -110,16 +135,19 @@ export function loginInstructions(
   urlHint?: string,
   handoff?: LoginHandoff,
   qrPath?: string,
+  mobileUrl?: string,
 ): LoginResult {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in."
   if (handoff?.url) {
+    const phone = mobileUrl?.trim() || handoff.url
+    const hasPhoneIme = isPhoneImeUrl(phone)
     const handoffPacket: HandoffPacket = {
       url: handoff.url,
-      mobileUrl: handoff.url,
+      mobileUrl: phone,
       desktopUrl: CONSOLE_PROFILES_URL,
-      openOnPhone: HANDOFF_OPEN_ON_PHONE,
+      openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
       openOnDesktop: handoffOpenOnDesktop(profile.name),
-      oneLiner: `Auspex login (phone): ${handoff.url}`,
+      oneLiner: `Auspex login (phone): ${phone}`,
       desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
       qrPath,
     }
@@ -132,7 +160,7 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name }),
+      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme }),
     }
   }
   return {
@@ -198,6 +226,62 @@ export async function ensureProfile(name: string): Promise<ProfileInfo> {
   }
 }
 
+export type EditorPost = (path: string) => Promise<{ status: number; json: Record<string, unknown> }>
+
+export function handoffTokenFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname
+    const parts = path.split("/").filter(Boolean)
+    const i = parts.lastIndexOf("handoff")
+    return i >= 0 ? (parts[i + 1] ?? "") : ""
+  } catch {
+    return ""
+  }
+}
+
+async function defaultEditorPost(handoffToken: string): Promise<EditorPost> {
+  return async (path) => {
+    const res = await fetch(`${CONSOLE_PROFILES_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "x-handoff-token": handoffToken,
+        Origin: CONSOLE_PROFILES_URL,
+        Referer: `${CONSOLE_PROFILES_URL}/handoff/${handoffToken}`,
+        Accept: "application/json",
+      },
+    })
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    return { status: res.status, json }
+  }
+}
+
+/** Start the profile editor if needed and return the noVNC bearer token. */
+export async function fetchEditorVncToken(
+  profileId: string,
+  handoffToken: string,
+  opts?: { post?: EditorPost; tries?: number; sleepMs?: number },
+): Promise<string | undefined> {
+  const token = handoffToken.trim()
+  const id = profileId.trim()
+  if (!token || !id) return undefined
+  const post = opts?.post ?? (await defaultEditorPost(token))
+  const tries = opts?.tries ?? 20
+  const sleepMs = opts?.sleepMs ?? 1000
+  const start = await post(`/api/profiles/${encodeURIComponent(id)}/editor`)
+  if (start.status !== 200 && start.status !== 201 && start.status !== 409) {
+    return undefined
+  }
+  for (let i = 0; i < tries; i++) {
+    const got = await post(`/api/profiles/${encodeURIComponent(id)}/editor/token`)
+    const vnc = typeof got.json.token === "string" ? got.json.token.trim() : ""
+    if (got.status === 200 && vnc) return vnc
+    if (i + 1 < tries && sleepMs > 0) {
+      await new Promise((r) => setTimeout(r, sleepMs))
+    }
+  }
+  return undefined
+}
+
 export async function loginProfile(
   name: string,
   urlHint?: string,
@@ -213,7 +297,15 @@ export async function loginProfile(
       : `Auspex login for profile ${profile.name}`,
     client,
   )
-  return loginInstructions(profile, urlHint, handoff, qrPath)
+  let mobileUrl: string | undefined
+  const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
+  try {
+    const vnc = await fetchEditorVncToken(profile.id, handoffToken)
+    if (vnc) mobileUrl = phoneHandoffUrl(vnc, handoff.url)
+  } catch {
+    mobileUrl = undefined
+  }
+  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl)
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {
