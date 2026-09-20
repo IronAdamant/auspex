@@ -26,7 +26,7 @@ import {
   PUBLIC_PROFILE_SAVE_ERROR,
 } from "./profile-storage.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
-import { requireProfileName } from "./profiles.ts"
+import { HANDOFF_PHONE_DOOR_BAN, requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
@@ -128,7 +128,11 @@ export function checkLoggedOutNext(profile: string, cookies: number): string {
 
 /** Agent `next` on a Microsoft/Google password wall. Finalize only after human Save — never during the wall. */
 export function needsHumanNext(): string {
-  return "Stop. Microsoft or Google password/OTP wall detected. Show the human the Solari login handoff URL from auspex_login (Messages, email, or chat). They open it on their phone and type the password on the phone keyboard. Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record."
+  return (
+    "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl in the phone's own Safari or Chrome (type the password on the phone keyboard). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " +
+    HANDOFF_PHONE_DOOR_BAN +
+    " Never fill password via agent tools. After human completes sign-in and Save: await-login then finalize-login. Do not retry check on cookies alone. Never --record."
+  )
 }
 
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */

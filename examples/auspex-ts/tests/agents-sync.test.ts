@@ -22,6 +22,10 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "qrPath",
     "auspex_finalize_login",
     "verify=false",
+    "phone's own Safari or Chrome",
+    "remote Chromium live view",
+    "mobileUrl",
+    "desktopUrl",
   ]) {
     assert.match(root, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `root AGENTS missing ${needle}`)
     assert.match(pack, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `package AGENTS missing ${needle}`)
@@ -31,6 +35,21 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(USAGE, /emptySave/)
   assert.match(USAGE, /weakSeed/)
   assert.match(USAGE, /finalize-login/)
+  assert.match(USAGE, /phone's own Safari or Chrome/)
+  assert.match(USAGE, /remote Chromium live view/)
+  assert.match(USAGE, /mobileUrl/)
+  assert.match(USAGE, /desktopUrl/)
+  assert.match(tools, /mobileUrl/)
+  assert.match(tools, /desktopUrl/)
+  assert.match(tools, /HANDOFF_PHONE_DOOR_BAN/)
+  for (const [label, text] of [
+    ["root AGENTS.md", root],
+    ["package AGENTS.md", pack],
+    ["USAGE", USAGE],
+    ["mcp-tools.ts", tools],
+  ] as const) {
+    assert.equal(text.includes("gateUrl"), false, `${label} must not teach the detecting-gate URL`)
+  }
   assert.match(USAGE, /consistencyhub.*--no-verify|defaults to --no-verify/)
   assert.match(tools, /auspex_finalize_login/)
   assert.match(tools, /shouldVerifyCheck/)
@@ -76,7 +95,18 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
 
   assert.match(cursorRule, /verify-with-profile/)
   assert.match(cursorRule, /auspex_finalize_login/)
+  assert.match(cursorRule, /auspex_login/)
+  assert.match(cursorRule, /phone's own Safari or Chrome/)
+  assert.match(cursorRule, /mobileUrl/)
+  assert.match(cursorRule, /desktopUrl/)
+  assert.match(cursorRule, /remote Chromium live view/)
+  assert.equal(cursorRule.includes("gateUrl"), false, "Cursor rule must not teach the detecting-gate URL")
   assert.match(cursorRule, /weakSeed/)
+  assert.equal(
+    cursorRule.includes("Never ping the user to sign in"),
+    false,
+    "Cursor rule must not tell agents to hide the login URL",
+  )
   assert.equal(
     cursorRule.includes("profile on consistencyhub.io / onedrive.live.com"),
     false,

@@ -5,7 +5,7 @@ import { runCheck, runFinalizeLogin, type CheckOptions } from "./check.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
-import { attachHandoffQr, listProfiles, loginProfile, requireProfileName } from "./profiles.ts"
+import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, requireProfileName } from "./profiles.ts"
 import { liveAwaitLogin } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
@@ -51,8 +51,8 @@ ok is agent success (reason matched, and verify when it ran). protocolOk is opti
 --mobile emulates iPhone viewport/UA (iphone-13-pro). --device <name> uses a specific device profile (${listDevices().join(", ")}). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
-profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once; the agent never types a password and does not ping the user. Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
-login creates or reuses a named Solari profile and prints a single-use login-handoff URL. Show that URL to the human (Messages, email, or chat). They open it on their phone, type the password on the phone keyboard, then Save. The agent never copies the password. Returns handoff packet with url, openOnPhone, oneLiner for SMS/email, and qrPath (QR PNG). --wait then blocks until Save stores cookies or origins (default 30 minutes).
+profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0 (Microsoft OAuth SPAs). Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: phone uses handoff.mobileUrl in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Open editor, hardware keyboard). The agent never types a password. Never open handoff.desktopUrl on a phone (remote Chromium live view will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
+login creates or reuses a named Solari profile and prints TWO labeled login URLs. Phone: handoff.mobileUrl (same as handoff.url), open in the phone's own Safari or Chrome. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. Never open handoff.desktopUrl on a phone (remote Chromium live view will not open the software keyboard). The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL). --wait then blocks until Save stores cookies or origins (default 30 minutes).
 await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). Returns status: completed | timeout | empty-save | waiting.
 profiles lists names, ids, version, and whether storage is populated.
 --save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
@@ -450,7 +450,7 @@ export async function main(argv: string[]): Promise<number> {
       const runDir = await ensureRunDir()
       const result = await loginProfile(parsed.command.profile, parsed.command.url)
       if (result.handoff?.url) {
-        const qr = await generateQRCode(result.handoff.url, runDir)
+        const qr = await generateQRCode(qrPayloadForHandoff(result.handoff), runDir)
         if (qr.qrPath) attachHandoffQr(result, qr.qrPath, parsed.command.url)
       }
       if (!parsed.command.wait) {

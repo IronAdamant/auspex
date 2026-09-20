@@ -138,6 +138,10 @@ test("profileStatus reports loggedOut and needsHuman from live without typing a 
   assert.equal(human.reason, "needsHuman")
   assert.equal(human.skippedLive, true)
   assert.match(human.skipReason ?? "", /never types a password/i)
+  assert.match(human.skipReason ?? "", /handoff\.mobileUrl/)
+  assert.match(human.skipReason ?? "", /handoff\.desktopUrl/)
+  assert.match(human.skipReason ?? "", /phone's own Safari or Chrome/)
+  assert.match(human.skipReason ?? "", /Never open handoff\.desktopUrl on a phone/)
   assert.equal((human.skipReason ?? "").includes("finalize-login"), false)
 })
 
