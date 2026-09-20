@@ -2,7 +2,7 @@
 
 Web eyes for **coding agents**. An agent calls Auspex; Solari boots a **throwaway Chrome in their cloud** (not on your Mac); the agent gets JSON + a PNG; the session is killed. You do not sit in that browser.
 
-This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, a **single-use login-handoff URL** to sign in and Save once.
+This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, **two labeled URLs**: the Auspex phone page (`handoff.mobileUrl`, real text field) or the Solari console (`handoff.desktopUrl`). Solari’s own handoff is noVNC and will not open a phone keyboard.
 
 Use it when a live page, JS paint, a login, or an audit still is the point. Do not use it to scrape at scale.
 
@@ -52,12 +52,12 @@ npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex login --profile <name> [--url <hint>] [--wait]
-npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
+npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
 npx auspex profiles
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
-`login` creates or reuses a named Solari profile and prints a **login-handoff `url`**. Open that URL (single-use; the agent never handles the password), sign in, Save. Then `await-login --profile <name>` (or `login --wait`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login run `finalize-login --profile <name>` (or `check --profile <name> --sso --save-profile`). Then `check --name consistencyhub` (or `--profile <name>`) in a new session. Login does not hold an Auspex check session open.
+`login` creates or reuses a named Solari profile and prints **two labeled URLs**. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <name> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. Console Save also misses **sessionStorage** (ConsistencyHub keeps `accessToken` there), so after Microsoft login run `finalize-login --profile <name>` (or `check --profile <name> --sso --save-profile`). Then `check --name consistencyhub` (or `--profile <name>`) in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft **and Google** password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing`, `/login`, or `/` without a matched expect is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile` on a public marketing host. `--allow-record-profile` is refused for consistencyhub. Never `--record` a logged-in session.
 
@@ -90,7 +90,7 @@ Tools:
 - `auspex_check` — JSON + JPEG attach (verifies by default via sandbox HTTP + OCR except `name=consistencyhub` / `profile=consistencyhub` / an attached profile on a non-public-marketing URL; public marketing still verifies with a leftover profile; `verify=false` skips; `verify=true` is anonymous and poisons `ok` on auth-gated pages; `verifyWithProfile` is the dogfood `claimOkProfile` path; `name` runs a saved check; `saveProfile` persists a non-empty seed)
 - `auspex_verify` — only after `verify=false`. Headless VM independently audits expect, then **kill**
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs; `packReceipts` for PR attach
-- `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`). Login: show `handoff.mobileUrl` (Auspex phone page, real text field) and `handoff.desktopUrl` (computer), labeled. Solari noVNC will not open the phone keyboard.
+- `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`). Login: show `handoff.mobileUrl` (Auspex phone page, real text field; Save copies a paste line) and `handoff.desktopUrl` (computer), labeled. After phone Save, `saveEditor` / `--save-editor`. Solari noVNC will not open the phone keyboard.
 - `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac. 402 on Free.
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.

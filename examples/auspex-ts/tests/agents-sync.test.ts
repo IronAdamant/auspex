@@ -199,7 +199,9 @@ test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLog
   )
   assert.match(rootReadme, /any attached profile on a non-public-marketing URL/)
   assert.match(rootReadme, /unknown profiles require `--url` and `--expect`/)
-  assert.match(rootReadme, /consent in the handoff, then Save/)
+  assert.match(rootReadme, /tap Save/)
+  assert.match(rootReadme, /--save-editor/)
+  assert.match(rootReadme, /phone keyboard/)
   assert.match(pagesYml, /enablement:\s*true/)
 })
 

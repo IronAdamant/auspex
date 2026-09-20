@@ -11,7 +11,7 @@ The ironadamant one-liner is a **public check (no login)**. It does **not** prov
 | **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (ConsistencyHub, Microsoft, emails/passwords stripped) |
 | **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
-| **Any Microsoft-gated host** | `npx auspex-solari login --profile myapp --url <https>` then `await-login` then `finalize-login --profile myapp --url <https> --expect "<claim>"` then `check` with the same flags. Never `--record`. |
+| **Any Microsoft-gated host** | `npx auspex-solari login --profile myapp --url <https>`. Phone: open `handoff.mobileUrl` (Auspex page, real keyboard). Tap Save (copies a line; paste it in the AI chat). Then `await-login --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
 | **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
 | **Do not** | Type passwords · `--record` logged-in ConsistencyHub · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
@@ -45,7 +45,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 
-- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing.
+- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
 
 - **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Saved-check profiles (e.g. `consistencyhub`) supply URL and expect; unknown profiles require `--url` and `--expect`. Same as `check --profile … --sso --save-profile`.
 
@@ -71,8 +71,8 @@ Console Save alone is insufficient (sessionStorage not persisted). ConsistencyHu
 
 ```bash
 npx auspex login --profile consistencyhub
-# human: Microsoft + OneDrive consent in the handoff, then Save. Do not intern-ping.
-npx auspex await-login --profile consistencyhub
+# human: open handoff.mobileUrl on the phone, Microsoft + OneDrive consent, tap Save (copies a paste line). Do not intern-ping.
+npx auspex await-login --profile consistencyhub --save-editor
 npx auspex finalize-login --profile consistencyhub
 npx auspex check --name consistencyhub
 npx auspex check --name consistencyhub --verify-with-profile
