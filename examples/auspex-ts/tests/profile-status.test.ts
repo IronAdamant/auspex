@@ -34,7 +34,7 @@ test("profileStatus reports emptySave for missing or empty profiles without live
   assert.equal(missing.skippedLive, true)
   assert.match(missing.skipReason ?? "", /never types a password/i)
   assert.match(missing.skipReason ?? "", /login --profile/)
-  assert.match(missing.skipReason ?? "", /await-login/)
+  assert.match(missing.skipReason ?? "", /await-login --profile consistencyhub --save-editor/)
   assert.match(missing.skipReason ?? "", /Do not finalize-login/)
   assert.equal((missing.skipReason ?? "").includes("--sso --save-profile"), false)
 

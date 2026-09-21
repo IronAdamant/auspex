@@ -8,7 +8,9 @@ import {
   EMPTY_PROFILE_SAVE_ERROR,
   bindInspectProfileSeed,
   clampAwaitLoginTimeoutMs,
+  inspectOriginForAwait,
   isWeakSeed,
+  loginWaitAwaitOpts,
   persistProfileState,
   seedFromStorageState,
   waitForProfileSave,
@@ -313,6 +315,10 @@ test("waitForProfileSave does not warn on a fresh folded expiresOn with count 2"
   assert.equal(completed.sessionStorage, 2)
   assert.equal(completed.sessionStorageStale, undefined)
   assert.equal(/warning/i.test(completed.next), false)
+  assert.equal(completed.next.includes("Run auspex check"), false)
+  assert.match(completed.next, /finalize-login/)
+  assert.match(completed.next, /claimOkProfile/)
+  assert.match(completed.next, /Reuse gate is claimOkProfile/)
 })
 
 test("seedFromStorageState counts sessionStorage when origin is passed", () => {
@@ -391,6 +397,12 @@ test("waitForProfileSave treats a 0-cookie version bump as empty-save", async ()
   assert.equal(ok.status, "completed")
   assert.equal(ok.cookies, 2)
   assert.equal(ok.origins, 1)
+  assert.equal(ok.sessionStorage, undefined)
+  assert.equal(ok.next.includes("Run auspex check"), false)
+  assert.match(ok.next, /Inspect did not count sessionStorage/)
+  assert.match(ok.next, /Unknown sessionStorage is not weakSeed/)
+  assert.match(ok.next, /finalize-login/)
+  assert.match(ok.next, /claimOkProfile/)
 })
 
 test("pageForSession uses the default context even when storageState has cookies", async () => {
@@ -459,6 +471,53 @@ test("toPlaywrightStorageState does not force httpOnly or secure true", () => {
   })
   assert.equal(pw.cookies[0]?.httpOnly, false)
   assert.equal(pw.cookies[0]?.secure, false)
+})
+
+test("inspectOriginForAwait forwards saved-check and login --url, not public marketing", () => {
+  assert.equal(inspectOriginForAwait({ name: "consistencyhub" }), "https://consistencyhub.io")
+  assert.equal(inspectOriginForAwait({ name: "ironadamant" }), undefined)
+  assert.equal(inspectOriginForAwait({ name: "checkpoint" }), undefined)
+  assert.equal(inspectOriginForAwait({ name: "myapp" }), undefined)
+  assert.equal(inspectOriginForAwait({ name: "myapp", url: "https://app.example/login" }), "https://app.example")
+  assert.equal(inspectOriginForAwait({ name: "myapp", url: "https://ironadamant.com" }), undefined)
+})
+
+test("loginWaitAwaitOpts always passes saveEditor", () => {
+  assert.deepEqual(loginWaitAwaitOpts(), { saveEditor: true })
+  assert.deepEqual(loginWaitAwaitOpts({ sinceVersion: 4, url: "https://app.example" }), {
+    sinceVersion: 4,
+    url: "https://app.example",
+    saveEditor: true,
+  })
+})
+
+test("waitForProfileSave forwards login --url origin for unknown profiles", async () => {
+  const origins: Array<string | undefined> = []
+  const completed = await waitForProfileSave("myapp", {
+    sinceVersion: 1,
+    url: "https://app.example/dash",
+    timeoutMs: 5_000,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => {
+          t += 1_000
+          return t
+        }
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p3", name: "myapp", version: 2 }],
+      inspect: async (_id, origin) => {
+        origins.push(origin)
+        return origin ? { cookies: 3, origins: 1, sessionStorage: 0 } : { cookies: 3, origins: 1 }
+      },
+    },
+  })
+  assert.deepEqual(origins, ["https://app.example"])
+  assert.equal(completed.sessionStorage, 0)
+  assert.match(completed.next, /warning/i)
+  assert.match(completed.next, /finalize-login/)
+  assert.equal(completed.next.includes("Run auspex check"), false)
 })
 
 test("public checks target ironadamant One office job and Checkpoint", () => {

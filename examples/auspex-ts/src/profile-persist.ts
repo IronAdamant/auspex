@@ -240,7 +240,32 @@ export function weakSeedWarning(
 /** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
 export function emptyProfileGuidance(profile: string): string {
   const name = profile.trim() || "<name>"
-  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name}. Do not finalize-login on an empty profile. Agent never types a password.`
+  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
+}
+
+/** login --wait / wait:true is the composed phone path: same as await-login --save-editor. */
+export function loginWaitAwaitOpts(opts: { sinceVersion?: number; url?: string } = {}): {
+  sinceVersion?: number
+  url?: string
+  saveEditor: true
+} {
+  return {
+    ...(opts.sinceVersion !== undefined ? { sinceVersion: opts.sinceVersion } : {}),
+    ...(opts.url !== undefined ? { url: opts.url } : {}),
+    saveEditor: true,
+  }
+}
+
+/** Origin for await-login inspect. Never invent a count without an origin. Public marketing URLs are not forwarded. */
+export function inspectOriginForAwait(opts: { name: string; url?: string }): string | undefined {
+  const raw = opts.url?.trim() || savedCheckForProfile(opts.name)?.url
+  if (!raw) return undefined
+  if (isPublicMarketingUrl(raw)) return undefined
+  try {
+    return new URL(raw).origin
+  } catch {
+    return undefined
+  }
 }
 
 export function asFiniteNumber(value: unknown): number | undefined {
@@ -363,7 +388,11 @@ function awaitNext(
     if (weak) {
       return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${weakSeedWarning(profile.name, seed)}`
     }
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Run auspex check with --profile ${profile.name}`
+    const counted = seed.sessionStorage !== undefined
+    const originNote = counted
+      ? ""
+      : " Inspect did not count sessionStorage (no origin forwarded). Unknown sessionStorage is not weakSeed."
+    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins.${originNote} ${finalizeLoginGuidance(profile.name)} ${CLAIM_OK_PROFILE_REUSE_GATE} Then check --verify-with-profile and read claimOkProfile — do not treat leftover cookies as reusable. Do not skip finalize-login.`
   }
   if (status === "empty-save") {
     return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`
@@ -379,6 +408,7 @@ export async function waitForProfileSave(
   opts: {
     sinceVersion?: number
     timeoutMs?: number
+    url?: string
     deps: AwaitLoginDeps
   },
 ): Promise<AwaitLoginResult> {
@@ -394,16 +424,15 @@ export async function waitForProfileSave(
   let version = profile.version ?? since
   let seed: ProfileSeed = { cookies: 0, origins: 0 }
   let status: AwaitLoginStatus = "waiting"
-  const isConsistencyHub = want.toLowerCase() === "consistencyhub"
-  const chOrigin = isConsistencyHub ? "https://consistencyhub.io" : undefined
-  
+  const inspectOrigin = inspectOriginForAwait({ name: want, url: opts.url })
+
   while (now() < deadline) {
     const rows = await opts.deps.list()
     profile = rows.find((p) => p.name.trim() === want)
     if (!profile) throw new Error(`profile ${want} no longer exists`)
     version = profile.version ?? since
     if (version > since) {
-      seed = await opts.deps.inspect(profile.id, chOrigin)
+      seed = await opts.deps.inspect(profile.id, inspectOrigin)
       status = isEmptySeed(seed) ? "empty-save" : "completed"
       break
     }
@@ -438,6 +467,7 @@ export async function liveAwaitLogin(
     sinceVersion?: number
     timeoutMs?: number
     saveEditor?: boolean
+    url?: string
     foldCapture?: CaptureEditorFoldOpts
   } = {},
 ): Promise<AwaitLoginResult> {
@@ -475,6 +505,7 @@ export async function liveAwaitLogin(
     const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion,
       timeoutMs: opts.timeoutMs,
+      url: opts.url,
       deps: {
         list: async () =>
           (await solari.profiles.list()).map((p) => ({

@@ -147,6 +147,17 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.equal(/reconnect/i.test(html), false)
 })
 
+function phoneHtmlSavePaste(name?: string): string {
+  const html = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/phone.html"),
+    "utf8",
+  )
+  const match = html.match(/function savePasteLine\(name\) \{[\s\S]*?\n      \}/)
+  assert.ok(match, "phone.html must define savePasteLine")
+  const fn = new Function(`${match[0]}\nreturn savePasteLine`) as () => (n?: string) => string
+  return fn()(name)
+}
+
 test("phoneSavePaste is a line any agent chat can run", () => {
   const line = phoneSavePaste("consistencyhub")
   assert.match(line, /I tapped Save/)
@@ -158,6 +169,13 @@ test("phoneSavePaste is a line any agent chat can run", () => {
   assert.match(line, /editorSave fails|editorFold is no-cdp/)
   assert.match(line, /verify-with-profile/)
   assert.match(line, /claimOkProfile will not pass/)
+})
+
+test("phone.html clipboard equals phoneSavePaste", () => {
+  assert.equal(phoneHtmlSavePaste("consistencyhub"), phoneSavePaste("consistencyhub"))
+  assert.equal(phoneHtmlSavePaste(""), phoneSavePaste())
+  assert.equal(phoneHtmlSavePaste("  myapp  "), phoneSavePaste("  myapp  "))
+  assert.equal(phoneHtmlSavePaste(), phoneSavePaste())
 })
 
 test("saveProfileEditor POSTs editor/save", async () => {
