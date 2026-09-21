@@ -33,11 +33,12 @@ export SOLARI_API_KEY
 npx auspex check https://ironadamant.com --expect "One office job."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
-npx auspex check --name consistencyhub
+npx auspex login --profile consistencyhub
+npx auspex await-login --profile consistencyhub --save-editor
 npx auspex finalize-login --profile consistencyhub
 npx auspex profile-status --name consistencyhub
 npx auspex check --name consistencyhub --verify-with-profile
-npx auspex verify
+# Do not also run verify after a default / VWP check.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 

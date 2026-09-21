@@ -167,8 +167,42 @@ test("AGENTS first calls put profile-status before the consistencyhub check", ()
     assert.match(first, /auspex reap/)
     assert.match(first, /never --record/)
     assert.match(first, /Alice-vs-Bob/)
+    assert.match(first, /npx auspex await-login --profile myapp --save-editor/)
+    assert.match(first, /npx auspex await-login --profile consistencyhub --save-editor/)
     assert.equal(/\bnpx auspex desktop\b/.test(first), false, `${label} must not put desktop in First calls`)
   }
+})
+
+test("copy-paste fences put --save-editor on the typed await-login line", () => {
+  const pages = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
+  const demo = readFileSync(path.join(pkg, "DEMO.md"), "utf8")
+  const tryIt = pages.split("<h2>Try it</h2>")[1] ?? ""
+  assert.match(tryIt, /await-login --profile myapp --save-editor/)
+  assert.match(tryIt, /finalize-login --profile myapp/)
+  assert.ok(
+    tryIt.indexOf("await-login --profile myapp --save-editor") < tryIt.indexOf("finalize-login --profile myapp"),
+    "Pages Try it must await-login --save-editor before finalize-login",
+  )
+  assert.match(demo, /await-login --profile consistencyhub --save-editor/)
+})
+
+test("package README Run fence is login → await --save-editor → finalize → VWP, no trailing verify", () => {
+  const pack = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const run = pack.split("## Run")[1]?.split("### Commands")[0] ?? ""
+  const login = run.indexOf("npx auspex login --profile consistencyhub")
+  const awaitLogin = run.indexOf("npx auspex await-login --profile consistencyhub --save-editor")
+  const finalize = run.indexOf("npx auspex finalize-login --profile consistencyhub")
+  const vwp = run.indexOf("npx auspex check --name consistencyhub --verify-with-profile")
+  assert.notEqual(login, -1, "Run fence missing login")
+  assert.notEqual(awaitLogin, -1, "Run fence missing await-login --save-editor")
+  assert.notEqual(finalize, -1, "Run fence missing finalize-login")
+  assert.notEqual(vwp, -1, "Run fence missing check --verify-with-profile")
+  assert.ok(login < awaitLogin, "Run fence must login before await-login")
+  assert.ok(awaitLogin < finalize, "Run fence must await-login before finalize")
+  assert.ok(finalize < vwp, "Run fence must finalize before VWP check")
+  const bareCheck = run.indexOf("npx auspex check --name consistencyhub\n")
+  assert.ok(bareCheck === -1 || bareCheck > finalize, "do not check --name consistencyhub before finalize")
+  assert.equal(run.includes("npx auspex verify"), false, "do not run auspex verify after VWP")
 })
 
 test("root README first screen is For Reviewers + watch URL", () => {
