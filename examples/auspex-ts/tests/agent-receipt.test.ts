@@ -283,6 +283,56 @@ test("VWP envelope timeout with anonymousClaimSkipped stays matched and does not
   assert.equal(receipt.verify?.claimOkProfile, false)
 })
 
+test("toAgentReceipt next treats claimOkProfile as the reuse gate after VWP", () => {
+  const passed = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["anonymous claim skipped"],
+      anonymousClaimSkipped: true,
+      claimOkProfile: true,
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(passed.ok, true)
+  assert.equal(passed.verify?.claimOkProfile, true)
+  assert.match(passed.next ?? "", /Reuse gate is claimOkProfile/)
+  assert.match(passed.next ?? "", /ok=true is not enough to treat the profile as reusable/)
+  assert.match(passed.next ?? "", /claimOkProfile=true/)
+
+  const missed = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: false,
+      claimErrors: ["anonymous claim skipped"],
+      anonymousClaimSkipped: true,
+      claimOkProfile: false,
+      claimErrorsProfile: ["expect missing"],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal(missed.ok, true)
+  assert.equal(missed.verify?.claimOkProfile, false)
+  assert.match(missed.next ?? "", /Reuse gate is claimOkProfile/)
+  assert.match(missed.next ?? "", /claimOkProfile=false/)
+  assert.match(missed.next ?? "", /do not reuse this seed/)
+  assert.match(missed.next ?? "", /claimOkProfile will not pass/)
+
+  const anonymous = toAgentReceipt(sampleCheck({ matched: true }), {
+    verify: {
+      ok: true,
+      errors: [],
+      claimOk: true,
+      claimErrors: [],
+      runDir: ".auspex/runs/stamp",
+    },
+  })
+  assert.equal((anonymous.next ?? "").includes("Reuse gate is claimOkProfile"), false)
+  assert.equal(anonymous.verify?.claimOkProfile, undefined)
+})
+
 test("mismatch is not agent ok even when protocolOk is true", () => {
   const receipt = toAgentReceipt(
     sampleCheck({ ok: false, protocolOk: true, matched: false, reason: "mismatch" }),

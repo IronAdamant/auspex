@@ -170,7 +170,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. ok requires only integrity verify.ok when anonymous claim is skipped — read claimOkProfile separately; do not treat ok as the triad. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true).",
+      "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable. ok requires only integrity verify.ok when anonymous claim is skipped — read claimOkProfile separately; do not treat ok as the triad. Do not invent claimOkProfile=true. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true).",
     ),
   allowRecordProfile: z
     .boolean()
@@ -269,7 +269,7 @@ export const auspexAwaitLoginInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
     ),
 })
 
@@ -301,7 +301,9 @@ export const auspexReapInputSchema = z.object({
 })
 
 export const auspexFinalizeLoginInputSchema = z.object({
-  profile: profileNameSchema.describe("Profile name to finalize (SSO + save-profile; captures sessionStorage)"),
+  profile: profileNameSchema.describe(
+    "Profile name to finalize (SSO + save-profile; captures sessionStorage). Run NOW after Save/await-login when editorFold did not refresh; later reuse still needs claimOkProfile=true, not ok alone.",
+  ),
   url: httpUrlSchema.optional().describe(
     "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub)",
   ),

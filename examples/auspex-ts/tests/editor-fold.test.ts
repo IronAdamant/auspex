@@ -7,7 +7,14 @@ import {
   pickEditorCdp,
 } from "../src/editor-fold.ts"
 import { SESSION_STORAGE_PREFIX } from "../src/profile-storage.ts"
-import { DEAD_FOLD_VWP_BAN, remintLoginGuidance, weakSeedWarning } from "../src/profile-persist.ts"
+import {
+  DEAD_FOLD_VWP_BAN,
+  overlaySaveEditorNext,
+  remintLoginGuidance,
+  SAVE_NOT_FOLD_NOW,
+  saveEditorMissedFold,
+  weakSeedWarning,
+} from "../src/profile-persist.ts"
 
 test("pickEditorCdp accepts Playwright sockets and ignores VNC", () => {
   assert.deepEqual(
@@ -135,7 +142,47 @@ test("stale and missing sessionStorage next remint or finalize-now and ban VWP",
 
   const missing = weakSeedWarning("consistencyhub", { sessionStorage: 0 })
   assert.match(missing, /Finalize-login NOW/)
+  assert.match(missing, /while the token is live/)
   assert.match(missing, /claimOkProfile will not pass/)
   assert.match(missing, /finalize-login/)
+  assert.match(missing, /Remint auspex_login if finalize-login returns needsHuman/)
   assert.equal(missing.includes("Run auspex check"), false)
+})
+
+test("overlaySaveEditorNext is loud when editorSave fails or editorFold misses", () => {
+  assert.equal(saveEditorMissedFold({}), false)
+  assert.equal(saveEditorMissedFold({ editorFold: { ok: true, reason: "attached" } }), false)
+  assert.equal(saveEditorMissedFold({ editorSave: { ok: false, status: 401, error: "Unauthorized" } }), true)
+  assert.equal(saveEditorMissedFold({ editorFold: { ok: false, reason: "no-cdp" } }), true)
+
+  const healthy = "Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consistencyhub"
+  const failed = overlaySaveEditorNext({
+    next: healthy,
+    profile: "consistencyhub",
+    editorSave: { ok: false, status: 401, error: "Unauthorized" },
+  })
+  assert.equal(failed.includes("Run auspex check"), false)
+  assert.match(failed, /editorSave failed \(401: Unauthorized\)/)
+  assert.match(failed, /Finalize-login NOW while the token is live/)
+  assert.match(failed, /claimOkProfile will not pass/)
+  assert.match(failed, /Remint auspex_login if finalize-login returns needsHuman/)
+  assert.match(failed, new RegExp(SAVE_NOT_FOLD_NOW.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+
+  const noCdp = overlaySaveEditorNext({
+    next: healthy,
+    profile: "consistencyhub",
+    editorSave: { ok: true, status: 200 },
+    editorFold: { ok: false, reason: "no-cdp", error: EDITOR_FOLD_NO_CDP },
+  })
+  assert.equal(noCdp.includes("Run auspex check"), false)
+  assert.match(noCdp, /editorFold\.no-cdp did not refresh folded sessionStorage/)
+  assert.match(noCdp, /finalize-login/)
+
+  const untouched = overlaySaveEditorNext({
+    next: healthy,
+    profile: "consistencyhub",
+    editorSave: { ok: true, status: 200 },
+    editorFold: { ok: true, reason: "attached" },
+  })
+  assert.equal(untouched, healthy)
 })

@@ -6,6 +6,7 @@ import { parseReceiptV1, type ReceiptV1 } from "./receipt-schema.ts"
 import type { CheckResult } from "./check.ts"
 import { agentReceiptOk, overlayVerifyReason, type CheckReason } from "./check-reason.ts"
 import { packageRoot } from "./paths.ts"
+import { claimOkProfileReuseNext } from "./profile-persist.ts"
 import type { VerifyResult } from "./sandbox.ts"
 
 export type AgentReceipt = ReceiptV1
@@ -45,6 +46,7 @@ export function toAgentReceipt(
       next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`
     }
   }
+  next = claimOkProfileReuseNext(verify, next)
 
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,

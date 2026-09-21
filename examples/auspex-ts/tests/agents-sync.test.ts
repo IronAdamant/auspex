@@ -275,6 +275,34 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
 })
 
+test("operator docs make claimOkProfile the reuse gate and phone a seed door", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["USAGE", USAGE],
+    ["mcp-tools.ts", tools],
+    ["Cursor rule", cursorRule],
+    ["root README.md", rootReadme],
+  ] as const) {
+    assert.match(text, /reuse gate/, `${label} must name claimOkProfile as the reuse gate`)
+    assert.match(
+      text,
+      /not enough to treat the profile as reusable/,
+      `${label} must refuse ok-alone reuse`,
+    )
+    assert.match(
+      text,
+      /seed\/handoff door|same-session VNC takeover/,
+      `${label} must contrast phone.html with same-session takeover`,
+    )
+  }
+})
+
 test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
