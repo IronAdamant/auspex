@@ -8,7 +8,7 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 ```
 
-Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). ConsistencyHub is a saved check (`--name consistencyhub`) after finalize-login — it **defaults to no sandbox** (anonymous fetch cannot see the editor). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
+Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). An auth-gated host uses `--profile myapp` plus *their* URL and expect after finalize-login — attached profiles on non-public-marketing URLs **default to no sandbox** (anonymous fetch cannot see the editor). The named `consistencyhub` saved check is the optional [worked example](#worked-example-dogfood). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
 
 ```bash
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --no-verify
@@ -34,26 +34,40 @@ npx tsx src/cli.ts reap --dry-run
 npx tsx src/cli.ts reap
 ```
 
-Login-once (human Microsoft sign-in on the Solari Chrome card; Auspex captures sessionStorage via finalize-login):
+Login-once (human IdP sign-in on the Solari Chrome card; Auspex captures sessionStorage via finalize-login). This is the **operator** golden path — *their* site, `--profile myapp`:
 
 ```bash
 # 1. Human SSO in handoff → Save
-npx tsx src/cli.ts login --profile consistencyhub
+npx tsx src/cli.ts login --profile myapp --url https://app.example
 
 # 2. Wait for Save (--save-editor; warns if no sessionStorage)
-npx tsx src/cli.ts await-login --profile consistencyhub --save-editor
+npx tsx src/cli.ts await-login --profile myapp --save-editor
 
 # 3. Agent captures sessionStorage
-npx tsx src/cli.ts finalize-login --profile consistencyhub
+npx tsx src/cli.ts finalize-login --profile myapp --url https://app.example --expect "Dashboard"
 
 # 4. Later: reuse profile
-npx tsx src/cli.ts check --name consistencyhub
+npx tsx src/cli.ts check --profile myapp --url https://app.example --expect "Dashboard"
 
-# 5. Optional: profile-seeded claim recheck
-npx tsx src/cli.ts check --name consistencyhub --verify-with-profile
+# 5. Optional: profile-seeded claim recheck (read claimOkProfile; do not fold it into ok)
+npx tsx src/cli.ts check --profile myapp --url https://app.example --expect "Dashboard" --verify-with-profile
 
 # List profiles
 npx tsx src/cli.ts profiles
+```
+
+The generic path is the recipe. A named saved check is optional; do not invent that any host works without dogfood.
+
+## Worked example (dogfood)
+
+Redacted auth-gated SaaS demo (ConsistencyHub). Evidence that auth-gated verify works — not the default recipe.
+
+```bash
+npx tsx src/cli.ts login --profile consistencyhub
+npx tsx src/cli.ts await-login --profile consistencyhub --save-editor
+npx tsx src/cli.ts finalize-login --profile consistencyhub
+npx tsx src/cli.ts check --name consistencyhub
+npx tsx src/cli.ts check --name consistencyhub --verify-with-profile
 ```
 
 Weekly public loop (ironadamant.com `One office job.` + Checkpoint; skips without a key):
@@ -66,8 +80,8 @@ MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok to
 
 Public demo artifacts (Solari cloud Chrome, not a local window):
 
-- **Watch (ConsistencyHub Microsoft wall):** [demo/replay.html](demo/replay.html). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard.
+- **Watch (auth-gated Microsoft wall):** [demo/replay.html](demo/replay.html). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard.
 - **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`). Marketing summary with `sessionId` and verify flags.
-- **ConsistencyHub (auth-gated, redacted):** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
+- **Redacted auth-gated SaaS demo:** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
 
 **Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen)). Do not post unredacted logged-in ConsistencyHub dashboards.

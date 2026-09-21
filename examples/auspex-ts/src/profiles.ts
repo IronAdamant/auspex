@@ -138,7 +138,7 @@ export function handoffOpenOnDesktop(profileName: string): string {
 }
 
 const HANDOFF_HANG_GUIDANCE =
-  " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete Microsoft + OneDrive consent in the handoff card before Save; do not open parallel agent checks mid-consent."
+  " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent."
 
 export function formatHandoffNext(opts: {
   urlHint?: string

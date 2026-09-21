@@ -33,14 +33,17 @@ export SOLARI_API_KEY
 npx auspex check https://ironadamant.com --expect "One office job."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
-npx auspex login --profile consistencyhub
-npx auspex await-login --profile consistencyhub --save-editor
-npx auspex finalize-login --profile consistencyhub
-npx auspex profile-status --name consistencyhub
-npx auspex check --name consistencyhub --verify-with-profile
+npx auspex login --profile myapp --url https://app.example
+npx auspex await-login --profile myapp --save-editor
+npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex profile-status --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex check --profile myapp --url https://app.example --expect "Dashboard"
+# optional: --verify-with-profile after a live match; do not treat ok alone as reusable.
 # Do not also run verify after a default / VWP check.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
+
+The generic `--profile myapp` path is the recipe. A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood).
 
 Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
 
@@ -58,7 +61,7 @@ npx auspex profiles
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
-`login` creates or reuses a named Solari profile and prints **two labeled URLs**. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field — seed/handoff door, not a same-session VNC takeover). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <name> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. `--save-editor` / console Save do **not** refresh folded sessionStorage unless `editorFold.ok` (ConsistencyHub keeps `accessToken` + `expiresOn` there). If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, finalize-login NOW while the token is live; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. After Microsoft login run `finalize-login --profile <name>` **while the token is valid** (or `check --profile <name> --sso --save-profile`). Then `check --name consistencyhub` (or `--profile <name>`) in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.
+`login` creates or reuses a named Solari profile and prints **two labeled URLs**. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field — seed/handoff door, not a same-session VNC takeover). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <name> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. `--save-editor` / console Save do **not** refresh folded sessionStorage unless `editorFold.ok` (Microsoft OAuth SPAs keep `accessToken` + `expiresOn` there). If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, finalize-login NOW while the token is live; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. After Microsoft login run `finalize-login --profile <name> --url <url> --expect <string>` **while the token is valid** (saved-check profiles may omit url/expect). Then `check --profile <name> --url <url> --expect <string>` in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft **and Google** password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing`, `/login`, or `/` without a matched expect is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile` on a public marketing host. `--allow-record-profile` is refused for consistencyhub. Never `--record` a logged-in session.
 
@@ -72,7 +75,7 @@ Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, t
 
 `desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. 402 on Free. Wait, expect, and `ok` share one process haystack (`processList` + `ps`). `windowOk` is set only when a real window list exists. A `--click x,y` is attempted but `clicked` is not claimed. **FAIL-CLOSED `--type`** refuses password/OTP-like strings. `streamUrl` is the live VNC; Auspex still kills after the shot.
 
-`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or folded `__auspex_ss__:expiresOn` past/within ~5m (leftover count is not fresh). Public marketing saved checks stay `loggedOut`. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If ConsistencyHub needs a human, skip live and report it.
+`profile-status` reports `loggedIn` / `loggedOut` / `needsHuman` / **`weakSeed`** / **`emptySave`**. `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or folded `__auspex_ss__:expiresOn` past/within ~5m (leftover count is not fresh). Public marketing saved checks stay `loggedOut`. `emptySave` = profile not found or empty. The agent never types a password and does not ping the user. If the live probe needs a human, skip live and report it.
 
 ## MCP
 
@@ -96,6 +99,20 @@ Tools:
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.
 
-Live: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`), consistencyhub.io (`Document Editor` + saved `--profile`).
+Live public checks: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`). Auth-gated dogfood is the optional named check in [Worked example (dogfood)](#worked-example-dogfood).
 
 See [AGENTS.md](../../AGENTS.md) (canonical) and [DEMO.md](DEMO.md).
+
+## Worked example (dogfood)
+
+ConsistencyHub / OneDrive are **evidence that auth-gated SaaS works** — not the default recipe. The generic `--profile myapp` path is the recipe; `--name consistencyhub` is the verified example. Do not invent that any host works without dogfood.
+
+```bash
+npx auspex login --profile consistencyhub
+npx auspex await-login --profile consistencyhub --save-editor
+npx auspex finalize-login --profile consistencyhub
+npx auspex profile-status --name consistencyhub
+npx auspex check --name consistencyhub --verify-with-profile
+```
+
+**Verified 2026-09-18:** `ok=true`, `claimOkProfile=true` on the redacted auth-gated SaaS demo receipt (`demo/consistencyhub-receipt.json`). Do not fold `claimOkProfile` into `ok`. OneDrive with the same Microsoft profile is **recipe only** — no committed PNG/receipt (PII).

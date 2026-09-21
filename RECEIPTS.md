@@ -2,7 +2,20 @@
 
 Committed demo evidence from the Auspex check → verify → teardown workflow.
 
-**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords.
+**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `--profile myapp` plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
+
+## Default recipe (any host)
+
+```bash
+npx auspex profile-status --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex login --profile myapp --url https://app.example
+npx auspex await-login --profile myapp --save-editor
+npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex check --profile myapp --url https://app.example --expect "Dashboard"
+# optional: --verify-with-profile — read claimOkProfile; do not fold it into ok
+```
+
+Do not invent that any host works without dogfood. The generic path is the recipe; the named check below is the verified example.
 
 ## Understanding Verification Signals
 
@@ -16,9 +29,9 @@ Three distinct booleans in the receipt, each telling you something different:
 
 **For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` — that field is the reuse gate; `ok` alone is not enough to treat the profile as reusable. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL skip anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is still anonymous.
 
-## Verified Dogfood (2026-09-18 AEST)
+## Worked example (dogfood)
 
-After PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20. Committed redacted demo artifacts from 2026-09-19 AEST re-seed.
+Verified 2026-09-18 AEST after PR #27 (gotoWithSessionRestore) + ConsistencyHub profile reseed v20. Committed redacted demo artifacts from 2026-09-19 AEST re-seed. This named check is evidence — not the default recipe.
 
 ### ConsistencyHub
 ```bash
@@ -35,7 +48,7 @@ Live dogfood on a **local** Microsoft profile. **No committed OneDrive PNG/recei
 
 **Key insight:** The ConsistencyHub profile seed (Microsoft cookies + sessionStorage) can be reused for OneDrive. Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot.
 
-## ConsistencyHub (Auth-Gated SaaS Golden Path)
+## ConsistencyHub (optional named recipe)
 
 **Problem:** Console Save alone is insufficient for Microsoft OAuth SPAs like ConsistencyHub. Cookies without sessionStorage → lands on `/landing`.
 
@@ -45,7 +58,7 @@ Live dogfood on a **local** Microsoft profile. **No committed OneDrive PNG/recei
 npx auspex login --profile consistencyhub
 
 # 2. Wait for Save (warns if no sessionStorage)
-npx auspex await-login --profile consistencyhub
+npx auspex await-login --profile consistencyhub --save-editor
 
 # 3. Agent captures sessionStorage
 npx auspex finalize-login --profile consistencyhub
@@ -97,7 +110,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 **Public marketing pages** use anonymous verify by default — the right signal because no auth is needed.
 
-## ConsistencyHub Check (Auth-Gated SaaS — Redacted Demo)
+## Redacted auth-gated SaaS demo (ConsistencyHub path)
 
 **Claim:** "Document Editor" appears on [consistencyhub.io](https://consistencyhub.io) dashboard (auth-gated)
 

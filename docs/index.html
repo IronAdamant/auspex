@@ -79,10 +79,12 @@
     </p>
     <p>
       <strong>Measured:</strong> ironadamant public check.
-      <strong>Redacted demo:</strong> ConsistencyHub triad
-      <a href="demo/consistencyhub-receipt.json">receipt</a>.
-      <strong>Recipe only:</strong> OneDrive — no committed PNG/receipt.
-      <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>
+      <strong>Redacted demo:</strong> auth-gated SaaS triad
+      <a href="demo/consistencyhub-receipt.json">receipt</a>
+      (blur ≠ blank fail).
+      The generic recipe is <code>--profile myapp</code> plus <em>their</em> URL and expect.
+      Worked example (dogfood) lives in
+      <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>.
     </p>
     <p>
       An agent opens <strong>cloud Chrome</strong> (not your laptop), reads a page, then a
@@ -102,16 +104,16 @@
   <main>
     <iframe
       class="watch"
-      title="ConsistencyHub Sign in with Microsoft. Emails and passwords stripped."
+      title="Auth-gated SaaS: Sign in with Microsoft. Emails and passwords stripped."
       src="demo/replay.html"
       loading="lazy"
       referrerpolicy="no-referrer"
     ></iframe>
     <p>
-      The tape is <a href="https://consistencyhub.io/">consistencyhub.io</a>:
-      <strong>Sign in with Microsoft</strong>, then the empty box.
-      Emails and passwords are stripped. The logged-in dashboard is the blur below.
-      We do not publish that session.
+      The tape is an <strong>auth-gated Microsoft wall</strong> (emails and passwords stripped).
+      The logged-in dashboard is the blur below. We do not publish that session.
+      Host and receipts: <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>
+      / <a href="demo/consistencyhub-receipt.json">demo path</a>.
     </p>
 
     <div class="shots">
@@ -128,12 +130,11 @@
       <figure>
         <img
           src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/consistencyhub.png"
-          alt="Blurred ConsistencyHub dashboard. Redacted demo; blur protects PII. Not a blank fail."
+          alt="Blurred auth-gated SaaS dashboard. Redacted demo; blur protects PII. Not a blank fail."
         />
         <figcaption>
-          <strong>Redacted demo</strong> — live triad on a blurred dashboard (PII). Not a blank fail.
+          <strong>Redacted auth-gated SaaS demo</strong> — live triad on a blurred dashboard (PII). Not a blank fail.
           <a href="demo/consistencyhub-receipt.json">Receipt</a>.
-          OneDrive: recipe only — no committed PNG/receipt.
         </figcaption>
       </figure>
     </div>
@@ -144,7 +145,8 @@ npx auspex-solari check --name ironadamant
 npx auspex-solari check https://example.com --expect "Example Domain"
 npx auspex-solari login --profile myapp --url https://app.example
 npx auspex-solari await-login --profile myapp --save-editor
-npx auspex-solari finalize-login --profile myapp --url https://app.example --expect "Dashboard"</pre>
+npx auspex-solari finalize-login --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex-solari check --profile myapp --url https://app.example --expect "Dashboard"</pre>
   </main>
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>

@@ -73,7 +73,9 @@ npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
 - Sandbox VM killed
 - No leftover state
 
-## Evidence: ConsistencyHub + OneDrive Save+reuse
+## Worked example (dogfood): redacted auth-gated SaaS
+
+Evidence that the generic `--profile myapp` recipe works on a real Microsoft OAuth SPA. ConsistencyHub / OneDrive are **not** the default recipe.
 
 **ConsistencyHub** is a Microsoft OAuth SPA that stores `accessToken` in sessionStorage. Cookies alone won't restore the session.
 
