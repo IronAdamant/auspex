@@ -9,11 +9,13 @@ Watch URL is GitHub Pages (`https://ironadamant.com/auspex/`). The player is Con
 ## Post
 
 ```
-Auspex — agent web eyes that stay honest on auth-gated SaaS.
+Auspex. Agent web eyes that stay honest on auth-gated SaaS.
 
 Watch (no clone, no key):
 https://ironadamant.com/auspex/
 Player (not the jsDelivr source dump): https://ironadamant.com/auspex/demo/replay.html
+
+On the watch page the blurred dashboard is above the player. The player is the Microsoft sign-in wall, with emails and passwords stripped.
 
 The video is consistencyhub.io: Sign in with Microsoft, then the empty Microsoft box. Emails and passwords are stripped. Nobody typed them. The logged-in dashboard is a blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a logged-in recording.
 

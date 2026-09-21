@@ -73,6 +73,11 @@
   <header>
     <h1>Auspex</h1>
     <p>
+      An agent can say a dashboard loaded when the page is still the login screen.
+      Auspex opens cloud Chrome, reads the page, and a second machine checks that claim.
+      It never types a password.
+    </p>
+    <p>
       <strong>ok ≠ claimOk ≠ claimOkProfile.</strong>
       Those three receipt booleans are not interchangeable.
       We do not claim Alice-vs-Bob wrong-account detection.
@@ -86,10 +91,28 @@
       Worked example (dogfood) lives in
       <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>.
     </p>
-    <p>
-      An agent opens <strong>cloud Chrome</strong> (not your laptop), reads a page, then a
-      <strong>second machine</strong> checks the same claim. It never types a password.
-    </p>
+    <div class="shots">
+      <figure>
+        <img
+          src="demo/ironadamant.png"
+          alt="Cloud Chrome on ironadamant.com, a public page with no login"
+        />
+        <figcaption>
+          <strong>Measured public check</strong> (no login). Live schema-v1 receipt.
+          <a href="demo/ironadamant-receipt.json">Receipt</a>
+        </figcaption>
+      </figure>
+      <figure>
+        <img
+          src="demo/consistencyhub.png"
+          alt="Blurred auth-gated SaaS dashboard. Redacted demo; blur protects PII. Not a blank fail."
+        />
+        <figcaption>
+          <strong>Redacted auth-gated SaaS demo.</strong> Live triad on a blurred dashboard (PII). Not a blank fail.
+          <a href="demo/consistencyhub-receipt.json">Receipt</a>.
+        </figcaption>
+      </figure>
+    </div>
     <div class="card">
       <strong>Phone door.</strong>
       Auspex <code>phone.html</code> is a seed/handoff door for off-site typing (IME + Save paste),
@@ -111,33 +134,10 @@
     ></iframe>
     <p>
       The tape is an <strong>auth-gated Microsoft wall</strong> (emails and passwords stripped).
-      The logged-in dashboard is the blur below. We do not publish that session.
+      The logged-in dashboard is the blur above. We do not publish that session.
       Host and receipts: <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>
       / <a href="demo/consistencyhub-receipt.json">demo path</a>.
     </p>
-
-    <div class="shots">
-      <figure>
-        <img
-          src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/ironadamant.png"
-          alt="Cloud Chrome on ironadamant.com, a public page with no login"
-        />
-        <figcaption>
-          <strong>Measured public check</strong> (no login). Live schema-v1 receipt.
-          <a href="demo/ironadamant-receipt.json">Receipt</a>
-        </figcaption>
-      </figure>
-      <figure>
-        <img
-          src="https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/consistencyhub.png"
-          alt="Blurred auth-gated SaaS dashboard. Redacted demo; blur protects PII. Not a blank fail."
-        />
-        <figcaption>
-          <strong>Redacted auth-gated SaaS demo</strong> — live triad on a blurred dashboard (PII). Not a blank fail.
-          <a href="demo/consistencyhub-receipt.json">Receipt</a>.
-        </figcaption>
-      </figure>
-    </div>
 
     <h2>Try it</h2>
     <pre>export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
