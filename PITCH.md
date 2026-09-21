@@ -1,6 +1,6 @@
 # Auspex — agent web eyes that stay honest on auth-gated SaaS
 
-**`ok` ≠ `claimOk` ≠ `claimOkProfile`.** Those three receipt booleans are not interchangeable. We do **not** claim Alice-vs-Bob wrong-account detection — a seeded profile that is still the wrong Microsoft user can still match expect.
+**`ok` ≠ `claimOk` ≠ `claimOkProfile`.** Those three receipt booleans are not interchangeable. After `--verify-with-profile`, **`claimOkProfile` is the profile-reuse gate** — `ok` alone is not enough to treat the profile as reusable. We do **not** claim Alice-vs-Bob wrong-account detection — a seeded profile that is still the wrong Microsoft user can still match expect.
 
 ## The problem: agents lie about logged-in state
 
@@ -24,6 +24,7 @@ The agent thinks it's logged in. The human wastes hours debugging. The SaaS rema
 **SSO handoff**
 - Human signs into Microsoft/Google/etc in a Solari-hosted Chromium card
 - Agent never handles passwords or OTP
+- Phone `phone.html` is a seed/handoff door for off-site typing (IME + Save paste), **not** a same-session VNC takeover
 - Cookies + sessionStorage saved to a named profile, reusable across checks
 
 **Concurrency + reap**
@@ -62,7 +63,7 @@ npx auspex check --profile myapp --expect "Dashboard" --verify-with-profile
 - Launches a **second** Solari browser WITH the profile
 - Navigate to `finalUrl` and check if expect is in page text
 - Adds `claimOkProfile: true/false` to receipt (distinct from anonymous `claimOk`, which stays `false` + `anonymousClaimSkipped`)
-- `ok` requires only integrity `verify.ok` when anonymous claim is skipped — **read `claimOkProfile`**, do not treat `ok` as the triad
+- `ok` requires only integrity `verify.ok` when anonymous claim is skipped — **`claimOkProfile` is the reuse gate**; `ok` alone is not enough to treat the profile as reusable
 - Use for auth-gated SaaS where anonymous fetch can't see the UI. `--verify` (anonymous) is **not** this path and will poison `ok`.
 
 **Never:** overwrite `claimOk` silently. Both fields stay honest.

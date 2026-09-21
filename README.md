@@ -4,14 +4,15 @@ Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `cla
 
 ## For Reviewers
 
-The ironadamant one-liner is a **public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the redacted ConsistencyHub receipt (`ok` / `claimOk` / `claimOkProfile`).
+The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted demo** ConsistencyHub receipt (`ok` / `claimOk` / `claimOkProfile`). OneDrive is **recipe only** — no committed PNG/receipt (PII). See [RECEIPTS.md](RECEIPTS.md).
 
 | Door | Open this |
 | --- | --- |
 | **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (ConsistencyHub, Microsoft, emails/passwords stripped) |
+| **Auth-gated evidence** | Redacted CH [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) · OneDrive **recipe only** (no PNG) — [RECEIPTS.md](RECEIPTS.md) |
 | **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
-| **Any Microsoft-gated host** | `npx auspex-solari login --profile myapp --url <https>`. Phone: open `handoff.mobileUrl` (Auspex page, real keyboard). Tap Save (copies a line; paste it in the AI chat). Then `await-login --save-editor`, `finalize-login`, `check`. Never `--record`. |
+| **Any Microsoft-gated host** | `npx auspex-solari login --profile myapp --url <https>`. Phone: open `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Tap Save (copies a line; paste it in the AI chat). Then `await-login --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
 | **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
 | **Do not** | Type passwords · `--record` logged-in ConsistencyHub · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
@@ -27,11 +28,11 @@ Do not run npm `auspex` (a different scraper). After clone, `npx auspex` is the 
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
-![Solari cloud Chrome checking ironadamant.com (public check, no login)](examples/auspex-ts/demo/ironadamant.png)
+![Solari cloud Chrome checking ironadamant.com (measured public check, no login)](examples/auspex-ts/demo/ironadamant.png)
 
-### Auth-gated SaaS (redacted ConsistencyHub)
+### Auth-gated SaaS (redacted ConsistencyHub demo)
 
-**ConsistencyHub verified check** — blurred dashboard proving the verification triad stays honest. Blur ≠ blank fail.
+**Redacted demo** — blurred dashboard proving the verification triad stays honest. Blur ≠ blank fail. OneDrive with the same Microsoft profile is **recipe only** (no committed PNG/receipt).
 
 ![ConsistencyHub dashboard (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
 
@@ -43,9 +44,9 @@ Full agent instructions: [AGENTS.md](AGENTS.md) · Package: [examples/auspex-ts]
 
 Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login / finalize / profile-status / reap are the auth + hygiene doors.
 
-- **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile`; read that field, not only `ok`). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
+- **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile` is the profile-reuse gate; `ok` alone is not enough to treat the profile as reusable). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 
-- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing, or folded `expiresOn` is stale. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. **`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok`. ConsistencyHub still needs `finalize-login` while the token is valid. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
+- **`auspex_login` / `auspex_await_login`** — two labeled URLs. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field; Save copies a line to paste in the AI chat). That page is a seed/handoff door for off-site typing, **not** a same-session VNC takeover. Computer: `handoff.desktopUrl` (Solari console Open editor). Solari noVNC will not open the phone keyboard. After phone Save, `await-login --save-editor`. Empty Save is not success. Soft-warns if cookies/origins exist but sessionStorage is missing, or folded `expiresOn` is stale. If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, `next` says finalize-login NOW; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. **`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok`. ConsistencyHub still needs `finalize-login` while the token is valid. `--mobile` / `--device` is viewport emulation on cloud Chrome, not this phone-login door.
 
 - **`auspex_finalize_login`** — post-login one-shot: SSO + `--save-profile` to capture sessionStorage. Saved-check profiles (e.g. `consistencyhub`) supply URL and expect; unknown profiles require `--url` and `--expect`. Same as `check --profile … --sso --save-profile`.
 
@@ -63,7 +64,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 - **No logged-in recording by default:** `--record` + `--profile` is forbidden unless `--allow-record-profile` on a public marketing host. Refused for consistencyhub.
 - **No page actions with profiles by default:** `--fill` / `--click` with a profile requires `--allow-page-actions`.
 - **Schema v1 frozen:** `schemaVersion: 1` on stdout. CLI and MCP are the same contract.
-- **`ok` ≠ `claimOk` ≠ `claimOkProfile`:** After `--verify-with-profile`, read `claimOkProfile` — `ok` is not that signal.
+- **`ok` ≠ `claimOk` ≠ `claimOkProfile`:** After `--verify-with-profile`, **`claimOkProfile` is the reuse gate** — `ok` alone is not enough to treat the profile as reusable.
 
 ## ConsistencyHub recipe (auth-gated example)
 

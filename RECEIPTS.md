@@ -14,7 +14,7 @@ Three distinct booleans in the receipt, each telling you something different:
 
 **For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
 
-**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` as the right signal. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL skip anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is still anonymous.
+**For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` — that field is the reuse gate; `ok` alone is not enough to treat the profile as reusable. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL skip anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is still anonymous.
 
 ## Verified Dogfood (2026-09-18 AEST)
 
