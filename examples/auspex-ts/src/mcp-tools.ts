@@ -60,7 +60,7 @@ const REAP_DESCRIPTION =
   "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
 
 const TRACE_DESCRIPTION =
-  "Read the last Solari LOGIN MINT episode (lead-up only). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout) or Mint ready. Log stops when Chromium/handoff is ready; await-login/check are not this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace."
+  "Read the last Solari LOGIN MINT episode (lead-up only; event: login). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). Log stops when Chromium/handoff is ready; await-login / finalize-login / check are not written to this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace."
 
 function toolJson(obj: object): string {
   return JSON.stringify(stampSchema(obj), null, 2)

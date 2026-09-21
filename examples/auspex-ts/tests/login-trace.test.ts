@@ -98,13 +98,11 @@ test("appendLoginTrace then readLoginTrace round-trips redacted events", async (
     )
     await appendLoginTrace(
       {
-        event: "await-login",
+        event: "login",
         profile: "consistencyhub",
-        status: "completed",
-        editorSaveOk: false,
-        editorSaveStatus: 401,
-        cookies: 74,
-        idpCookies: false,
+        mintStage: "editor-start",
+        editorStartStatus: 401,
+        vncMintOk: false,
       },
       file,
     )
@@ -114,7 +112,7 @@ test("appendLoginTrace then readLoginTrace round-trips redacted events", async (
     const all = await readLoginTrace({ file, limit: 10 })
     assert.equal(all.events.length, 2)
     assert.equal(all.events[0]?.phoneDoor, "novnc-fallback")
-    assert.equal(all.events[1]?.editorSaveStatus, 401)
+    assert.equal(all.events[1]?.editorStartStatus, 401)
     const filtered = await readLoginTrace({ file, profile: "other", limit: 10 })
     assert.equal(filtered.events.length, 0)
   } finally {
@@ -140,35 +138,20 @@ test("recordLoginTrace groups remints into episodes and summarizes for agents", 
   const activeFile = path.join(dir, "active.json")
   try {
     const first = await recordLoginTrace(
-      { event: "login", profile: "consistencyhub", phoneDoor: "novnc-fallback", computerDoor: "console-editor", vncMintOk: false },
+      {
+        event: "login",
+        profile: "consistencyhub",
+        phoneDoor: "novnc-fallback",
+        computerDoor: "console-editor",
+        vncMintOk: false,
+        mintStage: "editor-token",
+      },
       { file, activeFile },
     )
     assert.equal(first.remintCount, 1)
     assert.ok(first.episodeId)
-    await recordLoginTrace(
-      {
-        event: "await-login",
-        profile: "consistencyhub",
-        status: "completed",
-        editorSaveOk: false,
-        editorSaveStatus: 401,
-        idpCookies: false,
-        sessionStorageStale: true,
-      },
-      { file, activeFile },
-    )
-    await recordLoginTrace(
-      {
-        event: "finalize-login",
-        profile: "consistencyhub",
-        reason: "needsHuman",
-        finalHost: "login.microsoftonline.com",
-        finalPath: "/common/oauth2/v2.0/authorize",
-      },
-      { file, activeFile },
-    )
     const second = await recordLoginTrace(
-      { event: "login", profile: "consistencyhub", phoneDoor: "ime", vncMintOk: true },
+      { event: "login", profile: "consistencyhub", phoneDoor: "ime", vncMintOk: true, mintStage: "ready" },
       { file, activeFile },
     )
     assert.equal(second.remintCount, 2)
@@ -176,13 +159,14 @@ test("recordLoginTrace groups remints into episodes and summarizes for agents", 
     const last = await readLoginTrace({ file, profile: "consistencyhub" })
     assert.equal(last.episodeId, second.episodeId)
     assert.equal(last.events.every((e) => e.episodeId === second.episodeId), true)
-    assert.equal(last.events.some((e) => e.event === "await-login"), false)
+    assert.equal(last.events.every((e) => e.event === "login"), true)
     const history = await readLoginTrace({ file, all: true, limit: 20 })
-    assert.ok(history.events.length >= 4)
+    assert.ok(history.events.length >= 2)
     const summary = summarizeLoginTrace(
       history.events.filter((e) => e.episodeId === first.episodeId),
     )
     assert.match(summary, /remint 1/)
+    assert.equal(/Mint ready/.test(summary), false)
     assert.equal(/password\s*=/i.test(summary), false)
   } finally {
     await rm(dir, { recursive: true, force: true })
@@ -244,9 +228,44 @@ test("summarizeLoginTrace says mint ready and names mint-stop why", () => {
   assert.match(tok, /20s/)
 })
 
+test("summarizeLoginTrace does not say Mint ready when VNC/token mint failed", () => {
+  const emptyToken = summarizeLoginTrace([
+    {
+      ts: "t",
+      event: "login",
+      profile: "x",
+      mintStage: "editor-token",
+      vncMintOk: false,
+      editorStartStatus: 0,
+      tokenTries: 0,
+      phoneDoor: "none",
+      remintIndex: 1,
+      episodeId: "ep-empty",
+    },
+  ])
+  assert.equal(/Mint ready/.test(emptyToken), false)
+  assert.match(emptyToken, /editor-token/)
+  assert.match(emptyToken, /empty handoff token/)
+  assert.match(emptyToken, /Phone door not ready/)
+  const legacyReadyLabel = summarizeLoginTrace([
+    {
+      ts: "t",
+      event: "login",
+      profile: "x",
+      mintStage: "ready",
+      vncMintOk: false,
+      urlPresent: true,
+      phoneDoor: "none",
+      remintIndex: 1,
+    },
+  ])
+  assert.equal(/Mint ready/.test(legacyReadyLabel), false)
+  assert.match(legacyReadyLabel, /VNC did not/)
+})
+
 test("summarizeLoginTrace advises reap on 429 and remint on 503", () => {
   const s429 = summarizeLoginTrace([
-    { ts: "t", event: "check", profile: "consistencyhub", solariStatus: 429, solariCode: "ConcurrencyLimitExceeded" },
+    { ts: "t", event: "login", profile: "consistencyhub", solariStatus: 429, solariCode: "ConcurrencyLimitExceeded" },
   ])
   assert.match(s429, /429/)
   assert.match(s429, /auspex_reap/)
