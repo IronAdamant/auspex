@@ -13,9 +13,25 @@ export const LOGIN_TRACE_LIMIT_DEFAULT = 50
 export const LOGIN_TRACE_LIMIT_MAX = 200
 const COOKIE_HOST_CAP = 40
 
-export type LoginTraceEventName = "login" | "await-login" | "finalize-login" | "check"
+/** Production writes mint lead-up only. await-login / finalize-login / check are not journaled. */
+export type LoginTraceEventName = "login"
 
 export type PhoneDoor = "ime" | "novnc-fallback" | "none"
+
+export type LoginMintStage =
+  | "key-check"
+  | "profile-ensure"
+  | "handoff-post"
+  | "editor-start"
+  | "editor-token"
+  | "ready"
+
+/** Seed extras on profileSeed (await/check). Not journal rows — production does not write those stages. */
+export type LoginTraceSeedExtras = {
+  cookieHosts?: string[]
+  idpCookies?: boolean
+  foldedExpiresInSec?: number
+}
 
 export type LoginTraceEvent = {
   ts: string
@@ -26,7 +42,7 @@ export type LoginTraceEvent = {
   phoneDoor?: PhoneDoor
   computerDoor?: "console-editor"
   vncMintOk?: boolean
-  mintStage?: "key-check" | "profile-ensure" | "handoff-post" | "editor-start" | "editor-token" | "ready"
+  mintStage?: LoginMintStage
   urlPresent?: boolean
   hostKind?: "public" | "cluster-internal" | "other"
   editorStartStatus?: number
@@ -34,21 +50,6 @@ export type LoginTraceEvent = {
   tokenTries?: number
   expiresAt?: string
   sinceVersion?: number
-  version?: number
-  status?: string
-  editorSaveOk?: boolean
-  editorSaveStatus?: number
-  editorFoldReason?: string
-  cookies?: number
-  origins?: number
-  sessionStorage?: number
-  sessionStorageStale?: boolean
-  foldedExpiresInSec?: number
-  cookieHosts?: string[]
-  idpCookies?: boolean
-  reason?: string
-  finalHost?: string
-  finalPath?: string
   solariStatus?: number
   solariCode?: string
 }
@@ -106,9 +107,9 @@ export function foldedExpiresInSecFromState(
 export function loginTraceSeedExtras(
   state: StorageState | null | undefined,
   origin?: string,
-): Pick<LoginTraceEvent, "cookieHosts" | "idpCookies" | "foldedExpiresInSec"> {
+): LoginTraceSeedExtras {
   const cookieHosts = cookieHostsFromState(state)
-  const extras: Pick<LoginTraceEvent, "cookieHosts" | "idpCookies" | "foldedExpiresInSec"> = {}
+  const extras: LoginTraceSeedExtras = {}
   if (cookieHosts.length) extras.cookieHosts = cookieHosts
   if (cookieHosts.length) extras.idpCookies = idpCookiesFromHosts(cookieHosts)
   const folded = foldedExpiresInSecFromState(state, origin)
@@ -226,6 +227,9 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     return `${prefix} Transient Solari infrastructure HTTP ${last.solariStatus}. Wait 5-10s, remint login (handoff URLs are single-use).`
   }
   if (last.mintStage === "editor-token" && last.vncMintOk === false) {
+    if ((last.editorStartStatus ?? 0) === 0 && (last.tokenTries ?? 0) === 0) {
+      return `${prefix} Mint stopped at editor-token: empty handoff token (VNC not minted). Phone door not ready. Computer Open editor may still work. Remint if the human cannot open the card.`
+    }
     const start = last.editorStartStatus ?? "ok"
     const tries = last.tokenTries ?? 20
     return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Computer Open editor may still work. Refresh the handoff card once; if still blank after 2-3 minutes, remint.`
@@ -240,7 +244,7 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     last.hostKind === "cluster-internal"
       ? "Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. "
       : ""
-  if (last.mintStage === "ready" || (last.urlPresent === true && last.vncMintOk === true)) {
+  if (last.vncMintOk === true) {
     return `${prefix} ${clusterNote}Mint ready. ${door} Mint log stops here. Use await-login / finalize-login / check as normal ops.`
   }
   if (last.urlPresent === true && last.vncMintOk === false) {
@@ -268,17 +272,12 @@ export async function recordLoginTrace(
     const active = await loadActive(activeFile)
     let episodeId = event.episodeId
     let remintIndex = event.remintIndex
-    if (event.event === "login" && profile) {
+    if (profile) {
       remintIndex = existing.filter((e) => e.event === "login" && e.profile === profile).length + 1
       episodeId = event.episodeId ?? newEpisodeId()
       active[profile] = { episodeId, remintIndex }
       await mkdir(path.dirname(activeFile), { recursive: true })
       await writeFile(activeFile, `${JSON.stringify(active)}\n`)
-    } else if (profile && active[profile]) {
-      episodeId = episodeId ?? active[profile].episodeId
-      remintIndex = remintIndex ?? active[profile].remintIndex
-    } else if (!episodeId) {
-      episodeId = [...existing].reverse().find((e) => e.episodeId && (!profile || e.profile === profile))?.episodeId
     }
     await appendLoginTrace({ ...event, episodeId, remintIndex }, file)
     const episodeEvents = (await loadJsonl(file)).filter((e) => (episodeId ? e.episodeId === episodeId : true))

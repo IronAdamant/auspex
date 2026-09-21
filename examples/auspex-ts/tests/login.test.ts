@@ -9,6 +9,7 @@ import {
   attachHandoffQr,
   fetchEditorVncToken,
   editorStartOk,
+  mintStageAfterVnc,
   formatLogin,
   phoneSavePaste,
   saveProfileEditor,
@@ -147,6 +148,37 @@ test("fetchEditorVncToken keeps editor-start HTTP status when start is not 200/2
   assert.equal(mint.token, undefined)
   assert.equal(mint.editorStartStatus, 503)
   assert.equal(mint.tokenTries, 0)
+  assert.equal(mintStageAfterVnc(mint), "editor-start")
+})
+
+test("empty handoffToken does not report mintStage ready", async () => {
+  let posted = false
+  const mint = await fetchEditorVncToken("prof_1", "", {
+    sleepMs: 0,
+    tries: 2,
+    post: async () => {
+      posted = true
+      return { status: 200, json: { token: "should-not-run" } }
+    },
+  })
+  assert.equal(posted, false)
+  assert.equal(mint.token, undefined)
+  assert.equal(mint.editorStartStatus, 0)
+  assert.equal(mint.tokenTries, 0)
+  assert.equal(mintStageAfterVnc(mint, Boolean(mint.token)), "editor-token")
+  assert.notEqual(mintStageAfterVnc(mint, Boolean(mint.token)), "ready")
+  const blankId = await fetchEditorVncToken("", "hand_1", {
+    post: async () => ({ status: 200, json: { token: "nope" } }),
+  })
+  assert.equal(mintStageAfterVnc(blankId, Boolean(blankId.token)), "editor-token")
+  assert.equal(
+    mintStageAfterVnc({ token: "vnc", editorStartStatus: 200, tokenTries: 1 }, true),
+    "ready",
+  )
+  assert.equal(
+    mintStageAfterVnc({ editorStartStatus: 200, tokenTries: 20 }, false),
+    "editor-token",
+  )
 })
 
 test("docs/phone.html has a real text field and loads the local noVNC client", () => {

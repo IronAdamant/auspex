@@ -683,13 +683,16 @@ function summarizeLoginTrace(events) {
     return `${prefix} Transient Solari infrastructure HTTP ${last.solariStatus}. Wait 5-10s, remint login (handoff URLs are single-use).`;
   }
   if (last.mintStage === "editor-token" && last.vncMintOk === false) {
+    if ((last.editorStartStatus ?? 0) === 0 && (last.tokenTries ?? 0) === 0) {
+      return `${prefix} Mint stopped at editor-token: empty handoff token (VNC not minted). Phone door not ready. Computer Open editor may still work. Remint if the human cannot open the card.`;
+    }
     const start = last.editorStartStatus ?? "ok";
     const tries = last.tokenTries ?? 20;
     return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Computer Open editor may still work. Refresh the handoff card once; if still blank after 2-3 minutes, remint.`;
   }
   const door = last.phoneDoor === "ime" ? "Phone door is phone.html (IME)." : last.phoneDoor === "novnc-fallback" ? "Phone door fell back to Solari noVNC; computer Open editor still works." : "Computer Open editor is the door.";
   const clusterNote = last.hostKind === "cluster-internal" ? "Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. " : "";
-  if (last.mintStage === "ready" || last.urlPresent === true && last.vncMintOk === true) {
+  if (last.vncMintOk === true) {
     return `${prefix} ${clusterNote}Mint ready. ${door} Mint log stops here. Use await-login / finalize-login / check as normal ops.`;
   }
   if (last.urlPresent === true && last.vncMintOk === false) {
@@ -709,18 +712,13 @@ async function recordLoginTrace(event, opts = {}) {
     const active = await loadActive(activeFile);
     let episodeId = event.episodeId;
     let remintIndex = event.remintIndex;
-    if (event.event === "login" && profile) {
+    if (profile) {
       remintIndex = existing.filter((e) => e.event === "login" && e.profile === profile).length + 1;
       episodeId = event.episodeId ?? newEpisodeId();
       active[profile] = { episodeId, remintIndex };
       await mkdir2(path2.dirname(activeFile), { recursive: true });
       await writeFile(activeFile, `${JSON.stringify(active)}
 `);
-    } else if (profile && active[profile]) {
-      episodeId = episodeId ?? active[profile].episodeId;
-      remintIndex = remintIndex ?? active[profile].remintIndex;
-    } else if (!episodeId) {
-      episodeId = [...existing].reverse().find((e) => e.episodeId && (!profile || e.profile === profile))?.episodeId;
     }
     await appendLoginTrace({ ...event, episodeId, remintIndex }, file);
     const episodeEvents = (await loadJsonl(file)).filter((e) => episodeId ? e.episodeId === episodeId : true);
@@ -1492,6 +1490,7 @@ __export(profiles_exports, {
   loadEditorSave: () => loadEditorSave,
   loginInstructions: () => loginInstructions,
   loginProfile: () => loginProfile,
+  mintStageAfterVnc: () => mintStageAfterVnc,
   persistEditorSave: () => persistEditorSave,
   phoneHandoffUrl: () => phoneHandoffUrl,
   phoneSavePaste: () => phoneSavePaste,
@@ -1726,6 +1725,11 @@ async function defaultEditorPost(handoffToken) {
 function editorStartOk(status) {
   return status === 200 || status === 201 || status === 202 || status === 409;
 }
+function mintStageAfterVnc(mint, vncMintOk = Boolean(mint.token)) {
+  if (vncMintOk) return "ready";
+  const editorStartBad = mint.editorStartStatus !== 0 && !editorStartOk(mint.editorStartStatus);
+  return editorStartBad ? "editor-start" : "editor-token";
+}
 async function fetchEditorVncToken(profileId, handoffToken, opts) {
   const token = handoffToken.trim();
   const id = profileId.trim();
@@ -1791,8 +1795,7 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts);
     const vncMintOk = Boolean(vncMint.token);
     const phoneDoor = isPhoneImeUrl(result.handoff?.mobileUrl) ? "ime" : result.handoff?.mobileUrl ? "novnc-fallback" : "none";
-    const editorStartBad = vncMint.editorStartStatus !== 0 && !editorStartOk(vncMint.editorStartStatus);
-    mintStage = vncMintOk ? "ready" : editorStartBad ? "editor-start" : vncMint.tokenTries > 0 ? "editor-token" : "ready";
+    mintStage = mintStageAfterVnc(vncMint, vncMintOk);
     const traced = await recordLoginTrace({
       event: "login",
       profile: result.name,
@@ -2815,10 +2818,7 @@ function toAgentReceipt(check, extras) {
     verify,
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved,
-    protocolOk: check.protocolOk,
-    episodeId: check.episodeId,
-    remintCount: check.remintCount,
-    traceSummary: check.traceSummary
+    protocolOk: check.protocolOk
   };
   for (const [key, value] of Object.entries(optional)) {
     if (value !== void 0) receipt[key] = value;
@@ -5177,7 +5177,7 @@ var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
 var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid.";
 var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
-var TRACE_DESCRIPTION = "Read the last Solari LOGIN MINT episode (lead-up only). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout) or Mint ready. Log stops when Chromium/handoff is ready; await-login/check are not this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";
+var TRACE_DESCRIPTION = "Read the last Solari LOGIN MINT episode (lead-up only; event: login). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). Log stops when Chromium/handoff is ready; await-login / finalize-login / check are not written to this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";
 function toolJson(obj) {
   return JSON.stringify(stampSchema(obj), null, 2);
 }
