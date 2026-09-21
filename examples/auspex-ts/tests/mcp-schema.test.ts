@@ -185,6 +185,7 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     
     const verifyWithProfileDesc = (props as any).verifyWithProfile?.description ?? ""
     assert.match(verifyWithProfileDesc, /claimOkProfile/i, "verifyWithProfile should mention claimOkProfile")
+    assert.match(verifyWithProfileDesc, /reuse gate|not enough to treat the profile as reusable/)
     
     const required = check.inputSchema.required ?? []
     assert.equal(required.includes("url"), false)
@@ -225,6 +226,8 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(login.description ?? "", /mobileUrl/)
     assert.match(login.description ?? "", /desktopUrl/)
     assert.match(login.description ?? "", /phone\.html|real text field/)
+    assert.match(login.description ?? "", /seed\/handoff door/)
+    assert.match(login.description ?? "", /not a same-session VNC takeover/)
     assert.match(login.description ?? "", /noVNC/)
     assert.match(login.description ?? "", /software keyboard/)
     assert.equal((login.description ?? "").includes("gateUrl"), false)
@@ -235,11 +238,14 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(awaitLogin.description ?? "", /30 minutes/)
     assert.match(awaitLogin.description ?? "", /saveEditor/)
     assert.match(awaitLogin.description ?? "", /GET editor HTTP 401/)
+    assert.match(awaitLogin.description ?? "", /finalize-login NOW/)
+    assert.match(awaitLogin.description ?? "", /editorSave fails|editorFold is no-cdp/)
     assert.ok("saveEditor" in (awaitLogin.inputSchema.properties ?? {}))
     assert.match(login.description ?? "", /phone keyboard|never copies the password/i)
     const finalize = listed.tools.find((t) => t.name === "auspex_finalize_login")
     assert.ok(finalize, "auspex_finalize_login missing from ListTools")
     assert.match(finalize.description ?? "", /sessionStorage|save-profile|SSO/i)
+    assert.match(finalize.description ?? "", /claimOkProfile=true|reuse/)
     const status = listed.tools.find((t) => t.name === "auspex_profile_status")
     assert.ok(status, "auspex_profile_status missing from ListTools")
     assert.match(status.description ?? "", /loggedIn|loggedOut|needsHuman/)
@@ -247,6 +253,7 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(status.description ?? "", /password/)
     assert.match(check.description ?? "", /name=consistencyhub.*verify=false|defaults to verify=false/i)
     assert.match(check.description ?? "", /They are not equivalent/)
+    assert.match(check.description ?? "", /reuse gate|not enough to treat the profile as reusable/)
     assert.match(desktop.description ?? "", /FAIL-CLOSED|password\/OTP/i)
     assert.ok("open" in deskProps || "type" in deskProps)
     assert.ok("expect" in deskProps)

@@ -158,9 +158,64 @@ export function finalizeLoginGuidance(profile: string): string {
 export const DEAD_FOLD_VWP_BAN =
   "Do not run check --verify-with-profile on this seed — claimOkProfile will not pass on a dead fold."
 
+/** After --verify-with-profile, this field is the reuse signal. ok is not. */
+export const CLAIM_OK_PROFILE_REUSE_GATE =
+  "Reuse gate is claimOkProfile, not ok. ok=true is not enough to treat the profile as reusable."
+
+export const SAVE_NOT_FOLD_NOW =
+  "Save is not fold: --save-editor did not refresh folded sessionStorage. Finalize-login NOW while the token is live. " +
+  DEAD_FOLD_VWP_BAN +
+  " Remint auspex_login if finalize-login returns needsHuman."
+
 export function remintLoginGuidance(profile: string): string {
   const name = profile.trim() || "<name>"
   return `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`
+}
+
+/** Receipt next when verify-with-profile ran (claimOkProfile is present). Does not invent the boolean. */
+export function claimOkProfileReuseNext(
+  verify?: { claimOkProfile?: boolean },
+  existing?: string,
+): string | undefined {
+  if (verify?.claimOkProfile === undefined) return existing
+  const gate =
+    verify.claimOkProfile === true
+      ? `${CLAIM_OK_PROFILE_REUSE_GATE} claimOkProfile=true — profile reuse is evidenced by this field.`
+      : `${CLAIM_OK_PROFILE_REUSE_GATE} claimOkProfile=false — do not reuse this seed. Remint or finalize-login while the token is live. ${DEAD_FOLD_VWP_BAN}`
+  return existing ? `${existing} ${gate}` : gate
+}
+
+export function saveEditorMissedFold(opts: {
+  editorSave?: { ok: boolean; status: number; error?: string }
+  editorFold?: EditorFoldResult
+}): boolean {
+  if (opts.editorSave && !opts.editorSave.ok) return true
+  if (opts.editorFold && !opts.editorFold.ok) return true
+  if (opts.editorSave?.ok === true && !opts.editorFold) return true
+  return false
+}
+
+/** Louder await-login next when --save-editor failed to refresh folded sessionStorage. */
+export function overlaySaveEditorNext(opts: {
+  next: string
+  profile: string
+  editorSave?: { ok: boolean; status: number; error?: string }
+  editorFold?: EditorFoldResult
+}): string {
+  if (!saveEditorMissedFold(opts)) return opts.next
+  const why = !opts.editorSave
+    ? "editorFold did not refresh folded sessionStorage."
+    : !opts.editorSave.ok
+      ? `editorSave failed (${opts.editorSave.status}${opts.editorSave.error ? `: ${opts.editorSave.error}` : ""}).`
+      : opts.editorFold
+        ? `editorFold.${opts.editorFold.reason} did not refresh folded sessionStorage.`
+        : "editorFold missing after editorSave; leftover sessionStorage is not a fresh capture."
+  const stripped = opts.next.replace(/\s*Run auspex check with --profile \S+\.?/g, "").trim()
+  const prefix = stripped || opts.next
+  if (prefix.includes("Finalize-login NOW") && prefix.includes("claimOkProfile will not pass")) {
+    return `${prefix} ${why} ${SAVE_NOT_FOLD_NOW}`
+  }
+  return `${prefix} ${why} ${SAVE_NOT_FOLD_NOW} ${finalizeLoginGuidance(opts.profile)}`
 }
 
 /** Agent skipReason / await-login Warning when the seed is missing or stale sessionStorage. */
@@ -172,12 +227,13 @@ export function weakSeedWarning(
     return (
       `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
       `--save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remintLoginGuidance(profile)} ` +
-      `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ${finalizeLoginGuidance(profile)}`
+      `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ` +
+      `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`
     )
   }
   return (
-    `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW. ` +
-    `${DEAD_FOLD_VWP_BAN} ${finalizeLoginGuidance(profile)}`
+    `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ` +
+    `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`
   )
 }
 
@@ -430,7 +486,16 @@ export async function liveAwaitLogin(
       },
     })
     if (editorSave || editorFold) {
-      return { ...waited, ...(editorSave ? { editorSave } : {}), ...(editorFold ? { editorFold } : {}) }
+      const withEditor = { ...waited, ...(editorSave ? { editorSave } : {}), ...(editorFold ? { editorFold } : {}) }
+      return {
+        ...withEditor,
+        next: overlaySaveEditorNext({
+          next: waited.next,
+          profile: waited.name,
+          editorSave,
+          editorFold,
+        }),
+      }
     }
     return waited
   } finally {

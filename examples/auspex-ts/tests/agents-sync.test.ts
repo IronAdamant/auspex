@@ -166,6 +166,7 @@ test("AGENTS first calls put profile-status before the consistencyhub check", ()
     assert.match(first, /Do not intern-ping/)
     assert.match(first, /auspex reap/)
     assert.match(first, /never --record/)
+    assert.match(first, /Alice-vs-Bob/)
     assert.equal(/\bnpx auspex desktop\b/.test(first), false, `${label} must not put desktop in First calls`)
   }
 })
@@ -180,6 +181,12 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.equal(first.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"), false)
   assert.match(first, /[Pp]ublic check/)
   assert.match(first, /[Aa]uth-gated/)
+  assert.match(first, /measured public check|Measured public check/)
+  assert.match(first, /[Rr]edacted demo/)
+  assert.match(first, /Auth-gated evidence/)
+  assert.match(first, /consistencyhub-receipt\.json/)
+  assert.match(first, /OneDrive is \*\*recipe only\*\*|recipe only/)
+  assert.match(first, /Alice-vs-Bob/)
   assert.match(first, /Issues.*skip/i)
   assert.equal(first.includes("no public GitHub Issues tracker"), false)
 })
@@ -243,6 +250,19 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
 test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
   const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
   const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
+  const header = index.split("<iframe")[0] ?? ""
+  assert.match(header, /ok ≠ claimOk ≠ claimOkProfile/)
+  assert.match(header, /Alice-vs-Bob/)
+  assert.match(header, /seed\/handoff door/)
+  assert.match(header, /same-session HITL takeover/)
+  assert.match(header, /Phone door/)
+  assert.match(header, /class="card"/)
+  assert.match(header, /OneDrive/)
+  assert.match(header, /[Rr]ecipe only/)
+  assert.match(header, /consistencyhub-receipt\.json/)
+  assert.match(index, /Measured public check/)
+  assert.match(index, /Redacted demo/)
+  assert.match(index, /OneDrive: recipe only|Recipe only/)
   assert.match(index, /src="demo\/replay\.html"/)
   assert.equal(
     index.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
@@ -273,6 +293,34 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(discord, /ok.*claimOk.*claimOkProfile/)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(index), false)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
+})
+
+test("operator docs make claimOkProfile the reuse gate and phone a seed door", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["USAGE", USAGE],
+    ["mcp-tools.ts", tools],
+    ["Cursor rule", cursorRule],
+    ["root README.md", rootReadme],
+  ] as const) {
+    assert.match(text, /reuse gate/, `${label} must name claimOkProfile as the reuse gate`)
+    assert.match(
+      text,
+      /not enough to treat the profile as reusable/,
+      `${label} must refuse ok-alone reuse`,
+    )
+    assert.match(
+      text,
+      /seed\/handoff door|same-session VNC takeover/,
+      `${label} must contrast phone.html with same-session takeover`,
+    )
+  }
 })
 
 test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {
