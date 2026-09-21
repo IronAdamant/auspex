@@ -249,13 +249,24 @@ export const auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, c
   }
 })
 
-export const auspexLoginInputSchema = z.object({
-  profile: profileNameSchema.describe("Profile name to create or reuse"),
-  url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
+/** ZodObject for MCP ListTools. Call-time profile-or-url lives on auspexLoginInputSchema. */
+export const auspexLoginInputObject = z.object({
+  profile: profileNameSchema
+    .optional()
+    .describe("Profile name to create or reuse. Omit when url is set to derive a host slug (app.example.com → app-example-com). Explicit profile wins."),
+  url: httpUrlSchema
+    .optional()
+    .describe("http(s) login URL hint. Without profile, derives a safe host slug and echoes it on next / savePaste."),
   wait: z
     .boolean()
     .optional()
     .describe("If true, wait for Save then run saveEditor (same as await-login --save-editor). Empty Save is not success."),
+})
+
+export const auspexLoginInputSchema = auspexLoginInputObject.superRefine((val, ctx) => {
+  if (!val.profile && !val.url) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "auspex_login requires profile or url" })
+  }
 })
 
 export const auspexAwaitLoginInputSchema = z.object({

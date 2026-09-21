@@ -169,6 +169,8 @@ test("phoneSavePaste is a line any agent chat can run", () => {
   assert.match(line, /editorSave fails|editorFold is no-cdp/)
   assert.match(line, /verify-with-profile/)
   assert.match(line, /claimOkProfile will not pass/)
+  assert.match(phoneSavePaste(), /--profile <yours>/)
+  assert.match(phoneSavePaste(""), /--profile <yours>/)
 })
 
 test("phone.html clipboard equals phoneSavePaste", () => {
@@ -192,6 +194,25 @@ test("saveProfileEditor POSTs editor/save", async () => {
   assert.equal(saved.ok, true)
   assert.equal(saved.status, 200)
   assert.equal(calls[0]?.endsWith("/editor/save"), true)
+})
+
+test("loginInstructions echoes a derived host slug on next and savePaste", () => {
+  const solari = "https://console.getsolari.com/handoff/abc"
+  const mobile = phoneHandoffUrl("vnc.jwt.token", solari)
+  const result = loginInstructions(
+    { id: "prof_test_id", name: "app-example-com" },
+    "https://app.example.com",
+    { url: solari, handoffId: "h1", expiresAt: "soon", version: 7 },
+    undefined,
+    mobile,
+    { profileDerived: true },
+  )
+  assert.equal(result.profileDerived, true)
+  assert.match(result.next, /derived from URL host: app-example-com/)
+  assert.match(result.next, /--profile app-example-com/)
+  assert.match(result.next, /--profile <yours>/)
+  assert.match(result.handoff?.savePaste ?? "", /--profile app-example-com/)
+  assert.equal(result.next.includes("consistencyhub"), false)
 })
 
 test("attachHandoffQr mentions qrPath only when a PNG was written", () => {
