@@ -1,5 +1,7 @@
 # Auspex
 
+Agents report a dashboard loaded when the page is still the login screen. Auspex checks that claim on Solari cloud Chrome, then a second machine checks it again.
+
 Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `claimOk` ≠ `claimOkProfile`.** We do not claim Alice-vs-Bob wrong-account detection. Never types passwords.
 
 ## For Reviewers
@@ -25,7 +27,7 @@ npx auspex-solari check https://example.com --expect "Example Domain"
 npx -p auspex-solari auspex-mcp
 ```
 
-Do not run npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
+Do not run npm `auspex` (a different scraper). After a clone, `npx auspex` and `npx auspex-mcp` are the local bins.
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
@@ -76,12 +78,12 @@ ConsistencyHub and OneDrive are **evidence** — not the default recipe. Use `lo
 Console Save and `--save-editor` do not refresh folded sessionStorage unless `editorFold.ok`. SPAs that keep tokens in sessionStorage still need `finalize-login` while the token is valid. If await-login/`profile-status` says stale or weakSeed, remint or finalize-now — do not expect `--verify-with-profile` to succeed on a dead fold.
 
 ```bash
-npx auspex login --profile consistencyhub
+npx auspex-solari login --profile consistencyhub
 # human: open handoff.mobileUrl on the phone, Microsoft + OneDrive consent, tap Save (copies a paste line). Do not intern-ping.
-npx auspex await-login --profile consistencyhub --save-editor
-npx auspex finalize-login --profile consistencyhub
-npx auspex check --name consistencyhub
-npx auspex check --name consistencyhub --verify-with-profile
+npx auspex-solari await-login --profile consistencyhub --save-editor
+npx auspex-solari finalize-login --profile consistencyhub
+npx auspex-solari check --name consistencyhub
+npx auspex-solari check --name consistencyhub --verify-with-profile
 ```
 
 OneDrive with the same Microsoft profile is **recipe only** (no committed PNG/receipt). See [RECEIPTS.md](RECEIPTS.md).
@@ -91,13 +93,14 @@ OneDrive with the same Microsoft profile is **recipe only** (no committed PNG/re
 `.cursor/mcp.json` is committed. Auspex tools are the product; official Solari MCP is an optional gated sibling.
 
 ```bash
-npx auspex-mcp
+npx -p auspex-solari auspex-mcp
+# after a clone, from the repo root: npx auspex-mcp
 # or: npx tsx src/mcp.ts   # from examples/auspex-ts
 ```
 
 Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
 
-The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. Run locally: `npx auspex check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
+The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
 
 ## Links
 
@@ -112,7 +115,7 @@ The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **
 
 ## Upstream cookbook (unmodified, not the submission)
 
-This repo is a public fork of the Solari cookbook. Directories under [`examples/`](examples/) other than **[auspex-ts](examples/auspex-ts)** (the intern-challenge product) are the original Solari samples, unmodified, with no Auspex CI. Run them from their own folders for raw SDK patterns. One `slr_live_` key works across browsers, sandboxes, and desktops.
+This repo is a public fork of the Solari cookbook. GitHub's behind count is other cookbook examples added upstream after this fork. The submission is [examples/auspex-ts](examples/auspex-ts). Directories under [`examples/`](examples/) other than **[auspex-ts](examples/auspex-ts)** (the intern-challenge product) are the original Solari samples, unmodified, with no Auspex CI. Run them from their own folders for raw SDK patterns. One `slr_live_` key works across browsers, sandboxes, and desktops.
 
 Gotchas the samples encode: call `await solari.close()` in TypeScript or the process hangs; recording is per session (`recording: true` at create); Auspex `--record` never puts a presigned `replayUrl` on stdout; sandbox `run("ls -la")` looks for a binary named `ls -la`; `kill()`, not `close()`, ends a VM; `timeoutMs` is a rolling idle window; 429 is not retryable — call `auspex_reap`.
 

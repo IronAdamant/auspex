@@ -331,11 +331,23 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(receipts, /OneDrive/)
   assert.match(receipts, /[Rr]ecipe only/)
   assert.match(index, /src="demo\/replay\.html"/)
+  const frameAt = index.indexOf("<iframe")
+  const publicStill = index.indexOf('src="demo/ironadamant.png"')
+  const blurredStill = index.indexOf('src="demo/consistencyhub.png"')
+  assert.ok(publicStill !== -1 && publicStill < frameAt, "public still must sit above the player")
+  assert.ok(blurredStill !== -1 && blurredStill < frameAt, "blurred still must sit above the player")
+  assert.equal(index.includes("blur below"), false, "caption must not say the blur is below the player")
+  assert.match(index, /blur above/)
   assert.equal(
     index.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
     false,
     "jsDelivr serves replay.html as text/plain; do not iframe it",
   )
+  const rootForWorked = readFileSync(path.join(repo, "README.md"), "utf8")
+  const worked = rootForWorked.split("## Worked example (dogfood)")[1]?.split("## MCP first")[0] ?? ""
+  assert.match(worked, /npx auspex-solari login/)
+  assert.equal(worked.includes("npx auspex login"), false, "worked example must not tell a stranger to run npx auspex")
+  assert.match(discord, /above the player/)
   assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const plan = readFileSync(path.join(repo, "PLAN.md"), "utf8")

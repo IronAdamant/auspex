@@ -35,7 +35,7 @@ The agent thinks it's logged in. The human wastes hours debugging. The SaaS rema
 
 ### 1. Check (live browser with profile)
 ```bash
-npx auspex check --profile app-example --expect "Dashboard"
+npx auspex-solari check --profile app-example --expect "Dashboard"
 ```
 - Launch Solari browser WITH the saved profile (cookies + sessionStorage)
 - Navigate to URL
@@ -57,7 +57,7 @@ npx auspex check --profile app-example --expect "Dashboard"
 
 ### 3. Profile-seeded claim recheck (optional, additive)
 ```bash
-npx auspex check --profile app-example --expect "Dashboard" --verify-with-profile
+npx auspex-solari check --profile app-example --expect "Dashboard" --verify-with-profile
 ```
 - **Skips** anonymous claim (integrity still runs: PNG decode, URL not leftover IdP). Production does **not** run anonymous fetch/OCR first.
 - Launches a **second** Solari browser WITH the profile
