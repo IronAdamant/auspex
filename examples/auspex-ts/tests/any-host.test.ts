@@ -17,7 +17,7 @@ import {
   auspexCheckInputObject,
   auspexDesktopInputSchema,
   auspexFinalizeLoginInputSchema,
-  auspexLoginInputSchema,
+  auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexReapInputSchema,
 } from "../src/tool-schema.ts"
@@ -58,7 +58,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
   ])
   const shapes: Record<string, Record<string, unknown>> = {
     check: auspexCheckInputObject.shape,
-    login: auspexLoginInputSchema.shape,
+    login: auspexLoginInputObject.shape,
     "await-login": auspexAwaitLoginInputSchema.shape,
     "finalize-login": auspexFinalizeLoginInputSchema.shape,
     "profile-status": auspexProfileStatusInputSchema.shape,

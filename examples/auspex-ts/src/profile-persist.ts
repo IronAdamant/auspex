@@ -152,7 +152,7 @@ export function finalizeLoginGuidance(profile: string): string {
   const saved = savedCheckForProfile(name)
   const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check."
-  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. ConsistencyHub still needs finalize-login while the token is valid. Never --record a logged-in session.`
+  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`
 }
 
 export const DEAD_FOLD_VWP_BAN =
