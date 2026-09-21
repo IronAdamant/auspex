@@ -174,7 +174,7 @@ test("AGENTS first calls lead with myapp; CH lives under Worked example", () => 
     assert.match(worked, /npx auspex await-login --profile consistencyhub --save-editor/)
     assert.match(worked, /npx auspex check --name consistencyhub --verify-with-profile/)
     assert.match(worked, /claimOkProfile/)
-    assert.match(worked, /do not fold|not fold `claimOkProfile`/i)
+    assert.match(worked, /[Dd]o \*+not\*+ fold `claimOkProfile`|do not fold `claimOkProfile`/)
     assert.match(worked, /not the default recipe/)
   }
 })
