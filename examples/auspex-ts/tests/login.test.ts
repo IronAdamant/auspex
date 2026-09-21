@@ -176,7 +176,7 @@ test("phone.html clipboard equals phoneSavePaste", () => {
   assert.equal(phoneHtmlSavePaste(""), phoneSavePaste())
   assert.equal(phoneHtmlSavePaste("  myapp  "), phoneSavePaste("  myapp  "))
   assert.equal(phoneHtmlSavePaste(), phoneSavePaste())
-}))
+})
 
 test("saveProfileEditor POSTs editor/save", async () => {
   const calls: string[] = []
