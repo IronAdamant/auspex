@@ -18,6 +18,7 @@ npx auspex profile-status --profile app-example --url https://app.example --expe
 npx auspex login --url https://app.example
 # derives --profile app-example from the URL host; override with --profile <yours>
 # human: phone → handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; tap Save on that page. Seed/handoff door for off-site typing — not a Handraise-style same-session VNC takeover. Do not open Solari (GET editor HTTP 401). Then await-login --save-editor. Do not intern-ping.
+# mint is traced; if silent or login fails, read traceSummary / npx auspex trace before reminting (not a fourth primitive)
 npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
 npx auspex check --profile app-example --url https://app.example --expect "Dashboard"   # never --record
@@ -33,7 +34,7 @@ Do **not** use it for pages you can already curl, for generic research crawls, o
 
 This repo ships optional saved checks (`--name ironadamant|checkpoint|consistencyhub`) for those three hosts only. Strangers verifying *their* site should use `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus their URL and expect — do not invent that any host works without dogfood.
 
-Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login, finalize-login, profile-status, and reap are the auth + hygiene doors. No fourth primitive. Desktop is not the user's Mac.
+Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login, finalize-login, profile-status, reap, and trace are the auth + hygiene doors. No fourth primitive. Desktop is not the user's Mac.
 
 ## Understanding Verification Signals
 
@@ -123,6 +124,7 @@ Usage/failure JSON (`error`, `code`) is **not** this receipt; it still has `sche
 - `auspex_verify` / `auspex verify` — only if you already ran `auspex_check` **with `verify=false`**. Uploads the on-disk PNG + JSON, asserts **integrity `ok`** vs **claim `claimOk`** (fetch/OCR of expect — not JSON echo), kills the VM.
 - `auspex_reap` / `auspex reap` — list leftover browser sessions (Auspex live ledger) and kill those ledger ids. Use after **429**. Default does **not** wipe every VM on the key; pass `accountWide` / `--account-wide` for that. `dryRun` lists only. `packReceipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 - `auspex_desktop` / `auspex desktop` — named Solari sandbox desktop demo: wait for X11, open Mousepad by default. **Not the user's Mac.** Wait/expect/`ok` share one process haystack. `windowOk` only if a real window list exists. `clicked` only if verified. `streamUrl` is live VNC. **FAIL-CLOSED `--type` refuses password/OTP-like strings** (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields like page-actions can. Use only for demo text.
+- `auspex_trace` / `auspex trace` — last **login mint** episode plus `traceSummary`. Traces **lead-up only** (API key, profile ensure, handoff POST, editor-start, editor-token). If mint fails, the summary says why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout). **Log stops when Chromium/handoff is ready**; then use await-login / finalize / check as normal. `--all` dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, **read `traceSummary` / `auspex_trace` before reminting**. Not a fourth primitive. Never commit `.auspex/`.
 
 ## Rules
 
@@ -171,6 +173,7 @@ npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex verify [runDir]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
+npx auspex trace [--profile <name>] [--limit <n>] [--all]
 npx auspex mcp
 ```
 

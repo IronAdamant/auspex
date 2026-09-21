@@ -14,6 +14,7 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Phone: open `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Tap Save (copies a line; paste it in the AI chat). Then `await-login --profile <yours> --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
+| **Login stall** | After `login` mint, if nothing happens or login fails, read `traceSummary` / `npx auspex-solari trace` before reminting. Not a fourth primitive. |
 | **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
@@ -42,7 +43,7 @@ Full agent instructions: [AGENTS.md](AGENTS.md) · Package: [examples/auspex-ts]
 
 ## What we shipped
 
-Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login / finalize / profile-status / reap are the auth + hygiene doors.
+Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login / finalize / profile-status / reap / trace are the auth + hygiene doors.
 
 - **`auspex_check`** — cloud Chrome: goto, optional wait-for (fill/click without a profile, or with `--allow-page-actions`), snapshot, claim check, close. **Verifies by default** (HTTP + OCR) except **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** (shared `shouldVerifyCheck`). Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` forces anonymous verify (poisons `ok` on auth-gated pages). `--verify-with-profile` is the dogfood claim recheck (`claimOkProfile` is the profile-reuse gate; `ok` alone is not enough to treat the profile as reusable). Frozen **schema v1**: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`.
 

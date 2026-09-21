@@ -20,6 +20,7 @@ import {
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexReapInputSchema,
+  auspexTraceInputSchema,
 } from "../src/tool-schema.ts"
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -44,6 +45,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "verify",
     "desktop",
     "reap",
+    "trace",
   ])
   assert.deepEqual(contractToolNames(), [
     "auspex_check",
@@ -55,6 +57,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "auspex_verify",
     "auspex_desktop",
     "auspex_reap",
+    "auspex_trace",
   ])
   const shapes: Record<string, Record<string, unknown>> = {
     check: auspexCheckInputObject.shape,
@@ -64,6 +67,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "profile-status": auspexProfileStatusInputSchema.shape,
     desktop: auspexDesktopInputSchema.shape,
     reap: auspexReapInputSchema.shape,
+    trace: auspexTraceInputSchema.shape,
   }
   for (const [cmd, shape] of Object.entries(shapes)) {
     const fields = contractJsonFields(cmd)

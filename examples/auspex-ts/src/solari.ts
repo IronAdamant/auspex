@@ -9,6 +9,7 @@ import {
   type StorageState,
 } from "@solarisdk/browser"
 import { chromium, type BrowserContextOptions } from "patchright-core"
+import { AuspexError } from "./errors.ts"
 import {
   boundPromise,
   CHROMIUM_CONNECT_TIMEOUT_MS,
@@ -219,8 +220,9 @@ export function requireApiKey(): string {
   loadDotEnv()
   const key = process.env.SOLARI_API_KEY
   if (!key) {
-    throw new Error(
+    throw new AuspexError(
       "SOLARI_API_KEY is not set. Export SOLARI_API_KEY (https://console.getsolari.com) in the process that runs Auspex. Never commit the key.",
+      { issue: { code: "MissingApiKey", retryable: false } },
     )
   }
   return key

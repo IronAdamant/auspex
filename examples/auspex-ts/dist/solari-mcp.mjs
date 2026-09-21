@@ -1,26 +1,262 @@
-// src/solari-mcp-entry.ts
-import { spawn } from "node:child_process";
-import { existsSync as existsSync3 } from "node:fs";
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+
+// src/paths.ts
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+var packageRoot;
+var init_paths = __esm({
+  "src/paths.ts"() {
+    "use strict";
+    packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  }
+});
+
+// src/sso.ts
+var init_sso = __esm({
+  "src/sso.ts"() {
+    "use strict";
+  }
+});
+
+// src/profile-storage.ts
+var FOLDED_EXPIRES_ON_SKEW_MS;
+var init_profile_storage = __esm({
+  "src/profile-storage.ts"() {
+    "use strict";
+    init_sso();
+    FOLDED_EXPIRES_ON_SKEW_MS = 5 * 60 * 1e3;
+  }
+});
+
+// src/login-trace.ts
 import path2 from "node:path";
+var LOGIN_TRACE_PATH, LOGIN_TRACE_ACTIVE_PATH;
+var init_login_trace = __esm({
+  "src/login-trace.ts"() {
+    "use strict";
+    init_profile_storage();
+    init_paths();
+    init_sso();
+    LOGIN_TRACE_PATH = path2.join(packageRoot, ".auspex", "trace", "login.jsonl");
+    LOGIN_TRACE_ACTIVE_PATH = path2.join(packageRoot, ".auspex", "trace", "active.json");
+  }
+});
+
+// src/editor-fold.ts
+var init_editor_fold = __esm({
+  "src/editor-fold.ts"() {
+    "use strict";
+    init_profile_storage();
+  }
+});
+
+// src/http-url.ts
+import { isIP } from "node:net";
+import { z } from "zod";
+function stripBrackets(hostname) {
+  return hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+}
+function parseIPv4Loose(host) {
+  if (!/^[0-9.]+$/.test(host)) return void 0;
+  const parts = host.split(".");
+  if (parts.length < 1 || parts.length > 4) return void 0;
+  const nums = [];
+  for (const p of parts) {
+    if (p === "" || !/^\d+$/.test(p)) return void 0;
+    const n = Number(p);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return void 0;
+    nums.push(n);
+  }
+  if (parts.length === 1) return [0, 0, 0, nums[0]];
+  if (parts.length === 2) return [nums[0], 0, 0, nums[1]];
+  if (parts.length === 3) return [nums[0], nums[1], 0, nums[2]];
+  return [nums[0], nums[1], nums[2], nums[3]];
+}
+function ipv4Blocked(octets) {
+  const [a, b] = octets;
+  if (a === 0) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+function ipv4FromMappedIPv6(host) {
+  const dotted = /^::ffff:(\d{1,3}(?:\.\d{1,3}){0,3})$/i.exec(host);
+  if (dotted) return parseIPv4Loose(dotted[1]);
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(host);
+  if (!hex) return void 0;
+  const hi = Number.parseInt(hex[1], 16);
+  const lo = Number.parseInt(hex[2], 16);
+  return [hi >> 8 & 255, hi & 255, lo >> 8 & 255, lo & 255];
+}
+function ipv6LinkLocalOrUnspecified(host) {
+  if (host === "::" || host === "0:0:0:0:0:0:0:0") return true;
+  if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
+  const head = host.split(":")[0] ?? "";
+  if (/^fe[89ab]/i.test(head)) return true;
+  return false;
+}
+function isForbiddenCheckHost(hostname) {
+  const h = stripBrackets(hostname);
+  if (h === "localhost" || h.endsWith(".localhost") || h === "localhost.localdomain") return true;
+  const mapped = ipv4FromMappedIPv6(h);
+  if (mapped && ipv4Blocked(mapped)) return true;
+  const v4 = parseIPv4Loose(h);
+  if (v4 && ipv4Blocked(v4)) return true;
+  const ip = isIP(h);
+  if (ip === 4) {
+    const parsed = parseIPv4Loose(h);
+    return Boolean(parsed && ipv4Blocked(parsed));
+  }
+  if (ip === 6) return ipv6LinkLocalOrUnspecified(h);
+  return false;
+}
+function isHttpOrHttpsUrl(value) {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    if (u.username !== "" || u.password !== "") return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+var LOOPBACK_URL_ERROR, httpUrlSchema, checkUrlSchema;
+var init_http_url = __esm({
+  "src/http-url.ts"() {
+    "use strict";
+    LOOPBACK_URL_ERROR = "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine";
+    httpUrlSchema = z.string().refine(isHttpOrHttpsUrl, { message: "url must be an http or https URL" });
+    checkUrlSchema = z.string().superRefine((value, ctx) => {
+      if (!isHttpOrHttpsUrl(value)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "url must be an http or https URL" });
+        return;
+      }
+      if (isForbiddenCheckHost(new URL(value).hostname)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: LOOPBACK_URL_ERROR });
+      }
+    });
+  }
+});
+
+// src/text.ts
+import { z as z2 } from "zod";
+function isNonEmptyExpect(value) {
+  return value.trim().length > 0;
+}
+var expectSchema;
+var init_text = __esm({
+  "src/text.ts"() {
+    "use strict";
+    expectSchema = z2.string().refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" });
+  }
+});
+
+// src/saved-checks.ts
+import path3 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
+var packageRoot2;
+var init_saved_checks = __esm({
+  "src/saved-checks.ts"() {
+    "use strict";
+    init_http_url();
+    init_profiles();
+    init_sso();
+    init_text();
+    packageRoot2 = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..");
+  }
+});
+
+// src/profile-persist.ts
+var DEAD_FOLD_VWP_BAN, SAVE_NOT_FOLD_NOW;
+var init_profile_persist = __esm({
+  "src/profile-persist.ts"() {
+    "use strict";
+    init_editor_fold();
+    init_profile_lock();
+    init_solari();
+    init_login_trace();
+    init_profile_storage();
+    init_saved_checks();
+    init_sso();
+    DEAD_FOLD_VWP_BAN = "Do not run check --verify-with-profile on this seed \u2014 claimOkProfile will not pass on a dead fold.";
+    SAVE_NOT_FOLD_NOW = "Save is not fold: --save-editor did not refresh folded sessionStorage. Finalize-login NOW while the token is live. " + DEAD_FOLD_VWP_BAN + " Remint auspex_login if finalize-login returns needsHuman.";
+  }
+});
+
+// src/profile-slug.ts
+var init_profile_slug = __esm({
+  "src/profile-slug.ts"() {
+    "use strict";
+  }
+});
+
+// src/phone-expiry.ts
+var init_phone_expiry = __esm({
+  "src/phone-expiry.ts"() {
+    "use strict";
+  }
+});
+
+// src/profiles.ts
+import { z as z3 } from "zod";
+var PROFILE_NAME_ERROR, profileNameSchema, PHONE_HANDOFF_NOT_TAKEOVER, HANDOFF_PHONE_DOOR_BAN, HANDOFF_OPEN_ON_PHONE, HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK;
+var init_profiles = __esm({
+  "src/profiles.ts"() {
+    "use strict";
+    init_login_trace();
+    init_errors();
+    init_profile_persist();
+    init_profile_slug();
+    init_paths();
+    init_phone_expiry();
+    init_solari();
+    PROFILE_NAME_ERROR = "profile name must be non-empty";
+    profileNameSchema = z3.string().trim().min(1, { message: PROFILE_NAME_ERROR });
+    PHONE_HANDOFF_NOT_TAKEOVER = "Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check.";
+    HANDOFF_PHONE_DOOR_BAN = "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone. " + PHONE_HANDOFF_NOT_TAKEOVER;
+    HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+    HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK = "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+  }
+});
+
+// src/profile-lock.ts
+var init_profile_lock = __esm({
+  "src/profile-lock.ts"() {
+    "use strict";
+    init_paths();
+    init_profiles();
+  }
+});
+
+// src/errors.ts
+import { SolariError } from "@solarisdk/browser";
+var init_errors = __esm({
+  "src/errors.ts"() {
+    "use strict";
+    init_profile_lock();
+  }
+});
+
+// src/timeout.ts
+var init_timeout = __esm({
+  "src/timeout.ts"() {
+    "use strict";
+  }
+});
 
 // src/solari.ts
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import path4 from "node:path";
+import { fileURLToPath as fileURLToPath3 } from "node:url";
 import {
   BrowserSession,
   Solari,
-  SolariError
+  SolariError as SolariError2
 } from "@solarisdk/browser";
 import { chromium } from "patchright-core";
-
-// src/profile-storage.ts
-var FOLDED_EXPIRES_ON_SKEW_MS = 5 * 60 * 1e3;
-
-// src/solari.ts
-var DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".env");
-var REPO_DOTENV_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..", ".env");
 function readSolariKeyFromFile(file) {
   if (!existsSync(file)) return void 0;
   for (const raw of readFileSync(file, "utf8").split("\n")) {
@@ -51,8 +287,27 @@ function loadDotEnv(file = DOTENV_PATH) {
     }
   }
 }
+var DOTENV_PATH, REPO_DOTENV_PATH;
+var init_solari = __esm({
+  "src/solari.ts"() {
+    "use strict";
+    init_errors();
+    init_timeout();
+    init_profile_storage();
+    DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..", ".env");
+    REPO_DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "../../..", ".env");
+  }
+});
+
+// src/solari-mcp-entry.ts
+init_solari();
+import { spawn } from "node:child_process";
+import { existsSync as existsSync3 } from "node:fs";
+import path5 from "node:path";
+import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/solari-mcp-gate.ts
+init_solari();
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 function solariKeyReady(env = process.env, dotenvFile = env.AUSPEX_DOTENV_PATH || DOTENV_PATH) {
   if (env.SOLARI_API_KEY?.trim()) return true;
@@ -76,7 +331,7 @@ function solariKeyReady(env = process.env, dotenvFile = env.AUSPEX_DOTENV_PATH |
 }
 
 // src/solari-mcp-entry.ts
-var root = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), "..");
+var root = path5.resolve(path5.dirname(fileURLToPath4(import.meta.url)), "..");
 loadDotEnv(process.env.AUSPEX_DOTENV_PATH);
 if (!solariKeyReady()) {
   console.error(
@@ -84,7 +339,7 @@ if (!solariKeyReady()) {
   );
   process.exit(1);
 }
-var cli = path2.join(root, "node_modules", "@solarisdk", "mcp", "dist", "cli.js");
+var cli = path5.join(root, "node_modules", "@solarisdk", "mcp", "dist", "cli.js");
 if (!existsSync3(cli)) {
   console.error("solari MCP not started: @solarisdk/mcp is not installed");
   process.exit(1);

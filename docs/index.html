@@ -144,6 +144,7 @@
 npx auspex-solari check --name ironadamant
 npx auspex-solari check https://example.com --expect "Example Domain"
 npx auspex-solari login --url https://app.example
+# mint is traced; if silent or login fails: npx auspex-solari trace (not a fourth primitive)
 npx auspex-solari await-login --profile app-example --save-editor
 npx auspex-solari finalize-login --profile app-example --url https://app.example --expect "Dashboard"
 npx auspex-solari check --profile app-example --url https://app.example --expect "Dashboard"</pre>

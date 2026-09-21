@@ -74,6 +74,9 @@ export function toAgentReceipt(
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved,
     protocolOk: check.protocolOk,
+    episodeId: check.episodeId,
+    remintCount: check.remintCount,
+    traceSummary: check.traceSummary,
   }
   for (const [key, value] of Object.entries(optional)) {
     if (value !== undefined) receipt[key] = value
