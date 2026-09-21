@@ -9,6 +9,7 @@ import { createProgress, type ProgressExtra } from "./progress.ts"
 import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { attachHandoffQr, HANDOFF_PHONE_DOOR_BAN, listProfiles, loginProfile, qrPayloadForHandoff } from "./profiles.ts"
+import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
@@ -23,7 +24,7 @@ import {
   auspexCheckInputObject,
   auspexDesktopInputSchema,
   auspexFinalizeLoginInputSchema,
-  auspexLoginInputSchema,
+  auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexReapInputSchema,
 } from "./tool-schema.ts"
@@ -35,7 +36,7 @@ const VERIFY_DESCRIPTION =
   "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 const LOGIN_DESCRIPTION =
-  "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
+  "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
   HANDOFF_PHONE_DOOR_BAN +
   " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
@@ -133,12 +134,15 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_login",
     {
       description: LOGIN_DESCRIPTION,
-      inputSchema: auspexLoginInputSchema,
+      inputSchema: auspexLoginInputObject,
     },
     async ({ profile, url, wait }) => {
       try {
+        const resolved = resolveLoginProfile({ profile, url })
         const runDir = await ensureRunDir()
-        const result = await loginProfile(profile, url)
+        const result = await loginProfile(resolved.name, url, undefined, undefined, {
+          profileDerived: resolved.derived,
+        })
         if (result.handoff?.url) {
           const qr = await generateQRCode(qrPayloadForHandoff(result.handoff), runDir)
           if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url)
@@ -147,7 +151,7 @@ export function registerAuspexTools(server: McpServer): void {
           const payload = stampSchema({ ok: true, ...result })
           return buildReceiptToolContent(payload, result.handoff?.qrPath)
         }
-        const waited = await liveAwaitLogin(profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }))
+        const waited = await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }))
         const payload = stampSchema({
           ok: waited.status === "completed",
           ...result,

@@ -33,17 +33,17 @@ export SOLARI_API_KEY
 npx auspex check https://ironadamant.com --expect "One office job."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
-npx auspex login --profile myapp --url https://app.example
-npx auspex await-login --profile myapp --save-editor
-npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"
-npx auspex profile-status --profile myapp --url https://app.example --expect "Dashboard"
-npx auspex check --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex login --url https://app.example
+npx auspex await-login --profile app-example --save-editor
+npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex profile-status --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex check --profile app-example --url https://app.example --expect "Dashboard"
 # optional: --verify-with-profile after a live match; do not treat ok alone as reusable.
 # Do not also run verify after a default / VWP check.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 
-The generic `--profile myapp` path is the recipe. A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood).
+The generic `login --url` / `--profile <yours>` path is the recipe (`https://app.example` derives `--profile app-example`). A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood).
 
 Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
 
@@ -55,13 +55,13 @@ npx auspex verify [runDir]
 npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
-npx auspex login --profile <name> [--url <hint>] [--wait]
+npx auspex login [--profile <name>] [--url <https>] [--wait]
 npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
 npx auspex profiles
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 ```
 
-`login` creates or reuses a named Solari profile and prints **two labeled URLs**. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field — seed/handoff door, not a same-session VNC takeover). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <name> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. `--save-editor` / console Save do **not** refresh folded sessionStorage unless `editorFold.ok` (Microsoft OAuth SPAs keep `accessToken` + `expiresOn` there). If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, finalize-login NOW while the token is live; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. After Microsoft login run `finalize-login --profile <name> --url <url> --expect <string>` **while the token is valid** (saved-check profiles may omit url/expect). Then `check --profile <name> --url <url> --expect <string>` in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.
+`login` creates or reuses a named Solari profile and prints **two labeled URLs**. `--url` without `--profile` derives a safe host slug (`app.example.com` → `app-example-com`) and echoes it on stdout, `next`, and phone Save paste. `--profile` wins. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field — seed/handoff door, not a same-session VNC takeover). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <yours> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. `--save-editor` / console Save do **not** refresh folded sessionStorage unless `editorFold.ok` (Microsoft OAuth SPAs keep `accessToken` + `expiresOn` there). If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, finalize-login NOW while the token is live; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. After Microsoft login run `finalize-login --profile <name> --url <url> --expect <string>` **while the token is valid** (saved-check profiles may omit url/expect). Then `check --profile <name> --url <url> --expect <string>` in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.
 
 `--stealth` / `--proxy` / `--captcha` need Starter or higher (402 FeatureRequiresPlan on Free — not retryable). Proxy and captcha imply stealth. `--profile` restores cookies, localStorage, and sessionStorage onto a new Playwright context **before first navigation** (Solari's default context is not visible over `chromium.connect`). Empty seeds fail closed unless `--sso`. `--save-profile` persists cookies, localStorage, and sessionStorage via `POST /profiles/:id/save` and refuses an empty overwrite, a public `/landing` session, or a save with no bytes for the page origin. `--sso` clicks **Sign in with Microsoft**, then Google, then a generic Sign in with … button (`--sso-provider` pins a vendor). Microsoft **and Google** password/OTP walls fail closed (`needsHuman`) and are never typed. A `--profile` check that lands on `/landing`, `/login`, or `/` without a matched expect is `ok: false` with `reason: loggedOut`. `record`+`profile` is forbidden unless `--allow-record-profile` on a public marketing host. `--allow-record-profile` is refused for consistencyhub. Never `--record` a logged-in session.
 
@@ -105,7 +105,7 @@ See [AGENTS.md](../../AGENTS.md) (canonical) and [DEMO.md](DEMO.md).
 
 ## Worked example (dogfood)
 
-ConsistencyHub / OneDrive are **evidence that auth-gated SaaS works** — not the default recipe. The generic `--profile myapp` path is the recipe; `--name consistencyhub` is the verified example. Do not invent that any host works without dogfood.
+ConsistencyHub / OneDrive are **evidence that auth-gated SaaS works** — not the default recipe. The generic `login --url` / `--profile <yours>` path is the recipe; `--name consistencyhub` is the verified example. Do not invent that any host works without dogfood.
 
 ```bash
 npx auspex login --profile consistencyhub

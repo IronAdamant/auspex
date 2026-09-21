@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
 import { asFiniteNumber } from "./profile-persist.ts"
+import { derivedProfileNext } from "./profile-slug.ts"
 import { packageRoot } from "./paths.ts"
 import { resolvePhoneExpirySeconds } from "./phone-expiry.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
@@ -107,11 +108,8 @@ export type HandoffPacket = {
 }
 
 export function phoneSavePaste(profileName?: string): string {
-  const name = (profileName ?? "").trim()
-  if (name) {
-    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`
-  }
-  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman."
+  const name = (profileName ?? "").trim() || "<yours>"
+  return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`
 }
 
 /** Phone.html is IME + Save paste for an auth seed — not a live-session takeover. */
@@ -145,18 +143,20 @@ export function formatHandoffNext(opts: {
   qrPath?: string
   profileName?: string
   hasPhoneIme?: boolean
+  profileDerived?: boolean
 }): string {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
   const qrBit = opts.qrPath
     ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)."
     : ""
-  const profile = opts.profileName?.trim() || "<profile>"
+  const profile = opts.profileName?.trim() || "<yours>"
+  const derived = opts.profileDerived ? `${derivedProfileNext(profile)} ` : ""
   const phone = opts.hasPhoneIme
     ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
     : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
   return (
-    `${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
-    `Then auspex_await_login with saveEditor true (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
+    `${derived}${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
+    `Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
 
@@ -169,6 +169,7 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
     qrPath: result.handoff.qrPath,
     profileName: result.name,
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
+    profileDerived: result.profileDerived,
   })
   return result
 }
@@ -187,6 +188,8 @@ export type LoginResult = {
   handoffId?: string
   expiresAt?: string
   sinceVersion?: number
+  /** True when name was derived from --url host (no explicit --profile). */
+  profileDerived?: boolean
 }
 
 export type ProfileHttp = {
@@ -199,8 +202,10 @@ export function loginInstructions(
   handoff?: LoginHandoff,
   qrPath?: string,
   mobileUrl?: string,
+  opts?: { profileDerived?: boolean },
 ): LoginResult {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in."
+  const profileDerived = opts?.profileDerived === true
   if (handoff?.url) {
     const phone = mobileUrl?.trim() || handoff.url
     const hasPhoneIme = isPhoneImeUrl(phone)
@@ -224,15 +229,18 @@ export function loginInstructions(
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme }),
+      profileDerived: profileDerived || undefined,
+      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived }),
     }
   }
+  const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : ""
   return {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} → Profiles → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
+    profileDerived: profileDerived || undefined,
+    next: `${derived}Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
   }
 }
 
@@ -361,6 +369,7 @@ export async function loginProfile(
   urlHint?: string,
   http?: ProfileHttp,
   qrPath?: string,
+  opts?: { profileDerived?: boolean },
 ): Promise<LoginResult> {
   const profile = await ensureProfile(name)
   const client = http ?? (await defaultProfileHttp())
@@ -394,7 +403,7 @@ export async function loginProfile(
   } catch {
     mobileUrl = undefined
   }
-  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl)
+  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {

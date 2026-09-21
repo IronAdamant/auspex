@@ -559,6 +559,52 @@ var init_editor_fold = __esm({
   }
 });
 
+// src/profile-slug.ts
+function profileSlugFromHost(host) {
+  let h = host.trim().toLowerCase();
+  h = h.replace(/^\[/, "").replace(/\]$/, "");
+  h = h.replace(/\.$/, "");
+  h = h.replace(/%.*/, "");
+  if (h.startsWith("www.")) h = h.slice(4);
+  let slug = h.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+  if (!slug) return void 0;
+  if (slug.length > PROFILE_SLUG_MAX) {
+    slug = slug.slice(0, PROFILE_SLUG_MAX).replace(/-+$/g, "");
+  }
+  if (!slug || !/^[a-z0-9]/.test(slug)) return void 0;
+  return slug;
+}
+function profileSlugFromUrl(url) {
+  let host;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error(PROFILE_SLUG_ERROR);
+  }
+  const slug = profileSlugFromHost(host);
+  if (!slug) throw new Error(PROFILE_SLUG_ERROR);
+  return slug;
+}
+function resolveLoginProfile(opts) {
+  const explicit = (opts.profile ?? "").trim();
+  if (explicit) return { name: explicit, derived: false };
+  const url = (opts.url ?? "").trim();
+  if (!url) throw new Error(LOGIN_PROFILE_OR_URL_ERROR);
+  return { name: profileSlugFromUrl(url), derived: true };
+}
+function derivedProfileNext(name) {
+  return `Profile name derived from URL host: ${name}. Use --profile ${name} on await-login, finalize-login, and check. Override with --profile <yours>.`;
+}
+var PROFILE_SLUG_ERROR, LOGIN_PROFILE_OR_URL_ERROR, PROFILE_SLUG_MAX;
+var init_profile_slug = __esm({
+  "src/profile-slug.ts"() {
+    "use strict";
+    PROFILE_SLUG_ERROR = "could not derive a profile name from url; pass --profile <yours>";
+    LOGIN_PROFILE_OR_URL_ERROR = "login requires --profile <name> or --url <https> (url without profile derives a host slug)";
+    PROFILE_SLUG_MAX = 48;
+  }
+});
+
 // src/phone-expiry.ts
 function parseUnixSeconds(value) {
   if (value == null) return void 0;
@@ -1133,11 +1179,8 @@ function requireProfileName(value) {
   return name;
 }
 function phoneSavePaste(profileName) {
-  const name = (profileName ?? "").trim();
-  if (name) {
-    return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
-  }
-  return "I tapped Save on the Auspex phone page. Run npx auspex await-login --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.";
+  const name = (profileName ?? "").trim() || "<yours>";
+  return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
 }
 function handoffOpenOnDesktop(profileName) {
   return `Computer: open handoff.desktopUrl, then Profiles \u2192 ${profileName} \u2192 Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`;
@@ -1145,9 +1188,10 @@ function handoffOpenOnDesktop(profileName) {
 function formatHandoffNext(opts) {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in.";
   const qrBit = opts.qrPath ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)." : "";
-  const profile = opts.profileName?.trim() || "<profile>";
+  const profile = opts.profileName?.trim() || "<yours>";
+  const derived = opts.profileDerived ? `${derivedProfileNext(profile)} ` : "";
   const phone = opts.hasPhoneIme ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open \u2014 seed/handoff door for off-site typing, not a same-session VNC takeover). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
-  return `${phone} Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login with saveEditor true (waits up to 30 minutes), then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+  return `${derived}${phone} Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
 }
 function attachHandoffQr(result, qrPath, urlHint) {
   if (!result.handoff) return result;
@@ -1157,15 +1201,17 @@ function attachHandoffQr(result, qrPath, urlHint) {
     urlHint,
     qrPath: result.handoff.qrPath,
     profileName: result.name,
-    hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl)
+    hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
+    profileDerived: result.profileDerived
   });
   return result;
 }
 function qrPayloadForHandoff(handoff) {
   return handoff.mobileUrl || handoff.url;
 }
-function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl) {
+function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
   const where = urlHint ? ` Sign in at ${urlHint}.` : " Sign in.";
+  const profileDerived = opts?.profileDerived === true;
   if (handoff?.url) {
     const phone = mobileUrl?.trim() || handoff.url;
     const hasPhoneIme = isPhoneImeUrl(phone);
@@ -1189,15 +1235,18 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl) {
       handoffId: handoff.handoffId,
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme })
+      profileDerived: profileDerived || void 0,
+      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived })
     };
   }
+  const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : "";
   return {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
-    next: `Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login, then auspex_finalize_login (pass --url and --expect unless a saved check), then auspex_check. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`
+    profileDerived: profileDerived || void 0,
+    next: `${derived}Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`
   };
 }
 function formatLogin(result) {
@@ -1299,7 +1348,7 @@ async function saveProfileEditor(handle, opts) {
   const error = typeof got.json.error === "string" ? got.json.error : void 0;
   return { ok: got.status === 200 || got.status === 201, status: got.status, error, json: got.json };
 }
-async function loginProfile(name, urlHint, http, qrPath) {
+async function loginProfile(name, urlHint, http, qrPath, opts) {
   const profile = await ensureProfile(name);
   const client = http ?? await defaultProfileHttp();
   const handoff = await requestLoginHandoff(
@@ -1330,7 +1379,7 @@ async function loginProfile(name, urlHint, http, qrPath) {
   } catch {
     mobileUrl = void 0;
   }
-  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl);
+  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts);
 }
 async function listProfiles() {
   const solari = createClient();
@@ -1356,6 +1405,7 @@ var init_profiles = __esm({
   "src/profiles.ts"() {
     "use strict";
     init_profile_persist();
+    init_profile_slug();
     init_paths();
     init_phone_expiry();
     init_solari();
@@ -3002,10 +3052,15 @@ var auspexCheckInputSchema = auspexCheckInputObject.superRefine((val, ctx) => {
     ctx.addIssue({ code: z4.ZodIssueCode.custom, message: "value requires fill", path: ["fill"] });
   }
 });
-var auspexLoginInputSchema = z4.object({
-  profile: profileNameSchema.describe("Profile name to create or reuse"),
-  url: httpUrlSchema.optional().describe("Optional http(s) login URL hint to show the human"),
+var auspexLoginInputObject = z4.object({
+  profile: profileNameSchema.optional().describe("Profile name to create or reuse. Omit when url is set to derive a host slug (app.example.com \u2192 app-example-com). Explicit profile wins."),
+  url: httpUrlSchema.optional().describe("http(s) login URL hint. Without profile, derives a safe host slug and echoes it on next / savePaste."),
   wait: z4.boolean().optional().describe("If true, wait for Save then run saveEditor (same as await-login --save-editor). Empty Save is not success.")
+});
+var auspexLoginInputSchema = auspexLoginInputObject.superRefine((val, ctx) => {
+  if (!val.profile && !val.url) {
+    ctx.addIssue({ code: z4.ZodIssueCode.custom, message: "auspex_login requires profile or url" });
+  }
 });
 var auspexAwaitLoginInputSchema = z4.object({
   profile: profileNameSchema.describe("Profile name from auspex_login"),
@@ -3213,7 +3268,7 @@ function checkLoggedOutNext(profile, cookies) {
   return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`;
 }
 function needsHumanNext() {
-  return "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " + HANDOFF_PHONE_DOOR_BAN + " Never fill password via agent tools. After human completes sign-in and Save: await-login --save-editor then finalize-login. Do not retry check on cookies alone. Never --record.";
+  return "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " + HANDOFF_PHONE_DOOR_BAN + " Never fill password via agent tools. After human completes sign-in and Save: await-login --profile <yours> --save-editor then finalize-login --profile <yours> --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.";
 }
 function resolveFinalizeLoginTarget(opts) {
   const saved = savedCheckForProfile(opts.profile);
@@ -4051,6 +4106,7 @@ async function generateQRCode(url, runDir) {
 
 // src/mcp-tools.ts
 init_profiles();
+init_profile_slug();
 init_profile_persist();
 
 // src/profile-status.ts
@@ -4785,7 +4841,7 @@ async function checkThenVerify(opts, deps) {
 init_saved_checks();
 var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
 var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
@@ -4847,12 +4903,15 @@ function registerAuspexTools(server2) {
     "auspex_login",
     {
       description: LOGIN_DESCRIPTION,
-      inputSchema: auspexLoginInputSchema
+      inputSchema: auspexLoginInputObject
     },
     async ({ profile, url, wait }) => {
       try {
+        const resolved = resolveLoginProfile({ profile, url });
         const runDir = await ensureRunDir();
-        const result = await loginProfile(profile, url);
+        const result = await loginProfile(resolved.name, url, void 0, void 0, {
+          profileDerived: resolved.derived
+        });
         if (result.handoff?.url) {
           const qr = await generateQRCode(qrPayloadForHandoff(result.handoff), runDir);
           if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url);
@@ -4861,7 +4920,7 @@ function registerAuspexTools(server2) {
           const payload2 = stampSchema({ ok: true, ...result });
           return buildReceiptToolContent(payload2, result.handoff?.qrPath);
         }
-        const waited = await liveAwaitLogin(profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }));
+        const waited = await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }));
         const payload = stampSchema({
           ok: waited.status === "completed",
           ...result,

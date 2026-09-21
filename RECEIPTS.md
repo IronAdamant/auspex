@@ -2,16 +2,17 @@
 
 Committed demo evidence from the Auspex check → verify → teardown workflow.
 
-**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `--profile myapp` plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
+**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
 
 ## Default recipe (any host)
 
 ```bash
-npx auspex profile-status --profile myapp --url https://app.example --expect "Dashboard"
-npx auspex login --profile myapp --url https://app.example
-npx auspex await-login --profile myapp --save-editor
-npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"
-npx auspex check --profile myapp --url https://app.example --expect "Dashboard"
+npx auspex profile-status --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex login --url https://app.example
+# derives --profile app-example; override with --profile <yours>
+npx auspex await-login --profile app-example --save-editor
+npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex check --profile app-example --url https://app.example --expect "Dashboard"
 # optional: --verify-with-profile — read claimOkProfile; do not fold it into ok
 ```
 

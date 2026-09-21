@@ -59,9 +59,12 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     assert.equal(text.includes("gateUrl"), false, `${label} must not teach the detecting-gate URL`)
   }
   assert.match(USAGE, /consistencyhub.*--no-verify|defaults to --no-verify/)
+  assert.match(USAGE, /derives a safe host slug/)
+  assert.match(USAGE, /npx auspex login \[--profile <name>\] \[--url <https>\]/)
   assert.match(tools, /auspex_finalize_login/)
   assert.match(tools, /shouldVerifyCheck/)
   assert.match(tools, /defaults to verify=false/)
+  assert.match(tools, /derives a safe host slug/)
 })
 
 test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile", () => {
@@ -133,7 +136,7 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /counted `sessionStorage === 0`|counted sessionStorage/)
 })
 
-test("AGENTS first calls lead with myapp; CH lives under Worked example", () => {
+test("AGENTS first calls lead with login --url / derived slug; CH lives under Worked example", () => {
   for (const [label, file] of [
     ["root AGENTS.md", path.join(repo, "AGENTS.md")],
     ["package AGENTS.md", path.join(pkg, "AGENTS.md")],
@@ -143,14 +146,16 @@ test("AGENTS first calls lead with myapp; CH lives under Worked example", () => 
     const worked = text.split("## Worked example (dogfood)")[1] ?? ""
     const iron = firstCalls.indexOf("check --name ironadamant")
     const anyHost = firstCalls.indexOf('check https://example.com --expect "Example Domain"')
-    const genericStatus = firstCalls.indexOf("profile-status --profile myapp --url")
-    const genericLogin = firstCalls.indexOf("login --profile myapp --url")
-    const genericFinalize = firstCalls.indexOf("finalize-login --profile myapp --url")
+    const genericStatus = firstCalls.indexOf("profile-status --profile app-example --url")
+    const genericLogin = firstCalls.indexOf("login --url https://app.example")
+    const genericFinalize = firstCalls.indexOf("finalize-login --profile app-example --url")
     assert.notEqual(iron, -1, `${label} missing ironadamant check`)
     assert.ok(anyHost > iron, `${label} must show any-host check after ironadamant`)
-    assert.ok(genericStatus > anyHost, `${label} must show --profile --url --expect after any-host`)
-    assert.ok(genericLogin > genericStatus, `${label} must login myapp after generic status`)
-    assert.ok(genericFinalize > genericLogin, `${label} must finalize-login myapp with --url`)
+    assert.ok(genericStatus > anyHost, `${label} must show derived-profile status after any-host`)
+    assert.ok(genericLogin > genericStatus, `${label} must login --url after generic status`)
+    assert.ok(genericFinalize > genericLogin, `${label} must finalize-login with derived slug + --url`)
+    assert.match(firstCalls, /derives --profile app-example/)
+    assert.match(firstCalls, /--profile <yours>/)
     assert.equal(
       firstCalls.includes("login --profile consistencyhub"),
       false,
@@ -162,13 +167,13 @@ test("AGENTS first calls lead with myapp; CH lives under Worked example", () => 
       `${label} First calls must not default-check consistencyhub`,
     )
     const saveBeat = firstCalls.indexOf("tap Save on that page")
-    const genericAwait = firstCalls.indexOf("await-login --profile myapp")
+    const genericAwait = firstCalls.indexOf("await-login --profile app-example")
     assert.ok(saveBeat > genericLogin, `${label} must name human Save after generic login`)
     assert.ok(saveBeat < genericAwait, `${label} must put human Save before generic await-login`)
     assert.match(firstCalls, /Do not intern-ping/)
     assert.match(firstCalls, /auspex reap/)
     assert.match(firstCalls, /never --record/)
-    assert.match(firstCalls, /npx auspex await-login --profile myapp --save-editor/)
+    assert.match(firstCalls, /npx auspex await-login --profile app-example --save-editor/)
     assert.equal(/\bnpx auspex desktop\b/.test(firstCalls), false, `${label} must not put desktop in First calls`)
     assert.match(text.slice(0, 400), /Alice-vs-Bob/)
     assert.match(worked, /npx auspex await-login --profile consistencyhub --save-editor/)
@@ -185,14 +190,15 @@ test("copy-paste fences put --save-editor on the typed await-login line", () => 
   const tryIt = pages.split("<h2>Try it</h2>")[1] ?? ""
   const golden = demo.split("## Worked example (dogfood)")[0] ?? ""
   const worked = demo.split("## Worked example (dogfood)")[1] ?? ""
-  assert.match(tryIt, /await-login --profile myapp --save-editor/)
-  assert.match(tryIt, /finalize-login --profile myapp/)
+  assert.match(tryIt, /login --url https:\/\/app\.example/)
+  assert.match(tryIt, /await-login --profile app-example --save-editor/)
+  assert.match(tryIt, /finalize-login --profile app-example/)
   assert.equal(tryIt.includes("consistencyhub"), false, "Pages Try it must not name consistencyhub")
   assert.ok(
-    tryIt.indexOf("await-login --profile myapp --save-editor") < tryIt.indexOf("finalize-login --profile myapp"),
+    tryIt.indexOf("await-login --profile app-example --save-editor") < tryIt.indexOf("finalize-login --profile app-example"),
     "Pages Try it must await-login --save-editor before finalize-login",
   )
-  assert.match(golden, /await-login --profile myapp --save-editor/)
+  assert.match(golden, /await-login --profile app-example --save-editor/)
   assert.equal(
     golden.includes("login --profile consistencyhub"),
     false,
@@ -201,17 +207,17 @@ test("copy-paste fences put --save-editor on the typed await-login line", () => 
   assert.match(worked, /await-login --profile consistencyhub --save-editor/)
 })
 
-test("package README Run fence is myapp login → await --save-editor → finalize → check, no trailing verify", () => {
+test("package README Run fence is login --url → await --save-editor → finalize → check, no trailing verify", () => {
   const pack = readFileSync(path.join(pkg, "README.md"), "utf8")
   const run = pack.split("## Run")[1]?.split("### Commands")[0] ?? ""
-  const login = run.indexOf("npx auspex login --profile myapp --url")
-  const awaitLogin = run.indexOf("npx auspex await-login --profile myapp --save-editor")
-  const finalize = run.indexOf("npx auspex finalize-login --profile myapp --url")
-  const check = run.indexOf("npx auspex check --profile myapp --url")
-  assert.notEqual(login, -1, "Run fence missing login myapp")
+  const login = run.indexOf("npx auspex login --url https://app.example")
+  const awaitLogin = run.indexOf("npx auspex await-login --profile app-example --save-editor")
+  const finalize = run.indexOf("npx auspex finalize-login --profile app-example --url")
+  const check = run.indexOf("npx auspex check --profile app-example --url")
+  assert.notEqual(login, -1, "Run fence missing login --url")
   assert.notEqual(awaitLogin, -1, "Run fence missing await-login --save-editor")
-  assert.notEqual(finalize, -1, "Run fence missing finalize-login myapp")
-  assert.notEqual(check, -1, "Run fence missing check myapp")
+  assert.notEqual(finalize, -1, "Run fence missing finalize-login derived slug")
+  assert.notEqual(check, -1, "Run fence missing check derived slug")
   assert.ok(login < awaitLogin, "Run fence must login before await-login")
   assert.ok(awaitLogin < finalize, "Run fence must await-login before finalize")
   assert.ok(finalize < check, "Run fence must finalize before check")
@@ -236,7 +242,7 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.match(first, /Auth-gated evidence/)
   assert.match(first, /consistencyhub-receipt\.json/)
   assert.match(first, /redacted auth-gated SaaS demo/)
-  assert.match(first, /--profile myapp/)
+  assert.match(first, /--profile <yours>|login --url/)
   assert.equal(
     /login --profile consistencyhub/.test(first.split("## Worked example")[0] ?? first),
     false,
@@ -313,7 +319,7 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(header, /same-session HITL takeover/)
   assert.match(header, /Phone door/)
   assert.match(header, /class="card"/)
-  assert.match(header, /--profile myapp/)
+  assert.match(header, /--profile app-example|--profile <yours>|login --url/)
   assert.match(header, /consistencyhub-receipt\.json/)
   assert.match(header, /[Rr]edacted/)
   assert.match(header, /auth-gated/)

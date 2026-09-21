@@ -8,7 +8,7 @@ From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
 ```
 
-Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). An auth-gated host uses `--profile myapp` plus *their* URL and expect after finalize-login — attached profiles on non-public-marketing URLs **default to no sandbox** (anonymous fetch cannot see the editor). The named `consistencyhub` saved check is the optional [worked example](#worked-example-dogfood). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
+Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). An auth-gated host uses `login --url` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect after finalize-login — attached profiles on non-public-marketing URLs **default to no sandbox** (anonymous fetch cannot see the editor). The named `consistencyhub` saved check is the optional [worked example](#worked-example-dogfood). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
 
 ```bash
 npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --no-verify
@@ -34,23 +34,23 @@ npx tsx src/cli.ts reap --dry-run
 npx tsx src/cli.ts reap
 ```
 
-Login-once (human IdP sign-in on the Solari Chrome card; Auspex captures sessionStorage via finalize-login). This is the **operator** golden path — *their* site, `--profile myapp`:
+Login-once (human IdP sign-in on the Solari Chrome card; Auspex captures sessionStorage via finalize-login). This is the **operator** golden path — *their* site, `login --url` (derives `--profile app-example`; override `--profile <yours>`):
 
 ```bash
-# 1. Human SSO in handoff → Save
-npx tsx src/cli.ts login --profile myapp --url https://app.example
+# 1. Human SSO in handoff → Save (`login --url` derives --profile app-example)
+npx tsx src/cli.ts login --url https://app.example
 
 # 2. Wait for Save (--save-editor; warns if no sessionStorage)
-npx tsx src/cli.ts await-login --profile myapp --save-editor
+npx tsx src/cli.ts await-login --profile app-example --save-editor
 
 # 3. Agent captures sessionStorage
-npx tsx src/cli.ts finalize-login --profile myapp --url https://app.example --expect "Dashboard"
+npx tsx src/cli.ts finalize-login --profile app-example --url https://app.example --expect "Dashboard"
 
 # 4. Later: reuse profile
-npx tsx src/cli.ts check --profile myapp --url https://app.example --expect "Dashboard"
+npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Dashboard"
 
 # 5. Optional: profile-seeded claim recheck (read claimOkProfile; do not fold it into ok)
-npx tsx src/cli.ts check --profile myapp --url https://app.example --expect "Dashboard" --verify-with-profile
+npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Dashboard" --verify-with-profile
 
 # List profiles
 npx tsx src/cli.ts profiles

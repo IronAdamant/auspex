@@ -82,7 +82,7 @@
       <strong>Redacted demo:</strong> auth-gated SaaS triad
       <a href="demo/consistencyhub-receipt.json">receipt</a>
       (blur ≠ blank fail).
-      The generic recipe is <code>--profile myapp</code> plus <em>their</em> URL and expect.
+      The generic recipe is <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>) plus <em>their</em> URL and expect.
       Worked example (dogfood) lives in
       <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>.
     </p>
@@ -143,10 +143,10 @@
     <pre>export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
 npx auspex-solari check --name ironadamant
 npx auspex-solari check https://example.com --expect "Example Domain"
-npx auspex-solari login --profile myapp --url https://app.example
-npx auspex-solari await-login --profile myapp --save-editor
-npx auspex-solari finalize-login --profile myapp --url https://app.example --expect "Dashboard"
-npx auspex-solari check --profile myapp --url https://app.example --expect "Dashboard"</pre>
+npx auspex-solari login --url https://app.example
+npx auspex-solari await-login --profile app-example --save-editor
+npx auspex-solari finalize-login --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex-solari check --profile app-example --url https://app.example --expect "Dashboard"</pre>
   </main>
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>
