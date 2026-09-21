@@ -255,7 +255,7 @@ export const auspexLoginInputSchema = z.object({
   wait: z
     .boolean()
     .optional()
-    .describe("If true, block until Save stores cookies or origins (empty Save is not success)"),
+    .describe("If true, wait for Save then run saveEditor (same as await-login --save-editor). Empty Save is not success."),
 })
 
 export const auspexAwaitLoginInputSchema = z.object({

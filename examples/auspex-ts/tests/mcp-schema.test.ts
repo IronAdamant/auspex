@@ -241,6 +241,8 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(awaitLogin.description ?? "", /finalize-login NOW/)
     assert.match(awaitLogin.description ?? "", /editorSave fails|editorFold is no-cdp/)
     assert.ok("saveEditor" in (awaitLogin.inputSchema.properties ?? {}))
+    assert.match(login.description ?? "", /wait:true|saveEditor true/)
+    assert.match((login.inputSchema.properties?.wait as { description?: string } | undefined)?.description ?? "", /saveEditor|save-editor/)
     assert.match(login.description ?? "", /phone keyboard|never copies the password/i)
     const finalize = listed.tools.find((t) => t.name === "auspex_finalize_login")
     assert.ok(finalize, "auspex_finalize_login missing from ListTools")
@@ -264,6 +266,15 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     await client.close()
     await mcp.close()
   }
+})
+
+test("login --wait and MCP wait:true both pass loginWaitAwaitOpts (saveEditor)", () => {
+  const cli = readFileSync(path.join(root, "src", "cli.ts"), "utf8")
+  const tools = readFileSync(path.join(root, "src", "mcp-tools.ts"), "utf8")
+  assert.match(cli, /loginWaitAwaitOpts/)
+  assert.match(tools, /loginWaitAwaitOpts/)
+  assert.match(cli, /saveEditor: true|loginWaitAwaitOpts/)
+  assert.match(tools, /saveEditor: true|loginWaitAwaitOpts/)
 })
 
 test("mcp-tools desktop payload keeps ASCII log and JSON", () => {

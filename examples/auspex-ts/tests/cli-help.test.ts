@@ -160,6 +160,7 @@ test("shipped CLI --help lists check, login, profiles", () => {
   assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
   assert.match(help.stdout, /await-login/)
   assert.match(help.stdout, /--save-editor/)
+  assert.match(help.stdout, /--wait then blocks[\s\S]*--save-editor/)
   assert.match(help.stdout, /--save-profile/)
   assert.match(help.stdout, /--name/)
   assert.match(help.stdout, /profile-status/)

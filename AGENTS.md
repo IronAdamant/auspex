@@ -17,13 +17,13 @@ npx auspex check https://example.com --expect "Example Domain"
 npx auspex profile-status --profile myapp --url https://app.example --expect "Dashboard"
 npx auspex login --profile myapp --url https://app.example
 # human: phone → handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; tap Save on that page. Seed/handoff door for off-site typing — not a Handraise-style same-session VNC takeover. Do not open Solari (GET editor HTTP 401). Then await-login --save-editor. Do not intern-ping.
-npx auspex await-login --profile myapp
+npx auspex await-login --profile myapp --save-editor
 npx auspex finalize-login --profile myapp --url https://app.example --expect "Dashboard"
 npx auspex check --profile myapp --url https://app.example --expect "Dashboard"   # never --record
 # dogfood saved check:
 npx auspex profile-status --name consistencyhub
 npx auspex login --profile consistencyhub
-npx auspex await-login --profile consistencyhub
+npx auspex await-login --profile consistencyhub --save-editor
 npx auspex finalize-login --profile consistencyhub
 npx auspex check --name consistencyhub          # never --record
 npx auspex reap                                 # after 429

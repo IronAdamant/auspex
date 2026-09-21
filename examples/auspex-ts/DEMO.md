@@ -40,8 +40,8 @@ Login-once (human Microsoft sign-in on the Solari Chrome card; Auspex captures s
 # 1. Human SSO in handoff → Save
 npx tsx src/cli.ts login --profile consistencyhub
 
-# 2. Wait for Save (warns if no sessionStorage)
-npx tsx src/cli.ts await-login --profile consistencyhub
+# 2. Wait for Save (--save-editor; warns if no sessionStorage)
+npx tsx src/cli.ts await-login --profile consistencyhub --save-editor
 
 # 3. Agent captures sessionStorage
 npx tsx src/cli.ts finalize-login --profile consistencyhub

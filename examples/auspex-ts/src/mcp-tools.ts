@@ -9,7 +9,7 @@ import { createProgress, type ProgressExtra } from "./progress.ts"
 import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { attachHandoffQr, HANDOFF_PHONE_DOOR_BAN, listProfiles, loginProfile, qrPayloadForHandoff } from "./profiles.ts"
-import { liveAwaitLogin } from "./profile-persist.ts"
+import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
@@ -37,7 +37,7 @@ const VERIFY_DESCRIPTION =
 const LOGIN_DESCRIPTION =
   "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
   HANDOFF_PHONE_DOOR_BAN +
-  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
+  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
 const DESKTOP_DESCRIPTION =
   "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
@@ -147,7 +147,7 @@ export function registerAuspexTools(server: McpServer): void {
           const payload = stampSchema({ ok: true, ...result })
           return buildReceiptToolContent(payload, result.handoff?.qrPath)
         }
-        const waited = await liveAwaitLogin(profile, { sinceVersion: result.sinceVersion })
+        const waited = await liveAwaitLogin(profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }))
         const payload = stampSchema({
           ok: waited.status === "completed",
           ...result,
