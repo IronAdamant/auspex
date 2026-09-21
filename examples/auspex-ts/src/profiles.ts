@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
-import { recordLoginTrace } from "./login-trace.ts"
+import { recordLoginTrace, type LoginMintStage } from "./login-trace.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
 import { derivedProfileNext } from "./profile-slug.ts"
@@ -379,6 +379,16 @@ export function editorStartOk(status: number): boolean {
   return status === 200 || status === 201 || status === 202 || status === 409
 }
 
+/** Phone-door mint stage. Empty token / failed VNC is never "ready". */
+export function mintStageAfterVnc(
+  mint: Pick<EditorVncMint, "token" | "editorStartStatus" | "tokenTries">,
+  vncMintOk = Boolean(mint.token),
+): Extract<LoginMintStage, "editor-start" | "editor-token" | "ready"> {
+  if (vncMintOk) return "ready"
+  const editorStartBad = mint.editorStartStatus !== 0 && !editorStartOk(mint.editorStartStatus)
+  return editorStartBad ? "editor-start" : "editor-token"
+}
+
 /** Start the profile editor if needed and return the noVNC bearer token (never log the token). */
 export async function fetchEditorVncToken(
   profileId: string,
@@ -427,8 +437,7 @@ export async function loginProfile(
   qrPath?: string,
   opts?: { profileDerived?: boolean },
 ): Promise<LoginResult> {
-  let mintStage: "key-check" | "profile-ensure" | "handoff-post" | "editor-start" | "editor-token" | "ready" =
-    "key-check"
+  let mintStage: LoginMintStage = "key-check"
   try {
     mintStage = "profile-ensure"
     const profile = await ensureProfile(name)
@@ -467,15 +476,7 @@ export async function loginProfile(
       : result.handoff?.mobileUrl
         ? "novnc-fallback"
         : "none"
-    const editorStartBad =
-      vncMint.editorStartStatus !== 0 && !editorStartOk(vncMint.editorStartStatus)
-    mintStage = vncMintOk
-      ? "ready"
-      : editorStartBad
-        ? "editor-start"
-        : vncMint.tokenTries > 0
-          ? "editor-token"
-          : "ready"
+    mintStage = mintStageAfterVnc(vncMint, vncMintOk)
     const traced = await recordLoginTrace({
       event: "login",
       profile: result.name,

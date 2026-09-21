@@ -73,9 +73,6 @@ export type AwaitLoginResult = {
   editorSave?: { ok: boolean; status: number; error?: string }
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
-  episodeId?: string
-  remintCount?: number
-  traceSummary?: string
 }
 
 export type AwaitLoginDeps = {

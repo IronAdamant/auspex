@@ -112,9 +112,6 @@ export type CheckResult = {
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
-  episodeId?: string
-  remintCount?: number
-  traceSummary?: string
 }
 
 export { packageRoot } from "./paths.ts"
