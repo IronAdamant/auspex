@@ -12,9 +12,9 @@ export const PROFILE_SLUG_MAX = 48
 export function profileSlugFromHost(host: string): string | undefined {
   let h = host.trim().toLowerCase()
   h = h.replace(/^\[/, "").replace(/\]$/, "")
-  h = h.replace(/\.$/, "")
   h = h.replace(/%.*/, "")
   if (h.startsWith("www.")) h = h.slice(4)
+  h = h.replace(/\.$/, "")
   let slug = h.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "")
   if (!slug) return undefined
   if (slug.length > PROFILE_SLUG_MAX) {
@@ -43,8 +43,11 @@ export type ResolvedLoginProfile = {
 
 /** Explicit `--profile` wins. `--url` without profile derives a host slug. */
 export function resolveLoginProfile(opts: { profile?: string; url?: string }): ResolvedLoginProfile {
-  const explicit = (opts.profile ?? "").trim()
-  if (explicit) return { name: explicit, derived: false }
+  if (opts.profile !== undefined) {
+    const explicit = opts.profile.trim()
+    if (!explicit) throw new Error("profile name must be non-empty")
+    return { name: explicit, derived: false }
+  }
   const url = (opts.url ?? "").trim()
   if (!url) throw new Error(LOGIN_PROFILE_OR_URL_ERROR)
   return { name: profileSlugFromUrl(url), derived: true }

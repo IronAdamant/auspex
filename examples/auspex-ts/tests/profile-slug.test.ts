@@ -49,6 +49,7 @@ test("resolveLoginProfile prefers explicit --profile over url host", () => {
   assert.equal(derived.name, "app-example-com")
   assert.equal(derived.derived, true)
   assert.throws(() => resolveLoginProfile({}), new RegExp(LOGIN_PROFILE_OR_URL_ERROR.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.throws(() => resolveLoginProfile({ profile: "   ", url: "https://app.example.com" }), /profile name/)
 })
 
 test("derivedProfileNext names the slug and the override", () => {

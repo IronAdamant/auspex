@@ -563,9 +563,9 @@ var init_editor_fold = __esm({
 function profileSlugFromHost(host) {
   let h = host.trim().toLowerCase();
   h = h.replace(/^\[/, "").replace(/\]$/, "");
-  h = h.replace(/\.$/, "");
   h = h.replace(/%.*/, "");
   if (h.startsWith("www.")) h = h.slice(4);
+  h = h.replace(/\.$/, "");
   let slug = h.replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
   if (!slug) return void 0;
   if (slug.length > PROFILE_SLUG_MAX) {
@@ -586,8 +586,11 @@ function profileSlugFromUrl(url) {
   return slug;
 }
 function resolveLoginProfile(opts) {
-  const explicit = (opts.profile ?? "").trim();
-  if (explicit) return { name: explicit, derived: false };
+  if (opts.profile !== void 0) {
+    const explicit = opts.profile.trim();
+    if (!explicit) throw new Error("profile name must be non-empty");
+    return { name: explicit, derived: false };
+  }
   const url = (opts.url ?? "").trim();
   if (!url) throw new Error(LOGIN_PROFILE_OR_URL_ERROR);
   return { name: profileSlugFromUrl(url), derived: true };
