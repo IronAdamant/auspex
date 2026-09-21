@@ -180,6 +180,10 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.equal(first.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"), false)
   assert.match(first, /[Pp]ublic check/)
   assert.match(first, /[Aa]uth-gated/)
+  assert.match(first, /measured public check|Measured public check/)
+  assert.match(first, /[Rr]edacted demo/)
+  assert.match(first, /OneDrive is \*\*recipe only\*\*|recipe only/)
+  assert.match(first, /Alice-vs-Bob/)
   assert.match(first, /Issues.*skip/i)
   assert.equal(first.includes("no public GitHub Issues tracker"), false)
 })
@@ -243,6 +247,14 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
 test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
   const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
   const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
+  const header = index.split("<iframe")[0] ?? ""
+  assert.match(header, /ok ≠ claimOk ≠ claimOkProfile/)
+  assert.match(header, /Alice-vs-Bob/)
+  assert.match(header, /seed\/handoff door/)
+  assert.match(header, /same-session HITL takeover/)
+  assert.match(index, /Measured public check/)
+  assert.match(index, /Redacted demo/)
+  assert.match(index, /OneDrive: recipe only/)
   assert.match(index, /src="demo\/replay\.html"/)
   assert.equal(
     index.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),

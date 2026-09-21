@@ -4,7 +4,7 @@ Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `cla
 
 ## For Reviewers
 
-The ironadamant one-liner is a **public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the redacted ConsistencyHub receipt (`ok` / `claimOk` / `claimOkProfile`).
+The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted demo** ConsistencyHub receipt (`ok` / `claimOk` / `claimOkProfile`). OneDrive is **recipe only** — no committed PNG/receipt (PII). See [RECEIPTS.md](RECEIPTS.md).
 
 | Door | Open this |
 | --- | --- |
@@ -27,11 +27,11 @@ Do not run npm `auspex` (a different scraper). After clone, `npx auspex` is the 
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
-![Solari cloud Chrome checking ironadamant.com (public check, no login)](examples/auspex-ts/demo/ironadamant.png)
+![Solari cloud Chrome checking ironadamant.com (measured public check, no login)](examples/auspex-ts/demo/ironadamant.png)
 
-### Auth-gated SaaS (redacted ConsistencyHub)
+### Auth-gated SaaS (redacted ConsistencyHub demo)
 
-**ConsistencyHub verified check** — blurred dashboard proving the verification triad stays honest. Blur ≠ blank fail.
+**Redacted demo** — blurred dashboard proving the verification triad stays honest. Blur ≠ blank fail. OneDrive with the same Microsoft profile is **recipe only** (no committed PNG/receipt).
 
 ![ConsistencyHub dashboard (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
 
