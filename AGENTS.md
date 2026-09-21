@@ -2,6 +2,8 @@
 
 Source of truth for CLI, Cursor, Claude Code, Codex, and raw shell. Cursor rules in this repo are a pointer, not the only how-to-run.
 
+We do **not** claim Alice-vs-Bob wrong-account detection. A seeded profile can still be the wrong Microsoft user and match expect.
+
 ## First calls
 
 From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.

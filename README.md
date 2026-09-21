@@ -9,6 +9,7 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 | Door | Open this |
 | --- | --- |
 | **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (ConsistencyHub, Microsoft, emails/passwords stripped) |
+| **Auth-gated evidence** | Redacted CH [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) · OneDrive **recipe only** (no PNG) — [RECEIPTS.md](RECEIPTS.md) |
 | **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Any Microsoft-gated host** | `npx auspex-solari login --profile myapp --url <https>`. Phone: open `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Tap Save (copies a line; paste it in the AI chat). Then `await-login --save-editor`, `finalize-login`, `check`. Never `--record`. |

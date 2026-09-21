@@ -2,6 +2,8 @@
 
 Canonical any-host instructions: [AGENTS.md](../../AGENTS.md) at the repository root. Receipt field list (schema v1 frozen): [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen). This copy stays next to the package so a host that only opens `examples/auspex-ts` still has the contract.
 
+We do **not** claim Alice-vs-Bob wrong-account detection. A seeded profile can still be the wrong Microsoft user and match expect.
+
 ## First calls
 
 From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
