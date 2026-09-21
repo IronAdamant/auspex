@@ -8,6 +8,7 @@ import {
   PHONE_HANDOFF_PAGE,
   attachHandoffQr,
   fetchEditorVncToken,
+  editorStartOk,
   formatLogin,
   phoneSavePaste,
   saveProfileEditor,
@@ -16,6 +17,8 @@ import {
   phoneHandoffUrl,
   qrPayloadForHandoff,
   requestLoginHandoff,
+  publicHandoffUrl,
+  classifyHandoffHost,
 } from "../src/profiles.ts"
 
 test("loginInstructions without IME page warns that Solari noVNC will not open the phone keyboard", () => {
@@ -103,9 +106,47 @@ test("fetchEditorVncToken treats 409 as already running and returns the token", 
       return { status: 200, json: { token: "vnc.jwt", ready: true } }
     },
   })
-  assert.equal(vnc, "vnc.jwt")
+  assert.equal(vnc.token, "vnc.jwt")
+  assert.equal(vnc.editorStartStatus, 409)
   assert.equal(calls[0]?.endsWith("/editor"), true)
   assert.equal(calls[1]?.endsWith("/editor/token"), true)
+})
+
+test("editorStartOk treats 202 Accepted as starting (poll token)", () => {
+  assert.equal(editorStartOk(200), true)
+  assert.equal(editorStartOk(201), true)
+  assert.equal(editorStartOk(202), true)
+  assert.equal(editorStartOk(409), true)
+  assert.equal(editorStartOk(401), false)
+  assert.equal(editorStartOk(503), false)
+})
+
+test("fetchEditorVncToken polls token after editor-start 202", async () => {
+  const calls: string[] = []
+  const vnc = await fetchEditorVncToken("prof_1", "hand_1", {
+    sleepMs: 0,
+    tries: 3,
+    post: async (p) => {
+      calls.push(p)
+      if (p.endsWith("/editor")) return { status: 202, json: { status: "starting" } }
+      return { status: 200, json: { token: "vnc.jwt", ready: true } }
+    },
+  })
+  assert.equal(vnc.token, "vnc.jwt")
+  assert.equal(vnc.editorStartStatus, 202)
+  assert.equal(calls[0]?.endsWith("/editor"), true)
+  assert.equal(calls[1]?.endsWith("/editor/token"), true)
+})
+
+test("fetchEditorVncToken keeps editor-start HTTP status when start is not 200/201/202/409", async () => {
+  const mint = await fetchEditorVncToken("prof_1", "hand_1", {
+    sleepMs: 0,
+    tries: 2,
+    post: async () => ({ status: 503, json: { error: "unconditional drop: overload" } }),
+  })
+  assert.equal(mint.token, undefined)
+  assert.equal(mint.editorStartStatus, 503)
+  assert.equal(mint.tokenTries, 0)
 })
 
 test("docs/phone.html has a real text field and loads the local noVNC client", () => {
@@ -230,6 +271,13 @@ test("attachHandoffQr mentions qrPath only when a PNG was written", () => {
   assert.equal(result.next.includes("handoff.qrPath"), false)
 })
 
+test("publicHandoffUrl rewrites cluster-internal hosts and keeps the path", () => {
+  const raw = "http://console.example.svc.cluster.local/handoff/abc"
+  assert.equal(classifyHandoffHost(raw), "cluster-internal")
+  assert.equal(publicHandoffUrl(raw), "https://console.getsolari.com/handoff/abc")
+  assert.equal(classifyHandoffHost("https://console.getsolari.com/handoff/abc"), "public")
+})
+
 test("requestLoginHandoff uses injected HTTP and requires url", async () => {
   let path = ""
   let body: unknown
@@ -243,6 +291,16 @@ test("requestLoginHandoff uses injected HTTP and requires url", async () => {
   assert.match(path, /\/profiles\/prof_1\/login-handoff/)
   assert.equal((body as { reason: string }).reason, "Auspex login")
   assert.equal(handoff.url, "https://handoff.example/u")
+  assert.equal(handoff.hostKind, "other")
+
+  const internal = await requestLoginHandoff("prof_1", "Auspex login", {
+    post: async () => ({
+      url: "http://console.example.svc.cluster.local/handoff/tok",
+      handoffId: "tok",
+    }),
+  })
+  assert.equal(internal.hostKind, "cluster-internal")
+  assert.equal(internal.url, "https://console.getsolari.com/handoff/tok")
   await assert.rejects(
     () => requestLoginHandoff("prof_1", "x", { post: async () => ({}) }),
     /no url/,

@@ -211,6 +211,10 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(check.description ?? "", /dashboard/)
     const reap = listed.tools.find((t) => t.name === "auspex_reap")
     assert.ok(reap, "auspex_reap missing from ListTools")
+    const trace = listed.tools.find((t) => t.name === "auspex_trace")
+    assert.ok(trace, "auspex_trace missing from ListTools")
+    assert.match(trace.description ?? "", /episode|traceSummary|lead-up|mint/)
+    assert.match(trace.description ?? "", /before reminting|silent or fails/)
     const reapProps = reap.inputSchema.properties ?? {}
     assert.ok("accountWide" in reapProps)
     assert.match(reap.description ?? "", /429|leftover|kill/i)

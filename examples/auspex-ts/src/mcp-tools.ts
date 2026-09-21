@@ -13,6 +13,7 @@ import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
 import { reapLeftovers } from "./reap.ts"
+import { readLoginTrace } from "./login-trace.ts"
 import { checkThenVerify, defaultVerifyDeps, verifyReceipt } from "./sandbox.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
@@ -27,6 +28,7 @@ import {
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexReapInputSchema,
+  auspexTraceInputSchema,
 } from "./tool-schema.ts"
 
 const CHECK_DESCRIPTION =
@@ -56,6 +58,9 @@ const FINALIZE_LOGIN_DESCRIPTION =
 
 const REAP_DESCRIPTION =
   "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
+
+const TRACE_DESCRIPTION =
+  "Read the last Solari LOGIN MINT episode (lead-up only). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout) or Mint ready. Log stops when Chromium/handoff is ready; await-login/check are not this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace."
 
 function toolJson(obj: object): string {
   return JSON.stringify(stampSchema(obj), null, 2)
@@ -308,6 +313,22 @@ export function registerAuspexTools(server: McpServer): void {
     async (args) => {
       try {
         const result = await reapLeftovers(args)
+        return { content: [{ type: "text" as const, text: toolJson(result) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_trace",
+    {
+      description: TRACE_DESCRIPTION,
+      inputSchema: auspexTraceInputSchema,
+    },
+    async ({ profile, limit, all }) => {
+      try {
+        const result = stampSchema({ ok: true, ...(await readLoginTrace({ profile, limit, all })) })
         return { content: [{ type: "text" as const, text: toolJson(result) }] }
       } catch (err) {
         return packToolFailure(err)

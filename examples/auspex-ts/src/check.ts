@@ -4,6 +4,7 @@ import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
 import { agentReceiptOk, deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
 import { persistAgentManifest } from "./agent-receipt.ts"
+import { loginTraceSeedExtras } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
@@ -111,6 +112,9 @@ export type CheckResult = {
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
+  episodeId?: string
+  remintCount?: number
+  traceSummary?: string
 }
 
 export { packageRoot } from "./paths.ts"
@@ -258,7 +262,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       sessionId = browser.id
       await rememberLive("browser", sessionId).catch(() => undefined)
       if (isCancelled()) return
-      profileSeed = seedFromStorageState(browser.session.storageState, originOf(opts.url))
+      profileSeed = {
+        ...seedFromStorageState(browser.session.storageState, originOf(opts.url)),
+        ...loginTraceSeedExtras(browser.session.storageState, originOf(opts.url)),
+      }
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
         throw new Error(emptyProfileSeedError(opts.profile))
       }

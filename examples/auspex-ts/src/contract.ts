@@ -118,6 +118,15 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "accountWide", flag: "--account-wide", kind: "boolean" },
     ],
   },
+  {
+    cmd: "trace",
+    tool: "auspex_trace",
+    fields: [
+      { json: "profile", flag: "--profile", kind: "string" },
+      { json: "limit", flag: "--limit", kind: "number" },
+      { json: "all", flag: "--all", kind: "boolean" },
+    ],
+  },
 ]
 
 export function contractJsonFields(cmd: string): string[] {

@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
+import { recordLoginTrace } from "./login-trace.ts"
+import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
 import { derivedProfileNext } from "./profile-slug.ts"
 import { packageRoot } from "./paths.ts"
@@ -8,6 +10,32 @@ import { resolvePhoneExpirySeconds } from "./phone-expiry.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 
 export const CONSOLE_PROFILES_URL = "https://console.getsolari.com"
+
+export type HandoffHostKind = "public" | "cluster-internal" | "other"
+
+/** Rewrite in-cluster Solari hostnames so humans never see k8s DNS. Path (handoff id) is kept. */
+export function classifyHandoffHost(url: string): HandoffHostKind {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host === "console.getsolari.com" || host.endsWith(".getsolari.com")) return "public"
+    if (host.includes("cluster.local") || host.includes(".svc.")) return "cluster-internal"
+    return "other"
+  } catch {
+    return "other"
+  }
+}
+
+export function publicHandoffUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    if (classifyHandoffHost(url) !== "cluster-internal") return url
+    u.protocol = "https:"
+    u.host = "console.getsolari.com"
+    return u.toString()
+  } catch {
+    return url
+  }
+}
 /** Pages viewer with a real text field so the phone software keyboard can open. */
 export const PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html"
 export const PROFILE_NAME_ERROR = "profile name must be non-empty"
@@ -90,6 +118,7 @@ export type LoginHandoff = {
   handoffId?: string
   expiresAt?: string
   version?: number
+  hostKind?: HandoffHostKind
 }
 
 export type HandoffPacket = {
@@ -190,6 +219,9 @@ export type LoginResult = {
   sinceVersion?: number
   /** True when name was derived from --url host (no explicit --profile). */
   profileDerived?: boolean
+  episodeId?: string
+  remintCount?: number
+  traceSummary?: string
 }
 
 export type ProfileHttp = {
@@ -263,7 +295,10 @@ export async function defaultProfileHttp(): Promise<ProfileHttp> {
       const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
       if (!res.ok) {
         const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`
-        throw new Error(err)
+        const retryable = res.status === 502 || res.status === 503 || res.status === 504
+        throw new AuspexError(err, {
+          issue: { code: err, retryable, status: res.status },
+        })
       }
       return json
     },
@@ -277,12 +312,17 @@ export async function requestLoginHandoff(
 ): Promise<LoginHandoff> {
   const json = await http.post(`/profiles/${encodeURIComponent(profileId)}/login-handoff`, { reason })
   const url = typeof json.url === "string" ? json.url : ""
-  if (!url) throw new Error("login-handoff returned no url")
+  if (!url) {
+    throw new AuspexError("login-handoff returned no url", {
+      issue: { code: "NoHandoffUrl", retryable: true },
+    })
+  }
   return {
-    url,
+    url: publicHandoffUrl(url),
     handoffId: typeof json.handoffId === "string" ? json.handoffId : undefined,
     expiresAt: typeof json.expiresAt === "string" ? json.expiresAt : undefined,
     version: typeof json.version === "number" ? json.version : undefined,
+    hostKind: classifyHandoffHost(url),
   }
 }
 
@@ -327,31 +367,47 @@ async function defaultEditorPost(handoffToken: string): Promise<EditorPost> {
   }
 }
 
-/** Start the profile editor if needed and return the noVNC bearer token. */
+export type EditorVncMint = {
+  token?: string
+  editorStartStatus: number
+  tokenLastStatus?: number
+  tokenTries: number
+}
+
+/** 200/201 ready, 202 Accepted (starting — poll token), 409 already running. */
+export function editorStartOk(status: number): boolean {
+  return status === 200 || status === 201 || status === 202 || status === 409
+}
+
+/** Start the profile editor if needed and return the noVNC bearer token (never log the token). */
 export async function fetchEditorVncToken(
   profileId: string,
   handoffToken: string,
   opts?: { post?: EditorPost; tries?: number; sleepMs?: number },
-): Promise<string | undefined> {
+): Promise<EditorVncMint> {
   const token = handoffToken.trim()
   const id = profileId.trim()
-  if (!token || !id) return undefined
-  const post = opts?.post ?? (await defaultEditorPost(token))
   const tries = opts?.tries ?? 20
+  if (!token || !id) return { editorStartStatus: 0, tokenTries: 0 }
+  const post = opts?.post ?? (await defaultEditorPost(token))
   const sleepMs = opts?.sleepMs ?? 1000
   const start = await post(`/api/profiles/${encodeURIComponent(id)}/editor`)
-  if (start.status !== 200 && start.status !== 201 && start.status !== 409) {
-    return undefined
+  if (!editorStartOk(start.status)) {
+    return { editorStartStatus: start.status, tokenTries: 0 }
   }
+  let tokenLastStatus: number | undefined
   for (let i = 0; i < tries; i++) {
     const got = await post(`/api/profiles/${encodeURIComponent(id)}/editor/token`)
+    tokenLastStatus = got.status
     const vnc = typeof got.json.token === "string" ? got.json.token.trim() : ""
-    if (got.status === 200 && vnc) return vnc
+    if (got.status === 200 && vnc) {
+      return { token: vnc, editorStartStatus: start.status, tokenLastStatus, tokenTries: i + 1 }
+    }
     if (i + 1 < tries && sleepMs > 0) {
       await new Promise((r) => setTimeout(r, sleepMs))
     }
   }
-  return undefined
+  return { editorStartStatus: start.status, tokenLastStatus, tokenTries: tries }
 }
 
 export async function saveProfileEditor(
@@ -371,39 +427,84 @@ export async function loginProfile(
   qrPath?: string,
   opts?: { profileDerived?: boolean },
 ): Promise<LoginResult> {
-  const profile = await ensureProfile(name)
-  const client = http ?? (await defaultProfileHttp())
-  const handoff = await requestLoginHandoff(
-    profile.id,
-    urlHint
-      ? `Auspex login for profile ${profile.name}; start at ${urlHint}`
-      : `Auspex login for profile ${profile.name}`,
-    client,
-  )
-  let mobileUrl: string | undefined
-  const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
+  let mintStage: "key-check" | "profile-ensure" | "handoff-post" | "editor-start" | "editor-token" | "ready" =
+    "key-check"
   try {
+    mintStage = "profile-ensure"
+    const profile = await ensureProfile(name)
+    mintStage = "handoff-post"
+    const client = http ?? (await defaultProfileHttp())
+    const handoff = await requestLoginHandoff(
+      profile.id,
+      urlHint
+        ? `Auspex login for profile ${profile.name}; start at ${urlHint}`
+        : `Auspex login for profile ${profile.name}`,
+      client,
+    )
+    const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
     if (handoffToken) {
       await persistEditorSave({
         profileId: profile.id,
         name: profile.name,
         handoffToken,
         expiresAt: handoff.expiresAt,
-      })
+      }).catch(() => undefined)
     }
-    const vnc = await fetchEditorVncToken(profile.id, handoffToken)
-    if (vnc) {
-      mobileUrl = phoneHandoffUrl(vnc, handoff.url, {
+    const vncMint = await fetchEditorVncToken(profile.id, handoffToken)
+    let mobileUrl: string | undefined
+    if (vncMint.token) {
+      mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
         profileId: profile.id,
         profileName: profile.name,
         handoffToken,
         expiresAt: handoff.expiresAt,
       })
     }
-  } catch {
-    mobileUrl = undefined
+    const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
+    const vncMintOk = Boolean(vncMint.token)
+    const phoneDoor = isPhoneImeUrl(result.handoff?.mobileUrl)
+      ? "ime"
+      : result.handoff?.mobileUrl
+        ? "novnc-fallback"
+        : "none"
+    const editorStartBad =
+      vncMint.editorStartStatus !== 0 && !editorStartOk(vncMint.editorStartStatus)
+    mintStage = vncMintOk
+      ? "ready"
+      : editorStartBad
+        ? "editor-start"
+        : vncMint.tokenTries > 0
+          ? "editor-token"
+          : "ready"
+    const traced = await recordLoginTrace({
+      event: "login",
+      profile: result.name,
+      phoneDoor,
+      computerDoor: "console-editor",
+      vncMintOk,
+      mintStage,
+      urlPresent: true,
+      hostKind: handoff.hostKind,
+      editorStartStatus: vncMint.editorStartStatus || undefined,
+      tokenLastStatus: vncMint.tokenLastStatus,
+      tokenTries: vncMint.tokenTries || undefined,
+      expiresAt: result.expiresAt,
+      sinceVersion: result.sinceVersion,
+    })
+    return { ...result, ...traced }
+  } catch (err) {
+    const issue = classifySolariError(err)
+    if (issue.code === "MissingApiKey") mintStage = "key-check"
+    await recordLoginTrace({
+      event: "login",
+      profile: name,
+      mintStage,
+      urlPresent: issue.code === "NoHandoffUrl" ? false : undefined,
+      solariStatus: issue.status,
+      solariCode: issue.code,
+    }).catch(() => undefined)
+    throw err
   }
-  return loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {

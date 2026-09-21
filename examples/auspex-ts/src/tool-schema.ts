@@ -297,6 +297,12 @@ export const auspexDesktopInputSchema = z.object({
   expect: z.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name."),
 })
 
+export const auspexTraceInputSchema = z.object({
+  profile: profileNameSchema.optional().describe("Only events for this profile name"),
+  limit: z.number().optional().describe("Max events to return (default 50, max 200)"),
+  all: z.boolean().optional().describe("Dump mixed history instead of the last login episode"),
+})
+
 export const auspexReapInputSchema = z.object({
   dryRun: z.boolean().optional().describe("List leftover sessions/VMs without closing them"),
   sessionId: z.string().optional().describe("Extra browser session id to release"),

@@ -34,6 +34,7 @@ npx auspex check https://ironadamant.com --expect "One office job."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
 npx auspex login --url https://app.example
+# mint is traced; if silent or login fails, read traceSummary / npx auspex trace (not a fourth primitive)
 npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Dashboard"
@@ -59,6 +60,7 @@ npx auspex login [--profile <name>] [--url <https>] [--wait]
 npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
 npx auspex profiles
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+npx auspex trace [--profile <name>] [--limit <n>] [--all]
 ```
 
 `login` creates or reuses a named Solari profile and prints **two labeled URLs**. `--url` without `--profile` derives a safe host slug (`app.example.com` → `app-example-com`) and echoes it on stdout, `next`, and phone Save paste. `--profile` wins. Phone: `handoff.mobileUrl` (Auspex phone page with a real text field — seed/handoff door, not a same-session VNC takeover). Computer: `handoff.desktopUrl`. The agent never handles the password. On the phone, tap Save (copies a line; paste it in the AI chat), then `await-login --profile <yours> --save-editor`. Do not open Solari’s handoff page on a phone (`GET editor HTTP 401`). A Save that stores **0 cookies and 0 origins** is not success. `--save-editor` / console Save do **not** refresh folded sessionStorage unless `editorFold.ok` (Microsoft OAuth SPAs keep `accessToken` + `expiresOn` there). If `editorSave` fails (e.g. 401) or `editorFold` is `no-cdp`, finalize-login NOW while the token is live; remint if finalize returns `needsHuman`. Stale/weak `next` remint or finalize-now — do not run `--verify-with-profile` on a dead fold. After Microsoft login run `finalize-login --profile <name> --url <url> --expect <string>` **while the token is valid** (saved-check profiles may omit url/expect). Then `check --profile <name> --url <url> --expect <string>` in a new session. Login does not hold an Auspex check session open. `--mobile` / `--device` emulates a phone viewport on cloud Chrome; it is not the phone-login door.

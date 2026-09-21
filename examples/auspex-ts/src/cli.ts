@@ -16,6 +16,7 @@ import { assertPageActionsAllowed } from "./page-actions.ts"
 import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { reapLeftovers } from "./reap.ts"
+import { readLoginTrace } from "./login-trace.ts"
 import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
@@ -39,6 +40,7 @@ export const USAGE = `Usage:
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
   npx auspex profiles
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+  npx auspex trace [--profile <name>] [--limit <n>] [--all]
   npx auspex mcp
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
@@ -63,6 +65,7 @@ SSO is human-once then reuse. Microsoft and Google password/OTP walls fail close
 402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
 429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
 Requires SOLARI_API_KEY in the environment (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
+login mint lead-up is traced to .auspex/trace/login.jsonl (key, profile, handoff, editor-start, editor-token). If mint fails, login JSON and npx auspex trace say why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout). Log stops when Chromium/handoff is ready; await-login / check are normal ops after that. Default npx auspex trace is the last episode plus traceSummary. --all dumps history. No tokens, cookie values, excerpts, passwords, or session ids. If mint is silent or fails, read traceSummary / auspex_trace before reminting. Not a fourth primitive.
 Never commit .env or .auspex/ run artifacts.
 `
 
@@ -78,6 +81,7 @@ export type CliCommand =
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
+  | { cmd: "trace"; profile?: string; limit?: number; all?: boolean }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -406,6 +410,30 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     return { status: "ok", command: { cmd: "desktop", open, type, click, expect } }
   }
+  if (cmd === "trace") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const profileRaw = takeOption(args, "--profile")
+    const limitRaw = takeOption(args, "--limit")
+    const all = takeFlag(args, "--all")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    let profile: string | undefined
+    if (profileRaw) {
+      try {
+        profile = requireProfileName(profileRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    let limit: number | undefined
+    if (limitRaw !== undefined) {
+      const n = Number(limitRaw)
+      if (!Number.isFinite(n)) return { status: "error", message: "--limit must be a number" }
+      limit = n
+    }
+    return { status: "ok", command: { cmd: "trace", profile, limit, all } }
+  }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
 
@@ -524,6 +552,18 @@ export async function main(argv: string[]): Promise<number> {
       )
       writeStdoutJson(result)
       return exitFromOk(result.ok)
+    }
+    if (parsed.command.cmd === "trace") {
+      const result = stampSchema({
+        ok: true,
+        ...(await readLoginTrace({
+          profile: parsed.command.profile,
+          limit: parsed.command.limit,
+          all: parsed.command.all,
+        })),
+      })
+      writeStdoutJson(result)
+      return 0
     }
     const profiles = await listProfiles()
     writeStdoutJson(stampSchema({ ok: true, profiles }))

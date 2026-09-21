@@ -7,6 +7,7 @@ import {
 } from "./editor-fold.ts"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
+import { loginTraceSeedExtras } from "./login-trace.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
@@ -39,6 +40,9 @@ export type ProfileSeed = {
   sessionStorage?: number
   /** Folded `__auspex_ss__:expiresOn` is past or within ~5m. Count alone is not fresh. */
   sessionStorageStale?: boolean
+  cookieHosts?: string[]
+  foldedExpiresInSec?: number
+  idpCookies?: boolean
 }
 
 export type ProfileSaveResult = {
@@ -62,10 +66,16 @@ export type AwaitLoginResult = {
   origins: number
   sessionStorage?: number
   sessionStorageStale?: boolean
+  cookieHosts?: string[]
+  foldedExpiresInSec?: number
+  idpCookies?: boolean
   next: string
   editorSave?: { ok: boolean; status: number; error?: string }
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
+  episodeId?: string
+  remintCount?: number
+  traceSummary?: string
 }
 
 export type AwaitLoginDeps = {
@@ -119,6 +129,9 @@ export function isWeakSeed(opts: {
   origins?: number
   sessionStorage?: number
   sessionStorageStale?: boolean
+  cookieHosts?: string[]
+  foldedExpiresInSec?: number
+  idpCookies?: boolean
 }): boolean {
   const missingSs = opts.sessionStorage === 0
   const staleSs = opts.sessionStorageStale === true
@@ -357,7 +370,8 @@ export async function inspectProfileSeed(
 ): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
   try {
-    return seedFromStorageState(session.storageState ?? undefined, origin)
+    const state = session.storageState ?? undefined
+    return { ...seedFromStorageState(state, origin), ...loginTraceSeedExtras(state, origin) }
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
   }
@@ -457,6 +471,9 @@ export async function waitForProfileSave(
     origins: seed.origins,
     sessionStorage: seed.sessionStorage,
     sessionStorageStale: seed.sessionStorageStale,
+    cookieHosts: seed.cookieHosts,
+    foldedExpiresInSec: seed.foldedExpiresInSec,
+    idpCookies: seed.idpCookies,
     next: awaitNext(status, profile, version, seed),
   }
 }
@@ -516,19 +533,21 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
-    if (editorSave || editorFold) {
-      const withEditor = { ...waited, ...(editorSave ? { editorSave } : {}), ...(editorFold ? { editorFold } : {}) }
-      return {
-        ...withEditor,
-        next: overlaySaveEditorNext({
-          next: waited.next,
-          profile: waited.name,
-          editorSave,
-          editorFold,
-        }),
-      }
-    }
-    return waited
+    const result =
+      editorSave || editorFold
+        ? {
+            ...waited,
+            ...(editorSave ? { editorSave } : {}),
+            ...(editorFold ? { editorFold } : {}),
+            next: overlaySaveEditorNext({
+              next: waited.next,
+              profile: waited.name,
+              editorSave,
+              editorFold,
+            }),
+          }
+        : waited
+    return result
   } finally {
     await solari.close().catch(() => undefined)
   }
