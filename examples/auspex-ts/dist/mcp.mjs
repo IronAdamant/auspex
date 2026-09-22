@@ -562,6 +562,9 @@ var init_editor_fold = __esm({
 // src/login-trace.ts
 import { appendFile, mkdir as mkdir2, readFile, writeFile } from "node:fs/promises";
 import path2 from "node:path";
+function forbiddenTraceKey(key) {
+  return FORBIDDEN_KEYS.has(key.toLowerCase());
+}
 function cookieHostsFromState(state) {
   const hosts = /* @__PURE__ */ new Set();
   for (const c of state?.cookies ?? []) {
@@ -596,7 +599,7 @@ function sanitizeLoginTraceEvent(raw) {
   const out = { ts: raw.ts, event: raw.event };
   for (const [key, value] of Object.entries(raw)) {
     if (value === void 0 || value === null) continue;
-    if (FORBIDDEN_KEYS.has(String(key).toLowerCase())) continue;
+    if (forbiddenTraceKey(String(key))) continue;
     if (typeof value === "string" && /eyJ[\w-]+\.[\w-]+/.test(value)) continue;
     out[key] = value;
   }
@@ -658,6 +661,9 @@ function summarizeLoginTrace(events) {
   const remints = lastLogin?.remintIndex ?? logins.length;
   const last = events.at(-1);
   const prefix = `Episode ${last.episodeId ?? "ungrouped"} (${profile}): remint ${remints}.`;
+  if (last.event === "post-handoff") {
+    return `${prefix} Mint was ready. Post-handoff status ${last.status ?? "unknown"} (fold ${last.foldReason ?? "unknown"}). One redacted row. Check rows are not written.`;
+  }
   if (last.solariCode === "MissingApiKey" || last.mintStage === "key-check") {
     return `${prefix} Mint stopped at key-check: SOLARI_API_KEY is not set. Export it in the process that runs Auspex. Do not remint until the key is present.`;
   }
@@ -732,6 +738,39 @@ async function recordLoginTrace(event, opts = {}) {
     return {};
   }
 }
+function cleanTraceText(value) {
+  if (/slr_|password|eyJ[\w-]+\./i.test(value)) return void 0;
+  return value;
+}
+async function recordPostHandoffTrace(raw) {
+  const file = typeof raw.file === "string" ? raw.file : LOGIN_TRACE_PATH;
+  const profile = raw.profile?.trim?.() ? raw.profile.trim() : "";
+  if (!profile || raw.status === "check") return false;
+  const status = cleanTraceText(raw.status);
+  const foldReason = cleanTraceText(raw.foldReason);
+  if (!status || !foldReason) return false;
+  const events = await loadJsonl(file);
+  const ready = [...events].reverse().find(
+    (e) => e.event === "login" && e.profile === profile && (e.mintStage === "ready" || e.vncMintOk === true)
+  );
+  if (!ready) return false;
+  const episodeId = ready.episodeId;
+  const already = events.some(
+    (e) => e.event === "post-handoff" && (episodeId ? e.episodeId === episodeId : e.profile === profile)
+  );
+  if (already) return false;
+  await appendLoginTrace(
+    {
+      event: "post-handoff",
+      profile,
+      episodeId,
+      status,
+      foldReason
+    },
+    file
+  );
+  return true;
+}
 async function readLoginTrace(opts = {}) {
   const file = opts.file ?? LOGIN_TRACE_PATH;
   const limit = clampTraceLimit(opts.limit);
@@ -767,6 +806,8 @@ var init_login_trace = __esm({
     FORBIDDEN_KEYS = /* @__PURE__ */ new Set([
       "token",
       "password",
+      "cookie",
+      "cookies",
       "cookievalue",
       "excerpt",
       "sessionid",
@@ -774,7 +815,8 @@ var init_login_trace = __esm({
       "handoff",
       "handofftoken",
       "secret",
-      "email"
+      "email",
+      "authorization"
     ]);
   }
 });
@@ -882,6 +924,19 @@ function classifySolariError(err) {
   }
   const message = redactSecrets(err instanceof Error ? err.message : String(err));
   return { message, code: "AuspexError", retryable: false };
+}
+function solariFailurePayload(err) {
+  const issue = classifySolariError(err);
+  const reap = issue.code === "ConcurrencyLimitExceeded" || issue.status === 429;
+  return {
+    ok: false,
+    error: issue.message,
+    code: issue.code,
+    retryable: issue.retryable,
+    ...issue.recovery ? { recovery: issue.recovery } : {},
+    ...issue.status !== void 0 ? { status: issue.status } : {},
+    ...reap ? { nextCall: { tool: "auspex_reap" } } : {}
+  };
 }
 function explainSolariError(err) {
   const issue = classifySolariError(err);
@@ -1597,6 +1652,7 @@ function attachHandoffQr(result, qrPath, urlHint) {
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
     profileDerived: result.profileDerived
   });
+  result.nextCall = { tool: "auspex_await_login", profile: result.name, saveEditor: true };
   return result;
 }
 function qrPayloadForHandoff(handoff) {
@@ -1619,7 +1675,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : void 0,
       qrPath
     };
-    return {
+    const minted = {
       profileId: profile.id,
       name: profile.name,
       consoleUrl: CONSOLE_PROFILES_URL,
@@ -1631,9 +1687,11 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
       profileDerived: profileDerived || void 0,
       next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived })
     };
+    minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true };
+    return minted;
   }
   const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : "";
-  return {
+  const missed = {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
@@ -1641,6 +1699,10 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
     profileDerived: profileDerived || void 0,
     next: `${derived}Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`
   };
+  const loginCall = { tool: "auspex_login" };
+  if (profile.name.trim()) loginCall.profile = profile.name.trim();
+  missed.nextCall = loginCall;
+  return missed;
 }
 function formatLogin(result) {
   return `${JSON.stringify(result, null, 2)}
@@ -2334,16 +2396,25 @@ function emptyProfileSeedError(name) {
   const n = name.trim();
   return `profile ${n} ${EMPTY_PROFILE_SEED_ERROR}`;
 }
-function finalizeLoginGuidance(profile) {
+function finalizeLoginGuide(profile) {
   const name = profile.trim() || "<name>";
-  const saved = savedCheckForProfile(name);
+  const saved = name === "<name>" ? void 0 : savedCheckForProfile(name);
   const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`;
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check.";
-  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`;
+  const text = `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`;
+  const nextCall = { tool: "auspex_finalize_login" };
+  if (name !== "<name>") nextCall.profile = name;
+  return { text, nextCall };
 }
-function remintLoginGuidance(profile) {
+function finalizeLoginGuidance(profile) {
+  return finalizeLoginGuide(profile).text;
+}
+function remintLoginGuide(profile) {
   const name = profile.trim() || "<name>";
-  return `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`;
+  const text = `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`;
+  const nextCall = { tool: "auspex_login" };
+  if (name !== "<name>") nextCall.profile = name;
+  return { text, nextCall };
 }
 function claimOkProfileReuseNext(verify, existing) {
   if (verify?.claimOkProfile === void 0) return existing;
@@ -2356,6 +2427,9 @@ function saveEditorMissedFold(opts) {
   if (opts.editorSave?.ok === true && !opts.editorFold) return true;
   return false;
 }
+function overlaySaveEditorGuidance(opts) {
+  return { text: overlaySaveEditorNext(opts), nextCall: opts.nextCall };
+}
 function overlaySaveEditorNext(opts) {
   if (!saveEditorMissedFold(opts)) return opts.next;
   const why = !opts.editorSave ? "editorFold did not refresh folded sessionStorage." : !opts.editorSave.ok ? `editorSave failed (${opts.editorSave.status}${opts.editorSave.error ? `: ${opts.editorSave.error}` : ""}).` : opts.editorFold ? `editorFold.${opts.editorFold.reason} did not refresh folded sessionStorage.` : "editorFold missing after editorSave; leftover sessionStorage is not a fresh capture.";
@@ -2366,15 +2440,25 @@ function overlaySaveEditorNext(opts) {
   }
   return `${prefix} ${why} ${SAVE_NOT_FOLD_NOW} ${finalizeLoginGuidance(opts.profile)}`;
 }
-function weakSeedWarning(profile, seed) {
+function weakSeedGuide(profile, seed) {
   if (seed?.sessionStorageStale) {
-    return `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). --save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remintLoginGuidance(profile)} finalize-login now only if the live editor tab is still on the app dashboard with a valid session. Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`;
+    const remint = remintLoginGuide(profile);
+    return {
+      text: `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). --save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remint.text} finalize-login now only if the live editor tab is still on the app dashboard with a valid session. Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+      nextCall: remint.nextCall
+    };
   }
-  return `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`;
+  return {
+    text: `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+    nextCall: finalizeLoginGuide(profile).nextCall
+  };
 }
-function emptyProfileGuidance(profile) {
+function emptyProfileGuide(profile) {
   const name = profile.trim() || "<name>";
-  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`;
+  const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`;
+  const nextCall = { tool: "auspex_login" };
+  if (name !== "<name>") nextCall.profile = name;
+  return { text, nextCall };
 }
 function loginWaitAwaitOpts(opts = {}) {
   return {
@@ -2470,7 +2554,7 @@ async function inspectProfileSeed(solari, profileId, origin) {
 function bindInspectProfileSeed(inspect, solari) {
   return (id, origin) => inspect(solari, id, origin);
 }
-function awaitNext(status, profile, version, seed) {
+function awaitGuide(status, profile, version, seed) {
   if (status === "completed") {
     const weak = isWeakSeed({
       profile: profile.name,
@@ -2480,19 +2564,34 @@ function awaitNext(status, profile, version, seed) {
       sessionStorageStale: seed.sessionStorageStale
     });
     if (weak) {
-      return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${weakSeedWarning(profile.name, seed)}`;
+      const warn = weakSeedGuide(profile.name, seed);
+      return {
+        text: `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${warn.text}`,
+        nextCall: warn.nextCall
+      };
     }
     const counted = seed.sessionStorage !== void 0;
     const originNote = counted ? "" : " Inspect did not count sessionStorage (no origin forwarded). Unknown sessionStorage is not weakSeed.";
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins.${originNote} ${finalizeLoginGuidance(profile.name)} ${CLAIM_OK_PROFILE_REUSE_GATE} Then check --verify-with-profile and read claimOkProfile \u2014 do not treat leftover cookies as reusable. Do not skip finalize-login.`;
+    const fin = finalizeLoginGuide(profile.name);
+    return {
+      text: `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins.${originNote} ${fin.text} ${CLAIM_OK_PROFILE_REUSE_GATE} Then check --verify-with-profile and read claimOkProfile \u2014 do not treat leftover cookies as reusable. Do not skip finalize-login.`,
+      nextCall: fin.nextCall
+    };
   }
   if (status === "empty-save") {
-    return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`;
+    return {
+      text: `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`
+    };
   }
   if (status === "waiting") {
-    return `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`;
+    return {
+      text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`
+    };
   }
-  return `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`;
+  return {
+    text: `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`,
+    nextCall: { tool: "auspex_await_login" }
+  };
 }
 async function waitForProfileSave(name, opts) {
   const want = name.trim();
@@ -2528,6 +2627,7 @@ async function waitForProfileSave(name, opts) {
   if (status === "waiting") {
     status = "timeout";
   }
+  const guided = awaitGuide(status, profile, version, seed);
   return {
     status,
     profileId: profile.id,
@@ -2540,8 +2640,21 @@ async function waitForProfileSave(name, opts) {
     cookieHosts: seed.cookieHosts,
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: seed.idpCookies,
-    next: awaitNext(status, profile, version, seed)
+    next: guided.text,
+    nextCall: guided.nextCall
   };
+}
+function postHandoffOutcome(result) {
+  if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
+    return { status: "editor-save-failed", foldReason: "401" };
+  }
+  if (result.editorFold?.reason === "no-cdp") {
+    return { status: "no-cdp", foldReason: "no-cdp" };
+  }
+  if (result.status === "empty-save") {
+    return { status: "empty-save", foldReason: "empty-save" };
+  }
+  return void 0;
 }
 async function liveAwaitLogin(name, opts = {}) {
   const solari = createClient();
@@ -2587,17 +2700,24 @@ async function liveAwaitLogin(name, opts = {}) {
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari)
       }
     });
-    const result = editorSave || editorFold ? {
+    const guided = editorSave || editorFold ? overlaySaveEditorGuidance({
+      next: waited.next,
+      nextCall: waited.nextCall,
+      profile: waited.name,
+      editorSave,
+      editorFold
+    }) : { text: waited.next, nextCall: waited.nextCall };
+    const result = {
       ...waited,
       ...editorSave ? { editorSave } : {},
       ...editorFold ? { editorFold } : {},
-      next: overlaySaveEditorNext({
-        next: waited.next,
-        profile: waited.name,
-        editorSave,
-        editorFold
-      })
-    } : waited;
+      next: guided.text,
+      nextCall: guided.nextCall
+    };
+    const outcome = postHandoffOutcome(result);
+    if (outcome) {
+      await recordPostHandoffTrace({ profile: result.name, ...outcome }).catch(() => void 0);
+    }
     return result;
   } finally {
     await solari.close().catch(() => void 0);
@@ -2717,7 +2837,8 @@ var RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
   "diff",
   "verify",
   "profileSeed",
-  "profileSaved"
+  "profileSaved",
+  "nextCall"
 ];
 var RECEIPT_V1_OPTIONAL_KEYS = [
   ...RECEIPT_V1_OPTIONAL_STRING_KEYS,
@@ -2793,6 +2914,7 @@ function toAgentReceipt(check, extras) {
     }
   }
   next = claimOkProfileReuseNext(verify, next);
+  const nextCall = check.nextCall;
   const receipt = {
     schemaVersion: SCHEMA_VERSION,
     ok,
@@ -2814,6 +2936,7 @@ function toAgentReceipt(check, extras) {
     clicked: check.clicked,
     needsHuman: check.needsHuman,
     next,
+    nextCall,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
@@ -3585,11 +3708,19 @@ var noopProgress = () => void 0;
 init_sso();
 init_timeout();
 init_paths();
-function checkLoggedOutNext(profile, cookies) {
-  return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`;
+function checkLoggedOutGuide(profile, cookies) {
+  const fin = finalizeLoginGuide(profile);
+  return {
+    text: `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${fin.text}`,
+    nextCall: fin.nextCall
+  };
 }
-function needsHumanNext() {
-  return "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " + HANDOFF_PHONE_DOOR_BAN + " Never fill password via agent tools. After human completes sign-in and Save: await-login --profile <yours> --save-editor then finalize-login --profile <yours> --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.";
+function needsHumanGuide(profile) {
+  const name = profile?.trim() || "<yours>";
+  const text = `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). ` + HANDOFF_PHONE_DOOR_BAN + ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`;
+  const nextCall = { tool: "auspex_login" };
+  if (profile?.trim()) nextCall.profile = profile.trim();
+  return { text, nextCall };
 }
 function resolveFinalizeLoginTarget(opts) {
   const saved = savedCheckForProfile(opts.profile);
@@ -3874,10 +4005,15 @@ async function runCheck(opts) {
       screenshotOk: existsSync4(screenshotAbs)
     });
     let next;
+    let nextCall;
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = checkLoggedOutNext(opts.profile ?? "<name>", profileSeed.cookies);
+      const guided = checkLoggedOutGuide(opts.profile ?? "<name>", profileSeed.cookies);
+      next = guided.text;
+      nextCall = guided.nextCall;
     } else if (reason === "needsHuman") {
-      next = needsHumanNext();
+      const guided = needsHumanGuide(opts.profile);
+      next = guided.text;
+      nextCall = guided.nextCall;
     }
     const diff = await diffAgainstLastReceipt({
       url: opts.url,
@@ -3904,11 +4040,19 @@ async function runCheck(opts) {
       clicked,
       needsHuman: needsHuman || void 0,
       next,
+      nextCall,
       diff,
       profileSeed,
       profileSaved
     };
     await persistAgentManifest(result);
+    if (opts.sso && opts.saveProfile && reason === "needsHuman" && opts.profile) {
+      await recordPostHandoffTrace({
+        profile: opts.profile,
+        status: "needsHuman",
+        foldReason: "needsHuman"
+      }).catch(() => void 0);
+    }
     return result;
   } finally {
     try {
@@ -3998,16 +4142,8 @@ async function buildCheckToolContent(result) {
   return buildReceiptToolContent(result, result.screenshotPath);
 }
 async function packToolFailure(err) {
-  const issue = classifySolariError(err);
   const extra = err instanceof AuspexError ? err : void 0;
-  const payload = {
-    ok: false,
-    error: issue.message,
-    code: issue.code,
-    retryable: issue.retryable
-  };
-  if (issue.recovery) payload.recovery = issue.recovery;
-  if (issue.status !== void 0) payload.status = issue.status;
+  const payload = { ...solariFailurePayload(err) };
   if (extra?.sessionId) payload.sessionId = extra.sessionId;
   if (extra?.screenshotPath) payload.screenshotPath = extra.screenshotPath;
   if (extra?.receipt && typeof extra.receipt === "object") {
@@ -4478,6 +4614,7 @@ async function profileStatus(opts, deps) {
   const row = rows.find((p) => p.name.trim() === profile);
   if (!row || row.populated === false || row.populated === void 0 && !(row.sizeBytes && row.sizeBytes > 0)) {
     const missing = !row;
+    const emptyGuide = emptyProfileGuide(profile);
     return {
       ok: false,
       reason: "emptySave",
@@ -4486,7 +4623,8 @@ async function profileStatus(opts, deps) {
       populated: false,
       live: false,
       skippedLive: true,
-      skipReason: emptyProfileGuidance(profile)
+      skipReason: emptyGuide.text,
+      nextCall: emptyGuide.nextCall
     };
   }
   const willLive = Boolean(url);
@@ -4520,6 +4658,7 @@ async function profileStatus(opts, deps) {
     sessionStorageStale: seed?.sessionStorageStale
   };
   if (isWeakSeed(weakOpts)) {
+    const weak = weakSeedGuide(profile, seed);
     return {
       ok: false,
       reason: "weakSeed",
@@ -4528,7 +4667,8 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: weakSeedWarning(profile, seed),
+      skipReason: weak.text,
+      nextCall: weak.nextCall,
       ...seedCounts(seed)
     };
   }
@@ -4556,6 +4696,7 @@ async function profileStatus(opts, deps) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/0 cookies|empty Save|profile not found/i.test(msg)) {
+      const emptyGuide = emptyProfileGuide(profile);
       return {
         ok: false,
         reason: "emptySave",
@@ -4564,7 +4705,8 @@ async function profileStatus(opts, deps) {
         populated: row.populated,
         live: false,
         skippedLive: true,
-        skipReason: `${msg} ${emptyProfileGuidance(profile)}`,
+        skipReason: `${msg} ${emptyGuide.text}`,
+        nextCall: emptyGuide.nextCall,
         ...seedCounts(seed)
       };
     }
@@ -4572,6 +4714,7 @@ async function profileStatus(opts, deps) {
   }
   if (!seed && result.profileSeed) seed = result.profileSeed;
   if (result.needsHuman || result.reason === "needsHuman") {
+    const loginCall = { tool: "auspex_login", profile };
     return {
       ok: false,
       reason: "needsHuman",
@@ -4580,6 +4723,7 @@ async function profileStatus(opts, deps) {
       populated: true,
       live: true,
       skippedLive: true,
+      nextCall: loginCall,
       skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
@@ -4605,6 +4749,7 @@ async function profileStatus(opts, deps) {
     sessionStorage: seed?.sessionStorage,
     sessionStorageStale: seed?.sessionStorageStale
   })) {
+    const weak = weakSeedGuide(profile, seed);
     return {
       ok: false,
       reason: "weakSeed",
@@ -4612,7 +4757,8 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
-      skipReason: weakSeedWarning(profile, seed),
+      skipReason: weak.text,
+      nextCall: weak.nextCall,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -4621,6 +4767,7 @@ async function profileStatus(opts, deps) {
   }
   if (loggedOutLive) {
     const hasCookies = (seed?.cookies ?? 0) > 0 || (seed?.origins ?? 0) > 0;
+    const guided = hasCookies ? finalizeLoginGuide(profile) : emptyProfileGuide(profile);
     return {
       ok: false,
       reason: "loggedOut",
@@ -4628,7 +4775,8 @@ async function profileStatus(opts, deps) {
       url,
       populated: true,
       live: true,
-      skipReason: hasCookies ? finalizeLoginGuidance(profile) : emptyProfileGuidance(profile),
+      skipReason: guided.text,
+      nextCall: guided.nextCall,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -5169,15 +5317,16 @@ async function checkThenVerify(opts, deps) {
 
 // src/mcp-tools.ts
 init_saved_checks();
-var CHECK_DESCRIPTION = "Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
-var VERIFY_DESCRIPTION = "After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
-var DESKTOP_DESCRIPTION = "Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
-var PROFILES_DESCRIPTION = "List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
-var PROFILE_STATUS_DESCRIPTION = "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
-var FINALIZE_LOGIN_DESCRIPTION = "Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid.";
-var REAP_DESCRIPTION = "List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
-var TRACE_DESCRIPTION = "Read the last Solari LOGIN MINT episode (lead-up only; event: login). Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). Log stops when Chromium/handoff is ready; await-login / finalize-login / check are not written to this log. all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";
+var CHECK_DESCRIPTION = "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
+var VERIFY_DESCRIPTION = "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
+var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var DESKTOP_DESCRIPTION = "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
+var PROFILES_DESCRIPTION = "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
+var PROFILE_STATUS_DESCRIPTION = "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
+var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.";
+var FINALIZE_LOGIN_DESCRIPTION = "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid.";
+var REAP_DESCRIPTION = "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
+var TRACE_DESCRIPTION = "Treating auspex_trace as a log of check rows, tokens, or session ids is a lie. Read the last Solari LOGIN MINT episode plus one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman) after the handoff is ready. Check rows are not written. Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";
 function toolJson(obj) {
   return JSON.stringify(stampSchema(obj), null, 2);
 }
@@ -5266,7 +5415,7 @@ function registerAuspexTools(server2) {
   server2.registerTool(
     "auspex_await_login",
     {
-      description: "Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.",
+      description: AWAIT_LOGIN_DESCRIPTION,
       inputSchema: auspexAwaitLoginInputSchema
     },
     async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {
