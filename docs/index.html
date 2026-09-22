@@ -115,8 +115,14 @@
     </div>
     <div class="card">
       <strong>Phone door.</strong>
-      Auspex <code>phone.html</code> is a seed/handoff door for off-site typing (IME + Save paste),
+      <code>npx auspex-solari login</code> prints a link. Open it in the phone's own Safari or Chrome.
+      <code>phone.html</code> has a real text field, so the software keyboard opens.
+      Keys go into cloud Chrome. Tap Save (it copies a line). Paste that line, then
+      <code>await-login --save-editor</code>.
+      This is a seed/handoff door for off-site typing (IME + Save paste),
       not a same-session HITL takeover of the live check.
+      Solari's picture of Chrome will not open the phone keyboard.
+      <!-- Live phone still: insert the tested screenshot here. Do not add it before that test. -->
     </div>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>
