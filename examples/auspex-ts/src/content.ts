@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { AuspexError, classifySolariError } from "./errors.ts"
+import { AuspexError, solariFailurePayload } from "./errors.ts"
 import { MAX_IMAGE_BYTES, fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
 import { stampSchema } from "./schema-version.ts"
 
@@ -74,16 +74,8 @@ export async function buildCheckToolContent(
 
 /** MCP failure payload: structured issue plus any receipt/log/sessionId already produced. */
 export async function packToolFailure(err: unknown): Promise<{ content: ToolContent[]; isError: true }> {
-  const issue = classifySolariError(err)
   const extra = err instanceof AuspexError ? err : undefined
-  const payload: Record<string, unknown> = {
-    ok: false,
-    error: issue.message,
-    code: issue.code,
-    retryable: issue.retryable,
-  }
-  if (issue.recovery) payload.recovery = issue.recovery
-  if (issue.status !== undefined) payload.status = issue.status
+  const payload: Record<string, unknown> = { ...solariFailurePayload(err) }
   if (extra?.sessionId) payload.sessionId = extra.sessionId
   if (extra?.screenshotPath) payload.screenshotPath = extra.screenshotPath
   if (extra?.receipt && typeof extra.receipt === "object") {

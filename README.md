@@ -59,7 +59,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 
 - **`auspex_reap`** — list/kill leftover **ledger** sessions after `429`. `--account-wide` wipes all VMs. `--pack-receipts` copies last receipts per URL into `.auspex/pack/`.
 
-- **`auspex_trace`** — last login **mint** episode plus `traceSummary` (agents: read this if Chromium never comes up). Lead-up only (`event: login`): API key, profile ensure, handoff POST, editor-start, editor-token. Production does not write await-login / finalize-login / check rows. `mintStage: ready` only when VNC/token mint succeeded. If mint is silent or fails, read `traceSummary` / `npx auspex-solari trace` **before reminting**. The log stops when the handoff is ready; then use await-login / finalize / check as normal ops. Never tokens, passwords, excerpts, or session ids. Not a fourth primitive. Never commit `.auspex/`.
+- **`auspex_trace`** — last login **mint** episode plus `traceSummary` (agents: read this if Chromium never comes up). Mint rows are `event: login` (API key, profile ensure, handoff POST, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If mint is silent or fails, read `traceSummary` / `npx auspex-solari trace` **before reminting**. Never tokens, passwords, excerpts, or session ids. Not a fourth primitive. Never commit `.auspex/`.
 
 - **`auspex_desktop`** — named Solari sandbox Mousepad demo, not the user's Mac. 402 on Free.
 

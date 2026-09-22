@@ -1,11 +1,12 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
+import type { NextCall } from "./next-call.ts"
 import {
-  emptyProfileGuidance,
-  finalizeLoginGuidance,
+  emptyProfileGuide,
+  finalizeLoginGuide,
   inspectProfileSeed,
   isWeakSeed,
-  weakSeedWarning,
+  weakSeedGuide,
   type ProfileSeed,
 } from "./profile-persist.ts"
 import { createClient } from "./solari.ts"
@@ -24,6 +25,7 @@ export type ProfileStatusResult = {
   live: boolean
   skippedLive?: boolean
   skipReason?: string
+  nextCall?: NextCall
   finalUrl?: string
   excerpt?: string
   screenshotPath?: string
@@ -101,6 +103,7 @@ export async function profileStatus(
   const row = rows.find((p) => p.name.trim() === profile)
   if (!row || row.populated === false || (row.populated === undefined && !(row.sizeBytes && row.sizeBytes > 0))) {
     const missing = !row
+    const emptyGuide = emptyProfileGuide(profile)
     return {
       ok: false,
       reason: "emptySave",
@@ -109,7 +112,8 @@ export async function profileStatus(
       populated: false,
       live: false,
       skippedLive: true,
-      skipReason: emptyProfileGuidance(profile),
+      skipReason: emptyGuide.text,
+      nextCall: emptyGuide.nextCall,
     }
   }
 
@@ -145,6 +149,7 @@ export async function profileStatus(
     sessionStorageStale: seed?.sessionStorageStale,
   }
   if (isWeakSeed(weakOpts)) {
+    const weak = weakSeedGuide(profile, seed)
     return {
       ok: false,
       reason: "weakSeed",
@@ -153,7 +158,8 @@ export async function profileStatus(
       populated: true,
       live: false,
       skippedLive: true,
-      skipReason: weakSeedWarning(profile, seed),
+      skipReason: weak.text,
+      nextCall: weak.nextCall,
       ...seedCounts(seed),
     }
   }
@@ -182,6 +188,7 @@ export async function profileStatus(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (/0 cookies|empty Save|profile not found/i.test(msg)) {
+      const emptyGuide = emptyProfileGuide(profile)
       return {
         ok: false,
         reason: "emptySave",
@@ -190,7 +197,8 @@ export async function profileStatus(
         populated: row.populated,
         live: false,
         skippedLive: true,
-        skipReason: `${msg} ${emptyProfileGuidance(profile)}`,
+        skipReason: `${msg} ${emptyGuide.text}`,
+        nextCall: emptyGuide.nextCall,
         ...seedCounts(seed),
       }
     }
@@ -198,6 +206,7 @@ export async function profileStatus(
   }
   if (!seed && result.profileSeed) seed = result.profileSeed
   if (result.needsHuman || result.reason === "needsHuman") {
+    const loginCall: NextCall = { tool: "auspex_login", profile }
     return {
       ok: false,
       reason: "needsHuman",
@@ -206,6 +215,7 @@ export async function profileStatus(
       populated: true,
       live: true,
       skippedLive: true,
+      nextCall: loginCall,
       skipReason:
         "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (console Open editor). " +
         HANDOFF_PHONE_DOOR_BAN +
@@ -238,6 +248,7 @@ export async function profileStatus(
       sessionStorageStale: seed?.sessionStorageStale,
     })
   ) {
+    const weak = weakSeedGuide(profile, seed)
     return {
       ok: false,
       reason: "weakSeed",
@@ -245,7 +256,8 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
-      skipReason: weakSeedWarning(profile, seed),
+      skipReason: weak.text,
+      nextCall: weak.nextCall,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -254,6 +266,7 @@ export async function profileStatus(
   }
   if (loggedOutLive) {
     const hasCookies = (seed?.cookies ?? 0) > 0 || (seed?.origins ?? 0) > 0
+    const guided = hasCookies ? finalizeLoginGuide(profile) : emptyProfileGuide(profile)
     return {
       ok: false,
       reason: "loggedOut",
@@ -261,9 +274,8 @@ export async function profileStatus(
       url,
       populated: true,
       live: true,
-      skipReason: hasCookies
-        ? finalizeLoginGuidance(profile)
-        : emptyProfileGuidance(profile),
+      skipReason: guided.text,
+      nextCall: guided.nextCall,
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,

@@ -7,7 +7,8 @@ import {
 } from "./editor-fold.ts"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
-import { loginTraceSeedExtras } from "./login-trace.ts"
+import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
+import type { NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
@@ -70,6 +71,7 @@ export type AwaitLoginResult = {
   foldedExpiresInSec?: number
   idpCookies?: boolean
   next: string
+  nextCall?: NextCall
   editorSave?: { ok: boolean; status: number; error?: string }
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
@@ -157,12 +159,19 @@ export function emptyProfileSeedError(name: string): string {
 }
 
 /** Agent next/skipReason after Save when sessionStorage is still missing or the live probe is loggedOut with cookies. */
-export function finalizeLoginGuidance(profile: string): string {
+export function finalizeLoginGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  const saved = savedCheckForProfile(name)
+  const saved = name === "<name>" ? undefined : savedCheckForProfile(name)
   const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check."
-  return `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`
+  const text = `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`
+  const nextCall: NextCall = { tool: "auspex_finalize_login" }
+  if (name !== "<name>") nextCall.profile = name
+  return { text, nextCall }
+}
+
+export function finalizeLoginGuidance(profile: string): string {
+  return finalizeLoginGuide(profile).text
 }
 
 export const DEAD_FOLD_VWP_BAN =
@@ -177,9 +186,16 @@ export const SAVE_NOT_FOLD_NOW =
   DEAD_FOLD_VWP_BAN +
   " Remint auspex_login if finalize-login returns needsHuman."
 
-export function remintLoginGuidance(profile: string): string {
+export function remintLoginGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  return `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`
+  const text = `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`
+  const nextCall: NextCall = { tool: "auspex_login" }
+  if (name !== "<name>") nextCall.profile = name
+  return { text, nextCall }
+}
+
+export function remintLoginGuidance(profile: string): string {
+  return remintLoginGuide(profile).text
 }
 
 /** Receipt next when verify-with-profile ran (claimOkProfile is present). Does not invent the boolean. */
@@ -203,6 +219,17 @@ export function saveEditorMissedFold(opts: {
   if (opts.editorFold && !opts.editorFold.ok) return true
   if (opts.editorSave?.ok === true && !opts.editorFold) return true
   return false
+}
+
+/** Append the fold miss. The incoming nextCall stays the lead; the footer does not retarget it. */
+export function overlaySaveEditorGuidance(opts: {
+  next: string
+  nextCall?: NextCall
+  profile: string
+  editorSave?: { ok: boolean; status: number; error?: string }
+  editorFold?: EditorFoldResult
+}): { text: string; nextCall?: NextCall } {
+  return { text: overlaySaveEditorNext(opts), nextCall: opts.nextCall }
 }
 
 /** Louder await-login next when --save-editor failed to refresh folded sessionStorage. */
@@ -229,28 +256,47 @@ export function overlaySaveEditorNext(opts: {
 }
 
 /** Agent skipReason / await-login Warning when the seed is missing or stale sessionStorage. */
+export function weakSeedGuide(
+  profile: string,
+  seed?: { sessionStorage?: number; sessionStorageStale?: boolean },
+): { text: string; nextCall: NextCall } {
+  if (seed?.sessionStorageStale) {
+    const remint = remintLoginGuide(profile)
+    return {
+      text:
+        `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
+        `--save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remint.text} ` +
+        `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ` +
+        `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+      nextCall: remint.nextCall,
+    }
+  }
+  return {
+    text:
+      `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ` +
+      `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+    nextCall: finalizeLoginGuide(profile).nextCall,
+  }
+}
+
 export function weakSeedWarning(
   profile: string,
   seed?: { sessionStorage?: number; sessionStorageStale?: boolean },
 ): string {
-  if (seed?.sessionStorageStale) {
-    return (
-      `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
-      `--save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remintLoginGuidance(profile)} ` +
-      `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ` +
-      `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`
-    )
-  }
-  return (
-    `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ` +
-    `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`
-  )
+  return weakSeedGuide(profile, seed).text
 }
 
 /** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
-export function emptyProfileGuidance(profile: string): string {
+export function emptyProfileGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  return `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
+  const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
+  const nextCall: NextCall = { tool: "auspex_login" }
+  if (name !== "<name>") nextCall.profile = name
+  return { text, nextCall }
+}
+
+export function emptyProfileGuidance(profile: string): string {
+  return emptyProfileGuide(profile).text
 }
 
 /** login --wait / wait:true is the composed phone path: same as await-login --save-editor. */
@@ -382,12 +428,12 @@ export function bindInspectProfileSeed(
   return (id, origin) => inspect(solari, id, origin)
 }
 
-function awaitNext(
+function awaitGuide(
   status: AwaitLoginStatus,
   profile: { id: string; name: string },
   version: number,
   seed: ProfileSeed,
-): string {
+): { text: string; nextCall?: NextCall } {
   if (status === "completed") {
     const weak = isWeakSeed({
       profile: profile.name,
@@ -397,21 +443,36 @@ function awaitNext(
       sessionStorageStale: seed.sessionStorageStale,
     })
     if (weak) {
-      return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${weakSeedWarning(profile.name, seed)}`
+      const warn = weakSeedGuide(profile.name, seed)
+      return {
+        text: `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. Warning: ${warn.text}`,
+        nextCall: warn.nextCall,
+      }
     }
     const counted = seed.sessionStorage !== undefined
     const originNote = counted
       ? ""
       : " Inspect did not count sessionStorage (no origin forwarded). Unknown sessionStorage is not weakSeed."
-    return `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins.${originNote} ${finalizeLoginGuidance(profile.name)} ${CLAIM_OK_PROFILE_REUSE_GATE} Then check --verify-with-profile and read claimOkProfile — do not treat leftover cookies as reusable. Do not skip finalize-login.`
+    const fin = finalizeLoginGuide(profile.name)
+    return {
+      text: `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins.${originNote} ${fin.text} ${CLAIM_OK_PROFILE_REUSE_GATE} Then check --verify-with-profile and read claimOkProfile — do not treat leftover cookies as reusable. Do not skip finalize-login.`,
+      nextCall: fin.nextCall,
+    }
   }
   if (status === "empty-save") {
-    return `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`
+    return {
+      text: `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`,
+    }
   }
   if (status === "waiting") {
-    return `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`
+    return {
+      text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`,
+    }
   }
-  return `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`
+  return {
+    text: `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`,
+    nextCall: { tool: "auspex_await_login" },
+  }
 }
 
 export async function waitForProfileSave(
@@ -459,6 +520,7 @@ export async function waitForProfileSave(
     status = "timeout"
   }
   
+  const guided = awaitGuide(status, profile, version, seed)
   return {
     status,
     profileId: profile.id,
@@ -471,8 +533,22 @@ export async function waitForProfileSave(
     cookieHosts: seed.cookieHosts,
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: seed.idpCookies,
-    next: awaitNext(status, profile, version, seed),
+    next: guided.text,
+    nextCall: guided.nextCall,
   }
+}
+
+function postHandoffOutcome(result: AwaitLoginResult): { status: string; foldReason: string } | undefined {
+  if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
+    return { status: "editor-save-failed", foldReason: "401" }
+  }
+  if (result.editorFold?.reason === "no-cdp") {
+    return { status: "no-cdp", foldReason: "no-cdp" }
+  }
+  if (result.status === "empty-save") {
+    return { status: "empty-save", foldReason: "empty-save" }
+  }
+  return undefined
 }
 
 export async function liveAwaitLogin(
@@ -530,20 +606,27 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
-    const result =
+    const guided =
       editorSave || editorFold
-        ? {
-            ...waited,
-            ...(editorSave ? { editorSave } : {}),
-            ...(editorFold ? { editorFold } : {}),
-            next: overlaySaveEditorNext({
-              next: waited.next,
-              profile: waited.name,
-              editorSave,
-              editorFold,
-            }),
-          }
-        : waited
+        ? overlaySaveEditorGuidance({
+            next: waited.next,
+            nextCall: waited.nextCall,
+            profile: waited.name,
+            editorSave,
+            editorFold,
+          })
+        : { text: waited.next, nextCall: waited.nextCall }
+    const result: AwaitLoginResult = {
+      ...waited,
+      ...(editorSave ? { editorSave } : {}),
+      ...(editorFold ? { editorFold } : {}),
+      next: guided.text,
+      nextCall: guided.nextCall,
+    }
+    const outcome = postHandoffOutcome(result)
+    if (outcome) {
+      await recordPostHandoffTrace({ profile: result.name, ...outcome }).catch(() => undefined)
+    }
     return result
   } finally {
     await solari.close().catch(() => undefined)

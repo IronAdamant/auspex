@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { USAGE } from "../src/cli.ts"
+import { TRACE_DESCRIPTION } from "../src/mcp-tools.ts"
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repo = path.resolve(pkg, "../..")
@@ -348,6 +349,11 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(worked, /npx auspex-solari login/)
   assert.equal(worked.includes("npx auspex login"), false, "worked example must not tell a stranger to run npx auspex")
   assert.match(discord, /above the player/)
+  assert.match(discord, /software keyboard/)
+  assert.match(discord, /Tap Save/)
+  assert.match(index, /phone's own Safari or Chrome/)
+  assert.match(index, /software keyboard/)
+  assert.equal(index.includes('src="demo/phone.png"'), false, "do not ship a phone still before the live test")
   assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const plan = readFileSync(path.join(repo, "PLAN.md"), "utf8")
@@ -371,6 +377,32 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(discord, /ok.*claimOk.*claimOkProfile/)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(index), false)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
+})
+
+test("trace docs allow one post-handoff row and still forbid check rows and secrets", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["root README.md", rootReadme],
+    ["package README.md", packReadme],
+    ["USAGE", USAGE],
+    ["trace tool", TRACE_DESCRIPTION],
+  ] as const) {
+    assert.match(text, /post-handoff/, `${label} must name the post-handoff row`)
+    assert.match(text, /Check rows are not written/, `${label} must still forbid check rows`)
+    assert.match(text, /tokens/, `${label} must still forbid tokens`)
+    assert.equal(
+      /Production does not write await-login/.test(text),
+      false,
+      `${label} must not forbid the single post-handoff row`,
+    )
+  }
+  assert.match(USAGE, /session ids/)
+  assert.match(TRACE_DESCRIPTION, /session ids/)
 })
 
 test("operator docs make claimOkProfile the reuse gate and phone a seed door", () => {

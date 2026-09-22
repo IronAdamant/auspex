@@ -1,4 +1,5 @@
 import { SolariError } from "@solarisdk/browser"
+import type { NextCall } from "./next-call.ts"
 import { ProfileBusyError } from "./profile-lock.ts"
 
 export const CLOSE_KILL_RECOVERY =
@@ -158,6 +159,29 @@ export function classifySolariError(err: unknown): SolariIssue {
   }
   const message = redactSecrets(err instanceof Error ? err.message : String(err))
   return { message, code: "AuspexError", retryable: false }
+}
+
+/** Shared CLI stdout and MCP failure body. nextCall is reap only for a concurrency 429. */
+export function solariFailurePayload(err: unknown): {
+  ok: false
+  error: string
+  code: string
+  retryable: boolean
+  recovery?: string
+  status?: number
+  nextCall?: NextCall
+} {
+  const issue = classifySolariError(err)
+  const reap = issue.code === "ConcurrencyLimitExceeded" || issue.status === 429
+  return {
+    ok: false,
+    error: issue.message,
+    code: issue.code,
+    retryable: issue.retryable,
+    ...(issue.recovery ? { recovery: issue.recovery } : {}),
+    ...(issue.status !== undefined ? { status: issue.status } : {}),
+    ...(reap ? { nextCall: { tool: "auspex_reap" } satisfies NextCall } : {}),
+  }
 }
 
 export function explainSolariError(err: unknown): string {
