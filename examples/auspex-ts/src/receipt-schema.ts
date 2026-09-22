@@ -2,6 +2,7 @@ import { CHECK_REASONS, type CheckReason } from "./check-reason.ts"
 import type { ProfileSaveResult, ProfileSeed } from "./profile-persist.ts"
 import type { ReceiptDiff } from "./receipt-diff.ts"
 import type { VerifyResult } from "./sandbox.ts"
+import type { NextCall } from "./next-call.ts"
 import { SCHEMA_VERSION } from "./schema-version.ts"
 
 export { SCHEMA_VERSION }
@@ -39,6 +40,7 @@ export const RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
   "verify",
   "profileSeed",
   "profileSaved",
+  "nextCall",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_KEYS = [
@@ -70,6 +72,7 @@ export type ReceiptV1 = {
   clicked?: string
   needsHuman?: boolean
   next?: string
+  nextCall?: NextCall
   diff?: ReceiptDiff
   verify?: VerifyResult
   profileSeed?: ProfileSeed

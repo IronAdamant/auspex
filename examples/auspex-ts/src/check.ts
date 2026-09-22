@@ -4,7 +4,7 @@ import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
 import { agentReceiptOk, deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
 import { persistAgentManifest } from "./agent-receipt.ts"
-import { loginTraceSeedExtras } from "./login-trace.ts"
+import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
@@ -12,7 +12,7 @@ import { runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import {
   emptyProfileSeedError,
-  finalizeLoginGuidance,
+  finalizeLoginGuide,
   isEmptySeed,
   persistLiveProfile,
   seedFromStorageState,
@@ -109,6 +109,7 @@ export type CheckResult = {
   clicked?: string
   needsHuman?: boolean
   next?: string
+  nextCall?: import("./next-call.ts").NextCall
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
@@ -123,17 +124,38 @@ export type FinalizeLoginTargetOpts = {
 }
 
 /** Agent `next` when a profile-seeded check lands logged-out with cookies. */
+export function checkLoggedOutGuide(profile: string, cookies: number): {
+  text: string
+  nextCall: import("./next-call.ts").NextCall
+} {
+  const fin = finalizeLoginGuide(profile)
+  return {
+    text: `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${fin.text}`,
+    nextCall: fin.nextCall,
+  }
+}
+
 export function checkLoggedOutNext(profile: string, cookies: number): string {
-  return `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${finalizeLoginGuidance(profile)}`
+  return checkLoggedOutGuide(profile, cookies).text
 }
 
 /** Agent `next` on a Microsoft/Google password wall. Finalize only after human Save — never during the wall. */
-export function needsHumanNext(): string {
-  return (
-    "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). " +
+export function needsHumanGuide(profile?: string): {
+  text: string
+  nextCall: import("./next-call.ts").NextCall
+} {
+  const name = profile?.trim() || "<yours>"
+  const text =
+    `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). ` +
     HANDOFF_PHONE_DOOR_BAN +
-    " Never fill password via agent tools. After human completes sign-in and Save: await-login --profile <yours> --save-editor then finalize-login --profile <yours> --url <url> --expect <string>. Do not retry check on cookies alone. Never --record."
-  )
+    ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`
+  const nextCall: import("./next-call.ts").NextCall = { tool: "auspex_login" }
+  if (profile?.trim()) nextCall.profile = profile.trim()
+  return { text, nextCall }
+}
+
+export function needsHumanNext(profile?: string): string {
+  return needsHumanGuide(profile).text
 }
 
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */
@@ -453,10 +475,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     })
     
     let next: string | undefined
+    let nextCall: CheckResult["nextCall"]
     if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
-      next = checkLoggedOutNext(opts.profile ?? "<name>", profileSeed.cookies)
+      const guided = checkLoggedOutGuide(opts.profile ?? "<name>", profileSeed.cookies)
+      next = guided.text
+      nextCall = guided.nextCall
     } else if (reason === "needsHuman") {
-      next = needsHumanNext()
+      const guided = needsHumanGuide(opts.profile)
+      next = guided.text
+      nextCall = guided.nextCall
     }
     
     const diff = await diffAgainstLastReceipt({
@@ -484,11 +511,19 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       clicked,
       needsHuman: needsHuman || undefined,
       next,
+      nextCall,
       diff,
       profileSeed,
       profileSaved,
     }
     await persistAgentManifest(result)
+    if (opts.sso && opts.saveProfile && reason === "needsHuman" && opts.profile) {
+      await recordPostHandoffTrace({
+        profile: opts.profile,
+        status: "needsHuman",
+        foldReason: "needsHuman",
+      }).catch(() => undefined)
+    }
     return result
   } finally {
     try {

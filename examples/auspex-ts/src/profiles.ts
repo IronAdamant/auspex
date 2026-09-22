@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { z } from "zod"
 import { recordLoginTrace, type LoginMintStage } from "./login-trace.ts"
+import type { NextCall } from "./next-call.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
 import { derivedProfileNext } from "./profile-slug.ts"
@@ -200,6 +201,7 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
     profileDerived: result.profileDerived,
   })
+  result.nextCall = { tool: "auspex_await_login", profile: result.name, saveEditor: true }
   return result
 }
 
@@ -222,6 +224,7 @@ export type LoginResult = {
   episodeId?: string
   remintCount?: number
   traceSummary?: string
+  nextCall?: NextCall
 }
 
 export type ProfileHttp = {
@@ -252,7 +255,7 @@ export function loginInstructions(
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : undefined,
       qrPath,
     }
-    return {
+    const minted: LoginResult = {
       profileId: profile.id,
       name: profile.name,
       consoleUrl: CONSOLE_PROFILES_URL,
@@ -264,9 +267,11 @@ export function loginInstructions(
       profileDerived: profileDerived || undefined,
       next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived }),
     }
+    minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true }
+    return minted
   }
   const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : ""
-  return {
+  const missed: LoginResult = {
     profileId: profile.id,
     name: profile.name,
     consoleUrl: CONSOLE_PROFILES_URL,
@@ -274,6 +279,10 @@ export function loginInstructions(
     profileDerived: profileDerived || undefined,
     next: `${derived}Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
   }
+  const loginCall: NextCall = { tool: "auspex_login" }
+  if (profile.name.trim()) loginCall.profile = profile.name.trim()
+  missed.nextCall = loginCall
+  return missed
 }
 
 export function formatLogin(result: LoginResult): string {

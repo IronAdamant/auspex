@@ -13,8 +13,8 @@ export const LOGIN_TRACE_LIMIT_DEFAULT = 50
 export const LOGIN_TRACE_LIMIT_MAX = 200
 const COOKIE_HOST_CAP = 40
 
-/** Production writes mint lead-up only. await-login / finalize-login / check are not journaled. */
-export type LoginTraceEventName = "login"
+/** Mint lead-up plus one redacted post-handoff row. Check rows are not journaled. */
+export type LoginTraceEventName = "login" | "post-handoff"
 
 export type PhoneDoor = "ime" | "novnc-fallback" | "none"
 
@@ -52,6 +52,9 @@ export type LoginTraceEvent = {
   sinceVersion?: number
   solariStatus?: number
   solariCode?: string
+  /** Post-handoff outcome. Not a check row. */
+  status?: string
+  foldReason?: string
 }
 
 export type LoginTraceAttach = {
@@ -66,6 +69,8 @@ type ActiveMap = Record<string, { episodeId: string; remintIndex: number }>
 const FORBIDDEN_KEYS = new Set([
   "token",
   "password",
+  "cookie",
+  "cookies",
   "cookievalue",
   "excerpt",
   "sessionid",
@@ -74,7 +79,12 @@ const FORBIDDEN_KEYS = new Set([
   "handofftoken",
   "secret",
   "email",
+  "authorization",
 ])
+
+function forbiddenTraceKey(key: string): boolean {
+  return FORBIDDEN_KEYS.has(key.toLowerCase())
+}
 
 export function cookieHostsFromState(state: StorageState | null | undefined): string[] {
   const hosts = new Set<string>()
@@ -131,7 +141,7 @@ export function sanitizeLoginTraceEvent(raw: LoginTraceEvent): LoginTraceEvent {
   const out: LoginTraceEvent = { ts: raw.ts, event: raw.event }
   for (const [key, value] of Object.entries(raw) as Array<[keyof LoginTraceEvent, LoginTraceEvent[keyof LoginTraceEvent]]>) {
     if (value === undefined || value === null) continue
-    if (FORBIDDEN_KEYS.has(String(key).toLowerCase())) continue
+    if (forbiddenTraceKey(String(key))) continue
     if (typeof value === "string" && /eyJ[\w-]+\.[\w-]+/.test(value)) continue
     ;(out as Record<string, unknown>)[key] = value
   }
@@ -202,6 +212,9 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
   const remints = lastLogin?.remintIndex ?? logins.length
   const last = events.at(-1)!
   const prefix = `Episode ${last.episodeId ?? "ungrouped"} (${profile}): remint ${remints}.`
+  if (last.event === "post-handoff") {
+    return `${prefix} Mint was ready. Post-handoff status ${last.status ?? "unknown"} (fold ${last.foldReason ?? "unknown"}). One redacted row. Check rows are not written.`
+  }
   if (last.solariCode === "MissingApiKey" || last.mintStage === "key-check") {
     return `${prefix} Mint stopped at key-check: SOLARI_API_KEY is not set. Export it in the process that runs Auspex. Do not remint until the key is present.`
   }
@@ -290,6 +303,52 @@ export async function recordLoginTrace(
   } catch {
     return {}
   }
+}
+
+function cleanTraceText(value: string): string | undefined {
+  if (/slr_|password|eyJ[\w-]+\./i.test(value)) return undefined
+  return value
+}
+
+/** After a ready handoff, append one redacted outcome row. A second call for the same episode is a no-op. Check events are never written. */
+export async function recordPostHandoffTrace(
+  raw: {
+    profile: string
+    status: string
+    foldReason: string
+    file?: string
+  } & Record<string, unknown>,
+): Promise<boolean> {
+  const file = typeof raw.file === "string" ? raw.file : LOGIN_TRACE_PATH
+  const profile = raw.profile?.trim?.() ? raw.profile.trim() : ""
+  if (!profile || raw.status === "check") return false
+  const status = cleanTraceText(raw.status)
+  const foldReason = cleanTraceText(raw.foldReason)
+  if (!status || !foldReason) return false
+  const events = await loadJsonl(file)
+  const ready = [...events].reverse().find(
+    (e) =>
+      e.event === "login" &&
+      e.profile === profile &&
+      (e.mintStage === "ready" || e.vncMintOk === true),
+  )
+  if (!ready) return false
+  const episodeId = ready.episodeId
+  const already = events.some(
+    (e) => e.event === "post-handoff" && (episodeId ? e.episodeId === episodeId : e.profile === profile),
+  )
+  if (already) return false
+  await appendLoginTrace(
+    {
+      event: "post-handoff",
+      profile,
+      episodeId,
+      status,
+      foldReason,
+    },
+    file,
+  )
+  return true
 }
 
 export async function readLoginTrace(opts: {

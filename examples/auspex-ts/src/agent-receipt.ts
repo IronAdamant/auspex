@@ -47,6 +47,7 @@ export function toAgentReceipt(
     }
   }
   next = claimOkProfileReuseNext(verify, next)
+  const nextCall = check.nextCall
 
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
@@ -69,6 +70,7 @@ export function toAgentReceipt(
     clicked: check.clicked,
     needsHuman: check.needsHuman,
     next,
+    nextCall,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
