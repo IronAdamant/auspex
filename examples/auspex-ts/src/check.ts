@@ -26,6 +26,7 @@ import {
   originOf,
   PUBLIC_PROFILE_SAVE_ERROR,
 } from "./profile-storage.ts"
+import { stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
 import { HANDOFF_PHONE_DOOR_BAN, requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
@@ -110,6 +111,8 @@ export type CheckResult = {
   needsHuman?: boolean
   next?: string
   nextCall?: import("./next-call.ts").NextCall
+  profileHostMatch?: boolean
+  suggestedProfile?: string
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
@@ -180,7 +183,7 @@ export async function runFinalizeLogin(opts: {
   onProgress?: ProgressFn
 }): Promise<CheckResult> {
   const { url, expect } = resolveFinalizeLoginTarget(opts)
-  return runCheck({
+  const result = await runCheck({
     url,
     expect,
     profile: requireProfileName(opts.profile),
@@ -189,6 +192,7 @@ export async function runFinalizeLogin(opts: {
     saveProfile: true,
     onProgress: opts.onProgress,
   })
+  return stampProfileHostAdvice(result, { profile: opts.profile, url })
 }
 
 export function toReceiptPath(absPath: string): string {

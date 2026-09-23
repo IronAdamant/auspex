@@ -65,6 +65,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "sinceVersion", flag: "--since-version", kind: "number" },
       { json: "timeoutMs", flag: "--timeout-ms", kind: "number" },
       { json: "saveEditor", flag: "--save-editor", kind: "boolean" },
+      { json: "url", flag: "--url", kind: "string" },
     ],
   },
   {
@@ -144,3 +145,10 @@ export function contractToolNames(): string[] {
 export function contractCliCommands(): string[] {
   return AUSPEX_CONTRACT.map((c) => c.cmd)
 }
+
+/**
+ * Soft receipt fields on login, await-login, and finalize-login.
+ * Not input flags. Not a hard refuse. suggestedProfile is omitted on a match.
+ */
+export const PROFILE_HOST_ADVICE_CMDS = ["login", "await-login", "finalize-login"] as const
+export const PROFILE_HOST_RECEIPT_FIELDS = ["profileHostMatch", "suggestedProfile"] as const

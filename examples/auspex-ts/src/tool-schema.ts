@@ -256,7 +256,9 @@ export const auspexLoginInputObject = z.object({
     .describe("Profile name to create or reuse. Omit when url is set to derive a host slug (app.example.com → app-example-com). Explicit profile wins."),
   url: httpUrlSchema
     .optional()
-    .describe("http(s) login URL hint. Without profile, derives a safe host slug and echoes it on next / savePaste."),
+    .describe(
+      "http(s) login URL hint. Without profile, derives a safe host slug and echoes it on next / savePaste. With an explicit profile that is not that host slug, the command still runs and sets profileHostMatch false plus suggestedProfile (remint). Saved-check host affinity (consistencyhub on consistencyhub.io) is a match.",
+    ),
   wait: z
     .boolean()
     .optional()
@@ -271,6 +273,11 @@ export const auspexLoginInputSchema = auspexLoginInputObject.superRefine((val, c
 
 export const auspexAwaitLoginInputSchema = z.object({
   profile: profileNameSchema.describe("Profile name from auspex_login"),
+  url: httpUrlSchema
+    .optional()
+    .describe(
+      "Site URL for the soft profile/host advise. When set, a profile that is not this host's slug sets profileHostMatch false and suggestedProfile (the wait still runs). Omit to use the site URL stored by the last login mint. Omission of the fields is not a match.",
+    ),
   sinceVersion: z
     .number()
     .optional()
@@ -332,7 +339,7 @@ export const auspexFinalizeLoginInputSchema = z.object({
     "Profile name to finalize (SSO + save-profile; captures sessionStorage). Run NOW after Save/await-login when editorFold did not refresh; later reuse still needs claimOkProfile=true, not ok alone.",
   ),
   url: httpUrlSchema.optional().describe(
-    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub)",
+    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub). A profile that is not this host's slug still finalizes and sets profileHostMatch false plus suggestedProfile.",
   ),
   expect: expectSchema.optional().describe(
     "Claim substring. Required with url unless profile matches a saved check (e.g. consistencyhub)",
