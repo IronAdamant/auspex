@@ -131,6 +131,30 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "all", flag: "--all", kind: "boolean" },
     ],
   },
+  {
+    cmd: "job",
+    tool: "auspex_job",
+    fields: [
+      { json: "jobId", flag: "--job-id", kind: "string" },
+      { json: "name", flag: "--name", kind: "string" },
+      { json: "profile", flag: "--profile", kind: "string" },
+      { json: "url", flag: "--url", kind: "string" },
+      { json: "expect", flag: "--expect", kind: "string" },
+      { json: "skipFinalize", flag: "--skip-finalize", kind: "boolean" },
+      { json: "verifyWithProfile", flag: "--verify-with-profile", kind: "boolean" },
+      { json: "wait", flag: "--wait", kind: "boolean" },
+      { json: "wakeWebhookUrl", flag: "--wake-webhook", kind: "string" },
+      { json: "timeoutMs", flag: "--timeout-ms", kind: "number" },
+    ],
+  },
+  {
+    cmd: "job-status",
+    tool: "auspex_job_status",
+    fields: [
+      { json: "jobId", flag: "--job-id", kind: "string" },
+      { json: "waitMs", flag: "--wait-ms", kind: "number" },
+    ],
+  },
 ]
 
 export function contractJsonFields(cmd: string): string[] {

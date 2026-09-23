@@ -61,6 +61,10 @@ Do not intern-ping. Do not open Solari noVNC on a phone (`GET editor HTTP 401`).
 
 **Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked). Observed: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) — ironadamant + checkpoint `ok: true`. The step still skips if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo files are refreshed by hand.
 
+## Autonomous agents (job compose)
+
+Prefer **`auspex_job`** for the mint→await→finalize→check path. Step tools remain for debugging. First call mints and returns waiting + `handoff` (profile from the URL host unless `--profile` is set). After the human Saves, resume `--job-id`. Without `AUSPEX_WAKE_WEBHOOK`, use `auspex_job_status` (optional short `--wait-ms`) rather than a blind 30-minute `await-login` poll. On 429 the job reaps the ledger (not account-wide) and `nextCall` resumes the job. `claimOkProfile` only after `--verify-with-profile`. Not a fourth primitive. Not a hosted Solari push API.
+
 ## Understanding Verification Signals
 
 Three distinct booleans in receipts, each with different meaning:
@@ -131,7 +135,7 @@ Omit or ignore. Never required. Unknown extra fields are also optional.
 | `clicked` | string | Click selector that ran |
 | `needsHuman` | boolean | Microsoft or Google password/OTP wall |
 | `next` | string | Structured agent guidance for `loggedOut`, `needsHuman`, `expectMatchedPublicLanding`, `hostChanged`, `--verify-with-profile` reuse-gate (`claimOkProfile`), Save-is-not-fold, or a profile/host mismatch (`profileHostMatch` false) |
-| `nextCall` | object | Optional follow-up the `next` prose already names: `{ tool, profile?, saveEditor?, url?, expect? }`. Tools are `auspex_login`, `auspex_await_login`, `auspex_finalize_login`, or `auspex_reap`. Never a password, token, cookie, excerpt, or session id. |
+| `nextCall` | object | Optional follow-up the `next` prose already names: `{ tool, profile?, saveEditor?, url?, expect?, jobId? }`. Tools are `auspex_login`, `auspex_await_login`, `auspex_finalize_login`, `auspex_reap`, or `auspex_job`. Never a password, token, cookie, excerpt, or session id. |
 | `diff` | object | Vs last same-URL receipt (`urlChanged`, `excerptChanged`, `sameUrl`, …) |
 | `verify` | object | Sandbox result (`ok`, `claimOk`, `errors`, `claimErrors`, optional `claimOkProfile` / `claimErrorsProfile` / `claimProfileSessionId`, `runDir`; `skipped` on `loggedOut` / `needsHuman` / `expectMatchedPublicLanding` / `hostChanged`) |
 | `profileSeed` | object | `{ cookies, origins, sessionStorage?, sessionStorageStale? }` when a profile was attached |
@@ -155,6 +159,8 @@ Usage/failure JSON (`error`, `code`) is **not** this receipt; it still has `sche
 - `auspex_reap` / `auspex reap` — list leftover browser sessions (Auspex live ledger) and kill those ledger ids. Use after **429**. Default does **not** wipe every VM on the key; pass `accountWide` / `--account-wide` for that. `dryRun` lists only. `packReceipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 - `auspex_desktop` / `auspex desktop` — named Solari sandbox desktop demo: wait for X11, open Mousepad by default. **Not the user's Mac.** Wait/expect/`ok` share one process haystack. `windowOk` only if a real window list exists. `clicked` only if verified. `streamUrl` is live VNC. **FAIL-CLOSED `--type` refuses password/OTP-like strings** (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields like page-actions can. Use only for demo text.
 - `auspex_trace` / `auspex trace` — last **login mint** episode plus `traceSummary`. Traces **lead-up only** (`event: login`; API key, profile ensure, handoff POST, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If mint fails, the summary says why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout, empty handoff token). `--all` dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, **read `traceSummary` / `auspex_trace` before reminting**. Not a fourth primitive. Never commit `.auspex/`.
+- `auspex_job` / `auspex job` — durable compose of mint→await→finalize→check. Prefer this for autonomous agents; step tools remain for debugging. Persist under `.auspex/jobs/` (gitignored). Resume with `--job-id`. Optional `--wake-webhook` / `AUSPEX_WAKE_WEBHOOK` (operator-local POST, not a Solari push API). On 429, ledger reap then `nextCall` resumes the job. `claimOkProfile` only after `--verify-with-profile`. Not a fourth primitive.
+- `auspex_job_status` / `auspex job-status` — read the local job file; optional short `--wait-ms` (max 60s) until phase change. Honest local wake when no webhook is configured. Do not blind-poll `await-login` for 30 minutes.
 
 ## Rules
 
@@ -207,6 +213,8 @@ npx auspex verify [runDir]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
+npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
+npx auspex job-status --job-id <id> [--wait-ms <n>]
 npx auspex mcp
 ```
 

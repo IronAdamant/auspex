@@ -61,6 +61,10 @@ Do not intern-ping. Do not open Solari noVNC on a phone (`GET editor HTTP 401`).
 
 **Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked). Observed: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) — ironadamant + checkpoint `ok: true`. The step still skips if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo files are refreshed by hand.
 
+## Autonomous agents (job compose)
+
+Prefer **`auspex_job`** for the mint→await→finalize→check path. Step tools remain for debugging. First call mints and returns waiting + `handoff` (profile from the URL host unless `--profile` is set). After the human Saves, resume `--job-id`. Without `AUSPEX_WAKE_WEBHOOK`, use `auspex_job_status` (optional short `--wait-ms`) rather than a blind 30-minute `await-login` poll. On 429 the job reaps the ledger (not account-wide) and `nextCall` resumes the job. `claimOkProfile` only after `--verify-with-profile`. Not a fourth primitive. Not a hosted Solari push API.
+
 ## Understanding Verification Signals
 
 Three distinct booleans in receipts, each with different meaning:
@@ -93,6 +97,8 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 - `auspex_reap` — list leftover browser sessions (Auspex live ledger) and kill those ledger ids. Use after **429**. Default does not wipe every VM on the key; pass `accountWide`. `dryRun` lists only. `packReceipts` copies last receipts per URL into `.auspex/pack` for a PR attach.
 - `auspex_desktop` — named Solari sandbox desktop demo: wait for X11, open Mousepad by default. **Not the user's Mac.** Wait/expect/`ok` share one process haystack. `windowOk` only if a real window list exists. `clicked` only if verified. Tool text is the ASCII log **plus** JSON. `streamUrl` is live VNC. **FAIL-CLOSED `--type` refuses password/OTP-like strings** (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields like page-actions can. Use only for demo text.
 - `auspex_trace` — last **login mint** episode plus `traceSummary`. Traces **lead-up only** (`event: login`; API key, profile ensure, handoff POST, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If mint fails, the summary says why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout, empty handoff token). `--all` dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, **read `traceSummary` / `auspex_trace` before reminting**. Not a fourth primitive. Never commit `.auspex/`.
+- `auspex_job` — durable compose of mint→await→finalize→check. Prefer this for autonomous agents; step tools remain for debugging. Persist under `.auspex/jobs/` (gitignored). Resume with `jobId`. Optional `wakeWebhookUrl` / `AUSPEX_WAKE_WEBHOOK` (operator-local POST, not a Solari push API). On 429, ledger reap then `nextCall` resumes the job. `claimOkProfile` only after `verifyWithProfile`. Not a fourth primitive.
+- `auspex_job_status` — read the local job file; optional short `waitMs` (max 60s) until phase change. Honest local wake when no webhook is configured. Do not blind-poll `await-login` for 30 minutes.
 
 ## Rules
 
@@ -147,6 +153,8 @@ npx auspex verify [runDir]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
+npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
+npx auspex job-status --job-id <id> [--wait-ms <n>]
 npx auspex mcp
 ```
 

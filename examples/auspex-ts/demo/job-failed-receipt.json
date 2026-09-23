@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "jobId": "job-demo-stream-expired",
+  "phase": "failed",
+  "status": "stream-expired",
+  "reason": "stream-expired",
+  "profile": "app-example",
+  "url": "https://app.example",
+  "expect": "Workspace ready",
+  "next": "status stream-expired: the VNC/phone stream is past. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Do not poll await-login for 30 minutes.",
+  "nextCall": {
+    "tool": "auspex_login",
+    "profile": "app-example"
+  },
+  "demoNote": "Redacted golden of a durable job that failed closed on stream-expired. No cookies, no screenshot, no session id. Evidence shape only — not a live run."
+}
