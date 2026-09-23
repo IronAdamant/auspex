@@ -21,7 +21,7 @@ Public watch tape is ConsistencyHub’s Microsoft wall (not a logged-in session)
 
 ![Solari cloud Chrome checking ironadamant.com](demo/ironadamant.png)
 
-**Auspex MCP is the product** (`auspex_check`, `auspex_verify`, `auspex_desktop`, `auspex_reap`, login/profiles). Official Solari MCP is **optional and gated**: `dist/solari-mcp.mjs` starts `@solarisdk/mcp` only when `SOLARI_API_KEY` is set. No key → process exits so hosts do not list empty `solari_*` tools.
+**Auspex MCP is the product** (`auspex_check`, `auspex_verify`, `auspex_desktop`, `auspex_reap`, login/profiles, `auspex_job` / `auspex_job_status`). Official Solari MCP is **optional and gated**: `dist/solari-mcp.mjs` starts `@solarisdk/mcp` only when `SOLARI_API_KEY` is set. No key → process exits so hosts do not list empty `solari_*` tools.
 
 ## Run
 
@@ -61,6 +61,8 @@ npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
 npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
+npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
+npx auspex job-status --job-id <id> [--wait-ms <n>]
 ```
 
 **Mint debug (for agents):** `login` writes a redacted JSONL lead-up log (`event: login` for the mint; gitignored `.auspex/trace/login.jsonl`). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If Chromium never comes up, read `traceSummary` on the login JSON or run `npx auspex trace` **before reminting**. The summary names the stop (missing key, 429, 402, 503, no URL, editor-start HTTP, VNC timeout, empty handoff token). Never tokens or passwords. Not a fourth primitive.
@@ -100,6 +102,7 @@ Tools:
 - `auspex_reap` — 429 recovery: close leftover browsers, kill holding VMs; `packReceipts` for PR attach
 - `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`). Login: show `handoff.url` (chooser) plus labeled `handoff.mobileUrl` (Auspex phone page, real text field; seed/handoff door, not a same-session VNC takeover; Save copies a paste line) and `handoff.desktopUrl` (computer). After Save on the phone or desktop page, `saveEditor` / `--save-editor`. If editorSave fails or editorFold is no-cdp, finalize NOW. Solari noVNC will not open the phone keyboard.
 - `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac. 402 on Free.
+- `auspex_job` / `auspex_job_status` — durable mint→await→finalize→check for autonomous agents (not a fourth primitive). Resume with `jobId`. Optional `AUSPEX_WAKE_WEBHOOK`. Step tools remain for debugging.
 
 The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked). Observed: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) — ironadamant + checkpoint `ok: true`. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts; demo files are refreshed by hand. Do not `--record` a logged-in ConsistencyHub session.
 

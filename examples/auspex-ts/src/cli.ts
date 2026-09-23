@@ -32,6 +32,8 @@ import {
   usageErrorReceipt,
   writeStdoutJson,
 } from "./cli-json.ts"
+import { parseJobFlags, parseJobStatusFlags, readJobStatus, runJob, type JobRunOptions } from "./job.ts"
+import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
   npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
@@ -44,6 +46,8 @@ export const USAGE = `Usage:
   npx auspex profiles [--purge <name>] [--yes]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
   npx auspex trace [--profile <name>] [--limit <n>] [--all]
+  npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
+  npx auspex job-status --job-id <id> [--wait-ms <n>]
   npx auspex mcp
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
@@ -70,6 +74,7 @@ SSO is human-once then reuse. Microsoft and Google password/OTP walls fail close
 Requires SOLARI_API_KEY in the environment (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
 login mint lead-up is traced to .auspex/trace/login.jsonl (event: login only; key, profile, handoff, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. mintStage ready only when VNC/token mint succeeded. If mint fails, login JSON and npx auspex trace say why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout, empty handoff token). Default npx auspex trace is the last episode plus traceSummary. --all dumps history. No tokens, cookie values, excerpts, passwords, or session ids. If mint is silent or fails, read traceSummary / auspex_trace before reminting. Not a fourth primitive.
 Never commit .env or .auspex/ run artifacts.
+job is durable compose of mint→await→finalize→check for autonomous agents (not a fourth primitive). First call mints and returns waiting + handoff unless --wait. Resume with --job-id after Save. job-status reads the local job file (optional short --wait-ms). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON — operator-local, not a Solari push API. On 429 the job reaps the ledger (not accountWide) and nextCall resumes the job. claimOkProfile only after --verify-with-profile. Step tools remain for debugging.
 `
 
 export type CliCommand =
@@ -85,6 +90,8 @@ export type CliCommand =
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
   | { cmd: "trace"; profile?: string; limit?: number; all?: boolean }
+  | { cmd: "job"; opts: JobRunOptions }
+  | { cmd: "job-status"; jobId: string; waitMs?: number }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -454,6 +461,22 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     return { status: "ok", command: { cmd: "trace", profile, limit, all } }
   }
+  if (cmd === "job") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const parsed = parseJobFlags(args)
+    if (!parsed.ok) return { status: "error", message: parsed.message }
+    return { status: "ok", command: { cmd: "job", opts: parsed.opts } }
+  }
+  if (cmd === "job-status") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const parsed = parseJobStatusFlags(args)
+    if (!parsed.ok) return { status: "error", message: parsed.message }
+    return { status: "ok", command: { cmd: "job-status", jobId: parsed.jobId, waitMs: parsed.waitMs } }
+  }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
 
@@ -634,6 +657,35 @@ export async function main(argv: string[]): Promise<number> {
       })
       writeStdoutJson(result)
       return 0
+    }
+    if (parsed.command.cmd === "job") {
+      const named = applySavedCheckName({
+        name: parsed.command.opts.name,
+        url: parsed.command.opts.url,
+        expect: parsed.command.opts.expect,
+        profile: parsed.command.opts.profile,
+      })
+      const book = await withOperatorSession({
+        note: named.profile || named.url
+          ? {
+              profile: resolveLoginProfile({ profile: named.profile, url: named.url }).name,
+              site: named.url,
+              busyMs: SIGNUP_BUSY_MS,
+            }
+          : undefined,
+      })
+      const result = await runJob({ ...parsed.command.opts, onProgress: createProgress() })
+      writeStdoutJson(stampSchema({ ...result, operator: book.agent }))
+      return exitFromOk(result.ok)
+    }
+    if (parsed.command.cmd === "job-status") {
+      const result = await readJobStatus({
+        jobId: parsed.command.jobId,
+        waitMs: parsed.command.waitMs,
+        onProgress: createProgress(),
+      })
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
     }
     const book = await withOperatorSession({
       humanAgree: parsed.command.cmd === "profiles" ? parsed.command.humanAgree : false,

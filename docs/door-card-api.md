@@ -81,3 +81,67 @@ status handshake-no-frames. Remint: npx auspex login --profile app-example (next
 ```
 
 Do not run `finalize-login` while this await is unresolved.
+
+## Job API (`auspex_job`)
+
+Durable compose of the door sequence. Not a fourth primitive. Not a hosted Solari push API.
+
+```
+mint → (human Save) → await(--save-editor) → finalize → check[+ optional verifyWithProfile]
+```
+
+State lives in gitignored `.auspex/jobs/<id>.json`. Resume with `jobId`.
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "jobId": "job-…",
+  "phase": "await",
+  "status": "waiting",
+  "reason": "awaiting-save",
+  "profile": "app-example",
+  "url": "https://app.example",
+  "expect": "Workspace ready",
+  "nextCall": { "tool": "auspex_job", "jobId": "job-…", "profile": "app-example" }
+}
+```
+
+First call with `url`+`expect` (or a saved-check `name`) mints and returns **waiting** plus `handoff`. Profile is derived from the URL host unless `--profile` is set. Pass `wait: true` to continue into await in the same call. After the human Saves, resume `--job-id`.
+
+### nextCall matrix (job)
+
+| Job `status` / `reason` | `nextCall.tool` | Notes |
+| --- | --- | --- |
+| `waiting` / `awaiting-save` | `auspex_job` + `jobId` | Resume after Save. Debug: `auspex_await_login` + `saveEditor`. |
+| `stream-expired` | `auspex_login` | Remint. Do not poll 30 minutes. |
+| `host-changed` / `hostChanged` | `auspex_login` + suggested profile/url | Do not save into the old jar. |
+| `editor-save-hung` / `profile-busy` | `auspex_await_login` + `saveEditor` | Do not finalize in parallel. |
+| `expectMatchedPublicLanding` | `auspex_finalize_login` | Better persistable URL + unique expect. |
+| `concurrency-limited` (429) | `auspex_job` + `jobId` | Job already ran ledger `auspex_reap` (not `accountWide`). |
+| `completed` + `claimOkProfile=true` | omit | Reuse gate is `claimOkProfile`, not `ok`. |
+
+Golden fail-closed job: [`examples/auspex-ts/demo/job-failed-receipt.json`](../examples/auspex-ts/demo/job-failed-receipt.json).
+
+### Wake
+
+Optional operator-local POST. Set `AUSPEX_WAKE_WEBHOOK` or per-job `wakeWebhookUrl`. Payload is secret-scrubbed JSON:
+
+```json
+{
+  "schemaVersion": 1,
+  "event": "stream-expired",
+  "jobId": "job-…",
+  "phase": "failed",
+  "status": "stream-expired",
+  "ok": false,
+  "reason": "stream-expired",
+  "profile": "app-example",
+  "nextCall": { "tool": "auspex_login", "profile": "app-example" },
+  "at": "2026-09-23T20:00:00.000Z"
+}
+```
+
+Events: `awaiting-save`, `stream-expired`, `hostChanged`, `editor-save-hung`, `profile-busy`, `profile-saved`, `profile-claimable`, `completed`, `failed`. There is no Solari inbound webhook. Without an operator URL, use `auspex_job_status` (`waitMs` max 60s) — it watches the local job file, not Solari. Phase changes only when a job/resume process writes the file. After Save, resume `auspex_job --job-id`. Do not blind-poll `await-login` for 30 minutes.
+
+Mint/status stdout keeps door.html hashes so the human can open the chooser. Webhook POSTs redact URL hashes, drop `sessionId`/`excerpt`/password keys, and run `redactSecrets` + email redact. The wake body does not include `handoff`.

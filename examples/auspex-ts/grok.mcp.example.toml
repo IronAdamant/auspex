@@ -1,4 +1,4 @@
-# Auspex MCP (check → verify → reap → kill). Copy into ~/.grok/config.toml.
+# Auspex MCP (check → verify → reap → kill; plus auspex_job / auspex_job_status). Copy into ~/.grok/config.toml.
 # Primary door from the repo root after npm install: npx auspex-mcp
 # Cursor/Claude reviewers: see mcp.cursor.example.json and mcp.claude.example.json.
 # Secret is env SOLARI_API_KEY only (optional gitignored .env). Restart Grok after changing MCP config.
