@@ -71,7 +71,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.equal(desktop.includes(">Delete<"), false)
   assert.equal(desktop.includes(">Enter<"), false)
   assert.match(desktop, /id="save"/)
-  assert.match(desktop, /#keybox\[hidden\] \{ display: none; \}/)
+  assert.equal(desktop.includes("keybox"), false)
   const desktopOrder = ["screen", "ime", "paste-btn", "save"]
     .map((id) => desktop.indexOf(`id="${id}"`))
   assert.deepEqual(desktopOrder, [...desktopOrder].sort((a, b) => a - b))
@@ -83,11 +83,25 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(desktop, /Auspex desktop login/)
   assert.equal(desktop.includes("phone keyboard"), false)
   assert.match(phone, /phone keyboard/)
-  assert.match(desktop, /id="solari-key"/)
-  assert.match(desktop, /Save Solari key/)
-  assert.match(desktop, /localStorage\.setItem\("auspex\.solariKey"/)
-  assert.match(desktop, /http:\/\/127\.0\.0\.1:17321\/auspex-operator-key/)
-  assert.match(desktop, /not that wipe|not the 30-minute profile wipe/)
+  assert.equal(desktop.includes('id="solari-key"'), false)
+  assert.equal(desktop.includes("Save Solari key"), false)
+  assert.equal(desktop.includes("auspex.solariKey"), false)
+  assert.equal(phone.includes("auspex.solariKey"), false)
+  assert.equal(chooser.includes("auspex.solariKey"), false)
+  assert.equal(desktop.includes("127.0.0.1:17321"), false)
+  assert.equal(desktop.includes("auspex-operator-key"), false)
+  for (const [label, html] of [
+    ["door", chooser],
+    ["phone", phone],
+    ["desktop", desktop],
+  ] as const) {
+    assert.match(html, /Content-Security-Policy/, `${label} CSP`)
+    assert.match(html, /frame-ancestors 'none'/, `${label} frame-ancestors`)
+  }
+  assert.match(phone, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
+  assert.match(desktop, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
+  assert.equal(desktop.includes("127.0.0.1:17321"), false)
+  assert.equal(chooser.includes("wss://api.getsolari.com"), false)
   assert.match(phone, /Seed\/handoff door for typing/)
   assert.match(phone, /not a live-session takeover/)
   assert.match(USAGE, /30 minutes/)
@@ -200,6 +214,7 @@ function loadDoor(
       },
       removeAttribute(name) {
         if (name === "hidden") el.hidden = false
+        if (name === "href") el.href = ""
       },
       setSelectionRange() {},
       querySelector: () => null,
@@ -245,6 +260,9 @@ function loadDoor(
         stored.set(key, value)
       },
       getItem: (key: string) => stored.get(key) ?? null,
+      removeItem: (key: string) => {
+        stored.delete(key)
+      },
     },
     console,
   }
@@ -362,38 +380,32 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       assert.match(mintedChat.value, /Site URL: https:\/\/consistencyhub\.io/)
       assert.equal(mintedChat.value.includes(USERNAME), false)
       assert.equal(mintedChat.value.includes(PASSWORD), false)
-      const exp = Math.floor(Date.now() / 1000) + 600
-      const withKey = loadDoor(readDoor(name), `#v=door-token&exp=${exp}&n=auspex-desktop&k=1`)
-      assert.equal(withKey.byId.get("keybox")?.hidden, true)
-      const key = loaded.byId.get("solari-key")
-      assert.ok(key)
-      key.value = SOLARI_KEY
-      click(loaded.byId.get("save-solari-key"))
-      assert.equal(key.value, "")
-      assert.equal(loaded.stored.get("auspex.solariKey"), SOLARI_KEY)
-      assert.equal(chat.value.includes(SOLARI_KEY), false)
-      assert.equal((loaded.byId.get("status")?.textContent ?? "").includes(SOLARI_KEY), false)
-      const intervals = new Map<number, () => void>()
-      const cleared: number[] = []
-      const clients: Array<{ fire: (type: string) => void }> = []
-      const live = loadDoor(
-        readDoor(name),
-        `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
-        { intervals, cleared, clients },
-      )
-      assert.match(live.byId.get("ttl")?.textContent ?? "", /Link active/)
-      const ticking = [...intervals.entries()]
-      assert.ok(clients[0])
-      clients[0].fire("disconnect")
-      const status = live.byId.get("status")?.textContent ?? ""
-      const ttl = live.byId.get("ttl")?.textContent ?? ""
-      assert.match(status, /remote Chrome closed/)
-      assert.match(status, /new login link is required/)
-      assert.equal(ttl.includes("Link active"), false)
-      assert.ok(cleared.length > 0)
-      for (const [, fn] of ticking) fn()
-      assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
+      assert.equal(minted.byId.get("solari-key"), undefined)
+      assert.equal(minted.byId.get("keybox"), undefined)
     }
+    const intervals = new Map<number, () => void>()
+    const cleared: number[] = []
+    const clients: Array<{ fire: (type: string) => void }> = []
+    const live = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
+      { intervals, cleared, clients },
+    )
+    live.byId.get("ime")!.value = PASSWORD
+    assert.match(live.byId.get("ttl")?.textContent ?? "", /Link active/)
+    const ticking = [...intervals.entries()]
+    assert.ok(clients[0])
+    clients[0].fire("disconnect")
+    const status = live.byId.get("status")?.textContent ?? ""
+    const ttl = live.byId.get("ttl")?.textContent ?? ""
+    assert.match(status, /remote Chrome closed/)
+    assert.match(status, /new login link is required/)
+    assert.equal(ttl.includes("Link active"), false)
+    assert.equal(live.byId.get("ime")?.value, "")
+    assert.equal(live.byId.get("ime")?.disabled, true)
+    assert.ok(cleared.length > 0)
+    for (const [, fn] of ticking) fn()
+    assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
   }
 })
 
@@ -405,4 +417,7 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   assert.ok(phone && desktop)
   assert.equal(phone.href, `./phone.html${hash}`)
   assert.equal(desktop.href, `./desktop.html${hash}`)
+  const dead = loadDoor(readDoor("door.html"), "#")
+  assert.equal(dead.byId.get("phone")?.href, "")
+  assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
 })

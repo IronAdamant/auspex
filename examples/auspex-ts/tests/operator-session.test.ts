@@ -8,11 +8,9 @@ import {
   OPERATOR_PURGE_QUESTION,
   applyOperatorWipes,
   commitOperatorSession,
-  createOperatorKeyServer,
   noteAfterSignupWait,
   decideOperatorSession,
   decodePhoneSavedList,
-  OPERATOR_KEY_POST_PATH,
   phoneSavedParams,
   PHONE_LIST_MS,
   operatorKeyIsPresent,
@@ -247,7 +245,7 @@ test("await-login timeout and empty-save keep the signup window; only completed 
   assert.deepEqual(idle.wiped, ["supabase-com"])
 })
 
-test("key presence reports yes or no and does not return the key", async () => {
+test("key presence reports yes or no and does not return the key", () => {
   const root = mkdtempSync(path.join(tmpdir(), "auspex-key-present-"))
   const prev = process.env.SOLARI_API_KEY
   delete process.env.SOLARI_API_KEY
@@ -255,54 +253,24 @@ test("key presence reports yes or no and does not return the key", async () => {
     assert.equal(operatorKeyIsPresent(root), false)
     writeOperatorKey(root, SOLARI_KEY)
     assert.equal(operatorKeyIsPresent(root), true)
-    const server = createOperatorKeyServer(root)
-    await new Promise<void>((resolve) => {
-      server.listen(0, "127.0.0.1", () => resolve())
-    })
-    const addr = server.address()
-    if (!addr || typeof addr === "string") throw new Error("operator key server has no port")
-    try {
-      const res = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`)
-      const body = await res.text()
-      assert.equal(res.status, 200)
-      assert.equal(JSON.parse(body).present, true)
-      assert.equal(body.includes(SOLARI_KEY), false)
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-    }
+    assert.equal(readOperatorKey(path.join(root, ".auspex", "operator-key")), SOLARI_KEY)
   } finally {
     if (prev === undefined) delete process.env.SOLARI_API_KEY
     else process.env.SOLARI_API_KEY = prev
   }
 })
 
-test("desktop key post writes operator-key and a later command can load it", async () => {
-  const root = mkdtempSync(path.join(tmpdir(), "auspex-operator-post-"))
-  const server = createOperatorKeyServer(root)
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve())
-  })
-  const addr = server.address()
-  if (!addr || typeof addr === "string") throw new Error("operator key server has no port")
+test("operator-key file on the machine loads when env is empty", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-operator-file-"))
   const prev = process.env.SOLARI_API_KEY
   try {
-    const res = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key: SOLARI_KEY }),
-    })
-    const ack = await res.text()
-    assert.equal(res.status, 200)
-    assert.equal(JSON.parse(ack).ok, true)
-    assert.equal(ack.includes(SOLARI_KEY), false)
-    assert.equal(readOperatorKey(path.join(root, ".auspex", "operator-key")), SOLARI_KEY)
+    writeOperatorKey(root, SOLARI_KEY)
     delete process.env.SOLARI_API_KEY
     applyOperatorKeyFile(path.join(root, ".auspex", "operator-key"))
     assert.equal(process.env.SOLARI_API_KEY, SOLARI_KEY)
   } finally {
     if (prev === undefined) delete process.env.SOLARI_API_KEY
     else process.env.SOLARI_API_KEY = prev
-    await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
 
