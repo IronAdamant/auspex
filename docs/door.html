@@ -34,7 +34,8 @@
     <div id="ttl">Checking how long this link is active…</div>
     <p>Seed/handoff door for typing — not a live-session takeover. One mint, one link. Pick how you type. Same remote Chrome and the same hash either way.</p>
     <p>On the next page, click the remote address bar (or the remote field you mean to fill) before typing anything. One typing field. Keys stream as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off the AI chat, MCP, and receipts.</p>
-    <div id="locked" role="alert">This page needs a live link from auspex login. Ask your AI agent to regenerate the login link and try again.</div>
+    <p id="card">Console Solari Save does not capture Microsoft/SPA sessionStorage — after Save the agent must run finalize-login. Expect must be unique to the logged-in app (not marketing). Dashboard does not match One Dashboard. A public-URL hit is expectMatchedPublicLanding. This typing field is not a site picker. If remote Chrome opens a different site, the agent sees hostChanged and remints — do not finalize into the old profile. An idle saved profile is purged on the next Auspex command after 30 minutes unused (not a timer on this page; purge only after the human agrees).</p>
+    <div id="locked" role="alert">status stream-expired. This page needs a live link from auspex login. Ask your AI agent to remint (nextCall auspex_login).</div>
     <div id="picks">
       <a class="pick" id="phone" href="./phone.html">Phone<span>Software keyboard. Open in this phone's Safari or Chrome.</span></a>
       <a class="pick ghost" id="desktop" href="./desktop.html">Desktop<span>Hardware keyboard. Open on this computer.</span></a>
@@ -88,9 +89,16 @@
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
       }
 
+      function remintLine() {
+        var n = String(params.get("n") || "").trim()
+        var flag = n ? " --profile " + n : ""
+        return "status stream-expired. Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
+      }
+
       function lock(title) {
         ttl.textContent = title
         ttl.className = "dead"
+        locked.textContent = remintLine()
         locked.classList.add("show")
         phone.removeAttribute("href")
         desktop.removeAttribute("href")

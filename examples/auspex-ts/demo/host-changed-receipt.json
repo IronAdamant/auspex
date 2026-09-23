@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "reason": "hostChanged",
+  "url": "https://myapp.example",
+  "expect": "Workspace ready",
+  "screenshotPath": "",
+  "matched": false,
+  "hostChanged": true,
+  "profileHostMatch": false,
+  "suggestedProfile": "app-socialaize-com",
+  "suggestedUrl": "https://app.socialaize.com",
+  "next": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile myapp-example. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile myapp-example, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+  "nextCall": {
+    "tool": "auspex_login",
+    "profile": "app-socialaize-com",
+    "url": "https://app.socialaize.com"
+  },
+  "demoNote": "Redacted golden of #62 fail-closed remint. Synthetic hosts (myapp.example → app.socialaize.com). No cookies, no screenshot, no session id. claimOkProfile is not granted. Evidence shape only — not a live run."
+}

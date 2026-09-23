@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "kind": "dogfood-pack",
+  "note": "ConsistencyHub + OneDrive + hostChanged. Evidence, not the default recipe. Refresh live with SOLARI_API_KEY locally; do not commit secrets, live session ids, or a OneDrive PNG.",
+  "items": [
+    {
+      "id": "consistencyhub",
+      "receipt": "consistencyhub-receipt.json",
+      "png": "consistencyhub.png",
+      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
+    },
+    {
+      "id": "onedrive",
+      "receipt": "onedrive-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
+    },
+    {
+      "id": "hostChanged",
+      "receipt": "host-changed-receipt.json",
+      "png": null,
+      "reason": "hostChanged"
+    }
+  ]
+}

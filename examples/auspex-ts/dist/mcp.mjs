@@ -1382,6 +1382,19 @@ function resolvePhoneExpirySeconds(opts) {
   if (fromJwt !== void 0) return { exp: fromJwt, source: "jwt" };
   return { source: "unknown" };
 }
+function isStreamExpired(opts) {
+  const { exp } = resolvePhoneExpirySeconds(opts);
+  if (exp === void 0) return false;
+  const now = opts.nowSec ?? Math.trunc(Date.now() / 1e3);
+  return now >= exp;
+}
+function streamExpiryStamp(opts) {
+  const { exp, source } = resolvePhoneExpirySeconds(opts);
+  return {
+    streamExpirySource: source,
+    ...exp !== void 0 ? { streamExpiresAt: new Date(exp * 1e3).toISOString() } : {}
+  };
+}
 var init_phone_expiry = __esm({
   "src/phone-expiry.ts"() {
     "use strict";
@@ -1933,6 +1946,7 @@ __export(profiles_exports, {
   requestLoginHandoff: () => requestLoginHandoff,
   requireProfileName: () => requireProfileName,
   saveProfileEditor: () => saveProfileEditor,
+  stampLoginStreamExpiry: () => stampLoginStreamExpiry,
   withOperatorSession: () => withOperatorSession
 });
 import { mkdir as mkdir3, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
@@ -1978,13 +1992,17 @@ async function loadEditorSave(name, root = packageRoot) {
     const siteUrl = siteRaw && isHttpOrHttpsUrl(siteRaw) ? siteRaw : void 0;
     const suggestedUrl = raw.hostChanged === true ? httpsOriginFrom(typeof raw.suggestedUrl === "string" ? raw.suggestedUrl : "") : "";
     const suggestedProfile = suggestedUrl && typeof raw.suggestedProfile === "string" ? raw.suggestedProfile.trim() : "";
+    const streamExpiresAt = typeof raw.streamExpiresAt === "string" && raw.streamExpiresAt.trim() ? raw.streamExpiresAt.trim() : void 0;
+    const streamExpirySource = raw.streamExpirySource === "expiresAt" || raw.streamExpirySource === "jwt" || raw.streamExpirySource === "unknown" ? raw.streamExpirySource : void 0;
     return {
       profileId,
       name: profileName,
       handoffToken,
       expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : void 0,
       ...siteUrl ? { siteUrl } : {},
-      ...suggestedUrl && suggestedProfile ? { hostChanged: true, suggestedUrl, suggestedProfile } : {}
+      ...suggestedUrl && suggestedProfile ? { hostChanged: true, suggestedUrl, suggestedProfile } : {},
+      ...streamExpiresAt ? { streamExpiresAt } : {},
+      ...streamExpirySource ? { streamExpirySource } : {}
     };
   } catch {
     return void 0;
@@ -1999,7 +2017,7 @@ function doorSavePaste(profileName, door = "phone") {
   const name = (profileName ?? "").trim() || "<yours>";
   const page = door === "desktop" ? "desktop page" : "phone page";
   const solariBan = door === "desktop" ? " Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : " Do not open Solari on the phone (GET editor HTTP 401).";
-  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
+  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile ${name} (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged \u2014 remint, do not finalize the old profile.`;
 }
 function phoneSavePaste(profileName) {
   return doorSavePaste(profileName, "phone");
@@ -2033,6 +2051,26 @@ function formatHandoffNext(opts) {
   const phone = opts.hasPhoneIme ? "Show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open \u2014 seed/handoff door for off-site typing, not a same-session VNC takeover) and handoff.desktopUrl (desktop.html). Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
   const computer = opts.hasDesktopPage ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. They stay off agent chat, MCP, and receipts." : `Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save.`;
   return `${derived}${phone} ${computer} If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. ` + (opts.hasPhoneIme ? `Off-site: paste handoff.oneLiner (chooser). Phone deep link: handoff.mobileUrl. Computer deep link: handoff.desktopOneLiner.` : `Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.`) + `${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+}
+function jwtFromHandoffMobileUrl(mobileUrl) {
+  if (!mobileUrl) return void 0;
+  try {
+    const hash = new URL(mobileUrl).hash.replace(/^#/, "");
+    const token = new URLSearchParams(hash).get("v")?.trim();
+    return token || void 0;
+  } catch {
+    return void 0;
+  }
+}
+function stampLoginStreamExpiry(result, expiresAt) {
+  if (!result.handoff) return result;
+  const stamp = streamExpiryStamp({
+    expiresAt: expiresAt ?? result.expiresAt,
+    jwt: jwtFromHandoffMobileUrl(result.handoff.mobileUrl)
+  });
+  if (stamp.streamExpiresAt) result.handoff.streamExpiresAt = stamp.streamExpiresAt;
+  result.handoff.streamExpirySource = stamp.streamExpirySource;
+  return result;
 }
 function attachHandoffQr(result, qrPath, urlHint) {
   if (!result.handoff) return result;
@@ -2094,7 +2132,7 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
       })
     };
     minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true };
-    return minted;
+    return stampLoginStreamExpiry(minted, handoff.expiresAt);
   }
   const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : "";
   const missed = {
@@ -2242,8 +2280,8 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
       client
     );
     const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url);
+    const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : void 0;
     if (handoffToken) {
-      const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : void 0;
       await persistEditorSave({
         profileId: profile.id,
         name: profile.name,
@@ -2260,6 +2298,17 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
         expiresAt: handoff.expiresAt,
         siteUrl: urlHint
       });
+    }
+    const streamStamp = streamExpiryStamp({ expiresAt: handoff.expiresAt, jwt: vncMint.token });
+    if (handoffToken) {
+      await persistEditorSave({
+        profileId: profile.id,
+        name: profile.name,
+        handoffToken,
+        expiresAt: handoff.expiresAt,
+        ...siteUrl ? { siteUrl } : {},
+        ...streamStamp
+      }).catch(() => void 0);
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts);
     const vncMintOk = Boolean(vncMint.token);
@@ -2355,6 +2404,7 @@ var init_profiles = __esm({
     init_handoff_doors();
     init_paths();
     init_solari();
+    init_phone_expiry();
     init_handoff_doors();
     CONSOLE_PROFILES_URL = "https://console.getsolari.com";
     PROFILE_NAME_ERROR = "profile name must be non-empty";
@@ -2714,6 +2764,65 @@ var init_saved_checks = __esm({
         profile: "consistencyhub"
       }
     ];
+  }
+});
+
+// src/await-fail.ts
+function remintLoginNextCall(profile) {
+  const nextCall = { tool: "auspex_login" };
+  const name = profile.trim();
+  if (name) nextCall.profile = name;
+  return nextCall;
+}
+function streamExpiredGuide(profile) {
+  const name = profile.trim() || "<name>";
+  return {
+    text: `status stream-expired: the VNC/phone stream (JWT ~5 min, or stored streamExpiresAt) is past. This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile ${name} (MCP: auspex_login). Ask the human to open the new handoff.url.`,
+    nextCall: remintLoginNextCall(name === "<name>" ? "" : name)
+  };
+}
+function editorSaveHungGuide(profile) {
+  const name = profile.trim() || "<name>";
+  const nextCall = { tool: "auspex_await_login", saveEditor: true };
+  if (name !== "<name>") nextCall.profile = name;
+  return {
+    text: `status editor-save-hung: editorSave or editorFold timed out. Fail-closed. Do not run finalize-login in parallel (ProfileBusy race). Retry npx auspex await-login --profile ${name} --save-editor once. Remint auspex_login if it hangs again or returns stream-expired.`,
+    nextCall
+  };
+}
+function profileBusyAwaitGuide(profile) {
+  const name = profile.trim() || "<name>";
+  const nextCall = { tool: "auspex_await_login", saveEditor: true };
+  if (name !== "<name>") nextCall.profile = name;
+  return {
+    text: `status profile-busy: another Auspex save holds the profile lock (often finalize-login). Do not start a second finalize-login. Retry npx auspex await-login --profile ${name} --save-editor after that save ends.`,
+    nextCall
+  };
+}
+function isBoundTimeoutMessage(error) {
+  return /timed out after/i.test(error);
+}
+function isProfileBusyMessage(error) {
+  if (!error) return false;
+  return /ProfileBusy|is locked by another Auspex process/i.test(error);
+}
+async function boundEditorWork(work, ms, message) {
+  try {
+    return { ok: true, value: await boundPromise(work(), ms, message) };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    if (isBoundTimeoutMessage(error)) return { ok: false, hung: true, error };
+    throw err;
+  }
+}
+var EDITOR_SAVE_BOUND_MS, EDITOR_FOLD_BOUND_MS, STREAM_EXPIRED_WAIT_MS;
+var init_await_fail = __esm({
+  "src/await-fail.ts"() {
+    "use strict";
+    init_timeout();
+    EDITOR_SAVE_BOUND_MS = 3e4;
+    EDITOR_FOLD_BOUND_MS = 3e4;
+    STREAM_EXPIRED_WAIT_MS = 8e3;
   }
 });
 
@@ -3298,6 +3407,9 @@ function awaitGuide(status, profile, version, seed) {
       text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`
     };
   }
+  if (status === "stream-expired") return streamExpiredGuide(profile.name);
+  if (status === "editor-save-hung") return editorSaveHungGuide(profile.name);
+  if (status === "profile-busy") return profileBusyAwaitGuide(profile.name);
   return {
     text: `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`,
     nextCall: { tool: "auspex_await_login" }
@@ -3362,6 +3474,15 @@ function postHandoffOutcome(result) {
   if (result.hostChanged || result.status === "host-changed") {
     return { status: "host-changed", foldReason: "host-changed" };
   }
+  if (result.status === "stream-expired") {
+    return { status: "stream-expired", foldReason: "stream-expired" };
+  }
+  if (result.status === "editor-save-hung") {
+    return { status: "editor-save-hung", foldReason: "editor-save-hung" };
+  }
+  if (result.status === "profile-busy") {
+    return { status: "profile-busy", foldReason: "profile-busy" };
+  }
   if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
     return { status: "editor-save-failed", foldReason: "401" };
   }
@@ -3378,6 +3499,9 @@ async function liveAwaitLogin(name, opts = {}) {
   try {
     let editorSave;
     let editorFold;
+    let streamExpired = false;
+    let editorHung = false;
+    let profileBusy = false;
     let mintUrl = opts.url?.trim() || void 0, pageUrl, foldChange;
     const { loadEditorSave: loadEditorSave2, saveProfileEditor: saveProfileEditor2 } = await Promise.resolve().then(() => (init_profiles(), profiles_exports));
     const handle = await loadEditorSave2(name).catch(() => void 0);
@@ -3385,33 +3509,63 @@ async function liveAwaitLogin(name, opts = {}) {
     if (opts.saveEditor) {
       if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" };
+      } else if (isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
+        streamExpired = true;
+        editorSave = {
+          ok: false,
+          status: 401,
+          error: "stream-expired: VNC/handoff expiry is past; remint auspex_login"
+        };
       } else {
-        const saved = await saveProfileEditor2(handle);
-        editorSave = { ok: saved.ok, status: saved.status, error: saved.error };
-        if (saved.ok) {
-          const captured = await captureEditorFoldState({
-            saveJson: saved.json,
-            ...opts.foldCapture
-          });
-          const host2 = await Promise.resolve().then(() => (init_live_host_change(), live_host_change_exports));
-          pageUrl = host2.httpsPageUrlFromRecord(saved.json);
-          foldChange = host2.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state });
-          editorFold = foldChange ? { ok: false, reason: "persist-blocked", error: host2.LIVE_HOST_CHANGED_SAVE_ERROR } : await persistCapturedEditorFold({
-            handle,
-            captured,
-            persist: (state) => persistLiveProfile({
-              solari,
-              profileId: handle.profileId,
-              state,
-              lockName: handle.name
-            })
-          });
+        const savedBound = await boundEditorWork(
+          () => saveProfileEditor2(handle),
+          EDITOR_SAVE_BOUND_MS,
+          `editorSave timed out after ${EDITOR_SAVE_BOUND_MS}ms`
+        );
+        if (!savedBound.ok) {
+          editorHung = true;
+          editorSave = { ok: false, status: 0, error: savedBound.error };
+        } else {
+          const saved = savedBound.value;
+          editorSave = { ok: saved.ok, status: saved.status, error: saved.error };
+          if (saved.ok) {
+            const capturedBound = await boundEditorWork(
+              () => captureEditorFoldState({
+                saveJson: saved.json,
+                ...opts.foldCapture
+              }),
+              EDITOR_FOLD_BOUND_MS,
+              `editorFold timed out after ${EDITOR_FOLD_BOUND_MS}ms`
+            );
+            if (!capturedBound.ok) {
+              editorHung = true;
+              editorFold = { ok: false, reason: "connect-failed", error: capturedBound.error };
+            } else {
+              const captured = capturedBound.value;
+              const host2 = await Promise.resolve().then(() => (init_live_host_change(), live_host_change_exports));
+              pageUrl = host2.httpsPageUrlFromRecord(saved.json);
+              foldChange = host2.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state });
+              editorFold = foldChange ? { ok: false, reason: "persist-blocked", error: host2.LIVE_HOST_CHANGED_SAVE_ERROR } : await persistCapturedEditorFold({
+                handle,
+                captured,
+                persist: (state) => persistLiveProfile({
+                  solari,
+                  profileId: handle.profileId,
+                  state,
+                  lockName: handle.name
+                })
+              });
+              if (isProfileBusyMessage(editorFold.error)) profileBusy = true;
+            }
+          } else if (saved.status === 401 && isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
+            streamExpired = true;
+          }
         }
       }
     }
     const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion,
-      timeoutMs: opts.timeoutMs,
+      timeoutMs: streamExpired || editorHung ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS) : opts.timeoutMs,
       url: opts.url,
       mintUrl,
       pageUrl,
@@ -3426,7 +3580,8 @@ async function liveAwaitLogin(name, opts = {}) {
     });
     const host = await Promise.resolve().then(() => (init_live_host_change(), live_host_change_exports));
     const patch = await host.rememberAwaitHostChange(waited.name, waited, foldChange);
-    const guided = patch ? { text: patch.next, nextCall: patch.nextCall } : editorSave || editorFold ? overlaySaveEditorGuidance({
+    const failClosed = !patch && waited.status !== "completed" && waited.status !== "host-changed" ? streamExpired ? { status: "stream-expired", ...streamExpiredGuide(waited.name) } : editorHung ? { status: "editor-save-hung", ...editorSaveHungGuide(waited.name) } : profileBusy ? { status: "profile-busy", ...profileBusyAwaitGuide(waited.name) } : void 0 : void 0;
+    const guided = patch ? { text: patch.next, nextCall: patch.nextCall } : failClosed ? { text: failClosed.text, nextCall: failClosed.nextCall } : editorSave || editorFold ? overlaySaveEditorGuidance({
       next: waited.next,
       nextCall: waited.nextCall,
       profile: waited.name,
@@ -3438,6 +3593,7 @@ async function liveAwaitLogin(name, opts = {}) {
       ...editorSave ? { editorSave } : {},
       ...editorFold ? { editorFold } : {},
       ...patch ?? {},
+      ...failClosed ? { status: failClosed.status } : {},
       next: guided.text,
       nextCall: guided.nextCall
     };
@@ -3461,6 +3617,8 @@ var init_profile_persist = __esm({
     init_profile_storage();
     init_saved_checks();
     init_sso();
+    init_await_fail();
+    init_phone_expiry();
     EMPTY_PROFILE_SEED_ERROR = "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry.";
     EMPTY_PROFILE_SAVE_ERROR = "refusing to save an empty storage state over a Solari profile (would wipe cookies)";
     EMPTY_ORIGIN_SAVE_ERROR = "refusing to save: no cookies, localStorage, or sessionStorage landed for the page origin";
@@ -6215,7 +6373,7 @@ var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, 
 var DESKTOP_DESCRIPTION = "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved). " + OPERATOR_PURGE_QUESTION + " Pass purge with humanAgree true only after the human agrees. This tool has no username field and no password field. The Solari key is not an argument.";
 var PROFILE_STATUS_DESCRIPTION = "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show handoff.url (chooser) plus labeled deep links (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
-var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone or desktop page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password. Pass url for the site host. If profile does not match that host slug, JSON sets profileHostMatch false, suggestedProfile, and next/nextCall to remint (soft advise; the wait still runs). A stored login site URL is used when url is omitted. profileHostMatch true on a match. Do not carry a previous profile onto a new host. If the live remote host diverges from the minted site, status is host-changed, ok is false, hostChanged is true, and nextCall remints auspex_login for that https origin. claimOkProfile is not granted. The door cannot read the address bar (noVNC). The password field is not a site picker.";
+var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone or desktop page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password. Pass url for the site host. If profile does not match that host slug, JSON sets profileHostMatch false, suggestedProfile, and next/nextCall to remint (soft advise; the wait still runs). A stored login site URL is used when url is omitted. profileHostMatch true on a match. Do not carry a previous profile onto a new host. If the live remote host diverges from the minted site, status is host-changed, ok is false, hostChanged is true, and nextCall remints auspex_login for that https origin. claimOkProfile is not granted. The door cannot read the address bar (noVNC). The password field is not a site picker. If the VNC/phone stream expiry is past, status is stream-expired and nextCall remints auspex_login (do not poll 30 minutes). If editorSave or editorFold times out, status is editor-save-hung \u2014 do not run finalize-login in parallel. If the profile lock is held, status is profile-busy \u2014 retry await-login after that save ends.";
 var FINALIZE_LOGIN_DESCRIPTION = "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. If profile does not match the URL host slug, the call still runs and the receipt sets profileHostMatch false, suggestedProfile, and next/nextCall to remint. Saved-check host affinity (consistencyhub on consistencyhub.io) is profileHostMatch true. Do not carry a previous profile onto a new host. Expect must be unique to the logged-in app and absent from public marketing copy. If the text hits a public or landing URL, reason is expectMatchedPublicLanding (not matched); pass a persistable app URL and a better expect. If the live browser host diverges from the minted site, ok is false, reason is hostChanged, the profile is not saved, claimOkProfile is not granted, and nextCall remints auspex_login for the live https origin.";
 var REAP_DESCRIPTION = "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 var TRACE_DESCRIPTION = "Treating auspex_trace as a log of check rows, tokens, or session ids is a lie. Read the last Solari LOGIN MINT episode plus one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman) after the handoff is ready. Check rows are not written. Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";

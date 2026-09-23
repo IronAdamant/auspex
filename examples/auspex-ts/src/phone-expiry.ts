@@ -71,3 +71,27 @@ export function resolvePhoneExpirySeconds(opts: {
   if (fromJwt !== undefined) return { exp: fromJwt, source: "jwt" }
   return { source: "unknown" }
 }
+
+/** True only when a readable exp is in the past. Unknown expiry is not expired (door UI fail-closes separately). */
+export function isStreamExpired(opts: {
+  expiresAt?: string
+  jwt?: string
+  nowSec?: number
+}): boolean {
+  const { exp } = resolvePhoneExpirySeconds(opts)
+  if (exp === undefined) return false
+  const now = opts.nowSec ?? Math.trunc(Date.now() / 1000)
+  return now >= exp
+}
+
+/** Agent-facing stamp. Never includes the JWT. */
+export function streamExpiryStamp(opts: { expiresAt?: string; jwt?: string }): {
+  streamExpiresAt?: string
+  streamExpirySource: PhoneExpirySource
+} {
+  const { exp, source } = resolvePhoneExpirySeconds(opts)
+  return {
+    streamExpirySource: source,
+    ...(exp !== undefined ? { streamExpiresAt: new Date(exp * 1000).toISOString() } : {}),
+  }
+}

@@ -101,6 +101,11 @@ If both pass, the override is safe to keep.
 
 Door pages (`docs/door.html`, `phone.html`, `desktop.html`) do **not** collect the Solari API key. There is no key input, no `localStorage.auspex.solariKey`, and no Pages → loopback POST. Minted doors stay keyless for humans.
 
+```
+human browser     →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in URL hash
+operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
+```
+
 Agents use `SOLARI_API_KEY` in the environment, or gitignored `.auspex/operator-key` written on the operator machine (CLI/MCP / a local file). That file is not a Pages key stash. The 30-minute profile idle wipe does **not** delete `.auspex/operator-key`, `.env`, or leftover Solari VMs. No username, password, or Solari key field is on CLI/MCP.
 
 Username and password typed on the door pages go into Solari remote Chrome (VNC keystrokes) and then the target site. They stay off agent chat, MCP, and receipts. Do not describe them as never-leaves-device.

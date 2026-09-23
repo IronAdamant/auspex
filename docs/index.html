@@ -145,9 +145,14 @@
       The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site.
       They stay off the AI chat, MCP, and receipts.
       Seed/handoff door, not a live-session takeover.
+      This is not the Mousepad sandbox demo (<code>auspex desktop</code>); that is a separate named Solari desktop primitive.
       An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
-      not a live timer on this field. Door pages do not collect the Solari API key.
+      not a live timer on this field. Purge a used login only after the human agrees.
+      Door pages do not collect the Solari API key.
     </div>
+    <pre class="key-paths" aria-label="Keyless Pages vs live SOLARI_API_KEY">human browser  →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in hash
+operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
+Pages never collect the key. Agents never type a password.</pre>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>
       · <a href="demo/replay.html">Replay only</a>

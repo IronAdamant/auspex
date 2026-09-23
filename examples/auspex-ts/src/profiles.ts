@@ -22,6 +22,7 @@ import {
 } from "./handoff-doors.ts"
 import { packageRoot } from "./paths.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
+import { streamExpiryStamp, type PhoneExpirySource } from "./phone-expiry.ts"
 
 export {
   DESKTOP_HANDOFF_PAGE,
@@ -79,6 +80,9 @@ export type EditorSaveHandle = {
   hostChanged?: boolean
   suggestedUrl?: string
   suggestedProfile?: string
+  /** Earliest VNC JWT / handoff expiry. ISO. The JWT itself is never stored. */
+  streamExpiresAt?: string
+  streamExpirySource?: PhoneExpirySource
 }
 
 export function editorSavePath(name: string, root = packageRoot): string {
@@ -103,6 +107,12 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
     const suggestedUrl = raw.hostChanged === true ? httpsOriginFrom(typeof raw.suggestedUrl === "string" ? raw.suggestedUrl : "") : ""
     const suggestedProfile =
       suggestedUrl && typeof raw.suggestedProfile === "string" ? raw.suggestedProfile.trim() : ""
+    const streamExpiresAt =
+      typeof raw.streamExpiresAt === "string" && raw.streamExpiresAt.trim() ? raw.streamExpiresAt.trim() : undefined
+    const streamExpirySource =
+      raw.streamExpirySource === "expiresAt" || raw.streamExpirySource === "jwt" || raw.streamExpirySource === "unknown"
+        ? raw.streamExpirySource
+        : undefined
     return {
       profileId,
       name: profileName,
@@ -112,6 +122,8 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
       ...(suggestedUrl && suggestedProfile
         ? { hostChanged: true as const, suggestedUrl, suggestedProfile }
         : {}),
+      ...(streamExpiresAt ? { streamExpiresAt } : {}),
+      ...(streamExpirySource ? { streamExpirySource } : {}),
     }
   } catch {
     return undefined
@@ -157,6 +169,9 @@ export type HandoffPacket = {
   /** Copied on phone Save; paste into any agent chat. Desktop page writes its own desktop line. */
   savePaste?: string
   qrPath?: string
+  /** Earliest VNC/handoff expiry as ISO. Optional extra key. Never the JWT. */
+  streamExpiresAt?: string
+  streamExpirySource?: PhoneExpirySource
 }
 
 export type DoorSaveKind = "phone" | "desktop"
@@ -168,7 +183,7 @@ export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"
     door === "desktop"
       ? " Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
       : " Do not open Solari on the phone (GET editor HTTP 401)."
-  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`
+  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile ${name} (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged — remint, do not finalize the old profile.`
 }
 
 export function phoneSavePaste(profileName?: string): string {
@@ -254,6 +269,29 @@ export function formatHandoffNext(opts: {
       : `Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.`) +
     `${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
+}
+
+function jwtFromHandoffMobileUrl(mobileUrl: string | undefined): string | undefined {
+  if (!mobileUrl) return undefined
+  try {
+    const hash = new URL(mobileUrl).hash.replace(/^#/, "")
+    const token = new URLSearchParams(hash).get("v")?.trim()
+    return token || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Stamp optional streamExpiresAt on login JSON. Never writes the JWT. */
+export function stampLoginStreamExpiry(result: LoginResult, expiresAt?: string): LoginResult {
+  if (!result.handoff) return result
+  const stamp = streamExpiryStamp({
+    expiresAt: expiresAt ?? result.expiresAt,
+    jwt: jwtFromHandoffMobileUrl(result.handoff.mobileUrl),
+  })
+  if (stamp.streamExpiresAt) result.handoff.streamExpiresAt = stamp.streamExpiresAt
+  result.handoff.streamExpirySource = stamp.streamExpirySource
+  return result
 }
 
 export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: string): LoginResult {
@@ -349,7 +387,7 @@ export function loginInstructions(
       }),
     }
     minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true }
-    return minted
+    return stampLoginStreamExpiry(minted, handoff.expiresAt)
   }
   const derived = profileDerived ? `${derivedProfileNext(profile.name)} ` : ""
   const missed: LoginResult = {
@@ -541,8 +579,8 @@ export async function loginProfile(
       client,
     )
     const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
+    const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : undefined
     if (handoffToken) {
-      const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : undefined
       await persistEditorSave({
         profileId: profile.id,
         name: profile.name,
@@ -559,6 +597,17 @@ export async function loginProfile(
         expiresAt: handoff.expiresAt,
         siteUrl: urlHint,
       })
+    }
+    const streamStamp = streamExpiryStamp({ expiresAt: handoff.expiresAt, jwt: vncMint.token })
+    if (handoffToken) {
+      await persistEditorSave({
+        profileId: profile.id,
+        name: profile.name,
+        handoffToken,
+        expiresAt: handoff.expiresAt,
+        ...(siteUrl ? { siteUrl } : {}),
+        ...streamStamp,
+      }).catch(() => undefined)
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
     const vncMintOk = Boolean(vncMint.token)

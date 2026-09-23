@@ -99,6 +99,31 @@ test("demo onedrive-receipt.json is redacted schema v1 and receipt-only", () => 
   assert.equal(existsSync(path.join(demo, "onedrive.png")), false, "do not commit a raw OneDrive PNG")
 })
 
+test("demo host-changed-receipt.json is schema v1 fail-closed remint", () => {
+  const raw = JSON.parse(readFileSync(path.join(demo, "host-changed-receipt.json"), "utf8")) as Record<
+    string,
+    unknown
+  >
+  const receipt = parseReceiptV1(raw)
+  assert.equal(receipt.schemaVersion, 1)
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "hostChanged")
+  assert.equal(receipt.hostChanged, true)
+  assert.equal(receipt.profileHostMatch, false)
+  assert.equal(receipt.suggestedProfile, "app-socialaize-com")
+  assert.equal(receipt.suggestedUrl, "https://app.socialaize.com")
+  assert.equal(receipt.nextCall?.tool, "auspex_login")
+  assert.equal(receipt.nextCall?.url, "https://app.socialaize.com")
+  assert.equal(receipt.screenshotPath, "")
+  assert.equal("sessionId" in raw, false)
+  const pack = JSON.parse(readFileSync(path.join(demo, "dogfood-pack.json"), "utf8")) as {
+    items: Array<{ id: string; receipt: string }>
+  }
+  const ids = pack.items.map((row) => row.id)
+  assert.deepEqual(ids, ["consistencyhub", "onedrive", "hostChanged"])
+  assert.ok(existsSync(path.join(demo, "login-trace-sample.jsonl")))
+})
+
 test("demo PNG is a real PNG", () => {
   const png = readFileSync(path.join(demo, "ironadamant.png"))
   assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a")
