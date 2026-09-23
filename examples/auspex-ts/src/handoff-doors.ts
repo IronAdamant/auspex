@@ -7,6 +7,9 @@ export const DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html
 /** One mint, one link: human picks Phone or Desktop. Same hash as both doors. */
 export const DOOR_HANDOFF_PAGE = "https://ironadamant.com/auspex/door.html"
 
+/** Hash keys door JS reads. Unused Solari tokens stay off agent JSON / QR / SMS. */
+export const HANDOFF_HASH_KEYS = ["v", "n", "exp", "u", "k", "pair"] as const
+
 export type HandoffHashExtra = {
   profileId?: string
   profileName?: string
@@ -18,6 +21,8 @@ export type HandoffHashExtra = {
   keyInUse?: boolean
   /** https site to open. Username and password are never accepted here. */
   siteUrl?: string
+  /** Short-lived loopback pairing nonce. Not the VNC JWT and not the Solari key. */
+  pair?: string
 }
 
 export function isPhoneImeUrl(url: string | undefined): boolean {
@@ -32,25 +37,21 @@ export function isDesktopDoorUrl(url: string | undefined): boolean {
   return Boolean(url?.startsWith(DESKTOP_HANDOFF_PAGE))
 }
 
-/** Shared hash (v, h, p, n, t, exp, u, k) for chooser + phone + desktop. */
+/** Shared hash: only door-JS keys (v, n, exp, u, k, pair). Drop t/h/p/saved/plist. */
 export function handoffHash(
   vncToken: string,
-  handoffUrl: string,
+  _handoffUrl: string,
   extra?: HandoffHashExtra,
 ): string {
   const token = vncToken.trim()
-  const save = handoffUrl.trim()
   if (!token) return ""
   const hash = new URLSearchParams({ v: token })
-  if (save) hash.set("h", save)
-  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim())
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim())
-  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim())
-  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim())
-  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim())
   if (extra?.keyInUse) hash.set("k", "1")
   const siteUrl = extra?.siteUrl?.trim() ?? ""
   if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl)
+  const pair = extra?.pair?.trim() ?? ""
+  if (/^[A-Za-z0-9_-]{16,64}$/.test(pair)) hash.set("pair", pair)
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token })
   if (expiry.exp !== undefined) hash.set("exp", String(expiry.exp))
   return hash.toString()

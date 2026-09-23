@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
   <title>Auspex phone login</title>
   <style>
     html, body { margin: 0; height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
@@ -197,6 +198,7 @@
       function clearLocalSecrets() {
         if (ime) ime.value = ""
         last = ""
+        try { localStorage.removeItem("auspex.solariKey") } catch (e) {}
       }
 
       function lockUi(title, message) {
@@ -430,9 +432,10 @@
         })
         rfb.addEventListener("disconnect", function () {
           if (locked) return
-          if (bootTimer) clearInterval(bootTimer)
-          setBoot("Disconnected. Remint auspex login if this sat idle.", false)
-          setStatus("Disconnected. Remint auspex login if this sat idle.", true)
+          lockUi(
+            "The remote Chrome closed. A new login link is required.",
+            "The remote Chrome closed. A new login link is required."
+          )
         })
       } catch (err) {
         setBoot("Could not open the remote Chrome. Remint auspex login.", false)

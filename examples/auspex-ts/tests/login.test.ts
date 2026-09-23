@@ -68,10 +68,11 @@ test("loginInstructions with phone IME URL labels the real text-field page", () 
   const chooserHash = new URLSearchParams(new URL(result.handoff?.url ?? "").hash.slice(1))
   assert.equal(desktopHash.get("v"), phoneHash.get("v"))
   assert.equal(chooserHash.get("v"), phoneHash.get("v"))
-  assert.equal(desktopHash.get("h"), phoneHash.get("h"))
   assert.equal(desktopHash.get("n"), phoneHash.get("n"))
-  assert.equal(desktopHash.get("t"), phoneHash.get("t"))
   assert.equal(desktopHash.get("exp"), phoneHash.get("exp"))
+  assert.equal(desktopHash.get("h"), null)
+  assert.equal(desktopHash.get("t"), null)
+  assert.equal(desktopHash.get("p"), null)
   assert.equal(chooserHash.toString(), phoneHash.toString())
   assert.match(result.next, /real text field/)
   assert.match(result.next, /phone keyboard/)
@@ -105,16 +106,28 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   const hash = new URL(url).hash.slice(1)
   const params = new URLSearchParams(hash)
   assert.equal(params.get("v"), "tok.en")
-  assert.equal(params.get("h"), "https://console.getsolari.com/handoff/abc")
+  assert.equal(params.get("h"), null)
+  assert.equal(params.get("t"), null)
+  assert.equal(params.get("p"), null)
+  assert.equal(params.get("saved"), null)
+  assert.equal(params.get("plist"), null)
+  for (const key of params.keys()) {
+    assert.ok(["v", "n", "exp", "u", "k", "pair"].includes(key), key)
+  }
   const withIds = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
     profileId: "prof_1",
     profileName: "demo",
     handoffToken: "hand_1",
+    saved: "should-not-mint",
+    plist: "also-not-mint",
   })
   const extra = new URLSearchParams(new URL(withIds).hash.slice(1))
-  assert.equal(extra.get("p"), "prof_1")
+  assert.equal(extra.get("p"), null)
   assert.equal(extra.get("n"), "demo")
-  assert.equal(extra.get("t"), "hand_1")
+  assert.equal(extra.get("t"), null)
+  assert.equal(extra.get("h"), null)
+  assert.equal(extra.get("saved"), null)
+  assert.equal(extra.get("plist"), null)
   const desktop = desktopHandoffUrlFromPhone(withIds)
   const chooser = doorHandoffUrlFromPhone(withIds)
   assert.match(desktop ?? "", /\/desktop\.html#/)
@@ -122,11 +135,20 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   const desk = new URLSearchParams(new URL(desktop ?? "").hash.slice(1))
   const door = new URLSearchParams(new URL(chooser ?? "").hash.slice(1))
   assert.equal(desk.get("v"), "tok.en")
-  assert.equal(desk.get("h"), extra.get("h"))
+  assert.equal(desk.get("h"), null)
   assert.equal(desk.get("n"), "demo")
-  assert.equal(desk.get("t"), "hand_1")
+  assert.equal(desk.get("t"), null)
   assert.equal(desk.get("exp"), extra.get("exp"))
   assert.equal(door.toString(), desk.toString())
+  const withPair = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
+    profileName: "demo",
+    pair: "a".repeat(24),
+  })
+  const paired = new URLSearchParams(new URL(withPair).hash.slice(1))
+  assert.equal(paired.get("pair"), "a".repeat(24))
+  for (const key of paired.keys()) {
+    assert.ok(["v", "n", "exp", "u", "k", "pair"].includes(key), key)
+  }
   const withKey = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
     keyInUse: true,
     siteUrl: "https://consistencyhub.io",
