@@ -5,6 +5,7 @@ import { recordLoginTrace, type LoginMintStage } from "./login-trace.ts"
 import type { NextCall } from "./next-call.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
+import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { derivedProfileNext } from "./profile-slug.ts"
 import {
   applyOperatorWipes,
@@ -72,6 +73,8 @@ export type EditorSaveHandle = {
   name: string
   handoffToken: string
   expiresAt?: string
+  /** Site URL from login --url. Used so await-login can see a host the agent does not repeat. */
+  siteUrl?: string
 }
 
 export function editorSavePath(name: string, root = packageRoot): string {
@@ -91,11 +94,14 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
     const handoffToken = typeof raw.handoffToken === "string" ? raw.handoffToken.trim() : ""
     const profileName = typeof raw.name === "string" ? raw.name.trim() : requireProfileName(name)
     if (!profileId || !handoffToken) return undefined
+    const siteRaw = typeof raw.siteUrl === "string" ? raw.siteUrl.trim() : ""
+    const siteUrl = siteRaw && isHttpOrHttpsUrl(siteRaw) ? siteRaw : undefined
     return {
       profileId,
       name: profileName,
       handoffToken,
       expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : undefined,
+      ...(siteUrl ? { siteUrl } : {}),
     }
   } catch {
     return undefined
@@ -516,11 +522,13 @@ export async function loginProfile(
     )
     const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
     if (handoffToken) {
+      const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : undefined
       await persistEditorSave({
         profileId: profile.id,
         name: profile.name,
         handoffToken,
         expiresAt: handoff.expiresAt,
+        ...(siteUrl ? { siteUrl } : {}),
       }).catch(() => undefined)
     }
     const vncMint = await fetchEditorVncToken(profile.id, handoffToken)

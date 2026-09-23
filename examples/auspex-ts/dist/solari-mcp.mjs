@@ -246,6 +246,7 @@ var init_profiles = __esm({
     init_login_trace();
     init_errors();
     init_profile_persist();
+    init_http_url();
     init_profile_slug();
     init_operator_session();
     init_handoff_doors();

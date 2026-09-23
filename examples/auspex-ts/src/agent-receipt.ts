@@ -71,6 +71,8 @@ export function toAgentReceipt(
     needsHuman: check.needsHuman,
     next,
     nextCall,
+    profileHostMatch: check.profileHostMatch,
+    suggestedProfile: check.suggestedProfile,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,

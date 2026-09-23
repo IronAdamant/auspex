@@ -38,6 +38,7 @@ Login-once (human IdP sign-in on the Solari Chrome card; Auspex captures session
 
 ```bash
 # 1. Human SSO in handoff → Save (`login --url` derives --profile app-example)
+# New host: do not carry a previous --profile. Omit --profile or pass that host's slug.
 npx tsx src/cli.ts login --url https://app.example
 
 # 2. Wait for Save (--save-editor; warns if no sessionStorage)
