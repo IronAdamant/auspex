@@ -45,19 +45,19 @@ npx tsx src/cli.ts login --url https://app.example
 npx tsx src/cli.ts await-login --profile app-example --save-editor
 
 # 3. Agent captures sessionStorage
-npx tsx src/cli.ts finalize-login --profile app-example --url https://app.example --expect "Dashboard"
+npx tsx src/cli.ts finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 
 # 4. Later: reuse profile
-npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Dashboard"
+npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Workspace ready"
 
 # 5. Optional: profile-seeded claim recheck (read claimOkProfile; do not fold it into ok)
-npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Dashboard" --verify-with-profile
+npx tsx src/cli.ts check --profile app-example --url https://app.example --expect "Workspace ready" --verify-with-profile
 
 # List profiles
 npx tsx src/cli.ts profiles
 ```
 
-The generic path is the recipe. A named saved check is optional; do not invent that any host works without dogfood.
+The generic path is the recipe. A named saved check is optional; do not invent that any host works without dogfood. Expect must be unique to the logged-in app and absent from public marketing copy (`Dashboard` does not match capitalized `One Dashboard`). A hit on a public or landing URL during finalize is `expectMatchedPublicLanding`, not `matched`.
 
 ## Worked example (dogfood)
 

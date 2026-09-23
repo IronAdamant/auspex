@@ -49,8 +49,54 @@ export function requireExpect(value: string): string {
   return value
 }
 
+function isWordChar(ch: string): boolean {
+  return /[\p{L}\p{N}_]/u.test(ch)
+}
+
+function isUppercaseLetter(ch: string): boolean {
+  return /\p{L}/u.test(ch) && ch === ch.toUpperCase() && ch !== ch.toLowerCase()
+}
+
+function boundedExpectAt(hay: string, index: number, length: number): boolean {
+  const before = index === 0 ? "" : hay.charAt(index - 1)
+  const afterAt = index + length
+  const after = afterAt >= hay.length ? "" : hay.charAt(afterAt)
+  if (before && isWordChar(before)) return false
+  if (after && isWordChar(after)) return false
+  return true
+}
+
+/** Previous word starts with an uppercase letter (Title Case or ALL CAPS). */
+function previousWordStartsUpper(hay: string, index: number): boolean {
+  let i = index - 1
+  while (i >= 0 && !isWordChar(hay.charAt(i))) i -= 1
+  if (i < 0) return false
+  while (i >= 0 && isWordChar(hay.charAt(i))) i -= 1
+  return isUppercaseLetter(hay.charAt(i + 1))
+}
+
+/**
+ * Case-sensitive expect hit after whitespace collapse.
+ * The expect must sit on word boundaries (`Dashboard` does not match `Dashboards`).
+ * A single-word expect that starts with an uppercase letter does not match when the
+ * previous word also starts with an uppercase letter, so `One Dashboard` does not
+ * satisfy `Dashboard`.
+ */
 export function haystackMatches(raw: string, expect: string): boolean {
-  return normalizeHaystack(raw).includes(normalizeHaystack(expect))
+  const hay = normalizeHaystack(raw)
+  const needle = normalizeHaystack(expect)
+  if (!needle) return false
+  const guardTitleCase = !/\s/u.test(needle) && isUppercaseLetter(needle.charAt(0))
+  let from = 0
+  while (from <= hay.length - needle.length) {
+    const i = hay.indexOf(needle, from)
+    if (i < 0) return false
+    from = i + 1
+    if (!boundedExpectAt(hay, i, needle.length)) continue
+    if (guardTitleCase && previousWordStartsUpper(hay, i)) continue
+    return true
+  }
+  return false
 }
 
 export const expectSchema = z
