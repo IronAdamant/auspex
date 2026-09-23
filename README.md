@@ -30,7 +30,7 @@ npx auspex-solari check https://example.com --expect "Example Domain"
 npx -p auspex-solari auspex-mcp
 ```
 
-Do not run npm `auspex` (a different scraper). After a clone, `npx auspex` and `npx auspex-mcp` are the local bins.
+Do not run npm `auspex` (a different scraper). After a clone: `npm install && npm run build:mcp` (`dist/` is gitignored), then `npx auspex` (CLI) and `npx auspex-mcp` (needs `dist/mcp.mjs`; missing dist fail-closes `DistMissing`). Equivalent without dist: `npx tsx src/mcp.ts` from `examples/auspex-ts`.
 
 **npm `auspex-solari` 0.1.3** is prepared on this tip (doors + fail-closed after published **0.1.2**). **Founder must publish.** Agents do not `npm publish`.
 
@@ -112,9 +112,12 @@ Same Microsoft profile on OneDrive is **receipt-only** evidence (`examples/auspe
 `.cursor/mcp.json` is committed. Auspex tools are the product; official Solari MCP is an optional gated sibling.
 
 ```bash
-npx -p auspex-solari auspex-mcp
-# after a clone, from the repo root: npx auspex-mcp
-# or: npx tsx src/mcp.ts   # from examples/auspex-ts
+npx -p auspex-solari auspex-mcp   # published tarball includes dist/
+# after a clone (dist/ is gitignored — do not commit it):
+npm install
+npm run build:mcp
+npx auspex-mcp
+# equivalent without dist: npx tsx src/mcp.ts   # from examples/auspex-ts
 ```
 
 Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer Auspex for check → verify → tear-down; use optional `solari_*` only for ad-hoc cloud browser / sandbox / desktop. Prefer `auspex_reap` for 429 recovery.

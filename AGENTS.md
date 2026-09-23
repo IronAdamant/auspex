@@ -6,9 +6,9 @@ We do **not** claim Alice-vs-Bob wrong-account detection. A seeded profile can s
 
 ## First calls
 
-From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
+From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone: `npm install && npm run build:mcp`, then `npx auspex` / `npx auspex-mcp`.
 
-From the repository root after `npm install` and `export SOLARI_API_KEY`:
+From the repository root after `npm install` and `export SOLARI_API_KEY`. Clone MCP also needs `npm run build:mcp` (`dist/` is gitignored):
 
 ```bash
 npx auspex check --name ironadamant
@@ -24,6 +24,7 @@ npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"   # never --record
 npx auspex reap                                 # after 429
+npm run build:mcp                               # clone MCP; dist/ is gitignored — do not commit it
 npx auspex-mcp
 ```
 
@@ -93,12 +94,13 @@ From the **repository root** (do not hunt `examples/`):
 git clone https://github.com/IronAdamant/auspex.git
 cd auspex
 npm install
+npm run build:mcp                   # clone MCP; dist/ is gitignored — do not commit it
 export SOLARI_API_KEY=slr_live_…   # https://console.getsolari.com — env only, never commit
 npx auspex check --name ironadamant
 npx auspex-mcp                      # stdio MCP (same contract as the CLI)
 ```
 
-Equivalent from the package directory: `npx tsx src/cli.ts …` or `npx auspex …` after `npm install --prefix examples/auspex-ts`.
+Equivalent from the package directory: `npx tsx src/cli.ts …` or `npx auspex …` after `npm install --prefix examples/auspex-ts`. MCP equivalent without `dist/`: `npx tsx src/mcp.ts`.
 
 CLI and MCP are the **same contract**: every MCP tool is a CLI command; every flag is a JSON field (`--wait-for` ↔ `waitFor`, `--pack-receipts` ↔ `packReceipts`, `--no-verify` ↔ `verify: false`). Stdout is **one JSON object** with `schemaVersion`. Exit `0` only when `ok` is true. `--help` is human text.
 
@@ -222,9 +224,9 @@ npx auspex mcp
 
 ## MCP hosts
 
-Primary door after `npm install` at the repository root: `npx auspex-mcp`.
+Primary door after `npm install` **and** `npm run build:mcp` at the repository root: `npx auspex-mcp`. `dist/` is gitignored (policy B). Missing `dist/mcp.mjs` fail-closes with `DistMissing` (not a silent empty server).
 
-- **stdio:** `npx auspex-mcp` from the repo root (or `npx tsx src/mcp.ts` from `examples/auspex-ts`).
-- **Cursor** — `.cursor/mcp.json` in this repo. Also `examples/auspex-ts/mcp.cursor.example.json`.
-- **Claude Desktop** — merge `examples/auspex-ts/mcp.claude.example.json`.
-- **Grok** — `examples/auspex-ts/grok.mcp.example.toml` (`npx auspex-mcp` from the clone; if PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`).
+- **stdio:** `npx auspex-mcp` from the repo root (needs `dist/mcp.mjs`). Equivalent without dist: `npx tsx src/mcp.ts` from `examples/auspex-ts`.
+- **Cursor** — `.cursor/mcp.json` in this repo. Also `examples/auspex-ts/mcp.cursor.example.json`. After clone: `npm install && npm run build:mcp`, then restart Cursor.
+- **Claude Desktop** — merge `examples/auspex-ts/mcp.claude.example.json` (same build).
+- **Grok** — `examples/auspex-ts/grok.mcp.example.toml` (same build; official Solari sibling is `dist/solari-mcp.mjs`). If PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`.

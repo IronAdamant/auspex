@@ -194,6 +194,7 @@ export async function runDesktopDoor(opts: {
   return stampSchema(
     await runDesktopReview({
       ...defaultDesktopDeps(),
+      status: process.stderr,
       task: { open: opts.open, type: opts.type, click: opts.click, expect: opts.expect },
     }),
   )

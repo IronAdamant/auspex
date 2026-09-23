@@ -272,6 +272,50 @@ test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLog
   assert.match(pagesYml, /enablement:\s*true/)
 })
 
+test("clone MCP and replay stub stay honest after slim", () => {
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  const grok = readFileSync(path.join(pkg, "grok.mcp.example.toml"), "utf8")
+  const cursorExample = readFileSync(path.join(pkg, "mcp.cursor.example.json"), "utf8")
+  const claudeExample = readFileSync(path.join(pkg, "mcp.claude.example.json"), "utf8")
+  const runJs = readFileSync(path.join(pkg, "bin", "run.mjs"), "utf8")
+  const receipt = JSON.parse(readFileSync(path.join(pkg, "demo", "receipt.json"), "utf8")) as { note?: string }
+  const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
+  const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
+  const saveDemo = readFileSync(path.join(pkg, "scripts", "save-demo-receipt.ts"), "utf8")
+
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+    ["root README.md", rootReadme],
+    ["package README.md", packReadme],
+    ["Cursor rule", cursorRule],
+    ["grok.mcp.example.toml", grok],
+    ["mcp.cursor.example.json", cursorExample],
+    ["mcp.claude.example.json", claudeExample],
+  ] as const) {
+    assert.match(text, /build:mcp/, `${label} must name npm run build:mcp for clone MCP`)
+  }
+  assert.match(runJs, /DistMissing/)
+  assert.match(runJs, /spawnAuspexMcp/)
+  assert.equal(
+    (receipt.note ?? "").includes("open demo/replay.html"),
+    false,
+    "demo receipt must not tell strangers to open the committed stub as the player",
+  )
+  assert.match(receipt.note ?? "", /stub/)
+  assert.match(receipt.note ?? "", /ironadamant\.com\/auspex\/demo\/replay\.html/)
+  assert.match(receipt.note ?? "", /generate:replay/)
+  assert.match(index, /committed repo file/)
+  assert.match(index, /stub/)
+  assert.match(discord, /committed repo `demo\/replay\.html`/)
+  assert.match(discord, /stub/)
+  assert.match(saveDemo, /Does not overwrite the committed demo\/replay\.html stub/)
+})
+
 test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")

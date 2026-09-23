@@ -6,9 +6,9 @@ We do **not** claim Alice-vs-Bob wrong-account detection. A seeded profile can s
 
 ## First calls
 
-From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone, `npx auspex` is the local bin.
+From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone: `npm install && npm run build:mcp`, then `npx auspex` / `npx auspex-mcp`.
 
-From the **repository root** after `npm install` and `export SOLARI_API_KEY`:
+From the **repository root** after `npm install` and `export SOLARI_API_KEY`. Clone MCP also needs `npm run build:mcp` (`dist/` is gitignored):
 
 ```bash
 npx auspex check --name ironadamant
@@ -24,6 +24,7 @@ npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"   # never --record
 npx auspex reap                                 # after 429
+npm run build:mcp                               # clone MCP; dist/ is gitignored — do not commit it
 npx auspex-mcp
 ```
 
@@ -114,7 +115,7 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 - `fill` / `click` with a profile requires `--allow-page-actions`. Public checks without a profile may still fill/click.
 - Never commit `SOLARI_API_KEY`, `.env`, or `.auspex/` artifacts. The only secret is env `SOLARI_API_KEY`. Concurrent `--save-profile` on the same name is locked (`ProfileBusy`).
 - Prefer `auspex_check` over driving raw CDP.
-- `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + committed `demo/replay.ndjson` (generate `demo/replay.html` with `npm run generate:replay`). Refresh with `npx tsx scripts/save-demo-receipt.ts`. Never record a logged-in ConsistencyHub session.
+- `--record` / `record: true` records for Solari console Replay via `sessionId`. Do not put a presigned `replayUrl` on success JSON. Public demo is `demo/ironadamant.png` + `demo/receipt.json` (`sessionId`) + committed `demo/replay.ndjson`. The committed `demo/replay.html` is a stub — watch the Pages player or run `npm run generate:replay`. Refresh stills/ndjson with `npx tsx scripts/save-demo-receipt.ts` (does not overwrite the stub). Never record a logged-in ConsistencyHub session.
 - Profiles must be **saved** after login. Attaching a profile does not auto-save. `auspex_await_login` / `login --wait` only succeed when Save stored cookies or origins. **Profiles are OAuth secret stores** — they contain session cookies, localStorage, and sessionStorage (including OAuth `accessToken` for SPAs). Treat profiles like passwords and never commit `.auspex/` artifacts. Concurrent `--save-profile` on the same name is locked (`ProfileBusy`).
 - **Profile save defaults**: `--save-profile` captures cookies, localStorage, and sessionStorage but **omits indexedDB by default** to stay under Solari's 1 MiB limit. SessionStorage is preserved (Microsoft OAuth SPAs need `accessToken` in sessionStorage). **Console Solari Save is insufficient** for those SPAs. After human IdP + Save, run `finalize-login` (unknown profiles need `--url` and `--expect`). Cookies alone may not restore app sessions.
 ## Worked example (dogfood)
@@ -140,7 +141,7 @@ Console Save and `--save-editor` do **not** refresh folded sessionStorage unless
 
 ## CLI
 
-From the **repository root** after `npm install`: `npx auspex <command>` or `npx auspex-mcp`. Same contract from this directory: `npx tsx src/cli.ts …`. Stdout is one JSON object; exit 0 only when `ok` is true.
+From the **repository root** after `npm install`: `npx auspex <command>`. Clone MCP also needs `npm run build:mcp`, then `npx auspex-mcp`. Same contract from this directory: `npx tsx src/cli.ts …` or `npx tsx src/mcp.ts` (no dist). Stdout is one JSON object; exit 0 only when `ok` is true.
 
 ```
 npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
@@ -162,9 +163,9 @@ npx auspex mcp
 
 ## MCP hosts
 
-Primary door after `npm install` at the repository root: `npx auspex-mcp`.
+Primary door after `npm install` **and** `npm run build:mcp` at the repository root: `npx auspex-mcp`. `dist/` is gitignored (policy B). Missing `dist/mcp.mjs` fail-closes with `DistMissing` (not a silent empty server).
 
-- **stdio:** `npx auspex-mcp` from the repo root (or `npx tsx src/mcp.ts` from this directory).
-- **Cursor** — `.cursor/mcp.json` in this repo. Also `mcp.cursor.example.json`.
-- **Claude Desktop** — merge `mcp.claude.example.json`.
-- **Grok** — `grok.mcp.example.toml` (`npx auspex-mcp` from the clone; if PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`).
+- **stdio:** `npx auspex-mcp` from the repo root (needs `dist/mcp.mjs`). Equivalent without dist: `npx tsx src/mcp.ts` from this directory.
+- **Cursor** — `.cursor/mcp.json` in this repo. Also `mcp.cursor.example.json`. After clone: `npm install && npm run build:mcp`, then restart Cursor.
+- **Claude Desktop** — merge `mcp.claude.example.json` (same build).
+- **Grok** — `grok.mcp.example.toml` (same build; official Solari sibling is `dist/solari-mcp.mjs`). If PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`.
