@@ -72,9 +72,31 @@ test("demo consistencyhub-receipt.json notes omitted sessionStorage or counts it
   )
 })
 
-test("no committed OneDrive receipt artifact", () => {
-  assert.equal(existsSync(path.join(demo, "onedrive-receipt.json")), false)
-  assert.equal(existsSync(path.join(demo, "onedrive.png")), false)
+test("demo onedrive-receipt.json is redacted schema v1 and receipt-only", () => {
+  const raw = JSON.parse(readFileSync(path.join(demo, "onedrive-receipt.json"), "utf8")) as Record<
+    string,
+    unknown
+  >
+  const receipt = parseReceiptV1(raw)
+  assert.equal(receipt.schemaVersion, 1)
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.reason, "matched")
+  assert.equal(receipt.url, "https://onedrive.live.com/")
+  assert.equal(receipt.expect, "My files")
+  assert.equal(receipt.screenshotPath, "")
+  assert.equal(receipt.matched, true)
+  assert.equal(receipt.sessionId, undefined)
+  assert.equal("sessionId" in raw, false)
+  assert.equal(receipt.verify?.claimOk, false)
+  assert.equal(receipt.verify?.claimOkProfile, true)
+  assert.equal(receipt.verify?.anonymousClaimSkipped, true)
+  const excerpt = typeof receipt.excerpt === "string" ? receipt.excerpt : ""
+  assert.match(excerpt, /REDACTED/)
+  assert.equal(/@[a-z0-9.-]+\.[a-z]{2,}/i.test(excerpt), false, "OneDrive excerpt must not include emails")
+  assert.equal(/\b\d+(\.\d+)?\s*(GB|TB|MB)\b/i.test(excerpt), false, "OneDrive excerpt must not include storage amounts")
+  const note = typeof raw.demoNote === "string" ? raw.demoNote : ""
+  assert.match(note, /[Rr]eceipt-only|no public OneDrive PNG/)
+  assert.equal(existsSync(path.join(demo, "onedrive.png")), false, "do not commit a raw OneDrive PNG")
 })
 
 test("demo PNG is a real PNG", () => {

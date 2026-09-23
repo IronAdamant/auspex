@@ -308,11 +308,16 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.match(packAgents, /auth \+ hygiene doors/)
   assert.match(pitch, /auth \+ hygiene doors/)
 
-  assert.match(rootAgents, /no committed OneDrive PNG\/receipt/)
-  assert.match(packAgents, /no committed OneDrive PNG\/receipt/)
-  assert.match(receipts, /no committed OneDrive PNG\/receipt/)
+  assert.match(rootAgents, /no raw OneDrive PNG/)
+  assert.match(packAgents, /no raw OneDrive PNG/)
+  assert.match(receipts, /no raw OneDrive PNG|No raw OneDrive PNG/)
+  assert.match(receipts, /onedrive-receipt\.json/)
   assert.match(receipts, /weekly live coverage is \*\*not\*\* running/)
+  assert.match(receipts, /secretless cron does \*\*not\*\* verify live Solari sessions/)
   assert.match(rootReadme, /weekly live coverage is not running/)
+  assert.match(rootReadme, /secretless cron does not verify live Solari sessions/)
+  assert.match(rootAgents, /secretless cron does not verify live sessions/)
+  assert.match(packAgents, /secretless cron does not verify live sessions/)
 
   assert.match(deferred, /fixed in #42/)
   assert.match(deferred, /vwp-magic-sleeps-2026-09-19/)
@@ -339,7 +344,8 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(index, /Redacted demo|Redacted auth-gated SaaS demo/)
   const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
   assert.match(receipts, /OneDrive/)
-  assert.match(receipts, /[Rr]ecipe only/)
+  assert.match(receipts, /not the default recipe/)
+  assert.match(receipts, /onedrive-receipt\.json/)
   assert.match(index, /src="demo\/replay\.html"/)
   const frameAt = index.indexOf("<iframe")
   const publicStill = index.indexOf('src="demo/ironadamant.png"')
@@ -440,6 +446,34 @@ test("operator docs make claimOkProfile the reuse gate and phone a seed door", (
       `${label} must contrast phone.html with same-session takeover`,
     )
   }
+})
+
+test("frozen agent door sequence is documented for operators and not a takeover", () => {
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
+  const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
+  for (const [label, text] of [
+    ["root AGENTS.md", rootAgents],
+    ["package AGENTS.md", packAgents],
+  ] as const) {
+    assert.match(text, /## Frozen agent door sequence/)
+    assert.match(text, /not\*\* a Handraise-style same-session live-view takeover|not a Handraise-style same-session live-view takeover/)
+    assert.match(text, /login --url/)
+    assert.match(text, /await-login --save-editor/)
+    assert.match(text, /finalize-login/)
+    assert.match(text, /ok` ≠ `claimOk` ≠ `claimOkProfile/)
+    assert.match(text, /expectMatchedPublicLanding/)
+    assert.match(text, /hostChanged/)
+    assert.match(text, /#61/)
+    assert.match(text, /#62/)
+  }
+  assert.match(rootReadme, /Frozen door sequence|frozen-agent-door-sequence/)
+  assert.match(packReadme, /Frozen door sequence|frozen-agent-door-sequence/)
+  assert.match(pitch, /Frozen agent door|frozen-agent-door-sequence/)
+  assert.match(rootReadme, /expectMatchedPublicLanding/)
+  assert.match(rootReadme, /hostChanged/)
 })
 
 test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {

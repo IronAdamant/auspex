@@ -44,7 +44,7 @@ npx auspex check --profile app-example --url https://app.example --expect "Works
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 
-The generic `login --url` / `--profile <yours>` path is the recipe (`https://app.example` derives `--profile app-example`). A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood). Expect must be unique to the logged-in app and absent from public marketing copy. Match is case-sensitive and word-bounded (`Dashboard` does not match `One Dashboard`, a Socialaize-style pitfall). A text hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during finalize is `reason: expectMatchedPublicLanding` (`ok` false, `matched` false, profile not saved).
+The generic `login --url` / `--profile <yours>` path is the recipe (`https://app.example` derives `--profile app-example`). A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood). Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. See root [AGENTS.md](../../AGENTS.md#frozen-agent-door-sequence). Expect must be unique to the logged-in app and absent from public marketing copy. Match is case-sensitive and word-bounded (`Dashboard` does not match `One Dashboard`, a Socialaize-style pitfall). A text hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during finalize is `reason: expectMatchedPublicLanding` (`ok` false, `matched` false, profile not saved).
 
 Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
 
@@ -101,7 +101,7 @@ Tools:
 - `auspex_login` / `auspex_await_login` / `auspex_finalize_login` / `auspex_profiles` / `auspex_profile_status` (`loggedIn` / `loggedOut` / `needsHuman` / `weakSeed` / `emptySave`). Login: show `handoff.url` (chooser) plus labeled `handoff.mobileUrl` (Auspex phone page, real text field; seed/handoff door, not a same-session VNC takeover; Save copies a paste line) and `handoff.desktopUrl` (computer). After Save on the phone or desktop page, `saveEditor` / `--save-editor`. If editorSave fails or editorFold is no-cdp, finalize NOW. Solari noVNC will not open the phone keyboard.
 - `auspex_desktop` — named sandbox desktop demo, screenshot, **kill**. ASCII log **and** JSON. `streamUrl` for VNC. FAIL-CLOSED `type` refuses password/OTP-like strings. Not the user's Mac. 402 on Free.
 
-The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, and missing it does not fail PRs. Do not `--record` a logged-in ConsistencyHub session.
+The weekly public loop (Checkpoint + ironadamant.com `One office job.`): `npm run public-check`. GitHub Actions `public` job runs Mondays and on `workflow_dispatch`; it skips with exit 0 when `SOLARI_API_KEY` is unset. A **repo** secret named `SOLARI_API_KEY` is required for that job to run live; this repo does not add the secret, so weekly live coverage is **not** running. Missing it does not fail PRs. The workflow does not commit artifacts; demo files are refreshed by hand. A secretless cron does not verify live Solari sessions. Do not `--record` a logged-in ConsistencyHub session.
 
 Live public checks: ironadamant.com (`One office job.`), checkpointprojects.com (`Checkpoint`). Auth-gated dogfood is the optional named check in [Worked example (dogfood)](#worked-example-dogfood).
 
@@ -119,4 +119,4 @@ npx auspex profile-status --name consistencyhub
 npx auspex check --name consistencyhub --verify-with-profile
 ```
 
-**Verified 2026-09-18:** `ok=true`, `claimOkProfile=true` on the redacted auth-gated SaaS demo receipt (`demo/consistencyhub-receipt.json`). Do not fold `claimOkProfile` into `ok`. OneDrive with the same Microsoft profile is **recipe only** — no committed PNG/receipt (PII).
+**Verified 2026-09-18:** `ok=true`, `claimOkProfile=true` on the redacted auth-gated SaaS demo receipt (`demo/consistencyhub-receipt.json`). Do not fold `claimOkProfile` into `ok`. Same Microsoft profile on OneDrive is **receipt-only** evidence (`demo/onedrive-receipt.json`, `claimOkProfile=true`) — **no raw OneDrive PNG**. Dual pack is evidence, not the default recipe.

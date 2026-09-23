@@ -40,14 +40,20 @@ npx auspex check --name consistencyhub --verify-with-profile
 ```
 **Result:** ✅ `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`**
 
-### OneDrive (Same Microsoft Profile)
+### Dual pack (same Microsoft seed)
+Published redacted receipts — evidence, not the default recipe. Strangers still use `login --url <https>` plus *their* URL and expect.
+
+| Host | Artifact | Triad |
+| --- | --- | --- |
+| ConsistencyHub | [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + [blurred PNG](examples/auspex-ts/demo/consistencyhub.png) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| OneDrive | [receipt-only](examples/auspex-ts/demo/onedrive-receipt.json) — **no raw PNG** (PII) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+
 ```bash
 npx auspex check https://onedrive.live.com/ --expect "My files" \
   --profile consistencyhub --verify-with-profile
 ```
-Live dogfood on a **local** Microsoft profile. **No committed OneDrive PNG/receipt** (PII). Recipe only — not a public artifact.
 
-**Key insight:** The ConsistencyHub profile seed (Microsoft cookies + sessionStorage) can be reused for OneDrive. Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot.
+**Key insight:** The same Microsoft profile seed can `claimOkProfile` on ConsistencyHub and on OneDrive. That is worked evidence, not a recipe to copy for a new host. Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot. Do not fold `claimOkProfile` into `ok`.
 
 ## ConsistencyHub (optional named recipe)
 
@@ -75,9 +81,9 @@ npx auspex check --name consistencyhub --verify-with-profile
 
 **Verified outcome:** After reseed v20, `check --name consistencyhub --verify-with-profile` → `ok=true`, `claimOkProfile=true`.
 
-## OneDrive (Microsoft Cookie Reuse Recipe)
+## OneDrive (Microsoft cookie reuse — evidence)
 
-**Use case:** Check OneDrive or other Microsoft hosts that accept the same cookie seed, using the ConsistencyHub profile. Live dogfood on a local Microsoft profile; **no committed OneDrive PNG/receipt** (PII).
+**Use case:** Check OneDrive or other Microsoft hosts that accept the same cookie seed, using the ConsistencyHub profile. Published **receipt-only** redacted schema-v1 receipt: [`demo/onedrive-receipt.json`](examples/auspex-ts/demo/onedrive-receipt.json). **No raw OneDrive PNG** (account identity / file names / storage amounts stay off the public repo). Still evidence, not the default recipe.
 
 **Smoke test (skip verify):**
 ```bash
@@ -125,6 +131,18 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 **Result:** ✅ Claim matched. Profile-seeded sandbox verify passed (`ok=true`, `claimOkProfile=true`).
 
 **Auth-gated SaaS pages** require `--verify-with-profile` to run profile-seeded claim verification. Anonymous verify cannot see logged-in UI (would fail with `claimOk=false` and login-page OCR). The blur proves the page is not blank; the schema-v1 triad proves the verification signals remain honest.
+
+## Redacted OneDrive receipt (same Microsoft seed)
+
+**Claim:** "My files" appears on [onedrive.live.com](https://onedrive.live.com/) (auth-gated)
+
+**Ad-hoc check:** `npx auspex check https://onedrive.live.com/ --expect "My files" --profile consistencyhub --verify-with-profile`
+
+**Demo artifact (committed, redacted, receipt-only):**
+
+- **[Receipt JSON](examples/auspex-ts/demo/onedrive-receipt.json)** — Redacted schema-v1-shaped receipt from a live 2026-09-18 AEST profile-seeded OneDrive check (same Microsoft seed as ConsistencyHub). SessionId/sandbox ids omitted. Account identity, file names, and storage amounts omitted. **No public PNG.** **Triad remains honest:** `ok=true`, `claimOk=false` (anonymous claim skipped), **`claimOkProfile=true`**.
+
+**Result:** ✅ Same seed can `claimOkProfile` on ConsistencyHub and OneDrive. Evidence, not the default recipe.
 
 ## Important Notes
 
@@ -193,4 +211,4 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. A secretless cron does **not** verify live Solari sessions. Issues is on.
