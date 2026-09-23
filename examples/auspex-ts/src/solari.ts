@@ -10,6 +10,7 @@ import {
 } from "@solarisdk/browser"
 import { chromium, type BrowserContextOptions } from "patchright-core"
 import { AuspexError } from "./errors.ts"
+import { readOperatorKey } from "./operator-session.ts"
 import {
   boundPromise,
   CHROMIUM_CONNECT_TIMEOUT_MS,
@@ -18,6 +19,13 @@ import {
   observeAbort,
 } from "./timeout.ts"
 import { hydrateSessionStorage, installSessionStorageRestore } from "./profile-storage.ts"
+
+/** Desktop key file. Env SOLARI_API_KEY wins. The key is not returned to callers. */
+export function applyOperatorKeyFile(file: string): void {
+  if (process.env.SOLARI_API_KEY) return
+  const key = readOperatorKey(file)
+  if (key) process.env.SOLARI_API_KEY = key
+}
 
 /** Playwright ConnectOptions so chromium.connect cannot wait forever (timeout 0). */
 export const CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS } as const
@@ -214,6 +222,8 @@ export function loadDotEnv(file = DOTENV_PATH): void {
       return
     }
   }
+  if (file !== DOTENV_PATH) return
+  applyOperatorKeyFile(path.join(path.dirname(DOTENV_PATH), ".auspex", "operator-key"))
 }
 
 export function requireApiKey(): string {

@@ -8,15 +8,323 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/operator-session.ts
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import path from "node:path";
+function cleanProfile(name) {
+  return name.trim();
+}
+function siteIdentity(row) {
+  const profile = cleanProfile(row.profile);
+  const site = row.site?.trim() || profile;
+  return { site, profile };
+}
+function decideOperatorSession(input) {
+  const now = input.nowMs;
+  const voluntary = new Set(
+    input.humanAgree === true ? (input.voluntary ?? []).map(cleanProfile).filter(Boolean) : []
+  );
+  const wipe = [];
+  const sites = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of input.profiles) {
+    const profile = cleanProfile(row.profile);
+    if (!profile || seen.has(profile)) continue;
+    seen.add(profile);
+    sites.push(siteIdentity({ profile, site: row.site }));
+    const idle = !row.inUse && now - row.lastUsedMs >= OPERATOR_IDLE_MS;
+    if (idle || voluntary.has(profile)) wipe.push(profile);
+  }
+  return {
+    wipe,
+    agent: {
+      question: OPERATOR_PURGE_QUESTION,
+      idleMinutes: 30,
+      sites
+    }
+  };
+}
+function formatOperatorNotice(agent) {
+  const rows = agent.sites.map((row) => `${row.site} (profile ${row.profile})`);
+  const list = rows.length > 0 ? ` Saved logins: ${rows.join("; ")}.` : "";
+  return `${agent.question}${list}`;
+}
+function attachMatchedPurgeNext(receipt, agent) {
+  if (!agent || receipt.reason !== "matched" || receipt.next) return receipt;
+  if (agent.sites.length === 0) return receipt;
+  return { ...receipt, next: formatOperatorNotice(agent) };
+}
+function emptyOperatorState() {
+  return { profiles: {} };
+}
+function operatorStatePath(root) {
+  return path.join(root, ".auspex", "operator-session.json");
+}
+function readOperatorState(root) {
+  const file = operatorStatePath(root);
+  if (!existsSync(file)) return emptyOperatorState();
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object" || !parsed.profiles || typeof parsed.profiles !== "object") {
+      return emptyOperatorState();
+    }
+    const profiles = {};
+    for (const [name, raw] of Object.entries(parsed.profiles)) {
+      const profile = cleanProfile(name);
+      if (!profile || !raw || typeof raw !== "object") continue;
+      const row = raw;
+      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0;
+      const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : void 0;
+      const busyUntilMs = typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : void 0;
+      profiles[profile] = { site, lastUsedMs, ...busyUntilMs !== void 0 ? { busyUntilMs } : {} };
+    }
+    return { profiles };
+  } catch {
+    return emptyOperatorState();
+  }
+}
+function writeOperatorState(root, state) {
+  const file = operatorStatePath(root);
+  mkdirSync(path.dirname(file), { recursive: true });
+  const profiles = {};
+  for (const [name, row] of Object.entries(state.profiles)) {
+    const profile = cleanProfile(name);
+    if (!profile) continue;
+    profiles[profile] = {
+      ...row.site ? { site: row.site } : {},
+      lastUsedMs: row.lastUsedMs,
+      ...row.busyUntilMs !== void 0 ? { busyUntilMs: row.busyUntilMs } : {}
+    };
+  }
+  writeFileSync(file, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 384 });
+  chmodSync(file, 384);
+}
+function noteAfterSignupWait(opts) {
+  const note = { profile: opts.profile };
+  if (opts.site) note.site = opts.site;
+  if (opts.status === "completed") note.clearBusy = true;
+  return note;
+}
+function noteOperatorUse(state, note, nowMs) {
+  const profile = cleanProfile(note.profile);
+  if (!profile) return state;
+  const prev = state.profiles[profile];
+  const next = {
+    site: note.site?.trim() || prev?.site,
+    lastUsedMs: nowMs
+  };
+  if (note.busyMs !== void 0 && note.busyMs > 0) {
+    next.busyUntilMs = nowMs + note.busyMs;
+  } else if (note.clearBusy) {
+  } else if (prev?.busyUntilMs !== void 0 && prev.busyUntilMs > nowMs) {
+    next.busyUntilMs = prev.busyUntilMs;
+  }
+  return { profiles: { ...state.profiles, [profile]: next } };
+}
+function profilesFromState(state, nowMs) {
+  return Object.entries(state.profiles).map(([profile, row]) => ({
+    profile,
+    site: row.site,
+    lastUsedMs: row.lastUsedMs,
+    inUse: row.busyUntilMs !== void 0 && row.busyUntilMs > nowMs
+  }));
+}
+function forgetOperatorProfiles(state, names) {
+  const drop = new Set(names.map(cleanProfile));
+  const profiles = {};
+  for (const [name, row] of Object.entries(state.profiles)) {
+    if (!drop.has(name)) profiles[name] = row;
+  }
+  return { profiles };
+}
+async function applyOperatorWipes(names, deps) {
+  const wanted = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const name of names) {
+    const profile = cleanProfile(name);
+    if (!profile || seen.has(profile)) continue;
+    seen.add(profile);
+    wanted.push(profile);
+  }
+  if (wanted.length === 0) return [];
+  const rows = await deps.list();
+  const deleted = [];
+  for (const name of wanted) {
+    const row = rows.find((item) => item.name.trim() === name);
+    if (!row) continue;
+    await deps.deleteProfile(row.id);
+    deleted.push(name);
+  }
+  return deleted;
+}
+async function commitOperatorSession(opts) {
+  let state = readOperatorState(opts.root);
+  if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs);
+  const known = profilesFromState(state, opts.nowMs);
+  const seen = new Set(known.map((row) => row.profile));
+  const agreed = opts.humanAgree === true ? opts.voluntary ?? [] : [];
+  const extras = agreed.map((name) => name.trim()).filter((name) => name && !seen.has(name)).map((profile) => ({ profile, lastUsedMs: opts.nowMs, inUse: true }));
+  const decision = decideOperatorSession({
+    profiles: [...known, ...extras],
+    nowMs: opts.nowMs,
+    humanAgree: opts.humanAgree,
+    voluntary: opts.voluntary
+  });
+  let wiped = [];
+  if (decision.wipe.length > 0 && opts.applyWipes) {
+    wiped = [...await opts.applyWipes(decision.wipe)];
+    state = forgetOperatorProfiles(state, wiped);
+  }
+  writeOperatorState(opts.root, state);
+  return { agent: decision.agent, wiped };
+}
+function operatorKeyPath(root) {
+  return path.join(root, ".auspex", "operator-key");
+}
+function writeOperatorKey(root, key) {
+  const trimmed = key.trim();
+  if (!trimmed) throw new Error("Solari key is empty");
+  const file = operatorKeyPath(root);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${trimmed}
+`, { mode: 384 });
+  chmodSync(file, 384);
+  return file;
+}
+function ingestOperatorKeyPost(body, root) {
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    throw new Error("Solari key body is not JSON");
+  }
+  if (typeof parsed.key !== "string") throw new Error("Solari key is missing");
+  writeOperatorKey(root, parsed.key);
+  return { ok: true };
+}
+function sendOperatorKeyAck(res, status, ok) {
+  const payload = JSON.stringify({ ok });
+  res.writeHead(status, {
+    "content-type": "application/json",
+    "content-length": Buffer.byteLength(payload),
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "content-type",
+    "cache-control": "no-store"
+  });
+  res.end(payload);
+}
+function createOperatorKeyServer(root) {
+  return createServer((req, res) => {
+    const pathOnly = (req.url ?? "/").split("?")[0];
+    if (req.method === "OPTIONS" && pathOnly === OPERATOR_KEY_POST_PATH) {
+      sendOperatorKeyAck(res, 204, true);
+      return;
+    }
+    if (req.method === "GET" && pathOnly === OPERATOR_KEY_POST_PATH) {
+      const payload = JSON.stringify({
+        present: operatorKeyIsPresent(root, [path.resolve(root, "../../.env")])
+      });
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-length": Buffer.byteLength(payload),
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store"
+      });
+      res.end(payload);
+      return;
+    }
+    if (req.method !== "POST" || pathOnly !== OPERATOR_KEY_POST_PATH) {
+      sendOperatorKeyAck(res, 404, false);
+      return;
+    }
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk2) => {
+      size += chunk2.length;
+      if (size > 8192) {
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk2);
+    });
+    req.on("end", () => {
+      try {
+        ingestOperatorKeyPost(Buffer.concat(chunks).toString("utf8"), root);
+        sendOperatorKeyAck(res, 200, true);
+      } catch {
+        sendOperatorKeyAck(res, 400, false);
+      }
+    });
+  });
+}
+function startOperatorKeyListener(root, port = OPERATOR_KEY_PORT) {
+  const server2 = createOperatorKeyServer(root);
+  server2.on("error", () => {
+  });
+  server2.listen(port, "127.0.0.1");
+  return server2;
+}
+function fileHasSolariKey(file) {
+  if (!existsSync(file)) return false;
+  for (const raw of readFileSync(file, "utf8").split("\n")) {
+    let line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    if (line.startsWith("export ")) line = line.slice(7).trim();
+    if (!line.startsWith("SOLARI_API_KEY=")) continue;
+    let value = line.slice("SOLARI_API_KEY=".length).trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    if (value) return true;
+  }
+  return false;
+}
+function operatorKeyIsPresent(root, extraEnvFiles = []) {
+  if (process.env.SOLARI_API_KEY?.trim()) return true;
+  if (readOperatorKey(operatorKeyPath(root))) return true;
+  if (fileHasSolariKey(path.join(root, ".env"))) return true;
+  return extraEnvFiles.some((file) => fileHasSolariKey(file));
+}
+function readOperatorKey(file) {
+  if (!existsSync(file)) return void 0;
+  const lines = readFileSync(file, "utf8").split("\n").map((line2) => line2.trim()).filter((line2) => line2 && !line2.startsWith("#"));
+  const line = lines[0];
+  if (!line) return void 0;
+  if (line.startsWith("SOLARI_API_KEY=")) {
+    let value = line.slice("SOLARI_API_KEY=".length).trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    return value || void 0;
+  }
+  if (line.includes("=")) return void 0;
+  return line;
+}
+var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP, OPERATOR_KEY_PORT, OPERATOR_KEY_POST_PATH;
+var init_operator_session = __esm({
+  "src/operator-session.ts"() {
+    "use strict";
+    OPERATOR_IDLE_MS = 30 * 60 * 1e3;
+    PHONE_LIST_MS = 10 * 60 * 1e3;
+    SIGNUP_BUSY_MS = 30 * 60 * 1e3;
+    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. On the desktop, the same wipe runs when that profile has been idle for 30 minutes. A use resets that profile's 30-minute clock. Other profiles stay. One site at a time. Username and password stay in the local page fields only, and those fields are cleared after paste or Save. They are not included in the agent message.";
+    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. The desktop thin client is docs/desktop.html (Solari remote view plus the typing door). The phone door is docs/phone.html. Paste URL, username, and password on those pages; they stay on the page. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent.";
+    OPERATOR_KEY_PORT = 17321;
+    OPERATOR_KEY_POST_PATH = "/auspex-operator-key";
+  }
+});
+
 // src/paths.ts
 import { mkdir } from "node:fs/promises";
-import path from "node:path";
+import path2 from "node:path";
 import { fileURLToPath } from "node:url";
 async function ensureRunDir() {
-  const auspexDir = path.join(packageRoot, ".auspex");
-  const runsDir = path.join(auspexDir, "runs");
+  const auspexDir = path2.join(packageRoot, ".auspex");
+  const runsDir = path2.join(auspexDir, "runs");
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
-  const runDir = path.join(runsDir, stamp);
+  const runDir = path2.join(runsDir, stamp);
   await mkdir(runDir, { recursive: true });
   return runDir;
 }
@@ -24,7 +332,7 @@ var packageRoot;
 var init_paths = __esm({
   "src/paths.ts"() {
     "use strict";
-    packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+    packageRoot = path2.resolve(path2.dirname(fileURLToPath(import.meta.url)), "..");
   }
 });
 
@@ -47,8 +355,8 @@ function stillOnAuth(url) {
   if (idpAuthHost(url.hostname)) {
     return true;
   }
-  const path17 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path17 === "/login" || path17.startsWith("/login/") || path17 === "/auth" || path17.startsWith("/auth/")) {
+  const path18 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path18 === "/login" || path18.startsWith("/login/") || path18 === "/auth" || path18.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -231,8 +539,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path17 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path17 === "/" || path17 === "/landing" || path17 === "/login" || path17 === "/signup" || path17.startsWith("/auth")) {
+  const path18 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path18 === "/" || path18 === "/landing" || path18 === "/login" || path18 === "/signup" || path18.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -245,9 +553,9 @@ function isLoggedOutLanding(url, opts) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path17 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path17 === "/landing" || path17.startsWith("/landing/")) return true;
-  if (path17 === "/") return opts?.matched !== true;
+  const path18 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path18 === "/landing" || path18.startsWith("/landing/")) return true;
+  if (path18 === "/") return opts?.matched !== true;
   return false;
 }
 function cookiesForOrigin(cookies, origin) {
@@ -561,7 +869,7 @@ var init_editor_fold = __esm({
 
 // src/login-trace.ts
 import { appendFile, mkdir as mkdir2, readFile, writeFile } from "node:fs/promises";
-import path2 from "node:path";
+import path3 from "node:path";
 function forbiddenTraceKey(key) {
   return FORBIDDEN_KEYS.has(key.toLowerCase());
 }
@@ -611,7 +919,7 @@ async function appendLoginTrace(event, file = LOGIN_TRACE_PATH) {
       ts: event.ts ?? (/* @__PURE__ */ new Date()).toISOString(),
       ...event
     });
-    await mkdir2(path2.dirname(file), { recursive: true });
+    await mkdir2(path3.dirname(file), { recursive: true });
     await appendFile(file, `${JSON.stringify(row)}
 `, "utf8");
     return file;
@@ -722,7 +1030,7 @@ async function recordLoginTrace(event, opts = {}) {
       remintIndex = existing.filter((e) => e.event === "login" && e.profile === profile).length + 1;
       episodeId = event.episodeId ?? newEpisodeId();
       active[profile] = { episodeId, remintIndex };
-      await mkdir2(path2.dirname(activeFile), { recursive: true });
+      await mkdir2(path3.dirname(activeFile), { recursive: true });
       await writeFile(activeFile, `${JSON.stringify(active)}
 `);
     }
@@ -798,8 +1106,8 @@ var init_login_trace = __esm({
     init_profile_storage();
     init_paths();
     init_sso();
-    LOGIN_TRACE_PATH = path2.join(packageRoot, ".auspex", "trace", "login.jsonl");
-    LOGIN_TRACE_ACTIVE_PATH = path2.join(packageRoot, ".auspex", "trace", "active.json");
+    LOGIN_TRACE_PATH = path3.join(packageRoot, ".auspex", "trace", "login.jsonl");
+    LOGIN_TRACE_ACTIVE_PATH = path3.join(packageRoot, ".auspex", "trace", "active.json");
     LOGIN_TRACE_LIMIT_DEFAULT = 50;
     LOGIN_TRACE_LIMIT_MAX = 200;
     COOKIE_HOST_CAP = 40;
@@ -1218,8 +1526,8 @@ var init_timeout = __esm({
 });
 
 // src/solari.ts
-import { existsSync, readFileSync } from "node:fs";
-import path3 from "node:path";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import path4 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import {
   BrowserSession,
@@ -1227,6 +1535,11 @@ import {
   SolariError as SolariError2
 } from "@solarisdk/browser";
 import { chromium } from "patchright-core";
+function applyOperatorKeyFile(file) {
+  if (process.env.SOLARI_API_KEY) return;
+  const key = readOperatorKey(file);
+  if (key) process.env.SOLARI_API_KEY = key;
+}
 function defaultLaunchDeps(solari) {
   return {
     create: (opts) => solari.sessions.create(opts),
@@ -1241,12 +1554,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path17 = url;
+    let path18 = url;
     try {
-      path17 = new URL(url, BROWSER_API_BASE).pathname;
+      path18 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path17);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path18);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -1321,8 +1634,8 @@ function findProfileId(profiles, name) {
   return existing.id;
 }
 function readSolariKeyFromFile(file) {
-  if (!existsSync(file)) return void 0;
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
+  if (!existsSync2(file)) return void 0;
+  for (const raw of readFileSync2(file, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
     line = line.trim();
@@ -1349,6 +1662,8 @@ function loadDotEnv(file = DOTENV_PATH) {
       return;
     }
   }
+  if (file !== DOTENV_PATH) return;
+  applyOperatorKeyFile(path4.join(path4.dirname(DOTENV_PATH), ".auspex", "operator-key"));
 }
 function requireApiKey() {
   loadDotEnv();
@@ -1504,6 +1819,7 @@ var init_solari = __esm({
   "src/solari.ts"() {
     "use strict";
     init_errors();
+    init_operator_session();
     init_timeout();
     init_profile_storage();
     CHROMIUM_CONNECT_OPTS = { timeout: CHROMIUM_CONNECT_TIMEOUT_MS };
@@ -1514,8 +1830,8 @@ var init_solari = __esm({
     REPLAY_ATTEMPTS = 6;
     REPLAY_DELAY_MS = 500;
     BROWSER_API_BASE = "https://api.getsolari.com";
-    DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
-    REPO_DOTENV_PATH = path3.resolve(path3.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
+    DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath2(import.meta.url)), "..", ".env");
+    REPO_DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath2(import.meta.url)), "../../..", ".env");
   }
 });
 
@@ -1523,6 +1839,8 @@ var init_solari = __esm({
 var profiles_exports = {};
 __export(profiles_exports, {
   CONSOLE_PROFILES_URL: () => CONSOLE_PROFILES_URL,
+  DESKTOP_HANDOFF_PAGE: () => DESKTOP_HANDOFF_PAGE,
+  HANDOFF_OPEN_ON_DESKTOP_PAGE: () => HANDOFF_OPEN_ON_DESKTOP_PAGE,
   HANDOFF_OPEN_ON_PHONE: () => HANDOFF_OPEN_ON_PHONE,
   HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK: () => HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
   HANDOFF_PHONE_DOOR_BAN: () => HANDOFF_PHONE_DOOR_BAN,
@@ -1532,6 +1850,9 @@ __export(profiles_exports, {
   attachHandoffQr: () => attachHandoffQr,
   classifyHandoffHost: () => classifyHandoffHost,
   defaultProfileHttp: () => defaultProfileHttp,
+  deleteSolariProfilesByName: () => deleteSolariProfilesByName,
+  desktopHandoffUrlFromPhone: () => desktopHandoffUrlFromPhone,
+  desktopSaveSiteUrl: () => desktopSaveSiteUrl,
   editorSavePath: () => editorSavePath,
   editorStartOk: () => editorStartOk,
   ensureProfile: () => ensureProfile,
@@ -1554,10 +1875,11 @@ __export(profiles_exports, {
   qrPayloadForHandoff: () => qrPayloadForHandoff,
   requestLoginHandoff: () => requestLoginHandoff,
   requireProfileName: () => requireProfileName,
-  saveProfileEditor: () => saveProfileEditor
+  saveProfileEditor: () => saveProfileEditor,
+  withOperatorSession: () => withOperatorSession
 });
 import { mkdir as mkdir3, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
-import path4 from "node:path";
+import path5 from "node:path";
 import { z } from "zod";
 function classifyHandoffHost(url) {
   try {
@@ -1592,16 +1914,25 @@ function phoneHandoffUrl(vncToken, handoffUrl, extra) {
   if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
   if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
+  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim());
+  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim());
+  if (extra?.keyInUse) hash.set("k", "1");
+  const siteUrl = extra?.siteUrl?.trim() ?? "";
+  if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl);
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
   if (expiry.exp !== void 0) hash.set("exp", String(expiry.exp));
   return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`;
 }
+function desktopHandoffUrlFromPhone(mobileUrl) {
+  if (!mobileUrl?.startsWith(PHONE_HANDOFF_PAGE)) return void 0;
+  return DESKTOP_HANDOFF_PAGE + mobileUrl.slice(PHONE_HANDOFF_PAGE.length);
+}
 function editorSavePath(name, root = packageRoot) {
-  return path4.join(root, ".auspex", "editor-save", `${requireProfileName(name)}.json`);
+  return path5.join(root, ".auspex", "editor-save", `${requireProfileName(name)}.json`);
 }
 async function persistEditorSave(handle, root = packageRoot) {
   const file = editorSavePath(handle.name, root);
-  await mkdir3(path4.dirname(file), { recursive: true });
+  await mkdir3(path5.dirname(file), { recursive: true });
   await writeFile2(file, JSON.stringify(handle), "utf8");
 }
 async function loadEditorSave(name, root = packageRoot) {
@@ -1630,6 +1961,12 @@ function phoneSavePaste(profileName) {
   const name = (profileName ?? "").trim() || "<yours>";
   return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
 }
+function desktopSaveSiteUrl(minted, field) {
+  const typed = (field ?? "").trim();
+  const fromMint = (minted ?? "").trim();
+  const chosen = /^https:\/\//i.test(typed) ? typed : fromMint;
+  return /^https:\/\//i.test(chosen) ? chosen : "";
+}
 function handoffOpenOnDesktop(profileName) {
   return `Computer: open handoff.desktopUrl, then Profiles \u2192 ${profileName} \u2192 Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`;
 }
@@ -1639,7 +1976,8 @@ function formatHandoffNext(opts) {
   const profile = opts.profileName?.trim() || "<yours>";
   const derived = opts.profileDerived ? `${derivedProfileNext(profile)} ` : "";
   const phone = opts.hasPhoneIme ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open \u2014 seed/handoff door for off-site typing, not a same-session VNC takeover). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
-  return `${derived}${phone} Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+  const computer = opts.hasDesktopPage ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). Paste URL, username, and password with the buttons on that page. They stay on the page." : `Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save.`;
+  return `${derived}${phone} ${computer} Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
 }
 function attachHandoffQr(result, qrPath, urlHint) {
   if (!result.handoff) return result;
@@ -1650,7 +1988,8 @@ function attachHandoffQr(result, qrPath, urlHint) {
     qrPath: result.handoff.qrPath,
     profileName: result.name,
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
-    profileDerived: result.profileDerived
+    profileDerived: result.profileDerived,
+    hasDesktopPage: Boolean(desktopHandoffUrlFromPhone(result.handoff.mobileUrl))
   });
   result.nextCall = { tool: "auspex_await_login", profile: result.name, saveEditor: true };
   return result;
@@ -1664,14 +2003,16 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
   if (handoff?.url) {
     const phone = mobileUrl?.trim() || handoff.url;
     const hasPhoneIme = isPhoneImeUrl(phone);
+    const thinDesktop = desktopHandoffUrlFromPhone(phone);
+    const desktopUrl = thinDesktop ?? CONSOLE_PROFILES_URL;
     const handoffPacket = {
       url: handoff.url,
       mobileUrl: phone,
-      desktopUrl: CONSOLE_PROFILES_URL,
+      desktopUrl,
       openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
-      openOnDesktop: handoffOpenOnDesktop(profile.name),
+      openOnDesktop: thinDesktop ? HANDOFF_OPEN_ON_DESKTOP_PAGE : handoffOpenOnDesktop(profile.name),
       oneLiner: `Auspex login (phone): ${phone}`,
-      desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor`,
+      desktopOneLiner: thinDesktop ? `Auspex login (computer): ${thinDesktop}` : `Auspex login (computer): ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor`,
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : void 0,
       qrPath
     };
@@ -1685,7 +2026,14 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
       profileDerived: profileDerived || void 0,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived })
+      next: formatHandoffNext({
+        urlHint,
+        qrPath,
+        profileName: profile.name,
+        hasPhoneIme,
+        profileDerived,
+        hasDesktopPage: Boolean(thinDesktop)
+      })
     };
     minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true };
     return minted;
@@ -1711,8 +2059,8 @@ function formatLogin(result) {
 async function defaultProfileHttp() {
   const key = requireApiKey();
   return {
-    post: async (path17, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path17}`, {
+    post: async (path18, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path18}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -1761,8 +2109,8 @@ async function ensureProfile(name) {
 }
 function handoffTokenFromUrl(url) {
   try {
-    const path17 = new URL(url).pathname;
-    const parts = path17.split("/").filter(Boolean);
+    const path18 = new URL(url).pathname;
+    const parts = path18.split("/").filter(Boolean);
     const i = parts.lastIndexOf("handoff");
     return i >= 0 ? parts[i + 1] ?? "" : "";
   } catch {
@@ -1770,8 +2118,8 @@ function handoffTokenFromUrl(url) {
   }
 }
 async function defaultEditorPost(handoffToken) {
-  return async (path17) => {
-    const res = await fetch(`${CONSOLE_PROFILES_URL}${path17}`, {
+  return async (path18) => {
+    const res = await fetch(`${CONSOLE_PROFILES_URL}${path18}`, {
       method: "POST",
       headers: {
         "x-handoff-token": handoffToken,
@@ -1851,7 +2199,9 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
         profileId: profile.id,
         profileName: profile.name,
         handoffToken,
-        expiresAt: handoff.expiresAt
+        expiresAt: handoff.expiresAt,
+        keyInUse: true,
+        siteUrl: urlHint
       });
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts);
@@ -1888,6 +2238,34 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
     throw err;
   }
 }
+async function deleteSolariProfilesByName(names) {
+  if (names.length === 0) return [];
+  const solari = createClient();
+  try {
+    return await applyOperatorWipes(names, {
+      list: async () => (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name })),
+      deleteProfile: (id) => solari.profiles.delete(id)
+    });
+  } finally {
+    await solari.close();
+  }
+}
+async function withOperatorSession(opts) {
+  return commitOperatorSession({
+    root: opts.root ?? packageRoot,
+    nowMs: opts.nowMs ?? Date.now(),
+    note: opts.note,
+    humanAgree: opts.humanAgree,
+    voluntary: opts.voluntary,
+    applyWipes: async (names) => {
+      try {
+        return await deleteSolariProfilesByName(names);
+      } catch {
+        return [];
+      }
+    }
+  });
+}
 async function listProfiles() {
   const solari = createClient();
   try {
@@ -1907,7 +2285,7 @@ async function listProfiles() {
     await solari.close();
   }
 }
-var CONSOLE_PROFILES_URL, PHONE_HANDOFF_PAGE, PROFILE_NAME_ERROR, profileNameSchema, PHONE_HANDOFF_NOT_TAKEOVER, HANDOFF_PHONE_DOOR_BAN, HANDOFF_OPEN_ON_PHONE, HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK, HANDOFF_HANG_GUIDANCE;
+var CONSOLE_PROFILES_URL, PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, PROFILE_NAME_ERROR, profileNameSchema, PHONE_HANDOFF_NOT_TAKEOVER, HANDOFF_PHONE_DOOR_BAN, HANDOFF_OPEN_ON_PHONE, HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_HANG_GUIDANCE;
 var init_profiles = __esm({
   "src/profiles.ts"() {
     "use strict";
@@ -1915,17 +2293,20 @@ var init_profiles = __esm({
     init_errors();
     init_profile_persist();
     init_profile_slug();
+    init_operator_session();
     init_paths();
     init_phone_expiry();
     init_solari();
     CONSOLE_PROFILES_URL = "https://console.getsolari.com";
     PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
+    DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html";
     PROFILE_NAME_ERROR = "profile name must be non-empty";
     profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAME_ERROR });
     PHONE_HANDOFF_NOT_TAKEOVER = "Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check.";
     HANDOFF_PHONE_DOOR_BAN = "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone. " + PHONE_HANDOFF_NOT_TAKEOVER;
     HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
     HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK = "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+    HANDOFF_OPEN_ON_DESKTOP_PAGE = "Computer: open handoff.desktopUrl in the computer's browser. That is the Auspex desktop page (desktop.html), the same remote Chrome and the same link hash as the phone. Hardware keyboard. Paste URL, username, and password with the buttons on that page. They stay on the page. Do not send this URL to a phone.";
     HANDOFF_HANG_GUIDANCE = " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
   }
 });
@@ -1933,9 +2314,9 @@ var init_profiles = __esm({
 // src/profile-lock.ts
 import { randomBytes } from "node:crypto";
 import { open, mkdir as mkdir4, readFile as readFile3, rename, stat, unlink } from "node:fs/promises";
-import path5 from "node:path";
+import path6 from "node:path";
 function defaultLockDir() {
-  return path5.join(packageRoot, ".auspex", "locks");
+  return path6.join(packageRoot, ".auspex", "locks");
 }
 function lockFileName(profile) {
   const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_");
@@ -1974,7 +2355,7 @@ async function withProfileLock(profile, work, opts = {}) {
   const name = requireProfileName(profile);
   const dir = opts.lockDir ?? defaultLockDir();
   await mkdir4(dir, { recursive: true });
-  const lockPath = path5.join(dir, lockFileName(name));
+  const lockPath = path6.join(dir, lockFileName(name));
   let fh;
   try {
     fh = await open(lockPath, "wx");
@@ -2175,8 +2556,8 @@ var init_text = __esm({
 });
 
 // src/saved-checks.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import path6 from "node:path";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import path7 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 function canonicalSavedCheckName(name) {
   const key = name.trim().toLowerCase();
@@ -2186,14 +2567,14 @@ function canonicalSavedCheckName(name) {
   return key;
 }
 function defaultConfigPath() {
-  return path6.join(packageRoot2, "auspex.yml");
+  return path7.join(packageRoot2, "auspex.yml");
 }
 function resolveConfigPath(explicit) {
   if (explicit) return explicit;
   const env = process.env.AUSPEX_CONFIG?.trim();
   if (env) return env;
   const packed = defaultConfigPath();
-  if (existsSync2(packed)) return packed;
+  if (existsSync3(packed)) return packed;
   return void 0;
 }
 function isPublicMarketingUrl(url) {
@@ -2288,8 +2669,8 @@ function builtinSavedChecks() {
 function loadSavedChecks(configPath) {
   const merged = builtinSavedChecks();
   const file = resolveConfigPath(configPath);
-  if (!file || !existsSync2(file)) return merged;
-  const parsed = parseSavedChecksYaml(readFileSync2(file, "utf8"));
+  if (!file || !existsSync3(file)) return merged;
+  const parsed = parseSavedChecksYaml(readFileSync3(file, "utf8"));
   for (const [name, raw] of Object.entries(parsed)) {
     const base = merged[name] ?? {};
     merged[name] = materializeSavedCheck(name, { ...base, ...raw });
@@ -2332,7 +2713,7 @@ var init_saved_checks = __esm({
     init_profiles();
     init_sso();
     init_text();
-    packageRoot2 = path6.resolve(path6.dirname(fileURLToPath3(import.meta.url)), "..");
+    packageRoot2 = path7.resolve(path7.dirname(fileURLToPath3(import.meta.url)), "..");
     DEFAULT_SAVED_CHECKS = [
       { name: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
       { name: "checkpoint", url: "https://checkpointprojects.com", expect: "Checkpoint" },
@@ -2749,6 +3130,8 @@ var init_profile_persist = __esm({
 });
 
 // src/mcp.ts
+init_operator_session();
+init_paths();
 import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // src/mcp-tools.ts
@@ -2756,9 +3139,9 @@ import "@modelcontextprotocol/sdk/server/mcp.js";
 import { z as z5 } from "zod";
 
 // src/agent-receipt.ts
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import { writeFile as writeFile3 } from "node:fs/promises";
-import path7 from "node:path";
+import path8 from "node:path";
 
 // src/schema-version.ts
 var SCHEMA_VERSION = 1;
@@ -2949,18 +3332,18 @@ function toAgentReceipt(check, extras) {
   return parseReceiptV1(receipt);
 }
 async function persistAgentManifest(check, extras) {
-  const abs = path7.isAbsolute(check.screenshotPath) ? check.screenshotPath : path7.join(packageRoot, check.screenshotPath);
-  const dir = path7.dirname(abs);
-  if (!existsSync3(dir)) return;
+  const abs = path8.isAbsolute(check.screenshotPath) ? check.screenshotPath : path8.join(packageRoot, check.screenshotPath);
+  const dir = path8.dirname(abs);
+  if (!existsSync4(dir)) return;
   const receipt = toAgentReceipt(check, extras);
-  await writeFile3(path7.join(dir, "manifest.json"), `${JSON.stringify(stampSchema(receipt), null, 2)}
+  await writeFile3(path8.join(dir, "manifest.json"), `${JSON.stringify(stampSchema(receipt), null, 2)}
 `);
 }
 
 // src/check.ts
-import { existsSync as existsSync4 } from "node:fs";
+import { existsSync as existsSync5 } from "node:fs";
 import { readFile as readFile7, writeFile as writeFile6 } from "node:fs/promises";
-import path12 from "node:path";
+import path13 from "node:path";
 init_login_trace();
 
 // src/device-emulation.ts
@@ -3308,13 +3691,13 @@ init_profiles();
 // src/replay-save.ts
 init_solari();
 import { writeFile as writeFile4 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
   const url = await waitForReplayUrl(solari, sessionId, opts.deadlineMs ?? Date.now() + 3e3);
   if (!url) return false;
   try {
     const blob = await downloadReplayWhenReady((id) => solari.sessions.downloadReplay(id), sessionId, opts);
-    await writeFile4(path8.join(outDir, "replay.ndjson"), Buffer.from(blob));
+    await writeFile4(path9.join(outDir, "replay.ndjson"), Buffer.from(blob));
   } catch {
   }
   return true;
@@ -3322,10 +3705,10 @@ async function attachRecordedReplay(solari, sessionId, outDir, opts = {}) {
 
 // src/session-ledger.ts
 import { mkdir as mkdir5, readFile as readFile4, writeFile as writeFile5 } from "node:fs/promises";
-import path9 from "node:path";
+import path10 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
-var packageRoot3 = path9.resolve(path9.dirname(fileURLToPath4(import.meta.url)), "..");
-var LIVE_LEDGER_PATH = path9.join(packageRoot3, ".auspex", "live.json");
+var packageRoot3 = path10.resolve(path10.dirname(fileURLToPath4(import.meta.url)), "..");
+var LIVE_LEDGER_PATH = path10.join(packageRoot3, ".auspex", "live.json");
 function empty() {
   return { browser: [], sandbox: [], desktop: [] };
 }
@@ -3342,7 +3725,7 @@ async function readLiveLedger(file = LIVE_LEDGER_PATH) {
   }
 }
 async function writeLiveLedger(ledger, file = LIVE_LEDGER_PATH) {
-  await mkdir5(path9.dirname(file), { recursive: true });
+  await mkdir5(path10.dirname(file), { recursive: true });
   await writeFile5(file, `${JSON.stringify(ledger, null, 2)}
 `);
 }
@@ -3365,21 +3748,21 @@ init_paths();
 
 // src/receipt-diff.ts
 import { readFile as readFile6 } from "node:fs/promises";
-import path11 from "node:path";
+import path12 from "node:path";
 
 // src/receipt.ts
 init_paths();
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
 import { readdir, readFile as readFile5, stat as stat2 } from "node:fs/promises";
-import path10 from "node:path";
+import path11 from "node:path";
 import { fileURLToPath as fileURLToPath5 } from "node:url";
-var ASSERT_RECEIPT_PY_PATH = path10.join(path10.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
-var RECEIPT_ASSERT_PY = readFileSync3(ASSERT_RECEIPT_PY_PATH, "utf8");
-var RUNS_DIR = path10.join(packageRoot, ".auspex", "runs");
+var ASSERT_RECEIPT_PY_PATH = path11.join(path11.dirname(fileURLToPath5(import.meta.url)), "assert_receipt.py");
+var RECEIPT_ASSERT_PY = readFileSync4(ASSERT_RECEIPT_PY_PATH, "utf8");
+var RUNS_DIR = path11.join(packageRoot, ".auspex", "runs");
 function assertRunDirUnderRuns(runDir, runsDir = RUNS_DIR) {
-  const dir = path10.resolve(runDir);
-  const root = path10.resolve(runsDir);
-  if (dir !== root && !dir.startsWith(root + path10.sep)) {
+  const dir = path11.resolve(runDir);
+  const root = path11.resolve(runsDir);
+  if (dir !== root && !dir.startsWith(root + path11.sep)) {
     throw new Error("runDir must be under .auspex/runs");
   }
   return dir;
@@ -3393,12 +3776,12 @@ async function listCompleteRunDirs(runsDir = RUNS_DIR) {
   }
   const dirs = [];
   for (const name of names) {
-    const dir = path10.join(runsDir, name);
+    const dir = path11.join(runsDir, name);
     const st = await stat2(dir).catch(() => void 0);
     if (!st?.isDirectory()) continue;
     try {
-      await stat2(path10.join(dir, "manifest.json"));
-      await stat2(path10.join(dir, "screenshot.png"));
+      await stat2(path11.join(dir, "manifest.json"));
+      await stat2(path11.join(dir, "screenshot.png"));
       dirs.push({ dir, mtime: st.mtimeMs, name });
     } catch {
       continue;
@@ -3414,8 +3797,8 @@ async function findLatestRun(runsDir = RUNS_DIR) {
   return latest;
 }
 async function loadRunFiles(runDir) {
-  const manifest = await readFile5(path10.join(runDir, "manifest.json"), "utf8");
-  const png = await readFile5(path10.join(runDir, "screenshot.png"));
+  const manifest = await readFile5(path11.join(runDir, "manifest.json"), "utf8");
+  const png = await readFile5(path11.join(runDir, "screenshot.png"));
   return { manifest, png };
 }
 
@@ -3437,7 +3820,7 @@ function receiptUrlKey(manifest) {
 }
 async function readManifest(dir) {
   try {
-    const raw = await readFile6(path11.join(dir, "manifest.json"), "utf8");
+    const raw = await readFile6(path12.join(dir, "manifest.json"), "utf8");
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === "object" ? parsed : void 0;
   } catch {
@@ -3452,9 +3835,9 @@ async function findPreviousReceiptForUrl(opts) {
     return void 0;
   }
   const dirs = await listCompleteRunDirs(opts.runsDir ?? RUNS_DIR);
-  const exclude = opts.excludeDir ? path11.resolve(opts.excludeDir) : void 0;
+  const exclude = opts.excludeDir ? path12.resolve(opts.excludeDir) : void 0;
   for (const dir of dirs) {
-    if (exclude && path11.resolve(dir) === exclude) continue;
+    if (exclude && path12.resolve(dir) === exclude) continue;
     const manifest = await readManifest(dir);
     if (!manifest) continue;
     const key = receiptUrlKey(manifest);
@@ -3654,6 +4037,10 @@ var auspexDesktopInputSchema = z4.object({
   clickY: z4.number().optional().describe("Click Y. Unverified; no silent Mousepad click."),
   expect: z4.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name.")
 });
+var auspexProfilesInputSchema = z4.object({
+  purge: profileNameSchema.optional().describe("Saved profile name to wipe after the human says testing is done"),
+  humanAgree: z4.boolean().optional().describe("True only after the human agrees to purge that saved login")
+});
 var auspexTraceInputSchema = z4.object({
   profile: profileNameSchema.optional().describe("Only events for this profile name"),
   limit: z4.number().optional().describe("Max events to return (default 50, max 200)"),
@@ -3717,7 +4104,7 @@ function checkLoggedOutGuide(profile, cookies) {
 }
 function needsHumanGuide(profile) {
   const name = profile?.trim() || "<yours>";
-  const text = `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (console Open editor, hardware keyboard). ` + HANDOFF_PHONE_DOOR_BAN + ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`;
+  const text = `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` + HANDOFF_PHONE_DOOR_BAN + ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`;
   const nextCall = { tool: "auspex_login" };
   if (profile?.trim()) nextCall.profile = profile.trim();
   return { text, nextCall };
@@ -3746,11 +4133,11 @@ async function runFinalizeLogin(opts) {
   });
 }
 function toReceiptPath(absPath) {
-  return path12.relative(packageRoot, absPath).replaceAll("\\", "/");
+  return path13.relative(packageRoot, absPath).replaceAll("\\", "/");
 }
 function runDirFromResult(result) {
-  const abs = path12.isAbsolute(result.screenshotPath) ? result.screenshotPath : path12.join(packageRoot, result.screenshotPath);
-  return path12.dirname(abs);
+  const abs = path13.isAbsolute(result.screenshotPath) ? result.screenshotPath : path13.join(packageRoot, result.screenshotPath);
+  return path13.dirname(abs);
 }
 async function extractPage(page, selector, signal) {
   return observeAbort(
@@ -3783,7 +4170,7 @@ async function runCheck(opts) {
   const closer = new ReadyRelease();
   let sessionId = "";
   const outDir = await ensureRunDir();
-  const screenshotAbs = path12.join(outDir, "screenshot.png");
+  const screenshotAbs = path13.join(outDir, "screenshot.png");
   const screenshotPath = toReceiptPath(screenshotAbs);
   let title = "";
   let finalUrl = "";
@@ -3978,7 +4365,7 @@ async function runCheck(opts) {
       throw new AuspexError(explainSolariError(workError), {
         issue: classifySolariError(workError),
         sessionId: sessionId || void 0,
-        screenshotPath: existsSync4(screenshotAbs) ? screenshotPath : void 0,
+        screenshotPath: existsSync5(screenshotAbs) ? screenshotPath : void 0,
         cause: workError
       });
     }
@@ -3993,7 +4380,7 @@ async function runCheck(opts) {
     const blockedHuman = special === "needsHuman" || needsHuman;
     const savedOk = !opts.saveProfile || profileSaved?.ok === true;
     const protocolOk = Boolean(
-      finalUrl && existsSync4(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && special !== "recordedLoggedIn"
+      finalUrl && existsSync5(screenshotAbs) && !authFail && savedOk && !loggedOut && !blockedHuman && special !== "recordedLoggedIn"
     );
     const reason = deriveCheckReason({
       special,
@@ -4002,7 +4389,7 @@ async function runCheck(opts) {
       networkIdle,
       finalUrl,
       excerpt,
-      screenshotOk: existsSync4(screenshotAbs)
+      screenshotOk: existsSync5(screenshotAbs)
     });
     let next;
     let nextCall;
@@ -4091,11 +4478,11 @@ function shouldVerifyCheck(opts) {
 // src/content.ts
 init_errors();
 import { readFile as readFile8 } from "node:fs/promises";
-import path13 from "node:path";
+import path14 from "node:path";
 import { fileURLToPath as fileURLToPath6 } from "node:url";
-var packageRoot4 = path13.resolve(path13.dirname(fileURLToPath6(import.meta.url)), "..");
+var packageRoot4 = path14.resolve(path14.dirname(fileURLToPath6(import.meta.url)), "..");
 function resolveScreenshotPath(p) {
-  return path13.isAbsolute(p) ? p : path13.join(packageRoot4, p);
+  return path14.isAbsolute(p) ? p : path14.join(packageRoot4, p);
 }
 function pngNote(text) {
   return { type: "text", text };
@@ -4157,8 +4544,8 @@ async function packToolFailure(err) {
 }
 
 // src/desktop.ts
-import { mkdirSync, writeFileSync } from "node:fs";
-import path14 from "node:path";
+import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import path15 from "node:path";
 import { SolariClient } from "@solarisdk/sdk";
 
 // src/desktop-probe.ts
@@ -4405,7 +4792,7 @@ function defaultDesktopDeps() {
 }
 function newRunDir() {
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  return path14.join(packageRoot, ".auspex", "runs", stamp);
+  return path15.join(packageRoot, ".auspex", "runs", stamp);
 }
 async function waitReady(desktop, sleepFn, healthMs = DESKTOP_HEALTH_MS) {
   const deadline = Date.now() + healthMs;
@@ -4475,9 +4862,9 @@ async function runDesktopReview(deps = defaultDesktopDeps()) {
         tui.setPhase("screenshot");
         const png = await desktop.screenshot();
         const dir = newRunDir();
-        mkdirSync(dir, { recursive: true });
-        const abs = path14.join(dir, "screenshot.png");
-        writeFileSync(abs, png);
+        mkdirSync2(dir, { recursive: true });
+        const abs = path15.join(dir, "screenshot.png");
+        writeFileSync2(abs, png);
         const desktopId = desktop.sessionId;
         const streamUrl = desktop.streamUrl;
         let matched = true;
@@ -4550,9 +4937,9 @@ init_paths();
 
 // src/qr-gen.ts
 import QRCode from "qrcode";
-import path15 from "node:path";
+import path16 from "node:path";
 async function generateQRCode(url, runDir) {
-  const qrPath = path15.join(runDir, "handoff-qr.png");
+  const qrPath = path16.join(runDir, "handoff-qr.png");
   try {
     await QRCode.toFile(qrPath, url, {
       errorCorrectionLevel: "M",
@@ -4567,6 +4954,7 @@ async function generateQRCode(url, runDir) {
 }
 
 // src/mcp-tools.ts
+init_operator_session();
 init_profiles();
 init_profile_slug();
 init_profile_persist();
@@ -4724,7 +5112,7 @@ async function profileStatus(opts, deps) {
       live: true,
       skippedLive: true,
       nextCall: loginCall,
-      skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
+      skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -4803,23 +5191,23 @@ import { SolariClient as SolariClient2 } from "@solarisdk/sdk";
 // src/receipt-pack.ts
 init_paths();
 import { copyFile, mkdir as mkdir6, readFile as readFile9, writeFile as writeFile7 } from "node:fs/promises";
-import path16 from "node:path";
+import path17 from "node:path";
 function relToPackage(abs) {
-  return path16.relative(packageRoot, abs).replaceAll("\\", "/");
+  return path17.relative(packageRoot, abs).replaceAll("\\", "/");
 }
 function packDirRoot() {
-  return path16.join(packageRoot, ".auspex", "pack");
+  return path17.join(packageRoot, ".auspex", "pack");
 }
 async function packLastReceipts(opts) {
   const runsDir = opts?.runsDir ?? RUNS_DIR;
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  const packDir = opts?.destDir ?? path16.join(packDirRoot(), stamp);
+  const packDir = opts?.destDir ?? path17.join(packDirRoot(), stamp);
   await mkdir6(packDir, { recursive: true });
   const dirs = await listCompleteRunDirs(runsDir);
   const chosen = [];
   const seenUrl = /* @__PURE__ */ new Set();
   for (const dir of dirs) {
-    const raw = await readFile9(path16.join(dir, "manifest.json"), "utf8").catch(() => "");
+    const raw = await readFile9(path17.join(dir, "manifest.json"), "utf8").catch(() => "");
     let manifest = {};
     try {
       manifest = JSON.parse(raw);
@@ -4834,12 +5222,12 @@ async function packLastReceipts(opts) {
   }
   const packed = [];
   for (const dir of chosen) {
-    const dest = path16.join(packDir, path16.basename(dir));
+    const dest = path17.join(packDir, path17.basename(dir));
     await mkdir6(dest, { recursive: true });
-    const manifestAbs = path16.join(dest, "manifest.json");
-    const shotAbs = path16.join(dest, "screenshot.png");
-    await copyFile(path16.join(dir, "manifest.json"), manifestAbs);
-    await copyFile(path16.join(dir, "screenshot.png"), shotAbs);
+    const manifestAbs = path17.join(dest, "manifest.json");
+    const shotAbs = path17.join(dest, "screenshot.png");
+    await copyFile(path17.join(dir, "manifest.json"), manifestAbs);
+    await copyFile(path17.join(dir, "screenshot.png"), shotAbs);
     const raw = await readFile9(manifestAbs, "utf8");
     let manifest = {};
     try {
@@ -4856,7 +5244,7 @@ async function packLastReceipts(opts) {
       runDir: relToPackage(dest)
     });
   }
-  await writeFile7(path16.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
+  await writeFile7(path17.join(packDir, "index.json"), `${JSON.stringify({ packed }, null, 2)}
 `);
   return { packDir: relToPackage(packDir), packed };
 }
@@ -5319,9 +5707,9 @@ async function checkThenVerify(opts, deps) {
 init_saved_checks();
 var CHECK_DESCRIPTION = "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console \u2192 Profiles \u2192 Open editor, hardware keyboard). Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console \u2192 Profiles \u2192 Open editor. Hardware keyboard. Paste URL, username, and password on that page. They stay on the page. Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
-var PROFILES_DESCRIPTION = "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved).";
+var PROFILES_DESCRIPTION = "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved). " + OPERATOR_PURGE_QUESTION + " Pass purge with humanAgree true only after the human agrees. This tool has no username field and no password field. The Solari key is not an argument.";
 var PROFILE_STATUS_DESCRIPTION = "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
 var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.";
 var FINALIZE_LOGIN_DESCRIPTION = "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid.";
@@ -5370,7 +5758,12 @@ function registerAuspexTools(server2) {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_check");
-        const { receipt } = await executeAuspexCheck({ ...args, onProgress });
+        const named = applySavedCheckName(args);
+        const book = await withOperatorSession({
+          note: named.profile ? { profile: named.profile, site: named.url } : void 0
+        });
+        const { receipt: checked } = await executeAuspexCheck({ ...args, onProgress });
+        const receipt = attachMatchedPurgeNext(checked, book.agent);
         const packed = await buildCheckToolContent(receipt);
         packed.content[0] = { type: "text", text: toolJson(receipt) };
         return packed;
@@ -5388,6 +5781,9 @@ function registerAuspexTools(server2) {
     async ({ profile, url, wait }) => {
       try {
         const resolved = resolveLoginProfile({ profile, url });
+        const book = await withOperatorSession({
+          note: { profile: resolved.name, site: url, busyMs: SIGNUP_BUSY_MS }
+        });
         const runDir = await ensureRunDir();
         const result = await loginProfile(resolved.name, url, void 0, void 0, {
           profileDerived: resolved.derived
@@ -5397,14 +5793,18 @@ function registerAuspexTools(server2) {
           if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url);
         }
         if (!wait) {
-          const payload2 = stampSchema({ ok: true, ...result });
+          const payload2 = stampSchema({ ok: true, ...result, operator: book.agent });
           return buildReceiptToolContent(payload2, result.handoff?.qrPath);
         }
         const waited = await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }));
+        const finished = await withOperatorSession({
+          note: noteAfterSignupWait({ profile: resolved.name, site: url, status: waited.status })
+        });
         const payload = stampSchema({
           ok: waited.status === "completed",
           ...result,
-          wait: waited
+          wait: waited,
+          operator: finished.agent
         });
         return buildReceiptToolContent(payload, result.handoff?.qrPath);
       } catch (err) {
@@ -5420,8 +5820,21 @@ function registerAuspexTools(server2) {
     },
     async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {
       try {
+        await withOperatorSession({
+          note: { profile, busyMs: Math.max(SIGNUP_BUSY_MS, timeoutMs ?? 0) }
+        });
         const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs, saveEditor });
-        return { content: [{ type: "text", text: toolJson({ ok: result.status === "completed", ...result }) }] };
+        const finished = await withOperatorSession({
+          note: noteAfterSignupWait({ profile, status: result.status })
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: toolJson({ ok: result.status === "completed", ...result, operator: finished.agent })
+            }
+          ]
+        };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -5437,8 +5850,9 @@ function registerAuspexTools(server2) {
       try {
         const onProgress = progressFromExtra(extra);
         onProgress("auspex_finalize_login");
+        const book = await withOperatorSession({ note: { profile, site: url } });
         const result = await runFinalizeLogin({ profile, url, expect, ssoProvider, onProgress });
-        const receipt = toAgentReceipt(result);
+        const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent);
         const packed = await buildCheckToolContent(receipt);
         packed.content[0] = { type: "text", text: toolJson(receipt) };
         return packed;
@@ -5451,12 +5865,23 @@ function registerAuspexTools(server2) {
     "auspex_profiles",
     {
       description: PROFILES_DESCRIPTION,
-      inputSchema: {}
+      inputSchema: auspexProfilesInputSchema
     },
-    async () => {
+    async ({ purge, humanAgree }) => {
       try {
+        const book = await withOperatorSession({
+          humanAgree,
+          voluntary: purge ? [purge] : []
+        });
         const profiles = await listProfiles();
-        return { content: [{ type: "text", text: toolJson({ ok: true, profiles }) }] };
+        return {
+          content: [
+            {
+              type: "text",
+              text: toolJson({ ok: true, profiles, operator: book.agent, wiped: book.wiped })
+            }
+          ]
+        };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -5470,8 +5895,12 @@ function registerAuspexTools(server2) {
     },
     async (args) => {
       try {
+        const named = applySavedCheckName(args);
+        const book = await withOperatorSession({
+          note: named.profile ? { profile: named.profile, site: named.url } : void 0
+        });
         const result = await profileStatus(args);
-        return { content: [{ type: "text", text: toolJson(result) }] };
+        return { content: [{ type: "text", text: toolJson({ ...result, operator: book.agent }) }] };
       } catch (err) {
         return packToolFailure(err);
       }
@@ -5725,6 +6154,7 @@ var DualStdioServerTransport = class _DualStdioServerTransport {
 };
 
 // src/mcp.ts
+startOperatorKeyListener(packageRoot);
 var server = new McpServer2({
   name: "auspex",
   version: "0.1.0"

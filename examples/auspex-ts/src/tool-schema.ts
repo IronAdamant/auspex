@@ -297,6 +297,16 @@ export const auspexDesktopInputSchema = z.object({
   expect: z.string().optional().describe("Substring that must appear in the same process haystack used for wait/ok (processList + ps). Default is the opened app name."),
 })
 
+export const auspexProfilesInputSchema = z.object({
+  purge: profileNameSchema
+    .optional()
+    .describe("Saved profile name to wipe after the human says testing is done"),
+  humanAgree: z
+    .boolean()
+    .optional()
+    .describe("True only after the human agrees to purge that saved login"),
+})
+
 export const auspexTraceInputSchema = z.object({
   profile: profileNameSchema.optional().describe("Only events for this profile name"),
   limit: z.number().optional().describe("Max events to return (default 50, max 200)"),

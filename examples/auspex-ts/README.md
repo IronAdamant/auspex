@@ -2,7 +2,7 @@
 
 Web eyes for **coding agents**. An agent calls Auspex; Solari boots a **throwaway Chrome in their cloud** (not on your Mac); the agent gets JSON + a PNG; the session is killed. You do not sit in that browser.
 
-This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, **two labeled URLs**: the Auspex phone page (`handoff.mobileUrl`, real text field — seed/handoff door for off-site typing, not a same-session VNC takeover) or the Solari console (`handoff.desktopUrl`). Solari’s own handoff is noVNC and will not open a phone keyboard.
+This is not Browser Use, not local Playwright, and not a tab in your Chrome. Humans only see the receipt (stdout, screenshot, optional replay) and, if a login is needed, **two labeled URLs**: the Auspex phone page (`handoff.mobileUrl`, real text field — seed/handoff door for off-site typing, not a same-session VNC takeover) or the Auspex desktop page (`handoff.desktopUrl`, `desktop.html` when login minted it). Solari’s own handoff is noVNC and will not open a phone keyboard.
 
 Use it when a live page, JS paint, a login, or an audit still is the point. Do not use it to scrape at scale.
 
@@ -58,7 +58,7 @@ npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <str
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex login [--profile <name>] [--url <https>] [--wait]
 npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
-npx auspex profiles
+npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
 ```

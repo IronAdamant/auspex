@@ -6,6 +6,12 @@ import type { NextCall } from "./next-call.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
 import { derivedProfileNext } from "./profile-slug.ts"
+import {
+  applyOperatorWipes,
+  commitOperatorSession,
+  type OperatorAgentNotice,
+  type OperatorNote,
+} from "./operator-session.ts"
 import { packageRoot } from "./paths.ts"
 import { resolvePhoneExpirySeconds } from "./phone-expiry.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
@@ -39,6 +45,8 @@ export function publicHandoffUrl(url: string): string {
 }
 /** Pages viewer with a real text field so the phone software keyboard can open. */
 export const PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html"
+/** Same remote Chrome as the phone page, for a hardware keyboard. */
+export const DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html"
 export const PROFILE_NAME_ERROR = "profile name must be non-empty"
 
 export function isPhoneImeUrl(url: string | undefined): boolean {
@@ -48,7 +56,18 @@ export function isPhoneImeUrl(url: string | undefined): boolean {
 export function phoneHandoffUrl(
   vncToken: string,
   handoffUrl: string,
-  extra?: { profileId?: string; profileName?: string; handoffToken?: string; expiresAt?: string },
+  extra?: {
+    profileId?: string
+    profileName?: string
+    handoffToken?: string
+    expiresAt?: string
+    saved?: string
+    plist?: string
+    /** True when this mint already has a Solari key. The key is not put in the URL. */
+    keyInUse?: boolean
+    /** https site to open. Username and password are never accepted here. */
+    siteUrl?: string
+  },
 ): string {
   const token = vncToken.trim()
   const save = handoffUrl.trim()
@@ -58,9 +77,20 @@ export function phoneHandoffUrl(
   if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim())
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim())
   if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim())
+  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim())
+  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim())
+  if (extra?.keyInUse) hash.set("k", "1")
+  const siteUrl = extra?.siteUrl?.trim() ?? ""
+  if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl)
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token })
   if (expiry.exp !== undefined) hash.set("exp", String(expiry.exp))
   return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`
+}
+
+/** Same hash as the phone door (v, h, p, n, t, exp) on the desktop thin client. */
+export function desktopHandoffUrlFromPhone(mobileUrl: string | undefined): string | undefined {
+  if (!mobileUrl?.startsWith(PHONE_HANDOFF_PAGE)) return undefined
+  return DESKTOP_HANDOFF_PAGE + mobileUrl.slice(PHONE_HANDOFF_PAGE.length)
 }
 
 export type EditorSaveHandle = {
@@ -142,6 +172,14 @@ export function phoneSavePaste(profileName?: string): string {
   return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`
 }
 
+/** https only. A pasted field wins over the URL minted into the link. Secrets are not accepted. */
+export function desktopSaveSiteUrl(minted?: string, field?: string): string {
+  const typed = (field ?? "").trim()
+  const fromMint = (minted ?? "").trim()
+  const chosen = /^https:\/\//i.test(typed) ? typed : fromMint
+  return /^https:\/\//i.test(chosen) ? chosen : ""
+}
+
 /** Phone.html is IME + Save paste for an auth seed — not a live-session takeover. */
 export const PHONE_HANDOFF_NOT_TAKEOVER =
   "Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check."
@@ -165,6 +203,9 @@ export function handoffOpenOnDesktop(profileName: string): string {
   return `Computer: open handoff.desktopUrl, then Profiles → ${profileName} → Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`
 }
 
+export const HANDOFF_OPEN_ON_DESKTOP_PAGE =
+  "Computer: open handoff.desktopUrl in the computer's browser. That is the Auspex desktop page (desktop.html), the same remote Chrome and the same link hash as the phone. Hardware keyboard. Paste URL, username, and password with the buttons on that page. They stay on the page. Do not send this URL to a phone."
+
 const HANDOFF_HANG_GUIDANCE =
   " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent."
 
@@ -174,6 +215,7 @@ export function formatHandoffNext(opts: {
   profileName?: string
   hasPhoneIme?: boolean
   profileDerived?: boolean
+  hasDesktopPage?: boolean
 }): string {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
   const qrBit = opts.qrPath
@@ -184,8 +226,11 @@ export function formatHandoffNext(opts: {
   const phone = opts.hasPhoneIme
     ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
     : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
+  const computer = opts.hasDesktopPage
+    ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). Paste URL, username, and password with the buttons on that page. They stay on the page."
+    : `Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save.`
   return (
-    `${derived}${phone} Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
+    `${derived}${phone} ${computer} Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
     `Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
@@ -200,6 +245,7 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
     profileName: result.name,
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
     profileDerived: result.profileDerived,
+    hasDesktopPage: Boolean(desktopHandoffUrlFromPhone(result.handoff.mobileUrl)),
   })
   result.nextCall = { tool: "auspex_await_login", profile: result.name, saveEditor: true }
   return result
@@ -244,14 +290,18 @@ export function loginInstructions(
   if (handoff?.url) {
     const phone = mobileUrl?.trim() || handoff.url
     const hasPhoneIme = isPhoneImeUrl(phone)
+    const thinDesktop = desktopHandoffUrlFromPhone(phone)
+    const desktopUrl = thinDesktop ?? CONSOLE_PROFILES_URL
     const handoffPacket: HandoffPacket = {
       url: handoff.url,
       mobileUrl: phone,
-      desktopUrl: CONSOLE_PROFILES_URL,
+      desktopUrl,
       openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
-      openOnDesktop: handoffOpenOnDesktop(profile.name),
+      openOnDesktop: thinDesktop ? HANDOFF_OPEN_ON_DESKTOP_PAGE : handoffOpenOnDesktop(profile.name),
       oneLiner: `Auspex login (phone): ${phone}`,
-      desktopOneLiner: `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
+      desktopOneLiner: thinDesktop
+        ? `Auspex login (computer): ${thinDesktop}`
+        : `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : undefined,
       qrPath,
     }
@@ -265,7 +315,14 @@ export function loginInstructions(
       expiresAt: handoff.expiresAt,
       sinceVersion: handoff.version,
       profileDerived: profileDerived || undefined,
-      next: formatHandoffNext({ urlHint, qrPath, profileName: profile.name, hasPhoneIme, profileDerived }),
+      next: formatHandoffNext({
+        urlHint,
+        qrPath,
+        profileName: profile.name,
+        hasPhoneIme,
+        profileDerived,
+        hasDesktopPage: Boolean(thinDesktop),
+      }),
     }
     minted.nextCall = { tool: "auspex_await_login", profile: profile.name, saveEditor: true }
     return minted
@@ -476,6 +533,8 @@ export async function loginProfile(
         profileName: profile.name,
         handoffToken,
         expiresAt: handoff.expiresAt,
+        keyInUse: true,
+        siteUrl: urlHint,
       })
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
@@ -515,6 +574,44 @@ export async function loginProfile(
     }).catch(() => undefined)
     throw err
   }
+}
+
+/** Deletes saved logins by name through Solari profiles.delete. No username or password argument. */
+export async function deleteSolariProfilesByName(names: readonly string[]): Promise<string[]> {
+  if (names.length === 0) return []
+  const solari = createClient()
+  try {
+    return await applyOperatorWipes(names, {
+      list: async () => (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name })),
+      deleteProfile: (id) => solari.profiles.delete(id),
+    })
+  } finally {
+    await solari.close()
+  }
+}
+
+/** Records a use, then wipes idle or human-agreed profiles. A delete failure leaves the stamp in place. */
+export async function withOperatorSession(opts: {
+  nowMs?: number
+  note?: OperatorNote
+  humanAgree?: boolean
+  voluntary?: readonly string[]
+  root?: string
+}): Promise<{ agent: OperatorAgentNotice; wiped: string[] }> {
+  return commitOperatorSession({
+    root: opts.root ?? packageRoot,
+    nowMs: opts.nowMs ?? Date.now(),
+    note: opts.note,
+    humanAgree: opts.humanAgree,
+    voluntary: opts.voluntary,
+    applyWipes: async (names) => {
+      try {
+        return await deleteSolariProfilesByName(names)
+      } catch {
+        return []
+      }
+    },
+  })
 }
 
 export async function listProfiles(): Promise<ProfileInfo[]> {
