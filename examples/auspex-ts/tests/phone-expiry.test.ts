@@ -6,7 +6,7 @@ import {
   parseUnixSeconds,
   resolvePhoneExpirySeconds,
   streamExpiryStamp,
-} from "../src/phone-expiry.ts"
+} from "../src/handoff-doors.ts"
 import { phoneHandoffUrl } from "../src/profiles.ts"
 
 /** Standard JWT: header.payload.sig — exp in segment 1. */

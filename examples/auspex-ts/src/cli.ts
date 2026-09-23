@@ -1,26 +1,12 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { toAgentReceipt } from "./agent-receipt.ts"
-import { runCheck, runFinalizeLogin, type CheckOptions } from "./check.ts"
+import { type CheckOptions } from "./check.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
-import { attachMatchedPurgeNext, noteAfterSignupWait, OPERATOR_HELP, SIGNUP_BUSY_MS } from "./operator-session.ts"
-import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, requireProfileName, withOperatorSession } from "./profiles.ts"
-import { loginWaitPublicFields, preserveAwaitLiveHost } from "./live-host-change.ts"
-import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
-import { resolveLoginProfile } from "./profile-slug.ts"
-import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
-import { profileStatus } from "./profile-status.ts"
-import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
-import { listDevices } from "./device-emulation.ts"
 import { parseProxyFlag } from "./launch-options.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
-import { ensureRunDir } from "./paths.ts"
-import { generateQRCode } from "./qr-gen.ts"
-import { reapLeftovers } from "./reap.ts"
-import { readLoginTrace } from "./login-trace.ts"
-import { checkThenVerify, verifyReceipt } from "./sandbox.ts"
+import { requireProfileName, resolveLoginProfile } from "./profile-slug.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
 import { type SsoProvider } from "./sso.ts"
 import { isNonEmptyExpect } from "./text.ts"
@@ -28,11 +14,10 @@ import { isDashboardLandingUrl, RECORD_LOGGED_IN_ERROR, assertRecordProfileAllow
 import {
   exitFromOk,
   failureReceipt,
-  stampSchema,
   usageErrorReceipt,
   writeStdoutJson,
 } from "./cli-json.ts"
-import { parseJobFlags, parseJobStatusFlags, readJobStatus, runJob, type JobRunOptions } from "./job.ts"
+import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job.ts"
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
@@ -51,36 +36,21 @@ export const USAGE = `Usage:
   npx auspex mcp
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
-Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, close.
-CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
-Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
-Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
-check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which default to --no-verify because anonymous fetch cannot see auth-gated UI. Public marketing still verifies with a leftover profile. No profile still verifies. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
-Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
-ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged/hostChanged). matched is the word-bounded case-sensitive expect hit (Dashboard does not match Dashboards or the capitalized phrase One Dashboard). reason expectMatchedPublicLanding means the text hit a non-persistable public/landing URL during --save-profile: ok is false, matched is false, and no profile bytes were written. CLI exit 0 requires agent ok.
---mobile emulates iPhone viewport/UA (iphone-13-pro). --device <name> uses a specific device profile (${listDevices().join(", ")}). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
-desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
-reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
-profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold. Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: show handoff.url (chooser). Phone uses handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Auspex desktop page when login minted it, otherwise Open editor, hardware keyboard). The agent never types a password. Never type in Solari noVNC on a phone (that stream will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
-login creates or reuses a named Solari profile and mints once. handoff.url / oneLiner is the chooser (door.html). Labeled deep links: handoff.mobileUrl (phone.html) and handoff.desktopUrl (desktop.html). Requires --profile <name> or --url <https>. --url without --profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. --profile wins when both are set (dogfood --profile consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (real text field so the phone keyboard can open). That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console → Profiles → Open editor. Hardware keyboard. One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off agent chat, MCP, and receipts. Never open handoff.desktopUrl on a phone. The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL). When --profile is set and the URL host slug differs (case-insensitive; saved-check host affinity such as consistencyhub on consistencyhub.io still matches), the command still runs and stdout sets profileHostMatch false, suggestedProfile, and next/nextCall to remint with that slug or omit --profile. profileHostMatch true when they match. Those fields are omitted when there is no URL; omission is not a match. Do not carry a previous --profile onto a new host. --wait then blocks until Save stores cookies or origins (default 30 minutes) and runs --save-editor (same as await-login --save-editor).
-await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). --save-editor POSTs Solari editor/save from the agent (phone Save must not open Solari: GET editor HTTP 401) then probes editor JSON for Playwright CDP. Claim a fold only when editorFold.ok; Solari's editor is noVNC today so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; remint if finalize-login returns needsHuman. Soft-warns if cookies/origins exist but sessionStorage is counted 0, or folded expiresOn is stale. Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold (claimOkProfile will not pass). Returns status: completed | timeout | empty-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. stream-expired is VNC/phone JWT past (remint auspex_login; not loggedOut). editor-save-hung is editorSave/fold timeout — do not finalize-login in parallel. profile-busy is the save lock (retry await after the other save ends). --url is the site host for the same soft profileHostMatch / suggestedProfile advise as login (a stored login site URL is used when --url is omitted). A profile-slug mismatch does not stop the wait. A live browser host that is a different site than the minted URL fails closed (hostChanged, ok false, nextCall remints auspex_login --profile <slug> --url <https://live-origin>). The password field is not a site picker. Door pages cannot read the remote address bar.
-profiles lists names, ids, version, and whether storage is populated. ${OPERATOR_HELP}
---save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
-Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile on a public marketing host. --allow-record-profile is refused for consistencyhub. Recording is not started at session create when a profile is attached unless the URL is ironadamant.com or checkpointprojects.com.
-SSO is human-once then reuse. Microsoft and Google password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing, /login, or / without a matched expect is ok: false reason: loggedOut. Expect must be unique to the logged-in app surface and must not appear in public marketing copy (case-sensitive, word-bounded; Dashboard does not match One Dashboard, a Socialaize-style pitfall). If finalize-login or --save-profile still hits expect text on /, /landing, /login, /signup, or /auth, reason is expectMatchedPublicLanding (ok false, matched false, profile not saved). Pass a real app URL and a better expect.
-
-402 FeatureRequiresPlan (stealth/proxy/captcha/desktop on Free) and 429 ConcurrencyLimitExceeded are not retryable.
-429: auspex_reap leftover sessions, then retry — do not only use the Solari console. Official solari_browser_close / solari_kill also work if that MCP started.
-Requires SOLARI_API_KEY in the environment (https://console.getsolari.com). Always closes browser sessions and kills sandboxes/desktops.
-login mint lead-up is traced to .auspex/trace/login.jsonl (event: login only; key, profile, handoff, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. mintStage ready only when VNC/token mint succeeded. If mint fails, login JSON and npx auspex trace say why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout, empty handoff token). Default npx auspex trace is the last episode plus traceSummary. --all dumps history. No tokens, cookie values, excerpts, passwords, or session ids. If mint is silent or fails, read traceSummary / auspex_trace before reminting. Not a fourth primitive.
-Never commit .env or .auspex/ run artifacts.
-job is durable compose of mint→await→finalize→check for autonomous agents (not a fourth primitive). First call mints and returns waiting + handoff unless --wait. Resume with --job-id after Save. job-status reads the local job file (optional short --wait-ms). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON — operator-local, not a Solari push API. On 429 the job reaps the ledger (not accountWide) and nextCall resumes the job. claimOkProfile only after --verify-with-profile. Step tools remain for debugging.
+CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
+Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged. Await also: stream-expired | editor-save-hung | profile-busy.
+ok is not claimOk and not claimOkProfile. claimOkProfile only after --verify-with-profile (reuse gate). They are not the same.
+429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
+Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
+Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Keys are not included in the agent message.
+job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
+login --wait then blocks until Save and runs --save-editor. handoff.url is the chooser (door.html).
+Requires SOLARI_API_KEY. Detail: AGENTS.md and docs/door-card-api.md.
 `
 
 export type CliCommand =
   | { cmd: "help" }
   | { cmd: "mcp" }
-  | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean }
+  | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean; verify?: boolean }
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string }
@@ -269,6 +239,7 @@ export function parseArgv(argv: string[]): ParseResult {
           device,
         },
         verifyAfter,
+        verify: noVerify ? false : verifyFlag ? true : undefined,
       },
     }
   }
@@ -496,204 +467,70 @@ export async function main(argv: string[]): Promise<number> {
     return 0
   }
   try {
-    if (parsed.command.cmd === "check") {
-      const named = applySavedCheckName(parsed.command.opts)
-      const book = await withOperatorSession({
-        note: named.profile ? { profile: named.profile, site: named.url } : undefined,
+    const runners = await import("./runners.ts")
+    const cmd = parsed.command
+    if (cmd.cmd === "check") {
+      const receipt = await runners.runCheckDoor({
+        ...cmd.opts,
+        verify: cmd.verify,
       })
-      if (parsed.command.verifyAfter !== false) {
-        const both = await checkThenVerify(parsed.command.opts, {
-          verifyWithProfile: parsed.command.opts.verifyWithProfile,
-        })
-        const receipt = attachMatchedPurgeNext(toAgentReceipt(both.check, { verify: both.verify }), book.agent)
-        writeStdoutJson(receipt)
-        return exitFromOk(receipt.ok)
-      }
-      const result = await runCheck(parsed.command.opts)
-      const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }
-    if (parsed.command.cmd === "finalize-login") {
-      const book = await withOperatorSession({
-        note: { profile: parsed.command.profile, site: parsed.command.url },
-      })
-      const result = await runFinalizeLogin({
-        profile: parsed.command.profile,
-        url: parsed.command.url,
-        expect: parsed.command.expect,
-        ssoProvider: parsed.command.ssoProvider,
-      })
-      const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
+    if (cmd.cmd === "finalize-login") {
+      const receipt = await runners.runFinalizeLoginDoor(cmd)
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }
-    if (parsed.command.cmd === "login") {
-      const book = await withOperatorSession({
-        note: { profile: parsed.command.profile, site: parsed.command.url, busyMs: SIGNUP_BUSY_MS },
-      })
-      const runDir = await ensureRunDir()
-      const result = await loginProfile(parsed.command.profile, parsed.command.url, undefined, undefined, {
-        profileDerived: parsed.command.profileDerived,
-      })
-      if (result.handoff?.url) {
-        const qr = await generateQRCode(qrPayloadForHandoff(result.handoff), runDir)
-        if (qr.qrPath) attachHandoffQr(result, qr.qrPath, parsed.command.url)
-      }
-      const shown = stampLoginHost(result, parsed.command.url)
-      if (!parsed.command.wait) {
-        writeStdoutJson(stampSchema({ ok: true, ...shown, operator: book.agent }))
-        return 0
-      }
-      const rawWait = await liveAwaitLogin(
-        parsed.command.profile,
-        loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: parsed.command.url }),
-      )
-      const waited = preserveAwaitLiveHost(
-        stampProfileHostAdvice(rawWait, { profile: parsed.command.profile, url: parsed.command.url }),
-        rawWait,
-      )
-      const finished = await withOperatorSession({
-        note: noteAfterSignupWait({
-          profile: parsed.command.profile,
-          site: parsed.command.url,
-          status: waited.status,
-        }),
-      })
-      const pub = loginWaitPublicFields(waited)
-      const payload = stampSchema({ ...shown, ...pub, wait: waited, operator: finished.agent })
+    if (cmd.cmd === "login") {
+      const payload = await runners.runLoginDoor(cmd)
       writeStdoutJson(payload)
-      return exitFromOk(payload.ok)
+      return exitFromOk(payload.ok === true)
     }
-    if (parsed.command.cmd === "await-login") {
-      await withOperatorSession({
-        note: {
-          profile: parsed.command.profile,
-          site: parsed.command.url,
-          busyMs: Math.max(SIGNUP_BUSY_MS, parsed.command.timeoutMs ?? 0),
-        },
-      })
-      const rawWait = await liveAwaitLogin(parsed.command.profile, {
-        sinceVersion: parsed.command.sinceVersion,
-        timeoutMs: parsed.command.timeoutMs,
-        saveEditor: parsed.command.saveEditor,
-        url: parsed.command.url,
-      })
-      const waited = preserveAwaitLiveHost(
-        await stampAwaitLoginHost(rawWait, { profile: parsed.command.profile, url: parsed.command.url }),
-        rawWait,
-      )
-      const finished = await withOperatorSession({
-        note: noteAfterSignupWait({
-          profile: parsed.command.profile,
-          status: waited.status,
-        }),
-      })
-      const payload = stampSchema({ ok: waited.status === "completed", ...waited, operator: finished.agent })
+    if (cmd.cmd === "await-login") {
+      const payload = await runners.runAwaitLoginDoor(cmd)
       writeStdoutJson(payload)
-      return exitFromOk(payload.ok)
+      return exitFromOk(payload.ok === true)
     }
-    if (parsed.command.cmd === "verify") {
-      const result = stampSchema(await verifyReceipt(parsed.command.runDir))
+    if (cmd.cmd === "verify") {
+      const result = await runners.runVerifyDoor(cmd.runDir)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    if (parsed.command.cmd === "reap") {
-      const result = stampSchema(
-        await reapLeftovers({
-          dryRun: parsed.command.dryRun,
-          sessionId: parsed.command.sessionId,
-          vmId: parsed.command.vmId,
-          packReceipts: parsed.command.packReceipts,
-          accountWide: parsed.command.accountWide,
-        }),
-      )
+    if (cmd.cmd === "reap") {
+      const result = await runners.runReapDoor(cmd)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    if (parsed.command.cmd === "desktop") {
-      const result = stampSchema(
-        await runDesktopReview({
-          ...defaultDesktopDeps(),
-          task: {
-            open: parsed.command.open,
-            type: parsed.command.type,
-            click: parsed.command.click,
-            expect: parsed.command.expect,
-          },
-        }),
-      )
+    if (cmd.cmd === "desktop") {
+      const result = await runners.runDesktopDoor(cmd)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    if (parsed.command.cmd === "profile-status") {
-      const named = applySavedCheckName({
-        name: parsed.command.name,
-        profile: parsed.command.profile,
-        url: parsed.command.url,
-      })
-      const book = await withOperatorSession({
-        note: named.profile ? { profile: named.profile, site: named.url } : undefined,
-      })
-      const result = stampSchema({
-        ...(await profileStatus({
-          profile: parsed.command.profile,
-          name: parsed.command.name,
-          url: parsed.command.url,
-        })),
-        operator: book.agent,
-      })
+    if (cmd.cmd === "profile-status") {
+      const result = await runners.runProfileStatusDoor(cmd)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    if (parsed.command.cmd === "trace") {
-      const result = stampSchema({
-        ok: true,
-        ...(await readLoginTrace({
-          profile: parsed.command.profile,
-          limit: parsed.command.limit,
-          all: parsed.command.all,
-        })),
-      })
-      writeStdoutJson(result)
+    if (cmd.cmd === "trace") {
+      writeStdoutJson(await runners.runTraceDoor(cmd))
       return 0
     }
-    if (parsed.command.cmd === "job") {
-      const named = applySavedCheckName({
-        name: parsed.command.opts.name,
-        url: parsed.command.opts.url,
-        expect: parsed.command.opts.expect,
-        profile: parsed.command.opts.profile,
-      })
-      const book = await withOperatorSession({
-        note: named.profile || named.url
-          ? {
-              profile: resolveLoginProfile({ profile: named.profile, url: named.url }).name,
-              site: named.url,
-              busyMs: SIGNUP_BUSY_MS,
-            }
-          : undefined,
-      })
-      const result = await runJob({ ...parsed.command.opts, onProgress: createProgress() })
-      writeStdoutJson(stampSchema({ ...result, operator: book.agent }))
+    if (cmd.cmd === "job") {
+      const result = await runners.runJobDoor({ ...cmd.opts, onProgress: createProgress() })
+      writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    if (parsed.command.cmd === "job-status") {
-      const result = await readJobStatus({
-        jobId: parsed.command.jobId,
-        waitMs: parsed.command.waitMs,
+    if (cmd.cmd === "job-status") {
+      const result = await runners.runJobStatusDoor({
+        jobId: cmd.jobId,
+        waitMs: cmd.waitMs,
         onProgress: createProgress(),
       })
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
-    const book = await withOperatorSession({
-      humanAgree: parsed.command.cmd === "profiles" ? parsed.command.humanAgree : false,
-      voluntary:
-        parsed.command.cmd === "profiles" && parsed.command.purge ? [parsed.command.purge] : [],
-    })
-    const profiles = await listProfiles()
-    writeStdoutJson(stampSchema({ ok: true, profiles, operator: book.agent, wiped: book.wiped }))
+    writeStdoutJson(await runners.runProfilesDoor(cmd))
     return 0
   } catch (err) {
     writeStdoutJson(failureReceipt(err))

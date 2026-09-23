@@ -293,11 +293,12 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
 
 test("login --wait and MCP wait:true both pass loginWaitAwaitOpts (saveEditor)", () => {
   const cli = readFileSync(path.join(root, "src", "cli.ts"), "utf8")
+  const runners = readFileSync(path.join(root, "src", "runners.ts"), "utf8")
   const tools = readFileSync(path.join(root, "src", "mcp-tools.ts"), "utf8")
-  assert.match(cli, /loginWaitAwaitOpts/)
-  assert.match(tools, /loginWaitAwaitOpts/)
-  assert.match(cli, /saveEditor: true|loginWaitAwaitOpts/)
-  assert.match(tools, /saveEditor: true|loginWaitAwaitOpts/)
+  assert.match(cli, /runLoginDoor/)
+  assert.match(runners, /loginWaitAwaitOpts/)
+  assert.match(runners, /saveEditor: true|loginWaitAwaitOpts/)
+  assert.match(tools, /runLoginDoor/)
 })
 
 test("mcp-tools desktop payload keeps ASCII log and JSON", () => {

@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { checkUrlSchema, httpUrlSchema } from "./http-url.ts"
 import { PAGE_ACTIONS_PROFILE_ERROR } from "./page-actions.ts"
-import { profileNameSchema } from "./profiles.ts"
+import { profileNameSchema } from "./profile-slug.ts"
 import { isPublicMarketingUrl } from "./saved-checks.ts"
 import { expectSchema } from "./text.ts"
 

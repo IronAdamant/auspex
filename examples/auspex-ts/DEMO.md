@@ -81,7 +81,7 @@ MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok to
 
 Public demo artifacts (Solari cloud Chrome, not a local window):
 
-- **Watch (auth-gated Microsoft wall):** [demo/replay.html](demo/replay.html). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard.
+- **Watch (auth-gated Microsoft wall):** generate with `npm run generate:replay` from `demo/replay.ndjson` (committed `replay.html` is a stub). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard. Pages serves the generated player.
 - **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`). Marketing summary with `sessionId` and verify flags.
 - **Redacted auth-gated SaaS demo:** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
 

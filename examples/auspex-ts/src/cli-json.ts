@@ -1,5 +1,5 @@
 import { solariFailurePayload } from "./errors.ts"
-import type { NextCall } from "./next-call.ts"
+import { reapNextCall, type NextCall } from "./next-call.ts"
 import { SCHEMA_VERSION, stampSchema } from "./schema-version.ts"
 
 export { SCHEMA_VERSION, stampSchema }
@@ -35,7 +35,7 @@ export function failureReceipt(err: unknown): {
   const reap = body.code === "ConcurrencyLimitExceeded" || body.status === 429
   return stampSchema({
     ...body,
-    ...(reap ? { nextCall: body.nextCall ?? { tool: "auspex_reap" } } : {}),
+    ...(reap ? { nextCall: body.nextCall ?? reapNextCall() } : {}),
   })
 }
 

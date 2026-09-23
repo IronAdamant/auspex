@@ -1,5 +1,5 @@
 import { SolariError } from "@solarisdk/browser"
-import type { NextCall } from "./next-call.ts"
+import { reapNextCall, type NextCall } from "./next-call.ts"
 import { ProfileBusyError } from "./profile-lock.ts"
 
 export const CLOSE_KILL_RECOVERY =
@@ -180,7 +180,7 @@ export function solariFailurePayload(err: unknown): {
     retryable: issue.retryable,
     ...(issue.recovery ? { recovery: issue.recovery } : {}),
     ...(issue.status !== undefined ? { status: issue.status } : {}),
-    ...(reap ? { nextCall: { tool: "auspex_reap" } satisfies NextCall } : {}),
+    ...(reap ? { nextCall: reapNextCall() } : {}),
   }
 }
 

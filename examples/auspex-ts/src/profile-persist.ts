@@ -9,7 +9,7 @@ import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import type { LiveHostChange } from "./live-host-change.ts"
-import type { NextCall } from "./next-call.ts"
+import { awaitRetryNextCall, finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
@@ -23,7 +23,7 @@ import {
   STREAM_EXPIRED_WAIT_MS,
   streamExpiredGuide,
 } from "./await-fail.ts"
-import { isStreamExpired } from "./phone-expiry.ts"
+import { isStreamExpired } from "./handoff-doors.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -191,9 +191,7 @@ export function finalizeLoginGuide(profile: string): { text: string; nextCall: N
   const flags = saved ? `--profile ${name}` : `--profile ${name} --url <url> --expect <string>`
   const extra = saved ? "" : " --url and --expect are required unless the profile matches a saved check."
   const text = `Run npx auspex finalize-login ${flags} (MCP: auspex_finalize_login).${extra} Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.`
-  const nextCall: NextCall = { tool: "auspex_finalize_login" }
-  if (name !== "<name>") nextCall.profile = name
-  return { text, nextCall }
+  return { text, nextCall: finalizeLoginNextCall(name) }
 }
 
 export function finalizeLoginGuidance(profile: string): string {
@@ -215,9 +213,7 @@ export const SAVE_NOT_FOLD_NOW =
 export function remintLoginGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
   const text = `Remint now: npx auspex login --profile ${name} (MCP: auspex_login; phone handoff.mobileUrl).`
-  const nextCall: NextCall = { tool: "auspex_login" }
-  if (name !== "<name>") nextCall.profile = name
-  return { text, nextCall }
+  return { text, nextCall: remintLoginNextCall(name) }
 }
 
 export function remintLoginGuidance(profile: string): string {
@@ -316,9 +312,7 @@ export function weakSeedWarning(
 export function emptyProfileGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
   const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
-  const nextCall: NextCall = { tool: "auspex_login" }
-  if (name !== "<name>") nextCall.profile = name
-  return { text, nextCall }
+  return { text, nextCall: remintLoginNextCall(name) }
 }
 
 export function emptyProfileGuidance(profile: string): string {
@@ -502,7 +496,7 @@ function awaitGuide(
   if (status === "profile-busy") return profileBusyAwaitGuide(profile.name)
   return {
     text: `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`,
-    nextCall: { tool: "auspex_await_login" },
+    nextCall: awaitRetryNextCall(profile.name),
   }
 }
 
