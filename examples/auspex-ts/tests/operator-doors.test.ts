@@ -8,6 +8,7 @@ import vm from "node:vm"
 import { USAGE } from "../src/cli.ts"
 import { PROFILES_DESCRIPTION } from "../src/mcp-tools.ts"
 import { OPERATOR_PURGE_QUESTION } from "../src/operator-session.ts"
+import { formatHandoffNext, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_OPEN_ON_PHONE } from "../src/profiles.ts"
 import {
   auspexAwaitLoginInputSchema,
   auspexCheckInputObject,
@@ -42,6 +43,8 @@ function assertTypingDoor(html: string, label: string) {
   assert.match(html, /remote address bar/, `${label} address bar hint`)
   assert.match(html, /ironadamant\.com does not see/, `${label} privacy copy`)
   assert.match(html, /destination site logs its own login/, `${label} destination-site login`)
+  assert.match(html, /type the login again/, `${label} retype after wipe`)
+  assert.match(html, /do not host those credentials or session secrets/, `${label} credentials not hosted`)
   assert.match(html, /off by default/, `${label} bullets default documented`)
   assert.match(html, /<input id="ime"[^>]*type="text"/, `${label} visible text by default`)
   assert.equal(/<input id="bullets"[^>]*\schecked/.test(html), false, `${label} bullets default off`)
@@ -87,6 +90,8 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(chooser, /not a live-session takeover/)
   assert.match(chooser, /before typing anything/)
   assert.match(chooser, /ironadamant\.com does not see/)
+  assert.match(chooser, /type the login again/)
+  assert.match(chooser, /do not host those credentials or session secrets/)
   assert.equal(chooser.includes('id="ime"'), false)
   assert.equal(chooser.includes('id="paste-btn"'), false)
   assert.equal(chooser.includes('id="paste-username"'), false)
@@ -150,16 +155,35 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(watch, /door\.html/)
   assert.match(watch, /no Paste button/)
   assert.match(watch, /ironadamant\.com does not see/)
+  assert.match(watch, /type the login again/)
+  assert.match(watch, /do not host those credentials or session secrets/)
   assert.match(USAGE, /no Paste button/)
   assert.match(USAGE, /ironadamant\.com does not see/)
   assert.match(USAGE, /Show as bullets is off by default/)
+  assert.match(USAGE, /type the login again/)
+  assert.match(USAGE, /do not host those credentials or session secrets/)
   assert.match(OPERATOR_PURGE_QUESTION, /clears on Enter, Save, or lock/)
+  assert.match(OPERATOR_PURGE_QUESTION, /type the login again/)
+  assert.match(OPERATOR_PURGE_QUESTION, /do not host those credentials or session secrets/)
   assert.equal(OPERATOR_PURGE_QUESTION.includes("clears on paste"), false)
+  const handoffNext = formatHandoffNext({ hasPhoneIme: true, hasDesktopPage: true, profileName: "app-example" })
+  for (const [label, text] of [
+    ["openOnPhone", HANDOFF_OPEN_ON_PHONE],
+    ["openOnDesktop", HANDOFF_OPEN_ON_DESKTOP_PAGE],
+    ["handoff next", handoffNext],
+  ] as const) {
+    assert.match(text, /type the login again/, label)
+    assert.match(text, /do not host those credentials or session secrets/, label)
+    assert.equal(text.includes(PASSWORD), false, label)
+  }
+  assert.equal(handoffNext.includes("Open editor"), false)
   for (const file of ["AGENTS.md", "examples/auspex-ts/AGENTS.md", ".cursor/rules/auspex.mdc"]) {
     const text = readFileSync(path.join(repo, file), "utf8")
     assert.match(text, /ironadamant\.com does not see/, file)
     assert.match(text, /no Paste button/, file)
     assert.match(text, /before typing anything/, file)
+    assert.match(text, /type the login again/, file)
+    assert.match(text, /do not host those credentials or session secrets/, file)
     assert.equal(text.includes("click the remote login field, then paste"), false, file)
   }
 })
