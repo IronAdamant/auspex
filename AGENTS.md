@@ -17,7 +17,7 @@ npx auspex check https://example.com --expect "Example Domain"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Dashboard"
 npx auspex login --url https://app.example
 # derives --profile app-example from the URL host; override with --profile <yours>
-# human: open handoff.url (chooser: Phone or Desktop, same hash). Phone: handoff.mobileUrl in the phone's own Safari or Chrome (real text field). Computer: handoff.desktopUrl (desktop.html). Seed/handoff door for off-site typing — not a Handraise-style same-session VNC takeover. Tap Save on that page. Do not open Solari (GET editor HTTP 401). Then await-login --save-editor. Do not intern-ping.
+# human: open handoff.url (chooser: Phone or Desktop, same hash). Phone: handoff.mobileUrl in the phone's own Safari or Chrome (real text field). Computer: handoff.desktopUrl (desktop.html). Seed/handoff door for off-site typing — not a Handraise-style same-session VNC takeover; tap Save on that page. Do not open Solari (GET editor HTTP 401). Then await-login --save-editor. Do not intern-ping.
 # mint is traced; if silent or login fails, read traceSummary / npx auspex trace before reminting (not a fourth primitive)
 npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
