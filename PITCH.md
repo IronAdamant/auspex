@@ -25,7 +25,7 @@ The agent thinks it's logged in. The human wastes hours debugging. The SaaS rema
 - Human signs into Microsoft/Google/etc in a Solari-hosted Chromium card
 - Agent never handles passwords or OTP
 - Phone `phone.html` is a seed/handoff door for off-site typing (IME + Save paste), **not** a same-session VNC takeover
-- Frozen agent door (not Handraise live-view takeover): mint `login --url` → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint. See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence).
+- Frozen agent door (not Handraise live-view takeover): mint `login --url` → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint, `stream-expired`. Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md). See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence). Solari `402`/`429`/`502` are not `loggedOut`/`needsHuman`.
 - Cookies + sessionStorage saved to a named profile, reusable across checks
 
 **Concurrency + reap**

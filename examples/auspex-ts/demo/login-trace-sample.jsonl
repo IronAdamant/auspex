@@ -1,0 +1,2 @@
+{"event":"login","profile":"<redacted>","mintStage":"ready","phoneDoor":"ime","computerDoor":"desktop-page","vncMintOk":true,"urlPresent":true,"hostKind":"public"}
+{"event":"post-handoff","profile":"<redacted>","status":"no-cdp","foldReason":"no-cdp"}

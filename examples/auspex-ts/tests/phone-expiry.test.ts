@@ -1,6 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { jwtExpSeconds, parseUnixSeconds, resolvePhoneExpirySeconds } from "../src/phone-expiry.ts"
+import {
+  isStreamExpired,
+  jwtExpSeconds,
+  parseUnixSeconds,
+  resolvePhoneExpirySeconds,
+  streamExpiryStamp,
+} from "../src/phone-expiry.ts"
 import { phoneHandoffUrl } from "../src/profiles.ts"
 
 /** Standard JWT: header.payload.sig — exp in segment 1. */
@@ -81,4 +87,16 @@ test("phoneHandoffUrl writes min(handoffExpiresAt, vncJwtExp)", () => {
 
   const unknown = phoneHandoffUrl("vnc.jwt.token", "https://console.getsolari.com/handoff/abc")
   assert.equal(new URLSearchParams(new URL(unknown).hash.slice(1)).get("exp"), null)
+})
+
+test("isStreamExpired and streamExpiryStamp stay off the JWT", () => {
+  const past = 1_700_000_000
+  const future = 2_000_000_000
+  assert.equal(isStreamExpired({ expiresAt: String(past), nowSec: past + 1 }), true)
+  assert.equal(isStreamExpired({ expiresAt: String(future), nowSec: past }), false)
+  assert.equal(isStreamExpired({ expiresAt: "soon", jwt: "vnc.jwt.token", nowSec: past }), false)
+  const stamp = streamExpiryStamp({ jwt: solariVncJwt(future) })
+  assert.equal(stamp.streamExpirySource, "jwt")
+  assert.equal(stamp.streamExpiresAt, new Date(future * 1000).toISOString())
+  assert.equal(JSON.stringify(stamp).includes("nbf"), false)
 })

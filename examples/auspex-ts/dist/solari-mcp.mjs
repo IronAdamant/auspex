@@ -169,6 +169,28 @@ var init_saved_checks = __esm({
   }
 });
 
+// src/timeout.ts
+var init_timeout = __esm({
+  "src/timeout.ts"() {
+    "use strict";
+  }
+});
+
+// src/await-fail.ts
+var init_await_fail = __esm({
+  "src/await-fail.ts"() {
+    "use strict";
+    init_timeout();
+  }
+});
+
+// src/phone-expiry.ts
+var init_phone_expiry = __esm({
+  "src/phone-expiry.ts"() {
+    "use strict";
+  }
+});
+
 // src/profile-persist.ts
 var DEAD_FOLD_VWP_BAN, SAVE_NOT_FOLD_NOW;
 var init_profile_persist = __esm({
@@ -181,6 +203,8 @@ var init_profile_persist = __esm({
     init_profile_storage();
     init_saved_checks();
     init_sso();
+    init_await_fail();
+    init_phone_expiry();
     DEAD_FOLD_VWP_BAN = "Do not run check --verify-with-profile on this seed \u2014 claimOkProfile will not pass on a dead fold.";
     SAVE_NOT_FOLD_NOW = "Save is not fold: --save-editor did not refresh folded sessionStorage. Finalize-login NOW while the token is live. " + DEAD_FOLD_VWP_BAN + " Remint auspex_login if finalize-login returns needsHuman.";
   }
@@ -222,13 +246,6 @@ var init_operator_session = __esm({
   }
 });
 
-// src/phone-expiry.ts
-var init_phone_expiry = __esm({
-  "src/phone-expiry.ts"() {
-    "use strict";
-  }
-});
-
 // src/handoff-doors.ts
 var init_handoff_doors = __esm({
   "src/handoff-doors.ts"() {
@@ -252,6 +269,7 @@ var init_profiles = __esm({
     init_handoff_doors();
     init_paths();
     init_solari();
+    init_phone_expiry();
     init_handoff_doors();
     PROFILE_NAME_ERROR = "profile name must be non-empty";
     profileNameSchema = z3.string().trim().min(1, { message: PROFILE_NAME_ERROR });
@@ -277,13 +295,6 @@ var init_errors = __esm({
   "src/errors.ts"() {
     "use strict";
     init_profile_lock();
-  }
-});
-
-// src/timeout.ts
-var init_timeout = __esm({
-  "src/timeout.ts"() {
-    "use strict";
   }
 });
 

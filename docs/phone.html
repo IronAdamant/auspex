@@ -83,7 +83,7 @@
     <header>
       <strong>Auspex phone login</strong>
       <div id="ttl">Checking how long this link is active…</div>
-      <div id="status">Seed/handoff door for typing — not a live-session takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Type in the field below so the phone keyboard opens. Keys stream into Solari remote Chrome as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. Enter, Save, or lock clears this field.</div>
+      <div id="status">Seed/handoff door for typing — not a live-session takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Type in the field below so the phone keyboard opens. Keys stream into Solari remote Chrome as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). Console Solari Save does not capture Microsoft/SPA sessionStorage — after Save the agent must run finalize-login. Expect must be unique to the logged-in app (not marketing). Dashboard does not match One Dashboard. This typing field is not a site picker. If remote Chrome opens a different site, the agent sees hostChanged and remints — do not finalize into the old profile. An idle saved profile is deleted on the next Auspex command after 30 minutes without use (purge only after the human agrees). Enter, Save, or lock clears this field.</div>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -94,7 +94,7 @@
       <div id="expired" role="alertdialog" aria-modal="true" aria-labelledby="expiredTitle">
         <div id="expiredBox">
           <strong id="expiredTitle">This login link has expired</strong>
-          <p id="expiredText">Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page.</p>
+          <p id="expiredText">status stream-expired. Ask your AI agent to remint auspex login (nextCall auspex_login). Do not reuse this page.</p>
         </div>
       </div>
     </div>
@@ -156,6 +156,13 @@
         bootText.textContent = text
         if (hide) boot.classList.add("hidden")
         else boot.classList.remove("hidden")
+      }
+
+      function remintLine(status) {
+        var n = String(profileName || "").trim()
+        var flag = n ? " --profile " + n : ""
+        var reason = status || "stream-expired"
+        return "status " + reason + ". Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
       }
 
       function parseUnixSeconds(value) {
@@ -236,7 +243,7 @@
 
       function savePasteLine(name) {
         name = String(name || "").trim() || "<yours>"
-        return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman."
+        return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile " + name + " (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged — remint, do not finalize the old profile."
       }
 
       function liveSiteUrl() {
@@ -266,8 +273,18 @@
         if (!secret || secret === profileName) return line
         var text = String(line == null ? "" : line)
         var spans = Array.isArray(protectedSpans) ? protectedSpans : []
-        var mark0 = "@@AUSPEX_KEEP_0@@"
-        var mark1 = "@@AUSPEX_KEEP_1@@"
+        var hay = text + "\0" + String(secret)
+        function markFor(i) {
+          var n = i
+          var m
+          do {
+            m = "@@AUSPEX_KEEP_" + n + "@@"
+            n += 97
+          } while (hay.indexOf(m) !== -1)
+          return m
+        }
+        var mark0 = markFor(0)
+        var mark1 = markFor(1)
         var span0 = spans[0] || ""
         var span1 = spans[1] || ""
         if (span0) text = text.split(span0).join(mark0)
@@ -318,7 +335,7 @@
       if (!expSec) {
         lockUi(
           "Link expiry unknown — remint",
-          "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+          remintLine()
         )
         return
       }
@@ -329,7 +346,7 @@
         if (left <= 0) {
           lockUi(
             "This login link has expired",
-            "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+            remintLine()
           )
           return
         }
@@ -343,7 +360,7 @@
       if (!token) {
         lockUi(
           "This page needs a live link from auspex login",
-          "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
+          remintLine()
         )
         return
       }
@@ -453,8 +470,10 @@
           } else if (tries > 60) {
             clearInterval(bootTimer)
             bootTimer = null
-            setBoot("Ready", true)
-            setStatus("Connected. If the window is still blank, wait a few seconds or remint.")
+            lockUi(
+              "Remote Chrome opened with no frames",
+              remintLine("handshake-no-frames")
+            )
           }
         }, 500)
       }
@@ -476,11 +495,18 @@
           setBoot("Opening Chromium…")
           hideBootWhenReady()
         })
+        rfb.addEventListener("securityfailure", function () {
+          if (locked) return
+          lockUi(
+            "VNC handshake failed",
+            remintLine("handshake-no-frames")
+          )
+        })
         rfb.addEventListener("disconnect", function () {
           if (locked) return
           lockUi(
             "The remote Chrome closed. A new login link is required.",
-            "The remote Chrome closed. A new login link is required."
+            "The remote Chrome closed. A new login link is required. " + remintLine()
           )
         })
       } catch (err) {

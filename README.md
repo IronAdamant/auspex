@@ -6,7 +6,7 @@ Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `cla
 
 ## For Reviewers
 
-The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted auth-gated SaaS demo** receipt (`ok` / `claimOk` / `claimOkProfile`). The generic recipe is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect — not a named dogfood host. Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint. See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence) and [RECEIPTS.md](RECEIPTS.md).
+The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted auth-gated SaaS demo** receipt (`ok` / `claimOk` / `claimOkProfile`). The generic recipe is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect — not a named dogfood host. Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint, `stream-expired`. Timed skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md). See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence) and [RECEIPTS.md](RECEIPTS.md). Only the live check session accepts agent page actions; profile-seeded verify is a separate read-only browser.
 
 | Door | Open this |
 | --- | --- |
@@ -17,7 +17,9 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 | **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Open `handoff.url` (chooser: Phone or Desktop, same hash). Phone: `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Desktop: `handoff.desktopUrl`. Show as bullets is off by default so a password manager can paste into the text field. Tap Save (copies a line; paste it in the AI chat). Then `await-login --profile <yours> --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
 | **Login stall** | After `login` mint, if nothing happens or login fails, read `traceSummary` / `npx auspex-solari trace` before reminting. Not a fourth primitive. |
-| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`; it skips without repo `SOLARI_API_KEY` (not set). A secretless cron does not verify live Solari sessions. |
+| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`. Repo `SOLARI_API_KEY` is present (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if that secret were unset. Do not remove it. |
+| **`--record` + `--profile`** | Refused unless `--allow-record-profile` on a **public marketing** host. Refused for consistencyhub. Never `--record` a logged-in session. |
+| **Blame** | Solari HTTP `402`/`429`/`413` not retryable; `502`–`504` retry once. Those are **not** `loggedOut` / `needsHuman`. See matrix below. |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
 ```bash
@@ -28,6 +30,20 @@ npx -p auspex-solari auspex-mcp
 ```
 
 Do not run npm `auspex` (a different scraper). After a clone, `npx auspex` and `npx auspex-mcp` are the local bins.
+
+**npm `auspex-solari` 0.1.3** is prepared on this tip (doors + fail-closed after published **0.1.2**). **Founder must publish.** Agents do not `npm publish`.
+
+### Blame Solari vs Auspex
+
+| Signal | Whose | Retry? |
+| --- | --- | --- |
+| `402` FeatureRequiresPlan | Solari plan | No — drop stealth/proxy/captcha/desktop or upgrade |
+| `429` ConcurrencyLimitExceeded | Solari slot | No — `auspex_reap`, then retry |
+| `413` profile save too large | Solari limit | No — remint; leaner Save |
+| `502` / `503` / `504` | Solari infra | Yes, once (5–10s). Not `loggedOut` / `needsHuman` |
+| `loggedOut` / `needsHuman` | Auspex page | No — human SSO / remint |
+| `expectMatchedPublicLanding` | Auspex expect | No — better URL/expect |
+| `hostChanged` / `stream-expired` | Auspex door | No — remint `auspex_login` |
 
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
@@ -98,16 +114,18 @@ npx -p auspex-solari auspex-mcp
 # or: npx tsx src/mcp.ts   # from examples/auspex-ts
 ```
 
-Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
+Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer Auspex for check → verify → tear-down; use optional `solari_*` only for ad-hoc cloud browser / sandbox / desktop. Prefer `auspex_reap` for 429 recovery.
 
-The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. The workflow does not commit artifacts; demo files are refreshed by hand. A secretless cron does not verify live Solari sessions. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
+The GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21 schedule) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`. The step still skips with exit 0 if that secret were unset, so missing it would not fail PRs. Do not remove the secret. The workflow does not commit artifacts; demo files are refreshed by hand. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
 
 ## Links
 
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
+- Reviewer 5-minute path: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
+- Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → **tag @harrychow_ @getsolari on LinkedIn or X**. Discord is Solari setup help, not a substitute. The tagged post itself is founder-only.
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
-- Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set). A secretless cron does not verify live Solari sessions.
+- Issues is on. Weekly `public` runs with repo `SOLARI_API_KEY` present (masked). Observed: Actions 35605123361 (2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if unset. Do not remove the secret.
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 
