@@ -34,9 +34,30 @@ function assertTypingDoor(html: string, label: string) {
   assert.match(html, /novnc-rfb\.js/, `${label} noVNC client`)
   assert.match(html, /wss:\/\/api\.getsolari\.com\/vnc-proxy/, `${label} Solari remote UI`)
   assert.match(html, /id="ime"/, `${label} one typing field`)
-  assert.match(html, /id="paste-btn"/, `${label} Paste button`)
+  assert.equal(html.includes('id="paste-btn"'), false, `${label} no Paste button`)
+  assert.match(html, /id="bullets"/, `${label} bullets checkbox`)
+  assert.match(html, /Show as bullets/, `${label} bullets label`)
   assert.match(html, /id="imeHint"/, `${label} typing hint`)
-  assert.match(html, /click the remote login field/, `${label} hint copy`)
+  assert.match(html, /before typing anything/, `${label} click-before-type hint`)
+  assert.match(html, /remote address bar/, `${label} address bar hint`)
+  assert.match(html, /ironadamant\.com does not see/, `${label} privacy copy`)
+  assert.match(html, /destination site logs its own login/, `${label} destination-site login`)
+  assert.match(html, /off by default/, `${label} bullets default documented`)
+  assert.match(html, /<input id="ime"[^>]*type="text"/, `${label} visible text by default`)
+  assert.equal(/<input id="bullets"[^>]*\schecked/.test(html), false, `${label} bullets default off`)
+  assert.equal(/<form[\s>]/i.test(html), false, `${label} no form post`)
+  assert.equal(html.includes("sendBeacon"), false, `${label} no beacon`)
+  assert.equal(html.includes("XMLHttpRequest"), false, `${label} no XHR`)
+  assert.equal(/\bfetch\s*\(/.test(html), false, `${label} no fetch`)
+  assert.equal(/\blocalStorage\b/.test(html), false, `${label} no localStorage`)
+  assert.equal(/\bsessionStorage\s*[.\[]/.test(html), false, `${label} no sessionStorage API`)
+  assert.equal(html.includes("google-analytics"), false, `${label} no analytics`)
+  assert.equal(html.includes("gtag("), false, `${label} no gtag`)
+  assert.deepEqual(
+    [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((match) => match[1]),
+    ["./novnc-rfb.js"],
+    `${label} only the local noVNC client`,
+  )
   assert.equal(html.includes(">Paste URL<"), false, `${label} no URL paste`)
   assert.equal(html.includes('id="paste-url"'), false, `${label} no URL field`)
   assert.equal(html.includes(">Paste username<"), false, `${label} no username paste`)
@@ -64,7 +85,10 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(chooser, /location\.hash/)
   assert.match(chooser, /Seed\/handoff door for typing/)
   assert.match(chooser, /not a live-session takeover/)
+  assert.match(chooser, /before typing anything/)
+  assert.match(chooser, /ironadamant\.com does not see/)
   assert.equal(chooser.includes('id="ime"'), false)
+  assert.equal(chooser.includes('id="paste-btn"'), false)
   assert.equal(chooser.includes('id="paste-username"'), false)
   assert.equal(desktop.includes('id="backspace"'), false)
   assert.equal(desktop.includes('id="enter"'), false)
@@ -72,7 +96,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.equal(desktop.includes(">Enter<"), false)
   assert.match(desktop, /id="save"/)
   assert.equal(desktop.includes("keybox"), false)
-  const desktopOrder = ["screen", "ime", "paste-btn", "save"]
+  const desktopOrder = ["screen", "ime", "bullets", "save"]
     .map((id) => desktop.indexOf(`id="${id}"`))
   assert.deepEqual(desktopOrder, [...desktopOrder].sort((a, b) => a - b))
   assert.ok(desktopOrder.every((index) => index > 0))
@@ -124,6 +148,20 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(watch, /Phone door/)
   assert.match(watch, /Desktop door/)
   assert.match(watch, /door\.html/)
+  assert.match(watch, /no Paste button/)
+  assert.match(watch, /ironadamant\.com does not see/)
+  assert.match(USAGE, /no Paste button/)
+  assert.match(USAGE, /ironadamant\.com does not see/)
+  assert.match(USAGE, /Show as bullets is off by default/)
+  assert.match(OPERATOR_PURGE_QUESTION, /clears on Enter, Save, or lock/)
+  assert.equal(OPERATOR_PURGE_QUESTION.includes("clears on paste"), false)
+  for (const file of ["AGENTS.md", "examples/auspex-ts/AGENTS.md", ".cursor/rules/auspex.mdc"]) {
+    const text = readFileSync(path.join(repo, file), "utf8")
+    assert.match(text, /ironadamant\.com does not see/, file)
+    assert.match(text, /no Paste button/, file)
+    assert.match(text, /before typing anything/, file)
+    assert.equal(text.includes("click the remote login field, then paste"), false, file)
+  }
 })
 
 test("agent tool schemas have no username, password, or Solari key field", () => {
@@ -158,9 +196,11 @@ type DoorEl = {
   hidden: boolean
   className: string
   disabled: boolean
+  type: string
+  checked: boolean
   classList: { add: (name: string) => void; remove: (name: string) => void }
   listeners: Array<{ type: string; fn: (ev?: { key?: string; preventDefault?: () => void }) => void }>
-  addEventListener: (type: string, fn: (ev?: { preventDefault?: () => void }) => void) => void
+  addEventListener: (type: string, fn: (ev?: { key?: string; preventDefault?: () => void }) => void) => void
   focus: () => void
   blur: () => void
   setAttribute: (name: string, value?: string) => void
@@ -178,12 +218,13 @@ function loadDoor(
     intervals?: Map<number, () => void>
     cleared?: number[]
     clients?: Array<{ fire: (type: string) => void }>
+    keys?: number[]
   },
 ) {
   const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1] ?? "")
   const byId = new Map<string, DoorEl>()
   const stored = new Map<string, string>()
-  function makeEl(init?: { hidden?: boolean }): DoorEl {
+  function makeEl(init?: { hidden?: boolean; type?: string; checked?: boolean }): DoorEl {
     const el: DoorEl = {
       textContent: "",
       value: "",
@@ -191,6 +232,8 @@ function loadDoor(
       hidden: init?.hidden ?? false,
       className: "",
       disabled: false,
+      type: init?.type ?? "",
+      checked: init?.checked ?? false,
       style: {},
       listeners: [],
       classList: {
@@ -227,7 +270,12 @@ function loadDoor(
   }
   for (const id of ids) {
     const tag = html.match(new RegExp(`<[^>]*\\sid="${id}"[^>]*>`))?.[0] ?? ""
-    byId.set(id, makeEl({ hidden: /\shidden(?:\s|>|=)/.test(tag) }))
+    const type = /type="([^"]+)"/.exec(tag)?.[1] ?? ""
+    byId.set(id, makeEl({
+      hidden: /\shidden(?:\s|>|=)/.test(tag),
+      type,
+      checked: /\schecked(?:\s|>|=)/.test(tag),
+    }))
   }
   const document = {
     getElementById: (id: string) => byId.get(id) ?? makeEl(),
@@ -266,10 +314,10 @@ function loadDoor(
     },
     console,
   }
-  if (hooks?.clients) {
+  if (hooks?.clients || hooks?.keys) {
     context.NoVNCRFB = function StubRemote() {
       const listeners: Array<{ type: string; fn: () => void }> = []
-      hooks.clients?.push({
+      hooks?.clients?.push({
         fire(type: string) {
           for (const row of listeners) if (row.type === type) row.fn()
         },
@@ -278,7 +326,9 @@ function loadDoor(
         scaleViewport: false,
         resizeSession: false,
         background: "",
-        sendKey() {},
+        sendKey(keysym: number) {
+          hooks?.keys?.push(keysym)
+        },
         addEventListener(type: string, fn: () => void) {
           listeners.push({ type, fn })
         },
@@ -292,14 +342,22 @@ function loadDoor(
   for (const code of scripts) {
     vm.runInNewContext(code, context, { filename: "door.html" })
   }
-  return { byId, stored }
+  return { byId, stored, location }
 }
 
 function click(el: DoorEl | undefined) {
+  emit(el, "click")
+}
+
+function emit(
+  el: DoorEl | undefined,
+  type: string,
+  ev?: { key?: string; preventDefault?: () => void },
+) {
   assert.ok(el, "missing control")
-  const handler = el.listeners.find((row) => row.type === "click")
-  assert.ok(handler, "missing click handler")
-  handler.fn({ preventDefault() {} })
+  const handler = el.listeners.find((row) => row.type === type)
+  assert.ok(handler, `missing ${type} handler`)
+  handler.fn(ev ?? { preventDefault() {} })
 }
 
 test("a served docs tree returns the chooser and desktop pages", async () => {
@@ -347,11 +405,19 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(ime.value, "")
     ime.value = USERNAME
-    click(loaded.byId.get("paste-btn"))
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
     assert.equal(ime.value, "")
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
     assert.equal(chat.value.includes(SOLARI_KEY), false)
+    assert.equal(loaded.byId.get("copyScratch")?.value.includes(PASSWORD), false)
+    assert.equal(loaded.stored.size, 0)
+    if (name === "phone.html") {
+      ime.value = USERNAME
+      click(loaded.byId.get("enter"))
+      assert.equal(ime.value, "")
+      assert.equal(chat.value.includes(USERNAME), false)
+    }
     ime.value = PASSWORD
     click(loaded.byId.get("save"))
     assert.match(chat.value, /I tapped Save/)
@@ -403,6 +469,7 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     assert.equal(ttl.includes("Link active"), false)
     assert.equal(live.byId.get("ime")?.value, "")
     assert.equal(live.byId.get("ime")?.disabled, true)
+    assert.equal(live.byId.get("bullets")?.disabled, true)
     assert.ok(cleared.length > 0)
     for (const [, fn] of ticking) fn()
     assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
@@ -420,4 +487,50 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   const dead = loadDoor(readDoor("door.html"), "#")
   assert.equal(dead.byId.get("phone")?.href, "")
   assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
+})
+
+test("Enter clears the IME after sending the key, and bullets mode still sends real characters", () => {
+  const XK_RETURN = 0xff0d
+  const XK_BACKSPACE = 0xff08
+  for (const name of ["phone.html", "desktop.html"] as const) {
+    const keys: number[] = []
+    const loaded = loadDoor(readDoor(name), "", { keys })
+    const ime = loaded.byId.get("ime")
+    const bullets = loaded.byId.get("bullets")
+    const chat = loaded.byId.get("paste")
+    assert.ok(ime && bullets && chat)
+    assert.equal(bullets.checked, false)
+    assert.equal(ime.type, "text")
+    const hashBefore = loaded.location.hash
+    ime.value = "ab"
+    emit(ime, "input")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0)])
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+    assert.equal(ime.value, "")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN])
+    assert.equal(keys.includes(XK_BACKSPACE), false)
+    ime.value = "Z"
+    emit(ime, "input")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
+    bullets.checked = true
+    emit(bullets, "change")
+    assert.equal(ime.type, "password")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+    ime.value = PASSWORD
+    emit(ime, "input")
+    const passwordCodes = [...PASSWORD].map((ch) => ch.charCodeAt(0))
+    assert.deepEqual(keys.slice(-passwordCodes.length), passwordCodes)
+    assert.equal(keys.includes(0x2022), false)
+    click(loaded.byId.get("save"))
+    assert.equal(ime.value, "")
+    assert.equal(chat.value.includes(PASSWORD), false)
+    assert.equal(loaded.byId.get("copyScratch")?.value.includes(PASSWORD), false)
+    assert.equal(loaded.location.hash, hashBefore)
+    assert.equal(loaded.location.hash.includes(PASSWORD), false)
+    assert.equal(loaded.stored.size, 0)
+    bullets.checked = false
+    emit(bullets, "change")
+    assert.equal(ime.type, "text")
+  }
 })

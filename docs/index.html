@@ -118,9 +118,15 @@
       <code>npx auspex-solari login</code> prints one chooser link (<code>door.html</code>).
       Open it in the phone's own Safari or Chrome and tap Phone.
       <code>phone.html</code> has a real text field, so the software keyboard opens.
-      Click the remote login field, then type or paste in that one field.
-      Keys go into cloud Chrome (and the site). They stay off the AI chat line.
-      Tap Save (it copies a line). Paste that line, then
+      Click the remote address bar (or the remote field you mean to fill) before typing anything.
+      Keys stream into Solari remote Chrome as you type. There is no Paste button.
+      Press Enter to send Enter and clear the field.
+      Show as bullets is off by default so a password manager can paste into the text field.
+      ironadamant.com does not see the password or any keystrokes.
+      Keys go into Solari remote Chrome and the destination site only.
+      The destination site logs its own login.
+      They stay off the AI chat line.
+      Tap Save (it copies a line that does not include what you typed). Paste that line, then
       <code>await-login --save-editor</code>.
       This is a seed/handoff door for off-site typing (IME + Save paste),
       not a same-session HITL takeover of the live check.
@@ -131,8 +137,13 @@
       <strong>Desktop door.</strong>
       Same mint, same hash. Open the chooser on a computer and tap Desktop, or use
       <code>desktop.html</code> directly. Hardware keyboard. One typing field:
-      click the remote login field, paste here, then click the password field and paste again.
-      Keys go into cloud Chrome (and the site). They stay off the AI chat, MCP, and receipts.
+      click the remote address bar (or the remote field you mean to fill) before typing anything.
+      Keys stream as you type (no Paste button). Enter clears the local field.
+      Show as bullets is off by default so a password manager can paste into the text field.
+      ironadamant.com does not see the password or any keystrokes.
+      Keys go into Solari remote Chrome and the destination site only.
+      The destination site logs its own login.
+      They stay off the AI chat, MCP, and receipts.
       Seed/handoff door, not a live-session takeover.
       An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
       not a live timer on this field. Door pages do not collect the Solari API key.

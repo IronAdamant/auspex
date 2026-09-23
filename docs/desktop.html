@@ -59,6 +59,11 @@
       border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
     }
     #imeHint { margin: 6px 0 0; font-size: 12px; color: #6a7a90; }
+    #bulletsLabel {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 8px; font-size: 14px; color: #cde;
+    }
+    #bullets { width: 1.15rem; height: 1.15rem; margin: 0; }
     #paste { display: none; margin-top: 8px; min-height: 4.5em; font-size: 14px; }
     #paste.show { display: block; }
     #copied {
@@ -79,7 +84,7 @@
     #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
     #secretNote { margin: 8px 0 0; font-size: 12px; color: #9ab; }
     body.locked #screen { pointer-events: none; }
-    body.locked #ime, body.locked #row button { opacity: 0.45; }
+    body.locked #ime, body.locked #row button, body.locked #bulletsLabel { opacity: 0.45; }
     .err { color: #f88; }
   </style>
 </head>
@@ -88,7 +93,7 @@
     <header>
       <strong>Auspex desktop login</strong>
       <div id="ttl">Checking how long this link is active…</div>
-      <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote Chrome field, then type or paste below. Keys go into the remote Chrome (and the site). They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. The typing field clears on paste, Save, or lock.</div>
+      <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. Enter, Save, or lock clears this field.</div>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -104,16 +109,16 @@
       </div>
     </div>
     <div id="bar">
-      <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Type or paste here" aria-describedby="imeHint" />
-      <p id="imeHint">Open the link → pick Phone or Desktop → click the remote login field → paste here → click the password field → paste again. Password managers and long passwords are the reason.</p>
+      <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Type here" aria-describedby="imeHint" />
+      <p id="imeHint">Click the remote address bar, or the remote field you mean to fill, before typing anything. Keys stream into remote Chrome as you type. Press Enter to send Enter and clear this field before the next field. Show as bullets is off by default so a password manager can paste into this text field.</p>
+      <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
       <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>
       <div id="copied">Copied. Paste it in your AI chat.</div>
       <textarea id="paste" readonly></textarea>
       <div id="row">
-        <button type="button" id="paste-btn">Paste</button>
         <button type="button" id="save" class="ghost">Save</button>
       </div>
-      <p id="secretNote">Keys go into remote Chrome and the site. They stay off the AI chat line. Paste or Save clears this field.</p>
+      <p id="secretNote">ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. They stay off the AI chat, MCP, and receipts. Enter or Save clears this field. The Save line does not include what you typed.</p>
     </div>
   </div>
   <script src="./novnc-rfb.js"></script>
@@ -138,9 +143,10 @@
       var copied = document.getElementById("copied")
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
-      var pasteBtn = document.getElementById("paste-btn")
+      var bullets = document.getElementById("bullets")
       var rfb = null
       var last = ""
+      var clearing = false
       var bootTimer = null
       var tickTimer = null
       var locked = false
@@ -200,8 +206,10 @@
       }
 
       function clearLocalSecrets() {
+        clearing = true
         if (ime) ime.value = ""
         last = ""
+        clearing = false
       }
 
       function lockUi(title, message) {
@@ -210,7 +218,7 @@
         document.body.classList.add("locked")
         if (ime) ime.disabled = true
         save.disabled = true
-        if (pasteBtn) pasteBtn.disabled = true
+        if (bullets) bullets.disabled = true
         clearLocalSecrets()
         screen.style.pointerEvents = "none"
         expiredTitle.textContent = title
@@ -356,12 +364,19 @@
         for (var n = i; n < next.length; n++) sendChar(next.charAt(n))
       }
 
-      function typeText(text) {
-        for (var i = 0; i < text.length; i++) sendChar(text.charAt(i))
+      function applyBulletMode() {
+        if (!ime) return
+        var keep = ime.value
+        clearing = true
+        ime.type = bullets && bullets.checked ? "password" : "text"
+        if (typeof ime.setAttribute === "function") ime.setAttribute("autocomplete", "off")
+        if (ime.value !== keep) ime.value = keep
+        last = keep
+        clearing = false
       }
 
       ime.addEventListener("input", function () {
-        if (locked) return
+        if (locked || clearing) return
         var next = ime.value
         sendDiff(last, next)
         last = next
@@ -371,6 +386,7 @@
         if (e.key === "Enter") {
           e.preventDefault()
           sendKey(XK_RETURN, "Enter")
+          clearLocalSecrets()
         } else if (e.key === "Tab") {
           e.preventDefault()
           sendKey(XK_TAB, "Tab")
@@ -379,13 +395,13 @@
           sendBackspace()
         }
       })
-      pasteBtn.addEventListener("click", function () {
-        if (locked) return
-        var value = ime.value
-        if (!value) return
-        if (last !== value) typeText(value)
-        clearLocalSecrets()
-      })
+      if (bullets) {
+        bullets.addEventListener("change", function () {
+          if (locked) return
+          applyBulletMode()
+          if (ime && !ime.disabled) ime.focus()
+        })
+      }
 
       var RFB = (window.NoVNCRFB && window.NoVNCRFB.default) || window.NoVNCRFB
       if (typeof RFB !== "function") {
@@ -405,7 +421,7 @@
             clearInterval(bootTimer)
             bootTimer = null
             setBoot("Ready", true)
-            setStatus("Connected. Click the remote Chrome field, then type or paste below.")
+            setStatus("Connected. Click the remote address bar (or the remote field you mean to fill) before typing anything.")
             ime.focus()
           } else if (tries === 16) {
             setBoot("Still opening remote Chrome…")
