@@ -160,6 +160,11 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(USAGE, /no Paste button/)
   assert.match(USAGE, /ironadamant\.com does not see/)
   assert.match(USAGE, /Show as bullets is off by default/)
+  for (const file of ["README.md", "examples/auspex-ts/README.md", "AGENTS.md", "examples/auspex-ts/AGENTS.md"]) {
+    const text = readFileSync(path.join(repo, file), "utf8")
+    assert.match(text, /Show as bullets is off by default/, file)
+    assert.match(text, /password manager can paste into the text field/, file)
+  }
   assert.match(USAGE, /type the login again/)
   assert.match(USAGE, /do not host those credentials or session secrets/)
   assert.match(OPERATOR_PURGE_QUESTION, /clears on Enter, Save, or lock/)
@@ -511,6 +516,64 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   const dead = loadDoor(readDoor("door.html"), "#")
   assert.equal(dead.byId.get("phone")?.href, "")
   assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
+})
+
+test("Save strips any non-empty typed secret, including length 1 and 2", () => {
+  const exp = Math.floor(Date.now() / 1000) + 600
+  for (const name of ["phone.html", "desktop.html"] as const) {
+    const html = readDoor(name)
+    assert.equal(html.includes("secret.length < 3"), false, `${name} no length floor`)
+    assert.match(html, /if \(!secret \|\| secret === profileName\) return line/, `${name} stripSecret guard`)
+
+    const empty = loadDoor(html, `#v=door-token&exp=${exp}&n=app-example`)
+    const emptyIme = empty.byId.get("ime")
+    const emptyChat = empty.byId.get("paste")
+    assert.ok(emptyIme && emptyChat)
+    emptyIme.value = ""
+    click(empty.byId.get("save"))
+    assert.match(emptyChat.value, /I tapped Save/)
+    assert.match(emptyChat.value, /--profile app-example/)
+    assert.equal(emptyIme.value, "")
+
+    const one = loadDoor(
+      html,
+      `#v=door-token&exp=${exp}&n=app-example&u=${encodeURIComponent("https://q.test")}`,
+    )
+    const oneIme = one.byId.get("ime")
+    const oneChat = one.byId.get("paste")
+    assert.ok(oneIme && oneChat)
+    oneIme.value = "q"
+    click(one.byId.get("save"))
+    assert.equal(oneChat.value.includes("q"), false, `${name} length-1 secret stripped`)
+    assert.match(oneChat.value, /Site URL: https:\/\/\.test/)
+    assert.match(oneChat.value, /I tapped Save/)
+    assert.equal(oneIme.value, "")
+
+    const two = loadDoor(
+      html,
+      `#v=door-token&exp=${exp}&n=app-example&u=${encodeURIComponent("https://ab.test")}`,
+    )
+    const twoIme = two.byId.get("ime")
+    const twoChat = two.byId.get("paste")
+    assert.ok(twoIme && twoChat)
+    twoIme.value = "ab"
+    click(two.byId.get("save"))
+    assert.equal(twoChat.value.includes("ab"), false, `${name} length-2 secret stripped`)
+    assert.match(twoChat.value, /Site URL: https:\/\/\.test/)
+    assert.match(twoChat.value, /I tapped Save/)
+    assert.equal(twoIme.value, "")
+
+    const named = loadDoor(html, `#v=door-token&exp=${exp}&n=ab`)
+    const namedIme = named.byId.get("ime")
+    const namedChat = named.byId.get("paste")
+    assert.ok(namedIme && namedChat)
+    namedIme.value = "ab"
+    click(named.byId.get("save"))
+    assert.match(namedChat.value, /--profile ab/, `${name} profileName is not stripped`)
+    assert.match(namedChat.value, /profile ab/)
+    assert.match(namedChat.value, /I tapped Save/)
+    assert.equal(namedIme.value, "")
+  }
 })
 
 test("Enter clears the IME after sending the key, and bullets mode still sends real characters", () => {

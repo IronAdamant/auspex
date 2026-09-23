@@ -263,7 +263,7 @@
       }
 
       function stripSecret(line, secret) {
-        if (!secret || secret.length < 3 || secret === profileName) return line
+        if (!secret || secret === profileName) return line
         return line.split(secret).join("")
       }
 
