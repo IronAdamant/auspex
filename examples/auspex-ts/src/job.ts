@@ -11,20 +11,19 @@ import {
   newJobId,
   publicJob,
   readJobRecord,
-  requireJobId,
   resumeJobNextCall,
   slimJobReceipt,
   writeJobRecord,
   type JobReceipt,
   type JobRecord,
 } from "./job-store.ts"
+import { remintLoginNextCall } from "./next-call.ts"
 import { postJobWake, resolveWakeWebhookUrl, type JobWakeEvent, type JobWakeResult } from "./job-wake.ts"
 import { preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost } from "./profile-host-advice.ts"
 import { liveAwaitLogin, type AwaitLoginResult } from "./profile-persist.ts"
 import { loginProfile, requireProfileName, type LoginResult } from "./profiles.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
-import type { ProgressFn } from "./progress.ts"
 import { reapLeftovers, type ReapResult } from "./reap.ts"
 import { applySavedCheckName, savedCheckForProfile } from "./saved-checks.ts"
 import { checkThenVerify } from "./sandbox.ts"
@@ -33,10 +32,13 @@ import { isNonEmptyExpect } from "./text.ts"
 export {
   JOB_ID_ERROR,
   JOB_PHASES,
+  JOB_STATUS_MAX_WAIT_MS,
+  JOB_STATUS_POLL_MS,
   jobFilePath,
   jobsDir,
   newJobId,
   readJobRecord,
+  readJobStatus,
   requireJobId,
   writeJobRecord,
   type JobHandoff,
@@ -44,12 +46,11 @@ export {
   type JobReceipt,
   type JobRecord,
   type JobStatus,
+  type JobStatusDeps,
+  type JobStatusOptions,
 } from "./job-store.ts"
 
 export { JOB_DESCRIPTION, JOB_INPUT_ERROR, JOB_STATUS_DESCRIPTION, parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
-
-export const JOB_STATUS_MAX_WAIT_MS = 60_000
-export const JOB_STATUS_POLL_MS = 250
 
 export type JobCheckResult = { receipt: AgentReceipt; verified: boolean }
 
@@ -212,7 +213,7 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
     record.status = "stream-expired"
     record.reason = "stream-expired"
     record.ok = false
-    record.nextCall = waited.nextCall ?? { tool: "auspex_login", profile: record.profile }
+    record.nextCall = waited.nextCall ?? remintLoginNextCall(record.profile)
     return record
   }
   if (waited.status === "host-changed") {
@@ -403,7 +404,7 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         record.status = "failed"
         record.reason = "no-handoff"
         record.next = minted.next
-        record.nextCall = minted.nextCall ?? { tool: "auspex_login", profile: record.profile }
+        record.nextCall = minted.nextCall ?? remintLoginNextCall(record.profile)
         await persist()
         return publicJob(record, { wake: await wake("failed") })
       }
@@ -491,51 +492,3 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
   }
 }
 
-export type JobStatusOptions = {
-  jobId: string
-  waitMs?: number
-  onProgress?: ProgressFn
-}
-
-export async function readJobStatus(opts: JobStatusOptions, deps: JobDeps = {}): Promise<JobReceipt> {
-  const id = requireJobId(opts.jobId)
-  const dir = deps.jobsDir
-  const sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
-  const waitMs = Math.max(0, Math.min(JOB_STATUS_MAX_WAIT_MS, opts.waitMs ?? 0))
-  const progress = opts.onProgress ?? (() => undefined)
-  let current: JobRecord
-  try {
-    current = await readJobRecord(id, dir)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return publicJob({
-      schemaVersion: 1,
-      jobId: id,
-      phase: "failed",
-      status: "failed",
-      ok: false,
-      reason: /enoent|no such file/i.test(message) ? "job-not-found" : message,
-      profile: "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-  }
-  if (waitMs <= 0) return publicJob(current)
-  const startPhase = current.phase
-  const startStatus = current.status
-  const deadline = Date.now() + waitMs
-  progress(`job-status: ${current.phase}/${current.status}`)
-  while (Date.now() < deadline) {
-    await sleep(JOB_STATUS_POLL_MS)
-    current = await readJobRecord(id, dir)
-    if (current.phase !== startPhase || current.status !== startStatus) {
-      progress(`job-status: ${current.phase}/${current.status}`)
-      return publicJob(current)
-    }
-  }
-  current.next =
-    current.next ??
-    "No phase change. Without AUSPEX_WAKE_WEBHOOK resume auspex_job after the human Saves; do not poll await-login for 30 minutes."
-  current.nextCall = current.nextCall ?? resumeJobNextCall(current.jobId, current.profile)
-  return publicJob(current)
-}

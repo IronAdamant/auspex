@@ -24,7 +24,7 @@ import {
   VERIFY_DESCRIPTION,
   JOB_DESCRIPTION,
   JOB_STATUS_DESCRIPTION,
-} from "../src/mcp-tools.ts"
+} from "../src/tool-copy.ts"
 import { attachHandoffQr, loginInstructions, phoneHandoffUrl } from "../src/profiles.ts"
 import { overlaySaveEditorGuidance, waitForProfileSave } from "../src/profile-persist.ts"
 import { profileStatus } from "../src/profile-status.ts"

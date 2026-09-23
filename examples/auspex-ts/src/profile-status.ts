@@ -1,6 +1,6 @@
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
-import type { NextCall } from "./next-call.ts"
+import { remintLoginNextCall, type NextCall } from "./next-call.ts"
 import {
   emptyProfileGuide,
   finalizeLoginGuide,
@@ -206,7 +206,7 @@ export async function profileStatus(
   }
   if (!seed && result.profileSeed) seed = result.profileSeed
   if (result.needsHuman || result.reason === "needsHuman") {
-    const loginCall: NextCall = { tool: "auspex_login", profile }
+    const loginCall = remintLoginNextCall(profile)
     return {
       ok: false,
       reason: "needsHuman",

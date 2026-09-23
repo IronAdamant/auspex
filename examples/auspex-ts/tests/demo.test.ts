@@ -130,7 +130,10 @@ test("demo PNG is a real PNG", () => {
   assert.ok(png.length > 1000)
 })
 
-test("demo replay.ndjson is rrweb events and replay.html inlines them", () => {
+test("committed replay.html is a stub; ndjson generates the player", () => {
+  const stub = readFileSync(path.join(demo, "replay.html"), "utf8")
+  assert.ok(stub.length < 8_192, "committed replay.html must stay a stub")
+  assert.match(stub, /generate:replay/)
   const ndjson = readFileSync(path.join(demo, "replay.ndjson"), "utf8")
   const events = ndjson
     .split("\n")
@@ -139,29 +142,21 @@ test("demo replay.ndjson is rrweb events and replay.html inlines them", () => {
     .map((l) => JSON.parse(l) as { type: number })
   assert.ok(events.length >= 2)
   assert.equal(typeof events[0]?.type, "number")
-  const html = readFileSync(path.join(demo, "replay.html"), "utf8")
   const generated = replayHtmlFromNdjson(ndjson)
-  const block = (s: string) => {
-    const m = s.match(/<script type="application\/json" id="events">([\s\S]*?)<\/script>/)
-    assert.ok(m)
-    const parsed = JSON.parse(m[1] ?? "null") as unknown[]
-    return parsed
-  }
-  const fromFile = block(html)
-  const fromFn = block(generated)
-  assert.equal(fromFile.length, events.length)
+  const block = generated.match(/<script type="application\/json" id="events">([\s\S]*?)<\/script>/)
+  assert.ok(block)
+  const fromFn = JSON.parse(block[1] ?? "null") as unknown[]
   assert.equal(fromFn.length, events.length)
-  assert.match(html, /integrity="sha384-/)
   assert.match(generated, /integrity="sha384-/)
-  const remoteScripts = [...html.matchAll(/<script[^>]*src="[^"]+"[^>]*>/g)].map((m) => m[0])
+  const remoteScripts = [...generated.matchAll(/<script[^>]*src="[^"]+"[^>]*>/g)].map((m) => m[0])
   for (const tag of remoteScripts) {
     assert.match(tag, /integrity=/)
   }
 })
 
-test("watch replay is ConsistencyHub Microsoft wall with emails and passwords stripped", () => {
-  const html = readFileSync(path.join(demo, "replay.html"), "utf8")
+test("watch replay ndjson is ConsistencyHub Microsoft wall with emails and passwords stripped", () => {
   const ndjson = readFileSync(path.join(demo, "replay.ndjson"), "utf8")
+  const html = replayHtmlFromNdjson(ndjson)
   assert.match(html, /consistencyhub\.io/)
   assert.match(html, /Microsoft/)
   assert.equal(assertNoCredentialLeak(html).length, 0)

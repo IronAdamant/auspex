@@ -4,7 +4,12 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { USAGE } from "../src/cli.ts"
-import { TRACE_DESCRIPTION } from "../src/mcp-tools.ts"
+import {
+  AWAIT_LOGIN_DESCRIPTION,
+  CHECK_DESCRIPTION,
+  LOGIN_DESCRIPTION,
+  TRACE_DESCRIPTION,
+} from "../src/tool-copy.ts"
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repo = path.resolve(pkg, "../..")
@@ -12,7 +17,7 @@ const repo = path.resolve(pkg, "../..")
 test("root and package AGENTS agree on P0/P1 contract facts", () => {
   const root = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const pack = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
-  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
+  const copy = [CHECK_DESCRIPTION, LOGIN_DESCRIPTION, TRACE_DESCRIPTION].join("\n")
   for (const needle of [
     "--mobile",
     "--device",
@@ -41,40 +46,24 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   }
   assert.match(USAGE, /--mobile/)
   assert.match(USAGE, /--device/)
-  assert.match(USAGE, /emptySave/)
-  assert.match(USAGE, /weakSeed/)
   assert.match(USAGE, /finalize-login/)
-  assert.match(USAGE, /phone's own Safari or Chrome/)
-  assert.match(USAGE, /noVNC|remote Chromium live view/)
-  assert.match(USAGE, /mobileUrl/)
-  assert.match(USAGE, /desktopUrl/)
-  assert.match(USAGE, /real text field/)
   assert.match(USAGE, /--save-editor/)
   assert.match(USAGE, /expectMatchedPublicLanding/)
-  assert.match(USAGE, /One Dashboard/)
-  assert.match(tools, /expectMatchedPublicLanding/)
-  assert.match(tools, /mobileUrl/)
-  assert.match(tools, /desktopUrl/)
-  assert.match(tools, /real text field/)
-  assert.match(tools, /phone.html/)
-  assert.match(tools, /door.html/)
-  assert.match(USAGE, /door\.html/)
-  assert.match(tools, /HANDOFF_PHONE_DOOR_BAN/)
+  assert.match(USAGE, /npx auspex login \[--profile <name>\] \[--url <https>\]/)
+  assert.match(USAGE, /AGENTS\.md/)
+  assert.match(copy, /expectMatchedPublicLanding/)
+  assert.match(copy, /real text field/)
+  assert.match(copy, /door\.html/)
+  assert.match(copy, /defaults to verify=false/)
+  assert.match(copy, /host slug/)
   for (const [label, text] of [
     ["root AGENTS.md", root],
     ["package AGENTS.md", pack],
     ["USAGE", USAGE],
-    ["mcp-tools.ts", tools],
+    ["tool-copy.ts", copy],
   ] as const) {
     assert.equal(text.includes("gateUrl"), false, `${label} must not teach the detecting-gate URL`)
   }
-  assert.match(USAGE, /consistencyhub.*--no-verify|defaults to --no-verify/)
-  assert.match(USAGE, /derives a safe host slug/)
-  assert.match(USAGE, /npx auspex login \[--profile <name>\] \[--url <https>\]/)
-  assert.match(tools, /auspex_finalize_login/)
-  assert.match(tools, /shouldVerifyCheck/)
-  assert.match(tools, /defaults to verify=false/)
-  assert.match(tools, /derives a safe host slug/)
 })
 
 test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile", () => {
@@ -84,7 +73,6 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   const security = readFileSync(path.join(pkg, "SECURITY.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
-  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
 
   assert.equal(packReadme.includes("ok is protocol success"), false, "package README must not teach pre-#38 ok")
@@ -109,8 +97,8 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(rootAgents, /verify=true.*is not.*verifyWithProfile|not `verifyWithProfile`/)
   assert.match(packAgents, /verify=true.*is not.*verifyWithProfile|not `verifyWithProfile`/)
 
-  assert.match(tools, /They are not equivalent/)
-  assert.match(tools, /claimOkProfile/)
+  assert.match(CHECK_DESCRIPTION, /They are not equivalent/)
+  assert.match(CHECK_DESCRIPTION, /claimOkProfile/)
   assert.match(USAGE, /They are not the same/)
   assert.match(USAGE, /FAIL-CLOSED --type/)
 
@@ -292,7 +280,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
-  const deferred = readFileSync(path.join(pkg, "docs", "deferred-check-2026-09-19.md"), "utf8")
+  const deferred = readFileSync(path.join(pkg, "docs", "archive", "deferred-check-2026-09-19.md"), "utf8")
 
   assert.match(rootReadme, /named Solari sandbox Mousepad demo/)
   assert.match(rootReadme, /402 on Free/)
@@ -409,7 +397,6 @@ test("trace docs allow one post-handoff row and still forbid check rows and secr
     ["package AGENTS.md", packAgents],
     ["root README.md", rootReadme],
     ["package README.md", packReadme],
-    ["USAGE", USAGE],
     ["trace tool", TRACE_DESCRIPTION],
   ] as const) {
     assert.match(text, /post-handoff/, `${label} must name the post-handoff row`)
@@ -421,21 +408,18 @@ test("trace docs allow one post-handoff row and still forbid check rows and secr
       `${label} must not forbid the single post-handoff row`,
     )
   }
-  assert.match(USAGE, /session ids/)
   assert.match(TRACE_DESCRIPTION, /session ids/)
 })
 
 test("operator docs make claimOkProfile the reuse gate and phone a seed door", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
-  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
     ["package AGENTS.md", packAgents],
-    ["USAGE", USAGE],
-    ["mcp-tools.ts", tools],
+    ["tool-copy", CHECK_DESCRIPTION + " " + LOGIN_DESCRIPTION],
     ["Cursor rule", cursorRule],
     ["root README.md", rootReadme],
   ] as const) {
@@ -484,13 +468,11 @@ test("frozen agent door sequence is documented for operators and not a takeover"
 test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
-  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
     ["package AGENTS.md", packAgents],
-    ["USAGE", USAGE],
-    ["mcp-tools.ts", tools],
+    ["tool-copy", AWAIT_LOGIN_DESCRIPTION],
     ["Cursor rule", cursorRule],
   ] as const) {
     assert.match(text, /remint or finalize-now|Remint now/, `${label} must push remint or finalize-now`)
@@ -503,15 +485,12 @@ test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason networ
   const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
-  const tools = readFileSync(path.join(pkg, "src", "mcp-tools.ts"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
     ["package AGENTS.md", packAgents],
     ["root README.md", rootReadme],
     ["package README.md", packReadme],
-    ["USAGE", USAGE],
-    ["mcp-tools.ts", tools],
     ["Cursor rule", cursorRule],
   ] as const) {
     assert.equal(

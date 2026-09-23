@@ -35,8 +35,9 @@ import {
 import { stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
 import { decideLiveHostPersist, LIVE_HOST_CHANGED_SAVE_ERROR, noteProfileHostChanged, type LiveHostChange } from "./live-host-change.ts"
+import { finalizeLoginNextCall, remintLoginNextCall } from "./next-call.ts"
 import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./profiles.ts"
-import { attachRecordedReplay } from "./replay-save.ts"
+import { attachRecordedReplay } from "./solari.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
 import { ensureRunDir, packageRoot } from "./paths.ts"
@@ -161,9 +162,7 @@ export function needsHumanGuide(profile?: string): {
     `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` +
     HANDOFF_PHONE_DOOR_BAN +
     ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`
-  const nextCall: import("./next-call.ts").NextCall = { tool: "auspex_login" }
-  if (profile?.trim()) nextCall.profile = profile.trim()
-  return { text, nextCall }
+  return { text, nextCall: remintLoginNextCall(profile) }
 }
 
 export function needsHumanNext(profile?: string): string {
@@ -182,9 +181,7 @@ export function expectMatchedPublicLandingGuide(profile?: string): {
     `Choose an expect that appears only on the logged-in app surface and does not appear in public marketing copy. ` +
     `A capitalized word does not match inside a capitalized phrase (Dashboard does not match One Dashboard); a full marketing phrase still matches and is not saved from a public URL. ` +
     `Run finalize-login --profile ${name} --url <persistable-app-url> --expect <unique-logged-in-text>.`
-  const nextCall: import("./next-call.ts").NextCall = { tool: "auspex_finalize_login" }
-  if (profile?.trim()) nextCall.profile = profile.trim()
-  return { text, nextCall }
+  return { text, nextCall: finalizeLoginNextCall(profile) }
 }
 
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */

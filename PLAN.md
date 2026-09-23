@@ -45,7 +45,7 @@ Make Auspex:
 | Desktop is **not** the user’s Mac | Named Solari sandbox desktop. |
 | Keep the GitHub **fork** of `solari-sdk/solari-cookbook` | Harry asks “is this a public fork of the original repo?” |
 | Tests drive shipped code | No hardcoded expected values, no reimplementation of the unit under test. |
-| `npm test --prefix examples/auspex-ts` stays green | Plus `npx tsc --noEmit`, `npm run build:mcp`, `git diff --exit-code -- dist/`. |
+| `npm test --prefix examples/auspex-ts` stays green | Plus `npx tsc --noEmit`, `npm run build:mcp`. `dist/` is CI-built, not committed. |
 | `npx auspex --help` twice still lists **check / verify / desktop / reap** | Exit 0. |
 
 ---
@@ -109,12 +109,12 @@ IDs are stable. Do not drop an ID.
 | H2 | OneDrive VWP claimed without artifact | Either commit a **redacted** OneDrive receipt/PNG (same rules as CH) **or** remove the live-verified claim from RECEIPTS/AGENTS until an artifact exists. Prefer the artifact if a live run is available; else strip the claim. |
 | H3 | LICENSE copyright still “Pinetree Research” only | Keep MIT + original Pinetree line (fork). Add `Copyright (c) 2026 Iron Adamant` (or Aron Amos) for Auspex original work. |
 | H4 | Slogan “Three primitives only” vs extra commands | One sentence: primitives = check / verify / desktop; login/finalize/profile-status/reap are the auth + hygiene doors. Align README, AGENTS, PITCH. |
-| H5 | `#41` deferred memo still describes pre-#42 VWP poison | Banner at top of `deferred-check-2026-09-19.md`: superseded for VWP timeout by `vwp-magic-sleeps-2026-09-19.md` / #42. |
+| H5 | `#41` deferred memo still describes pre-#42 VWP poison | Banner at top of `docs/archive/deferred-check-2026-09-19.md`: superseded for VWP timeout by `docs/archive/vwp-magic-sleeps-2026-09-19.md` / #42. |
 | H6 | Root README still carries full cookbook tables | Keep leftovers labeled. Move the long cookbook table **below** For Reviewers + Auspex quick start, or to `examples/README.md`. First screen is Auspex. |
 | H7 | Overlay: `reason: matched` when `anonymousClaimSkipped` even if `verify.ok` is false | Pinned in `agent-receipt.test.ts` (`ok: false`, `reason: "matched"`). Optionally overlay `reason` to `network` when integrity fails, **or** set `next` when `ok === false && reason === "matched"`. Do **not** fold `claimOkProfile` into `ok`. |
 | H8 | Slogan is auth-gated; hero command is a public page | First 20 lines must label “public check (no login)” vs CH triad. Do not imply `--name ironadamant` proves logged-in honesty. |
 | H9 | CH demo `profileSeed` omits `sessionStorage` | The recipe exists to capture SS. Public JSON shows cookies/origins only. Add `sessionStorage` count **or** an explicit omit note. Do not invent a count. |
-| H10 | GitHub language = JavaScript because committed `dist/*.mjs` | Optional `.gitattributes` linguist-vendoring `examples/auspex-ts/dist/**`. |
+| H10 | GitHub language = JavaScript because committed `dist/*.mjs` | **Done (policy B).** `dist/` is CI-built (`npm run build:mcp`) and gitignored. Founder runs `build:mcp` before npm publish so the tarball still includes `examples/auspex-ts/dist/`. |
 
 ### Deferred engineering (leave-nothing + deferred-check + VWP)
 
@@ -208,7 +208,7 @@ Parallelism: items in the same wave may use **worktree-isolated** sub-agents. Wa
 - Root `npm install` / postinstall remains the path.
 - Move `tsx` (and `esbuild` if MCP rebuild is a door) to **`dependencies`**, or ship `dist/cli.mjs` and point `bin/` at `node dist/…`. Nested `@esbuild/<platform>` must install (this Mac already failed once).
 - Docs: `npx auspex --help` and `npx auspex-mcp` from repo root. Grok/Claude examples: `command = "npx"`, `args = ["auspex-mcp"]`, `cwd` = clone. Absolute `node` + `dist/mcp.mjs` is a **footnote**, not the hero.
-- Tests: `npm ci --omit=dev` then `node bin/auspex.mjs --help` exits 0; grok example hero stanza has `npx` / `auspex-mcp`; `git diff --exit-code dist/` after `build:mcp`.
+- Tests: `npm ci --omit=dev` then `node bin/auspex.mjs --help` exits 0; grok example hero stanza has `npx` / `auspex-mcp`; CI runs `npm run build:mcp` (do not commit `dist/`).
 
 **W5 — Generic second-user recipe** (U7, U10, E7)
 
@@ -308,7 +308,7 @@ Run from repo root after the last merge. Record output.
 3. `npx auspex-mcp` starts (or prints a parseable not-installed JSON) without hanging >5s on missing tsx.
 4. `npm test --prefix examples/auspex-ts` — 0 fail.
 5. `npx tsc --noEmit --prefix examples/auspex-ts` (or package script).
-6. `npm run build:mcp --prefix examples/auspex-ts && git diff --exit-code -- examples/auspex-ts/dist/`
+6. `npm run build:mcp --prefix examples/auspex-ts` (do not commit `dist/`)
 7. `git grep -n 'slr_live_[A-Za-z0-9]' -- ':!.env.example' ':!**/tests/**'` — no live keys. `.env` gitignored.
 8. Open the Pages landing **and** Pages player (`https://ironadamant.com/auspex/`, `/demo/replay.html`). Replay is `text/html`. Do not treat jsDelivr `replay.html` as the watch door (`text/plain`). CH PNG is blurred with overlay. Schema-v1 ironadamant receipt exists.
 9. Root README first screen: Watch link, For Reviewers, clone command, **no** cookbook table above the fold.

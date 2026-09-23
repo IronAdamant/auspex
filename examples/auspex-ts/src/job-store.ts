@@ -4,12 +4,21 @@ import { randomBytes } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { AgentReceipt } from "./agent-receipt.ts"
-import { scrubJobValue } from "./job-wake.ts"
+import { scrubJobValue } from "./scrub.ts"
 import type { JobWakeResult } from "./job-wake.ts"
-import type { NextCall } from "./next-call.ts"
+import { resumeJobNextCall, type NextCall } from "./next-call.ts"
 import { packageRoot } from "./paths.ts"
-import type { VerifyResult } from "./sandbox.ts"
 import { stampSchema } from "./schema-version.ts"
+
+export const JOB_STATUS_MAX_WAIT_MS = 60_000
+export const JOB_STATUS_POLL_MS = 250
+
+type SlimVerify = {
+  ok?: boolean
+  claimOk?: boolean
+  claimOkProfile?: boolean
+  anonymousClaimSkipped?: boolean
+}
 
 export const JOB_ID_ERROR = "jobId must be a safe id (letters, digits, . _ -)"
 
@@ -108,14 +117,10 @@ export function jobIso(now: () => Date): string {
   return now().toISOString()
 }
 
-export function resumeJobNextCall(jobId: string, profile: string): NextCall {
-  const nextCall: NextCall = { tool: "auspex_job", jobId }
-  if (profile.trim()) nextCall.profile = profile.trim()
-  return nextCall
-}
+export { resumeJobNextCall }
 
 export function slimJobReceipt(receipt: AgentReceipt): Record<string, unknown> {
-  const verify = receipt.verify as (VerifyResult & { anonymousClaimSkipped?: boolean }) | undefined
+  const verify = receipt.verify as SlimVerify | undefined
   const out: Record<string, unknown> = {
     schemaVersion: receipt.schemaVersion,
     ok: receipt.ok,
@@ -146,4 +151,59 @@ export function publicJob(record: JobRecord, extra?: { wake?: JobWakeResult }): 
   return scrubJobValue(stampSchema({ ...record, ...(extra?.wake ? { wake: extra.wake } : {}) }), {
     redactUrlHashes: false,
   })
+}
+
+export type JobStatusOptions = {
+  jobId: string
+  waitMs?: number
+  onProgress?: (msg: string) => void
+}
+
+export type JobStatusDeps = {
+  jobsDir?: string
+  sleep?: (ms: number) => Promise<void>
+}
+
+/** Local job file only — no Solari, desktop, or Playwright. */
+export async function readJobStatus(opts: JobStatusOptions, deps: JobStatusDeps = {}): Promise<JobReceipt> {
+  const id = requireJobId(opts.jobId)
+  const dir = deps.jobsDir
+  const sleep = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+  const waitMs = Math.max(0, Math.min(JOB_STATUS_MAX_WAIT_MS, opts.waitMs ?? 0))
+  const progress = opts.onProgress ?? (() => undefined)
+  let current: JobRecord
+  try {
+    current = await readJobRecord(id, dir)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return publicJob({
+      schemaVersion: 1,
+      jobId: id,
+      phase: "failed",
+      status: "failed",
+      ok: false,
+      reason: /enoent|no such file/i.test(message) ? "job-not-found" : message,
+      profile: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  if (waitMs <= 0) return publicJob(current)
+  const startPhase = current.phase
+  const startStatus = current.status
+  const deadline = Date.now() + waitMs
+  progress(`job-status: ${current.phase}/${current.status}`)
+  while (Date.now() < deadline) {
+    await sleep(JOB_STATUS_POLL_MS)
+    current = await readJobRecord(id, dir)
+    if (current.phase !== startPhase || current.status !== startStatus) {
+      progress(`job-status: ${current.phase}/${current.status}`)
+      return publicJob(current)
+    }
+  }
+  current.next =
+    current.next ??
+    "No phase change. Without AUSPEX_WAKE_WEBHOOK resume auspex_job after the human Saves; do not poll await-login for 30 minutes."
+  current.nextCall = current.nextCall ?? resumeJobNextCall(current.jobId, current.profile)
+  return publicJob(current)
 }

@@ -1,6 +1,6 @@
 /** Soft profile/host advisor. Does not refuse the command. */
 
-import type { NextCall } from "./next-call.ts"
+import { hostChangeNextCall, type NextCall } from "./next-call.ts"
 import { loadEditorSave } from "./profiles.ts"
 import { profileSlugFromUrl } from "./profile-slug.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
@@ -71,7 +71,7 @@ export function adviseProfileHost(opts: { profile?: string; url?: string }): Pro
     profileHostMatch: false,
     suggestedProfile: suggested,
     nextLead: profileHostMismatchLead(profile, suggested, url),
-    nextCall: { tool: "auspex_login", profile: suggested, url },
+    nextCall: hostChangeNextCall(suggested, url),
   }
 }
 

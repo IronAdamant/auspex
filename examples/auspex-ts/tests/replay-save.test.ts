@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import { SolariError, type Solari } from "@solarisdk/browser"
-import { attachRecordedReplay } from "../src/replay-save.ts"
+import { attachRecordedReplay } from "../src/solari.ts"
 
 test("attachRecordedReplay writes sidecar ndjson and returns true", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-replay-"))

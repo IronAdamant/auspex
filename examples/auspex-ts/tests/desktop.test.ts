@@ -1,13 +1,14 @@
 import assert from "node:assert/strict"
 import { Writable } from "node:stream"
 import test from "node:test"
-import { REVIEW_DONE, REVIEW_START } from "../src/banner.ts"
-import { runDesktopReview, type DesktopHandle } from "../src/desktop.ts"
 import {
   collectProcessSignal,
   expectOnProcessSignal,
+  runDesktopReview,
   waitForProcess,
-} from "../src/desktop-probe.ts"
+  type DesktopHandle,
+} from "../src/desktop.ts"
+import { REVIEW_DONE, REVIEW_START } from "../src/tui.ts"
 import { encodePng } from "../src/png-fit.ts"
 
 function capture(): { stream: Writable; text: () => string } {

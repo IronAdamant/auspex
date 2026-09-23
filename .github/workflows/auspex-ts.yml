@@ -25,10 +25,9 @@ jobs:
           cache: npm
           cache-dependency-path: examples/auspex-ts/package-lock.json
       - run: npm ci
+      - run: npm run build:mcp
       - run: npm test
       - run: npx tsc --noEmit
-      - run: npm run build:mcp
-      - run: git diff --exit-code -- dist/
       - name: npm audit high+
         run: npm audit --audit-level=high
         continue-on-error: true
