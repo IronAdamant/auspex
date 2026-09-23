@@ -2,7 +2,13 @@ import { existsSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { BrowserSession } from "@solarisdk/browser"
-import { agentReceiptOk, deriveCheckReason, type CheckReason, type SpecialCheckReason } from "./check-reason.ts"
+import {
+  agentReceiptOk,
+  deriveCheckReason,
+  expectOnUnpersistableLanding,
+  type CheckReason,
+  type SpecialCheckReason,
+} from "./check-reason.ts"
 import { persistAgentManifest } from "./agent-receipt.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
@@ -92,7 +98,7 @@ export type { CheckReason } from "./check-reason.ts"
 export type CheckResult = {
   /** Agent success: reason is matched (verify, when it ran, is folded in by toAgentReceipt). */
   ok: boolean
-  /** Protocol success (URL+PNG, not loggedOut/needsHuman/recordedLoggedIn). Not the receipt `ok`. */
+  /** Protocol success (URL+PNG, not loggedOut/needsHuman/recordedLoggedIn/expectMatchedPublicLanding). Not the receipt `ok`. */
   protocolOk?: boolean
   reason: CheckReason
   url: string
@@ -159,6 +165,23 @@ export function needsHumanGuide(profile?: string): {
 
 export function needsHumanNext(profile?: string): string {
   return needsHumanGuide(profile).text
+}
+
+/** Agent next when expect text hit a URL that `--save-profile` will not persist. */
+export function expectMatchedPublicLandingGuide(profile?: string): {
+  text: string
+  nextCall: import("./next-call.ts").NextCall
+} {
+  const name = profile?.trim() || "<yours>"
+  const text =
+    `Expect text was found, but the live URL is not a persistable app page (/, /landing, /login, /signup, or /auth). ` +
+    `${PUBLIC_PROFILE_SAVE_ERROR}. reason expectMatchedPublicLanding means ok is false and matched is false; no profile bytes were written. ` +
+    `Choose an expect that appears only on the logged-in app surface and does not appear in public marketing copy. ` +
+    `A capitalized word does not match inside a capitalized phrase (Dashboard does not match One Dashboard); a full marketing phrase still matches and is not saved from a public URL. ` +
+    `Run finalize-login --profile ${name} --url <persistable-app-url> --expect <unique-logged-in-text>.`
+  const nextCall: import("./next-call.ts").NextCall = { tool: "auspex_finalize_login" }
+  if (profile?.trim()) nextCall.profile = profile.trim()
+  return { text, nextCall }
 }
 
 /** Resolve URL/expect for finalize-login. Saved-check profiles supply defaults; unknown profiles require both. */
@@ -364,12 +387,26 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           matched = false
         }
       }
+      const liveUrl = finalUrl || page.url()
+      const unpersistableHit = expectOnUnpersistableLanding({
+        saveProfile: Boolean(opts.saveProfile && profileId),
+        textMatched: matched,
+        finalUrl: liveUrl,
+        needsHuman,
+      })
       if (needsHuman) {
         matched = false
         excerpt = prepareCheckExcerpt({
           raw: raw || excerpt,
           needsHuman: true,
           prefix: `needsHuman: password or OTP wall at ${finalUrl || page.url()}.`,
+        })
+      } else if (unpersistableHit) {
+        special = "expectMatchedPublicLanding"
+        matched = false
+        excerpt = prepareCheckExcerpt({
+          raw: raw || excerpt,
+          prefix: `expectMatchedPublicLanding: expect text is on ${liveUrl}, which is not a persistable app URL. Profile was not saved.`,
         })
       } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl, { matched })) {
         special = "loggedOut"
@@ -394,7 +431,6 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       }
       if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
         onProgress("save-profile")
-        const liveUrl = finalUrl || page.url()
         if (!isPersistableAppUrl(liveUrl)) {
           profileSaved = {
             ok: false,
@@ -466,8 +502,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         savedOk &&
         !loggedOut &&
         !blockedHuman &&
-        special !== "recordedLoggedIn",
-    )
+        special !== "recordedLoggedIn" &&
+        special !== "expectMatchedPublicLanding",
+      )
     const reason = deriveCheckReason({
       special,
       needsHuman,
@@ -486,6 +523,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       nextCall = guided.nextCall
     } else if (reason === "needsHuman") {
       const guided = needsHumanGuide(opts.profile)
+      next = guided.text
+      nextCall = guided.nextCall
+    } else if (reason === "expectMatchedPublicLanding") {
+      const guided = expectMatchedPublicLandingGuide(opts.profile)
       next = guided.text
       nextCall = guided.nextCall
     }

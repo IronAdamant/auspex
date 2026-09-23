@@ -33,6 +33,8 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "desktop.html",
     "saveEditor",
     "GET editor HTTP 401",
+    "expectMatchedPublicLanding",
+    "One Dashboard",
   ]) {
     assert.match(root, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `root AGENTS missing ${needle}`)
     assert.match(pack, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `package AGENTS missing ${needle}`)
@@ -48,6 +50,9 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(USAGE, /desktopUrl/)
   assert.match(USAGE, /real text field/)
   assert.match(USAGE, /--save-editor/)
+  assert.match(USAGE, /expectMatchedPublicLanding/)
+  assert.match(USAGE, /One Dashboard/)
+  assert.match(tools, /expectMatchedPublicLanding/)
   assert.match(tools, /mobileUrl/)
   assert.match(tools, /desktopUrl/)
   assert.match(tools, /real text field/)
