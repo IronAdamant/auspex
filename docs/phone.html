@@ -288,6 +288,7 @@
       }
 
       function tick() {
+        if (locked) return
         var left = expSec - Math.floor(Date.now() / 1000)
         if (left <= 0) {
           lockUi(

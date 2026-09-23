@@ -362,7 +362,7 @@
       }
 
       function tick() {
-        if (linkClosed) return
+        if (locked || linkClosed) return
         var left = expSec - Math.floor(Date.now() / 1000)
         if (left <= 0) {
           lockUi(
