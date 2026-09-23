@@ -11,7 +11,7 @@ export const PHONE_LIST_MS = 10 * 60 * 1000
 export const SIGNUP_BUSY_MS = 30 * 60 * 1000
 
 export const OPERATOR_PURGE_QUESTION =
-  "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe."
+  "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe."
 
 export const OPERATOR_HELP =
   OPERATOR_PURGE_QUESTION +
@@ -19,7 +19,7 @@ export const OPERATOR_HELP =
   "npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. " +
   "humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. " +
   "One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. " +
-  "One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. " +
+  "One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. They stay off agent chat, MCP, and receipts. " +
   "Agents use SOLARI_API_KEY, or gitignored .auspex/operator-key written on the operator machine. Door pages have no Solari key field and do not post a key to loopback."
 
 export type OperatorProfileInput = {
