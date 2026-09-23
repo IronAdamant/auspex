@@ -141,7 +141,7 @@ type DoorEl = {
   textContent: string
   value: string
   href: string
-  hidden?: boolean
+  hidden: boolean
   className: string
   disabled: boolean
   classList: { add: (name: string) => void; remove: (name: string) => void }
@@ -149,7 +149,7 @@ type DoorEl = {
   addEventListener: (type: string, fn: (ev?: { preventDefault?: () => void }) => void) => void
   focus: () => void
   blur: () => void
-  setAttribute: () => void
+  setAttribute: (name: string, value?: string) => void
   removeAttribute: (name?: string) => void
   setSelectionRange: () => void
   querySelector: () => null
@@ -169,11 +169,12 @@ function loadDoor(
   const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1] ?? "")
   const byId = new Map<string, DoorEl>()
   const stored = new Map<string, string>()
-  function makeEl(): DoorEl {
+  function makeEl(init?: { hidden?: boolean }): DoorEl {
     const el: DoorEl = {
       textContent: "",
       value: "",
       href: "",
+      hidden: init?.hidden ?? false,
       className: "",
       disabled: false,
       style: {},
@@ -194,8 +195,12 @@ function loadDoor(
       },
       focus() {},
       blur() {},
-      setAttribute() {},
-      removeAttribute() {},
+      setAttribute(name, value) {
+        if (name === "hidden") el.hidden = value !== "false"
+      },
+      removeAttribute(name) {
+        if (name === "hidden") el.hidden = false
+      },
       setSelectionRange() {},
       querySelector: () => null,
       appendChild(child: DoorEl) {
@@ -205,7 +210,10 @@ function loadDoor(
     }
     return el
   }
-  for (const id of ids) byId.set(id, makeEl())
+  for (const id of ids) {
+    const tag = html.match(new RegExp(`<[^>]*\\sid="${id}"[^>]*>`))?.[0] ?? ""
+    byId.set(id, makeEl({ hidden: /\shidden(?:\s|>|=)/.test(tag) }))
+  }
   const document = {
     getElementById: (id: string) => byId.get(id) ?? makeEl(),
     createElement: () => makeEl(),
