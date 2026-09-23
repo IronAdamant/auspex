@@ -5,6 +5,7 @@ export const NEXT_CALL_TOOLS = [
   "auspex_reap",
   "auspex_await_login",
   "auspex_finalize_login",
+  "auspex_job",
 ] as const
 
 export type NextCallTool = (typeof NEXT_CALL_TOOLS)[number]
@@ -16,4 +17,5 @@ export type NextCall = {
   saveEditor?: boolean
   url?: string
   expect?: string
+  jobId?: string
 }

@@ -22,10 +22,13 @@ import {
   REAP_DESCRIPTION,
   TRACE_DESCRIPTION,
   VERIFY_DESCRIPTION,
+  JOB_DESCRIPTION,
+  JOB_STATUS_DESCRIPTION,
 } from "../src/mcp-tools.ts"
 import { attachHandoffQr, loginInstructions, phoneHandoffUrl } from "../src/profiles.ts"
 import { overlaySaveEditorGuidance, waitForProfileSave } from "../src/profile-persist.ts"
 import { profileStatus } from "../src/profile-status.ts"
+import { NEXT_CALL_TOOLS } from "../src/next-call.ts"
 import { RECEIPT_V1_REQUIRED_KEYS } from "../src/receipt-schema.ts"
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
@@ -69,6 +72,8 @@ test("needsHuman receipt points nextCall at login with the profile from the pros
     "expect",
     "screenshotPath",
   ])
+  assert.ok(NEXT_CALL_TOOLS.includes("auspex_job"))
+  assert.ok(NEXT_CALL_TOOLS.includes("auspex_login"))
   assert.equal(receipt.schemaVersion, 1)
   for (const key of RECEIPT_V1_REQUIRED_KEYS) assert.equal(typeof receipt[key] !== "undefined", true)
   assert.equal(receipt.nextCall?.tool, "auspex_login")
@@ -402,6 +407,8 @@ test("MCP tool descriptions lead with the mistake that breaks the call", () => {
     ["auspex_verify", VERIFY_DESCRIPTION, /^Calling auspex_verify after a default auspex_check/],
     ["auspex_reap", REAP_DESCRIPTION, /^Passing accountWide to clear one 429/],
     ["auspex_trace", TRACE_DESCRIPTION, /^Treating auspex_trace as a log of check rows, tokens, or session ids is a lie\.$/],
+    ["auspex_job", JOB_DESCRIPTION, /^Treating ok as claimOkProfile, or polling await-login for 30 minutes, is a lie\.$/],
+    ["auspex_job_status", JOB_STATUS_DESCRIPTION, /^Blind 30-minute polls of await-login waste the slot\.$/],
   ]
   const bindings: Record<string, string> = {
     auspex_check: "CHECK_DESCRIPTION",
@@ -414,6 +421,8 @@ test("MCP tool descriptions lead with the mistake that breaks the call", () => {
     auspex_verify: "VERIFY_DESCRIPTION",
     auspex_reap: "REAP_DESCRIPTION",
     auspex_trace: "TRACE_DESCRIPTION",
+    auspex_job: "JOB_DESCRIPTION",
+    auspex_job_status: "JOB_STATUS_DESCRIPTION",
   }
   for (const [tool, description, lead] of leads) {
     assert.match(firstSentence(description), lead, tool)

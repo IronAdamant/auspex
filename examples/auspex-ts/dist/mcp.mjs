@@ -27,8 +27,8 @@ function stillOnAuth(url) {
   if (idpAuthHost(url.hostname)) {
     return true;
   }
-  const path18 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path18 === "/login" || path18.startsWith("/login/") || path18 === "/auth" || path18.startsWith("/auth/")) {
+  const path19 = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path19 === "/login" || path19.startsWith("/login/") || path19 === "/auth" || path19.startsWith("/auth/")) {
     return true;
   }
   return false;
@@ -211,8 +211,8 @@ function isPersistableAppUrl(url) {
     return false;
   }
   if (stillOnAuth(parsed)) return false;
-  const path18 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path18 === "/" || path18 === "/landing" || path18 === "/login" || path18 === "/signup" || path18.startsWith("/auth")) {
+  const path19 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path19 === "/" || path19 === "/landing" || path19 === "/login" || path19 === "/signup" || path19.startsWith("/auth")) {
     return false;
   }
   return true;
@@ -225,9 +225,9 @@ function isLoggedOutLanding(url, opts) {
     return false;
   }
   if (stillOnAuth(parsed)) return true;
-  const path18 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
-  if (path18 === "/landing" || path18.startsWith("/landing/")) return true;
-  if (path18 === "/") return opts?.matched !== true;
+  const path19 = (parsed.pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  if (path19 === "/landing" || path19.startsWith("/landing/")) return true;
+  if (path19 === "/") return opts?.matched !== true;
   return false;
 }
 function cookiesForOrigin(cookies, origin) {
@@ -1614,12 +1614,12 @@ function fetchWithIdempotencyKey(base = fetch) {
     const headers = new Headers(init?.headers);
     const method = (init?.method ?? "GET").toUpperCase();
     const url = String(input);
-    let path18 = url;
+    let path19 = url;
     try {
-      path18 = new URL(url, BROWSER_API_BASE).pathname;
+      path19 = new URL(url, BROWSER_API_BASE).pathname;
     } catch {
     }
-    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path18);
+    const isVmCreate = method === "POST" && /\/(sandboxes|desktops)\/?$/.test(path19);
     if (isVmCreate && !headers.has("Idempotency-Key")) {
       headers.set("Idempotency-Key", crypto.randomUUID());
     }
@@ -2155,8 +2155,8 @@ function formatLogin(result) {
 async function defaultProfileHttp() {
   const key = requireApiKey();
   return {
-    post: async (path18, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path18}`, {
+    post: async (path19, body) => {
+      const res = await fetch(`${BROWSER_API_BASE}${path19}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
@@ -2205,8 +2205,8 @@ async function ensureProfile(name) {
 }
 function handoffTokenFromUrl(url) {
   try {
-    const path18 = new URL(url).pathname;
-    const parts = path18.split("/").filter(Boolean);
+    const path19 = new URL(url).pathname;
+    const parts = path19.split("/").filter(Boolean);
     const i = parts.lastIndexOf("handoff");
     return i >= 0 ? parts[i + 1] ?? "" : "";
   } catch {
@@ -2214,8 +2214,8 @@ function handoffTokenFromUrl(url) {
   }
 }
 async function defaultEditorPost(handoffToken) {
-  return async (path18) => {
-    const res = await fetch(`${CONSOLE_PROFILES_URL}${path18}`, {
+  return async (path19) => {
+    const res = await fetch(`${CONSOLE_PROFILES_URL}${path19}`, {
       method: "POST",
       headers: {
         "x-handoff-token": handoffToken,
@@ -4671,6 +4671,26 @@ var auspexProfileStatusInputSchema = z4.object({
   name: z4.string().trim().min(1).optional().describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
   url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)")
 });
+var auspexJobInputObject = z4.object({
+  jobId: z4.string().trim().min(1).optional().describe("Resume a persisted job (.auspex/jobs/<id>.json). Required unless name or url+expect is set."),
+  name: z4.string().trim().min(1).optional().describe("Saved check name (ironadamant, checkpoint, consistencyhub). Supplies url/expect/profile."),
+  profile: profileNameSchema.optional().describe("Profile name. Omit with url to derive a host slug (app.example.com \u2192 app-example-com). Explicit profile wins."),
+  url: httpUrlSchema.optional().describe("http(s) app URL. Required with expect unless name or jobId is set. Derives profile when profile is omitted."),
+  expect: expectSchema.optional().describe("Unique logged-in claim substring. Required with url unless name or jobId is set. Must not appear in public marketing copy."),
+  skipFinalize: z4.boolean().optional().describe("Skip finalize-login after await (SPAs that keep tokens in sessionStorage still need finalize while the token is live)."),
+  verifyWithProfile: z4.boolean().optional().describe(
+    "After check, run profile-seeded verify. claimOkProfile is the reuse gate \u2014 ok alone is not reusable. Do not invent claimOkProfile=true."
+  ),
+  wait: z4.boolean().optional().describe("If true on first mint, continue into await in this call (like login --wait). Default returns after mint so the human can open handoff."),
+  wakeWebhookUrl: httpUrlSchema.optional().describe(
+    "Optional operator-local http(s) URL. POST scrubbed JSON on stream-expired, hostChanged, editor-save-hung, profile saved/claimable, completed/failed. Env AUSPEX_WAKE_WEBHOOK is the default. Not a Solari push API."
+  ),
+  timeoutMs: z4.number().optional().describe("Await-login cap in ms (same bound as auspex_await_login).")
+});
+var auspexJobStatusInputSchema = z4.object({
+  jobId: z4.string().trim().min(1).describe("Job id from auspex_job"),
+  waitMs: z4.number().optional().describe("Optional short wait (max 60000) until phase/status changes. Not a 30-minute poll. Local file watch only.")
+});
 
 // src/check.ts
 init_solari();
@@ -6367,6 +6387,641 @@ async function checkThenVerify(opts, deps) {
 
 // src/mcp-tools.ts
 init_saved_checks();
+
+// src/job.ts
+init_errors();
+init_http_url();
+
+// src/job-cli.ts
+init_http_url();
+
+// src/job-store.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
+import { mkdir as mkdir7, readFile as readFile10, rename as rename2, writeFile as writeFile8 } from "node:fs/promises";
+import path18 from "node:path";
+
+// src/job-wake.ts
+init_errors();
+init_http_url();
+
+// src/replay-redact.ts
+var REDACTED_EMAIL = "[redacted-email]";
+var EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+function redactEmailsInString(value) {
+  return value.replace(EMAIL_RE, REDACTED_EMAIL);
+}
+
+// src/job-wake.ts
+var AUSPEX_WAKE_WEBHOOK_ENV = "AUSPEX_WAKE_WEBHOOK";
+var WAKE_POST_TIMEOUT_MS = 5e3;
+var DROP_KEY = /^(password|passwd|token|secret|cookie|cookies|authorization|apiKey|api_key|accessToken|refreshToken|handoffToken|sessionId|excerpt|solariKey|otp)$/i;
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function scrubUrlString(value) {
+  const redacted = redactSecrets(redactEmailsInString(value));
+  try {
+    const url = new URL(redacted);
+    if (url.username || url.password) {
+      url.username = "";
+      url.password = "";
+    }
+    if (url.hash && url.hash.length > 1) url.hash = "#redacted";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/token|secret|key|password|auth|jwt|otp|code/i.test(key)) {
+        url.searchParams.set(key, "redacted");
+      }
+    }
+    return url.toString();
+  } catch {
+    return redacted;
+  }
+}
+function scrubJobString(value, opts = {}) {
+  if (/^https?:\/\//i.test(value.trim())) {
+    return opts.redactUrlHashes === false ? scrubUrlKeepHash(value) : scrubUrlString(value);
+  }
+  return redactSecrets(redactEmailsInString(value));
+}
+function scrubUrlKeepHash(value) {
+  const redacted = redactSecrets(redactEmailsInString(value));
+  try {
+    const url = new URL(redacted);
+    if (url.username || url.password) {
+      url.username = "";
+      url.password = "";
+    }
+    return url.toString();
+  } catch {
+    return redacted;
+  }
+}
+function scrubJobValue(value, opts = {}) {
+  return walkScrub(value, opts);
+}
+function walkScrub(value, opts) {
+  if (value == null) return value;
+  if (typeof value === "string") return scrubJobString(value, opts);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map((row) => walkScrub(row, opts));
+  if (!isRecord(value)) return value;
+  const out = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (DROP_KEY.test(key)) continue;
+    out[key] = walkScrub(raw, opts);
+  }
+  return out;
+}
+function resolveWakeWebhookUrl(explicit, env = process.env) {
+  const raw = (explicit ?? env[AUSPEX_WAKE_WEBHOOK_ENV] ?? "").trim();
+  if (!raw) return void 0;
+  if (!isHttpOrHttpsUrl(raw)) {
+    throw new Error("wakeWebhookUrl must be an http or https URL (no userinfo)");
+  }
+  return raw;
+}
+async function postJobWake(payload, opts = {}) {
+  let dest;
+  try {
+    dest = resolveWakeWebhookUrl(opts.url, opts.env);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+  const event = isRecord(payload) && typeof payload.event === "string" ? payload.event : void 0;
+  if (!dest) return { ok: true, skipped: true, event };
+  const body = JSON.stringify(scrubJobValue(payload));
+  const fetchFn = opts.fetch ?? fetch;
+  const timeoutMs = opts.timeoutMs ?? WAKE_POST_TIMEOUT_MS;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetchFn(dest, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      signal: ac.signal
+    });
+    if (!res.ok) return { ok: false, event, status: res.status, error: `wake POST ${res.status}` };
+    return { ok: true, event, status: res.status };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return { ok: false, event, error: scrubJobString(error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// src/job-store.ts
+init_paths();
+var JOB_ID_ERROR = "jobId must be a safe id (letters, digits, . _ -)";
+function jobsDir(override) {
+  return override ?? (process.env.AUSPEX_JOBS_DIR?.trim() || path18.join(packageRoot, ".auspex", "jobs"));
+}
+function newJobId(now = () => /* @__PURE__ */ new Date()) {
+  return `job-${now().getTime().toString(36)}-${randomBytes2(4).toString("hex")}`;
+}
+function requireJobId(raw) {
+  const id = (raw ?? "").trim();
+  if (!id || !/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(id)) throw new Error(JOB_ID_ERROR);
+  return id;
+}
+function jobFilePath(jobId, dir) {
+  return path18.join(jobsDir(dir), `${requireJobId(jobId)}.json`);
+}
+async function writeJobRecord(record, dir) {
+  const folder = jobsDir(dir);
+  await mkdir7(folder, { recursive: true });
+  const dest = jobFilePath(record.jobId, dir);
+  const tmp = `${dest}.${randomBytes2(3).toString("hex")}.tmp`;
+  await writeFile8(tmp, `${JSON.stringify(record, null, 2)}
+`);
+  await rename2(tmp, dest);
+  return dest;
+}
+async function readJobRecord(jobId, dir) {
+  const raw = await readFile10(jobFilePath(jobId, dir), "utf8");
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed.jobId !== "string") throw new Error(`job ${jobId} is not a job record`);
+  return parsed;
+}
+function jobIso(now) {
+  return now().toISOString();
+}
+function resumeJobNextCall(jobId, profile) {
+  const nextCall = { tool: "auspex_job", jobId };
+  if (profile.trim()) nextCall.profile = profile.trim();
+  return nextCall;
+}
+function slimJobReceipt(receipt) {
+  const verify = receipt.verify;
+  const out = {
+    schemaVersion: receipt.schemaVersion,
+    ok: receipt.ok,
+    reason: receipt.reason,
+    url: receipt.url,
+    expect: receipt.expect,
+    screenshotPath: receipt.screenshotPath
+  };
+  if (receipt.matched !== void 0) out.matched = receipt.matched;
+  if (receipt.next) out.next = receipt.next;
+  if (receipt.nextCall) out.nextCall = receipt.nextCall;
+  if (receipt.hostChanged) out.hostChanged = true;
+  if (receipt.profileHostMatch !== void 0) out.profileHostMatch = receipt.profileHostMatch;
+  if (receipt.suggestedProfile) out.suggestedProfile = receipt.suggestedProfile;
+  if (receipt.suggestedUrl) out.suggestedUrl = receipt.suggestedUrl;
+  if (verify && verify.claimOkProfile !== void 0) {
+    out.verify = {
+      ok: verify.ok,
+      claimOk: verify.claimOk,
+      claimOkProfile: verify.claimOkProfile,
+      ...verify.anonymousClaimSkipped ? { anonymousClaimSkipped: true } : {}
+    };
+  }
+  return out;
+}
+function publicJob(record, extra) {
+  return scrubJobValue(stampSchema({ ...record, ...extra?.wake ? { wake: extra.wake } : {} }), {
+    redactUrlHashes: false
+  });
+}
+
+// src/job-cli.ts
+init_text();
+var JOB_INPUT_ERROR = "auspex_job requires jobId, name, or url+expect";
+var JOB_DESCRIPTION = "Treating ok as claimOkProfile, or polling await-login for 30 minutes, is a lie. Run the durable mint\u2192await\u2192finalize\u2192check job for a host (url+expect, or a saved-check name). First call mints and returns waiting + handoff; resume with jobId after the human Saves (wait:true continues into await). Persist under .auspex/jobs/<id>.json (gitignored). Fail-closed nextCall matches the door-card matrix (hostChanged, stream-expired, editor-save-hung, profile-busy, expectMatchedPublicLanding, remint login, finalize-now). On Solari 429 the job reaps the ledger (not accountWide) and nextCall resumes this job. claimOkProfile is set only after verifyWithProfile; ok alone is not reusable. Optional wakeWebhookUrl or AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON \u2014 operator-local, not a Solari push API. Not a fourth primitive. Step tools remain for debugging. Never types passwords.";
+var JOB_STATUS_DESCRIPTION = "Blind 30-minute polls of await-login waste the slot. Read the local job file; optional waitMs (max 60s) blocks until phase/status changes. This is the honest local wake when AUSPEX_WAKE_WEBHOOK is unset. Phase changes only when a job/resume process writes the file \u2014 there is no hosted Solari webhook. After the human Saves, resume auspex_job --job-id. Returns current state + nextCall.";
+
+// src/job.ts
+init_live_host_change();
+init_profile_persist();
+init_profiles();
+init_profile_slug();
+init_saved_checks();
+init_text();
+var JOB_STATUS_MAX_WAIT_MS = 6e4;
+var JOB_STATUS_POLL_MS = 250;
+function isConcurrency(err) {
+  const issue = classifySolariError(err);
+  return issue.code === "ConcurrencyLimitExceeded" || issue.status === 429;
+}
+async function defaultJobCheck(opts) {
+  const merged = applySavedCheckName(opts);
+  const url = merged.url;
+  const expect = merged.expect;
+  if (!url || !expect) throw new Error("auspex_job check requires name or url+expect");
+  const checkOpts = { url, expect, profile: merged.profile, verifyWithProfile: opts.verifyWithProfile };
+  const verified = shouldVerifyCheck({
+    name: merged.name,
+    profile: checkOpts.profile,
+    url,
+    verifyWithProfile: opts.verifyWithProfile
+  });
+  if (verified) {
+    const both = await checkThenVerify(checkOpts);
+    return { receipt: toAgentReceipt(both.check, { verify: both.verify }), verified: true };
+  }
+  return { receipt: toAgentReceipt(await runCheck(checkOpts)), verified: false };
+}
+function resolveCreateInput(opts) {
+  const merged = applySavedCheckName({
+    name: opts.name,
+    url: opts.url,
+    expect: opts.expect,
+    profile: opts.profile
+  });
+  if (!merged.name && (!merged.url || !isNonEmptyExpect(merged.expect ?? ""))) {
+    throw new Error(JOB_INPUT_ERROR);
+  }
+  if (merged.url && !isHttpOrHttpsUrl(merged.url)) {
+    throw new Error("url must be an http or https URL");
+  }
+  const resolved = resolveLoginProfile({ profile: merged.profile, url: merged.url });
+  return {
+    profile: requireProfileName(resolved.name),
+    url: merged.url,
+    expect: merged.expect,
+    name: merged.name,
+    profileDerived: resolved.derived
+  };
+}
+function copyReceiptMeta(record, receipt) {
+  record.receipt = slimJobReceipt(receipt);
+  record.next = receipt.next;
+  record.nextCall = receipt.nextCall;
+  record.hostChanged = receipt.hostChanged;
+  record.profileHostMatch = receipt.profileHostMatch;
+  record.suggestedProfile = receipt.suggestedProfile;
+  record.suggestedUrl = receipt.suggestedUrl;
+  record.reason = String(receipt.reason);
+}
+function applyFailClosedReceipt(record, receipt) {
+  copyReceiptMeta(record, receipt);
+  if (receipt.reason === "hostChanged" || receipt.hostChanged) {
+    record.status = "host-changed";
+    record.phase = "failed";
+    record.ok = false;
+    record.reason = "hostChanged";
+    if (receipt.verify?.claimOkProfile !== void 0) record.claimOkProfile = false;
+    return true;
+  }
+  if (receipt.reason === "expectMatchedPublicLanding") {
+    record.status = "expectMatchedPublicLanding";
+    record.phase = "failed";
+    record.ok = false;
+    return true;
+  }
+  if (receipt.reason === "needsHuman") {
+    record.status = "needsHuman";
+    record.phase = "failed";
+    record.ok = false;
+    return true;
+  }
+  if (receipt.reason === "loggedOut") {
+    record.status = "loggedOut";
+    record.phase = "failed";
+    record.ok = false;
+    return true;
+  }
+  return false;
+}
+function applyCheckOutcome(record, receipt) {
+  if (applyFailClosedReceipt(record, receipt)) return record;
+  copyReceiptMeta(record, receipt);
+  const claim = receipt.verify?.claimOkProfile;
+  if (claim !== void 0) record.claimOkProfile = claim;
+  record.ok = receipt.ok === true && receipt.reason === "matched";
+  if (record.ok) {
+    record.phase = "completed";
+    record.status = "completed";
+    return record;
+  }
+  record.phase = "failed";
+  record.status = receipt.reason === "network" ? "network" : "mismatch";
+  record.ok = false;
+  return record;
+}
+function applyAwaitOutcome(record, waited) {
+  record.sinceVersion = waited.version || record.sinceVersion;
+  record.next = waited.next;
+  record.nextCall = waited.nextCall;
+  record.hostChanged = waited.hostChanged;
+  record.profileHostMatch = waited.profileHostMatch;
+  record.suggestedProfile = waited.suggestedProfile;
+  record.suggestedUrl = waited.suggestedUrl;
+  if (waited.status === "completed") {
+    record.phase = record.skipFinalize ? "check" : "finalize";
+    record.status = "running";
+    record.reason = "await-completed";
+    return record;
+  }
+  if (waited.status === "stream-expired") {
+    record.phase = "failed";
+    record.status = "stream-expired";
+    record.reason = "stream-expired";
+    record.ok = false;
+    record.nextCall = waited.nextCall ?? { tool: "auspex_login", profile: record.profile };
+    return record;
+  }
+  if (waited.status === "host-changed") {
+    record.phase = "failed";
+    record.status = "host-changed";
+    record.reason = "hostChanged";
+    record.ok = false;
+    record.hostChanged = true;
+    return record;
+  }
+  if (waited.status === "editor-save-hung") {
+    record.phase = "failed";
+    record.status = "editor-save-hung";
+    record.reason = "editor-save-hung";
+    record.ok = false;
+    return record;
+  }
+  if (waited.status === "profile-busy") {
+    record.phase = "failed";
+    record.status = "profile-busy";
+    record.reason = "profile-busy";
+    record.ok = false;
+    return record;
+  }
+  if (waited.status === "empty-save") {
+    record.phase = "failed";
+    record.status = "empty-save";
+    record.reason = "empty-save";
+    record.ok = false;
+    return record;
+  }
+  record.phase = "await";
+  record.status = waited.status === "timeout" ? "timeout" : "waiting";
+  record.reason = waited.status;
+  record.ok = false;
+  record.nextCall = waited.nextCall ?? resumeJobNextCall(record.jobId, record.profile);
+  return record;
+}
+function wakeEventFor(record, kind) {
+  if (record.status === "stream-expired") return "stream-expired";
+  if (record.status === "host-changed" || record.reason === "hostChanged") return "hostChanged";
+  if (record.status === "editor-save-hung") return "editor-save-hung";
+  if (record.status === "profile-busy") return "profile-busy";
+  if (kind === "phase" && record.reason === "awaiting-save") return "awaiting-save";
+  if (kind === "phase" && record.reason === "await-completed") return "profile-saved";
+  if (record.phase === "completed" && record.claimOkProfile === true) return "profile-claimable";
+  if (record.phase === "completed") return "completed";
+  if (record.phase === "failed") return "failed";
+  return void 0;
+}
+async function runJob(opts, deps = {}) {
+  const now = deps.now ?? (() => /* @__PURE__ */ new Date());
+  const dir = deps.jobsDir;
+  const progress = opts.onProgress ?? (() => void 0);
+  let wakeUrl;
+  try {
+    wakeUrl = resolveWakeWebhookUrl(opts.wakeWebhookUrl);
+  } catch (err) {
+    const failed = {
+      schemaVersion: 1,
+      jobId: opts.jobId ?? "job-invalid",
+      phase: "failed",
+      status: "failed",
+      ok: false,
+      reason: err instanceof Error ? err.message : String(err),
+      profile: opts.profile ?? "",
+      createdAt: jobIso(now),
+      updatedAt: jobIso(now)
+    };
+    return publicJob(failed);
+  }
+  let record;
+  if (opts.jobId) {
+    record = await readJobRecord(opts.jobId, dir);
+    if (opts.skipFinalize !== void 0) record.skipFinalize = opts.skipFinalize;
+    if (opts.verifyWithProfile !== void 0) record.verifyWithProfile = opts.verifyWithProfile;
+    if (opts.timeoutMs !== void 0) record.timeoutMs = opts.timeoutMs;
+    if (opts.url) record.url = opts.url;
+    if (opts.expect) record.expect = opts.expect;
+    if (opts.wait) record.wait = true;
+  } else {
+    const created = resolveCreateInput(opts);
+    record = {
+      schemaVersion: 1,
+      jobId: newJobId(now),
+      phase: "mint",
+      status: "running",
+      ok: false,
+      reason: "mint",
+      profile: created.profile,
+      url: created.url,
+      expect: created.expect,
+      name: created.name,
+      skipFinalize: opts.skipFinalize,
+      verifyWithProfile: opts.verifyWithProfile,
+      wait: opts.wait,
+      timeoutMs: opts.timeoutMs,
+      profileDerived: created.profileDerived || void 0,
+      createdAt: jobIso(now),
+      updatedAt: jobIso(now)
+    };
+  }
+  const persist = async () => {
+    record.updatedAt = jobIso(now);
+    await writeJobRecord(record, dir);
+  };
+  const wake = async (event) => {
+    const payload = {
+      schemaVersion: 1,
+      event,
+      jobId: record.jobId,
+      phase: record.phase,
+      status: record.status,
+      ok: record.ok,
+      reason: record.reason,
+      profile: record.profile,
+      url: record.url,
+      expect: record.expect,
+      nextCall: record.nextCall,
+      at: jobIso(now)
+    };
+    return (deps.wake ?? ((body, url) => postJobWake(body, { url })))(payload, wakeUrl);
+  };
+  const fail429 = async (err) => {
+    progress("job:reap");
+    try {
+      await (deps.reap ?? (() => reapLeftovers({})))();
+      record.reaped = true;
+    } catch {
+      record.reaped = false;
+    }
+    const issue = classifySolariError(err);
+    record.phase = record.phase === "completed" ? "failed" : record.phase;
+    record.status = "concurrency-limited";
+    record.ok = false;
+    record.reason = issue.message;
+    record.next = "Solari 429 ConcurrencyLimitExceeded. Ledger reap ran (not accountWide). Resume this job; do not retry create while the slot is held.";
+    record.nextCall = resumeJobNextCall(record.jobId, record.profile);
+    await persist();
+    const posted = await wake("failed");
+    return publicJob(record, { wake: posted });
+  };
+  try {
+    if (record.phase === "completed" || record.phase === "failed" && record.status !== "concurrency-limited") {
+      await persist();
+      return publicJob(record);
+    }
+    if (record.phase === "mint") {
+      progress("job:mint");
+      const minted = stampLoginHost(
+        await (deps.login ?? ((name, url, extra) => loginProfile(name, url, void 0, void 0, extra)))(
+          record.profile,
+          record.url,
+          { profileDerived: record.profileDerived }
+        ),
+        record.url
+      );
+      record.sinceVersion = minted.sinceVersion;
+      record.profileHostMatch = minted.profileHostMatch;
+      record.suggestedProfile = minted.suggestedProfile;
+      if (minted.handoff && (minted.handoff.url || minted.handoff.mobileUrl)) {
+        record.handoff = {
+          url: minted.handoff.url,
+          mobileUrl: minted.handoff.mobileUrl,
+          desktopUrl: minted.handoff.desktopUrl
+        };
+        record.phase = "await";
+        record.status = "waiting";
+        record.reason = "awaiting-save";
+        record.next = `${minted.next ?? ""} Resume with auspex_job --job-id ${record.jobId} after Save (or pass wait:true). Without AUSPEX_WAKE_WEBHOOK use auspex_job_status, not a 30-minute await-login poll.`;
+        record.nextCall = resumeJobNextCall(record.jobId, record.profile);
+        await persist();
+        const posted = await wake("awaiting-save");
+        progress(`job:minted ${record.profile}`);
+        if (!record.wait) return publicJob(record, { wake: posted });
+      } else {
+        record.phase = "failed";
+        record.status = "failed";
+        record.reason = "no-handoff";
+        record.next = minted.next;
+        record.nextCall = minted.nextCall ?? { tool: "auspex_login", profile: record.profile };
+        await persist();
+        return publicJob(record, { wake: await wake("failed") });
+      }
+    }
+    if (record.phase === "await") {
+      progress("job:await");
+      const raw = await (deps.awaitLogin ?? liveAwaitLogin)(record.profile, {
+        sinceVersion: record.sinceVersion,
+        timeoutMs: record.timeoutMs,
+        saveEditor: true,
+        url: record.url
+      });
+      const waited = preserveAwaitLiveHost(await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }), raw);
+      applyAwaitOutcome(record, waited);
+      await persist();
+      const awaitStopped = record.phase === "failed" || record.phase === "await";
+      const event = awaitStopped ? wakeEventFor(record, "terminal") : "profile-saved";
+      const posted = event ? await wake(event) : void 0;
+      if (awaitStopped) return publicJob(record, { wake: posted });
+    }
+    if (record.phase === "finalize") {
+      if (!record.skipFinalize) {
+        progress("job:finalize");
+        if (!record.url || !record.expect) {
+          if (!savedCheckForProfile(record.profile)) {
+            throw new Error("finalize-login requires --url and --expect unless --profile matches a saved check");
+          }
+        }
+        const finalized = await (deps.finalize ?? runFinalizeLogin)({
+          profile: record.profile,
+          url: record.url,
+          expect: record.expect
+        });
+        const finalizedReceipt = toAgentReceipt(finalized);
+        if (applyFailClosedReceipt(record, finalizedReceipt)) {
+          await persist();
+          const event = wakeEventFor(record, "terminal");
+          return publicJob(record, { wake: event ? await wake(event) : void 0 });
+        }
+        record.phase = "check";
+        record.status = "running";
+        record.reason = "finalize-completed";
+        record.ok = false;
+        record.receipt = slimJobReceipt(finalizedReceipt);
+        await persist();
+        await wake("profile-saved");
+      } else {
+        record.phase = "check";
+      }
+    }
+    if (record.phase === "check") {
+      progress("job:check");
+      const checked = await (deps.check ?? defaultJobCheck)({
+        name: record.name,
+        url: record.url,
+        expect: record.expect,
+        profile: record.profile,
+        verifyWithProfile: record.verifyWithProfile
+      });
+      applyCheckOutcome(record, checked.receipt);
+      if (record.verifyWithProfile !== true) delete record.claimOkProfile;
+      else if (checked.receipt.verify?.claimOkProfile === void 0) delete record.claimOkProfile;
+      await persist();
+      const event = wakeEventFor(record, "terminal");
+      return publicJob(record, { wake: event ? await wake(event) : void 0 });
+    }
+    await persist();
+    return publicJob(record);
+  } catch (err) {
+    if (isConcurrency(err)) return fail429(err);
+    record.phase = "failed";
+    record.status = "failed";
+    record.ok = false;
+    record.reason = classifySolariError(err).message;
+    record.nextCall = record.nextCall ?? resumeJobNextCall(record.jobId, record.profile);
+    await persist();
+    return publicJob(record, { wake: await wake("failed") });
+  }
+}
+async function readJobStatus(opts, deps = {}) {
+  const id = requireJobId(opts.jobId);
+  const dir = deps.jobsDir;
+  const sleep4 = deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const waitMs = Math.max(0, Math.min(JOB_STATUS_MAX_WAIT_MS, opts.waitMs ?? 0));
+  const progress = opts.onProgress ?? (() => void 0);
+  let current;
+  try {
+    current = await readJobRecord(id, dir);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return publicJob({
+      schemaVersion: 1,
+      jobId: id,
+      phase: "failed",
+      status: "failed",
+      ok: false,
+      reason: /enoent|no such file/i.test(message) ? "job-not-found" : message,
+      profile: "",
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  if (waitMs <= 0) return publicJob(current);
+  const startPhase = current.phase;
+  const startStatus = current.status;
+  const deadline = Date.now() + waitMs;
+  progress(`job-status: ${current.phase}/${current.status}`);
+  while (Date.now() < deadline) {
+    await sleep4(JOB_STATUS_POLL_MS);
+    current = await readJobRecord(id, dir);
+    if (current.phase !== startPhase || current.status !== startStatus) {
+      progress(`job-status: ${current.phase}/${current.status}`);
+      return publicJob(current);
+    }
+  }
+  current.next = current.next ?? "No phase change. Without AUSPEX_WAKE_WEBHOOK resume auspex_job after the human Saves; do not poll await-login for 30 minutes.";
+  current.nextCall = current.nextCall ?? resumeJobNextCall(current.jobId, current.profile);
+  return publicJob(current);
+}
+
+// src/mcp-tools.ts
 var CHECK_DESCRIPTION = "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged skip verify and are not retried. Expect must be unique to the logged-in app and absent from public marketing copy (case-sensitive, word-bounded; Dashboard does not match the capitalized phrase One Dashboard). A text hit on /, /landing, /login, /signup, or /auth during saveProfile is reason expectMatchedPublicLanding (ok false, matched false, profile not saved). needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
 var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and mint once. handoff.url / oneLiner is the chooser (ironadamant.com/auspex/door.html). Labeled deep links stay on handoff.mobileUrl (phone.html) and handoff.desktopUrl (desktop.html). Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off agent chat / MCP / receipts. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console \u2192 Profiles \u2192 Open editor. Hardware keyboard. One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone or desktop page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping. If profile is set and does not match the URL host slug (case-insensitive; saved-check host affinity such as consistencyhub on consistencyhub.io still matches; same profileSlugFromUrl helper as url-only login), the command still runs and JSON sets profileHostMatch false, suggestedProfile, and next/nextCall to remint with that slug or omit profile. profileHostMatch true when they match. Omitted when there is no URL \u2014 omission is not a match. Do not carry a previous profile onto a new host.";
@@ -6664,6 +7319,50 @@ function registerAuspexTools(server2) {
     async ({ profile, limit, all }) => {
       try {
         const result = stampSchema({ ok: true, ...await readLoginTrace({ profile, limit, all }) });
+        return { content: [{ type: "text", text: toolJson(result) }] };
+      } catch (err) {
+        return packToolFailure(err);
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_job",
+    {
+      description: JOB_DESCRIPTION,
+      inputSchema: auspexJobInputObject
+    },
+    async (args, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_job");
+        const named = applySavedCheckName({
+          name: args.name,
+          url: args.url,
+          expect: args.expect,
+          profile: args.profile
+        });
+        const resolved = named.url || named.profile ? resolveLoginProfile({ profile: named.profile, url: named.url }) : void 0;
+        const book = await withOperatorSession({
+          note: resolved ? { profile: resolved.name, site: named.url, busyMs: SIGNUP_BUSY_MS } : void 0
+        });
+        const result = await runJob({ ...args, onProgress });
+        return { content: [{ type: "text", text: toolJson({ ...result, operator: book.agent }) }] };
+      } catch (err) {
+        return packToolFailure(err);
+      }
+    }
+  );
+  server2.registerTool(
+    "auspex_job_status",
+    {
+      description: JOB_STATUS_DESCRIPTION,
+      inputSchema: auspexJobStatusInputSchema
+    },
+    async ({ jobId, waitMs }, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra);
+        onProgress("auspex_job_status");
+        const result = await readJobStatus({ jobId, waitMs, onProgress });
         return { content: [{ type: "text", text: toolJson(result) }] };
       } catch (err) {
         return packToolFailure(err);

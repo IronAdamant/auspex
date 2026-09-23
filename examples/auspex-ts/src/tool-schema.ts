@@ -360,3 +360,56 @@ export const auspexProfileStatusInputSchema = z.object({
     .describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
   url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
 })
+
+/** ZodObject for MCP ListTools. Call-time jobId-or-name-or-url+expect lives in runJob. */
+export const auspexJobInputObject = z.object({
+  jobId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Resume a persisted job (.auspex/jobs/<id>.json). Required unless name or url+expect is set."),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Saved check name (ironadamant, checkpoint, consistencyhub). Supplies url/expect/profile."),
+  profile: profileNameSchema
+    .optional()
+    .describe("Profile name. Omit with url to derive a host slug (app.example.com → app-example-com). Explicit profile wins."),
+  url: httpUrlSchema
+    .optional()
+    .describe("http(s) app URL. Required with expect unless name or jobId is set. Derives profile when profile is omitted."),
+  expect: expectSchema
+    .optional()
+    .describe("Unique logged-in claim substring. Required with url unless name or jobId is set. Must not appear in public marketing copy."),
+  skipFinalize: z
+    .boolean()
+    .optional()
+    .describe("Skip finalize-login after await (SPAs that keep tokens in sessionStorage still need finalize while the token is live)."),
+  verifyWithProfile: z
+    .boolean()
+    .optional()
+    .describe(
+      "After check, run profile-seeded verify. claimOkProfile is the reuse gate — ok alone is not reusable. Do not invent claimOkProfile=true.",
+    ),
+  wait: z
+    .boolean()
+    .optional()
+    .describe("If true on first mint, continue into await in this call (like login --wait). Default returns after mint so the human can open handoff."),
+  wakeWebhookUrl: httpUrlSchema
+    .optional()
+    .describe(
+      "Optional operator-local http(s) URL. POST scrubbed JSON on stream-expired, hostChanged, editor-save-hung, profile saved/claimable, completed/failed. Env AUSPEX_WAKE_WEBHOOK is the default. Not a Solari push API.",
+    ),
+  timeoutMs: z.number().optional().describe("Await-login cap in ms (same bound as auspex_await_login)."),
+})
+
+export const auspexJobStatusInputSchema = z.object({
+  jobId: z.string().trim().min(1).describe("Job id from auspex_job"),
+  waitMs: z
+    .number()
+    .optional()
+    .describe("Optional short wait (max 60000) until phase/status changes. Not a 30-minute poll. Local file watch only."),
+})

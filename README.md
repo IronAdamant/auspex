@@ -16,6 +16,7 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Open `handoff.url` (chooser: Phone or Desktop, same hash). Phone: `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Desktop: `handoff.desktopUrl`. Show as bullets is off by default so a password manager can paste into the text field. Tap Save (copies a line; paste it in the AI chat). Then `await-login --profile <yours> --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
+| **Autonomous agents** | Prefer `npx auspex-solari job --url <https> --expect "<unique>"` then `job-status` / resume `--job-id`. Step tools remain for debugging. Optional `AUSPEX_WAKE_WEBHOOK` is operator-local (not a Solari push API). |
 | **Login stall** | After `login` mint, if nothing happens or login fails, read `traceSummary` / `npx auspex-solari trace` before reminting. Not a fourth primitive. |
 | **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`. Repo `SOLARI_API_KEY` is present (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if that secret were unset. Do not remove it. |
 | **`--record` + `--profile`** | Refused unless `--allow-record-profile` on a **public marketing** host. Refused for consistencyhub. Never `--record` a logged-in session. |
@@ -78,6 +79,8 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 - **`auspex_trace`** — last login **mint** episode plus `traceSummary` (agents: read this if Chromium never comes up). Mint rows are `event: login` (API key, profile ensure, handoff POST, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If mint is silent or fails, read `traceSummary` / `npx auspex-solari trace` **before reminting**. Never tokens, passwords, excerpts, or session ids. Not a fourth primitive. Never commit `.auspex/`.
 
 - **`auspex_desktop`** — named Solari sandbox Mousepad demo, not the user's Mac. 402 on Free.
+
+- **`auspex_job` / `auspex_job_status`** — durable compose of mint→await→finalize→check for autonomous agents (not a fourth primitive). Resume with `jobId`. Optional operator-local wake webhook. Step tools remain for debugging.
 
 ### Fail-closed design
 

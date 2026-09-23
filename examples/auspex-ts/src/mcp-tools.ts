@@ -22,18 +22,28 @@ import { assertPageActionsAllowed } from "./page-actions.ts"
 import { applySavedCheckName } from "./saved-checks.ts"
 import { stampSchema } from "./schema-version.ts"
 import {
+  JOB_DESCRIPTION,
+  JOB_STATUS_DESCRIPTION,
+  readJobStatus,
+  runJob,
+} from "./job.ts"
+import {
   assertRecordNotLoggedIn,
   assertRecordProfileAllowed,
   auspexAwaitLoginInputSchema,
   auspexCheckInputObject,
   auspexDesktopInputSchema,
   auspexFinalizeLoginInputSchema,
+  auspexJobInputObject,
+  auspexJobStatusInputSchema,
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexProfilesInputSchema,
   auspexReapInputSchema,
   auspexTraceInputSchema,
 } from "./tool-schema.ts"
+
+export { JOB_DESCRIPTION, JOB_STATUS_DESCRIPTION }
 
 export const CHECK_DESCRIPTION =
   "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify — on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, …) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged skip verify and are not retried. Expect must be unique to the logged-in app and absent from public marketing copy (case-sensitive, word-bounded; Dashboard does not match the capitalized phrase One Dashboard). A text hit on /, /landing, /login, /signup, or /auth during saveProfile is reason expectMatchedPublicLanding (ok false, matched false, profile not saved). needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari."
@@ -387,6 +397,52 @@ export function registerAuspexTools(server: McpServer): void {
     async ({ profile, limit, all }) => {
       try {
         const result = stampSchema({ ok: true, ...(await readLoginTrace({ profile, limit, all })) })
+        return { content: [{ type: "text" as const, text: toolJson(result) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_job",
+    {
+      description: JOB_DESCRIPTION,
+      inputSchema: auspexJobInputObject,
+    },
+    async (args, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_job")
+        const named = applySavedCheckName({
+          name: args.name,
+          url: args.url,
+          expect: args.expect,
+          profile: args.profile,
+        })
+        const resolved = named.url || named.profile ? resolveLoginProfile({ profile: named.profile, url: named.url }) : undefined
+        const book = await withOperatorSession({
+          note: resolved ? { profile: resolved.name, site: named.url, busyMs: SIGNUP_BUSY_MS } : undefined,
+        })
+        const result = await runJob({ ...args, onProgress })
+        return { content: [{ type: "text" as const, text: toolJson({ ...result, operator: book.agent }) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_job_status",
+    {
+      description: JOB_STATUS_DESCRIPTION,
+      inputSchema: auspexJobStatusInputSchema,
+    },
+    async ({ jobId, waitMs }, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_job_status")
+        const result = await readJobStatus({ jobId, waitMs, onProgress })
         return { content: [{ type: "text" as const, text: toolJson(result) }] }
       } catch (err) {
         return packToolFailure(err)
