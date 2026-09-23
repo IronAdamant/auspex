@@ -30,6 +30,7 @@ export {
   desktopHandoffUrlFromPhone,
   doorHandoffUrl,
   doorHandoffUrlFromPhone,
+  HANDOFF_HASH_KEYS,
   handoffHash,
   isDesktopDoorUrl,
   isDoorUrl,
@@ -526,11 +527,8 @@ export async function loginProfile(
     let mobileUrl: string | undefined
     if (vncMint.token) {
       mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
-        profileId: profile.id,
         profileName: profile.name,
-        handoffToken,
         expiresAt: handoff.expiresAt,
-        keyInUse: true,
         siteUrl: urlHint,
       })
     }

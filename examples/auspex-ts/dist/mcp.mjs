@@ -8,323 +8,15 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/operator-session.ts
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
-import path from "node:path";
-function cleanProfile(name) {
-  return name.trim();
-}
-function siteIdentity(row) {
-  const profile = cleanProfile(row.profile);
-  const site = row.site?.trim() || profile;
-  return { site, profile };
-}
-function decideOperatorSession(input) {
-  const now = input.nowMs;
-  const voluntary = new Set(
-    input.humanAgree === true ? (input.voluntary ?? []).map(cleanProfile).filter(Boolean) : []
-  );
-  const wipe = [];
-  const sites = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const row of input.profiles) {
-    const profile = cleanProfile(row.profile);
-    if (!profile || seen.has(profile)) continue;
-    seen.add(profile);
-    sites.push(siteIdentity({ profile, site: row.site }));
-    const idle = !row.inUse && now - row.lastUsedMs >= OPERATOR_IDLE_MS;
-    if (idle || voluntary.has(profile)) wipe.push(profile);
-  }
-  return {
-    wipe,
-    agent: {
-      question: OPERATOR_PURGE_QUESTION,
-      idleMinutes: 30,
-      sites
-    }
-  };
-}
-function formatOperatorNotice(agent) {
-  const rows = agent.sites.map((row) => `${row.site} (profile ${row.profile})`);
-  const list = rows.length > 0 ? ` Saved logins: ${rows.join("; ")}.` : "";
-  return `${agent.question}${list}`;
-}
-function attachMatchedPurgeNext(receipt, agent) {
-  if (!agent || receipt.reason !== "matched" || receipt.next) return receipt;
-  if (agent.sites.length === 0) return receipt;
-  return { ...receipt, next: formatOperatorNotice(agent) };
-}
-function emptyOperatorState() {
-  return { profiles: {} };
-}
-function operatorStatePath(root) {
-  return path.join(root, ".auspex", "operator-session.json");
-}
-function readOperatorState(root) {
-  const file = operatorStatePath(root);
-  if (!existsSync(file)) return emptyOperatorState();
-  try {
-    const parsed = JSON.parse(readFileSync(file, "utf8"));
-    if (!parsed || typeof parsed !== "object" || !parsed.profiles || typeof parsed.profiles !== "object") {
-      return emptyOperatorState();
-    }
-    const profiles = {};
-    for (const [name, raw] of Object.entries(parsed.profiles)) {
-      const profile = cleanProfile(name);
-      if (!profile || !raw || typeof raw !== "object") continue;
-      const row = raw;
-      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0;
-      const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : void 0;
-      const busyUntilMs = typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : void 0;
-      profiles[profile] = { site, lastUsedMs, ...busyUntilMs !== void 0 ? { busyUntilMs } : {} };
-    }
-    return { profiles };
-  } catch {
-    return emptyOperatorState();
-  }
-}
-function writeOperatorState(root, state) {
-  const file = operatorStatePath(root);
-  mkdirSync(path.dirname(file), { recursive: true });
-  const profiles = {};
-  for (const [name, row] of Object.entries(state.profiles)) {
-    const profile = cleanProfile(name);
-    if (!profile) continue;
-    profiles[profile] = {
-      ...row.site ? { site: row.site } : {},
-      lastUsedMs: row.lastUsedMs,
-      ...row.busyUntilMs !== void 0 ? { busyUntilMs: row.busyUntilMs } : {}
-    };
-  }
-  writeFileSync(file, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 384 });
-  chmodSync(file, 384);
-}
-function noteAfterSignupWait(opts) {
-  const note = { profile: opts.profile };
-  if (opts.site) note.site = opts.site;
-  if (opts.status === "completed") note.clearBusy = true;
-  return note;
-}
-function noteOperatorUse(state, note, nowMs) {
-  const profile = cleanProfile(note.profile);
-  if (!profile) return state;
-  const prev = state.profiles[profile];
-  const next = {
-    site: note.site?.trim() || prev?.site,
-    lastUsedMs: nowMs
-  };
-  if (note.busyMs !== void 0 && note.busyMs > 0) {
-    next.busyUntilMs = nowMs + note.busyMs;
-  } else if (note.clearBusy) {
-  } else if (prev?.busyUntilMs !== void 0 && prev.busyUntilMs > nowMs) {
-    next.busyUntilMs = prev.busyUntilMs;
-  }
-  return { profiles: { ...state.profiles, [profile]: next } };
-}
-function profilesFromState(state, nowMs) {
-  return Object.entries(state.profiles).map(([profile, row]) => ({
-    profile,
-    site: row.site,
-    lastUsedMs: row.lastUsedMs,
-    inUse: row.busyUntilMs !== void 0 && row.busyUntilMs > nowMs
-  }));
-}
-function forgetOperatorProfiles(state, names) {
-  const drop = new Set(names.map(cleanProfile));
-  const profiles = {};
-  for (const [name, row] of Object.entries(state.profiles)) {
-    if (!drop.has(name)) profiles[name] = row;
-  }
-  return { profiles };
-}
-async function applyOperatorWipes(names, deps) {
-  const wanted = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const name of names) {
-    const profile = cleanProfile(name);
-    if (!profile || seen.has(profile)) continue;
-    seen.add(profile);
-    wanted.push(profile);
-  }
-  if (wanted.length === 0) return [];
-  const rows = await deps.list();
-  const deleted = [];
-  for (const name of wanted) {
-    const row = rows.find((item) => item.name.trim() === name);
-    if (!row) continue;
-    await deps.deleteProfile(row.id);
-    deleted.push(name);
-  }
-  return deleted;
-}
-async function commitOperatorSession(opts) {
-  let state = readOperatorState(opts.root);
-  if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs);
-  const known = profilesFromState(state, opts.nowMs);
-  const seen = new Set(known.map((row) => row.profile));
-  const agreed = opts.humanAgree === true ? opts.voluntary ?? [] : [];
-  const extras = agreed.map((name) => name.trim()).filter((name) => name && !seen.has(name)).map((profile) => ({ profile, lastUsedMs: opts.nowMs, inUse: true }));
-  const decision = decideOperatorSession({
-    profiles: [...known, ...extras],
-    nowMs: opts.nowMs,
-    humanAgree: opts.humanAgree,
-    voluntary: opts.voluntary
-  });
-  let wiped = [];
-  if (decision.wipe.length > 0 && opts.applyWipes) {
-    wiped = [...await opts.applyWipes(decision.wipe)];
-    state = forgetOperatorProfiles(state, wiped);
-  }
-  writeOperatorState(opts.root, state);
-  return { agent: decision.agent, wiped };
-}
-function operatorKeyPath(root) {
-  return path.join(root, ".auspex", "operator-key");
-}
-function writeOperatorKey(root, key) {
-  const trimmed = key.trim();
-  if (!trimmed) throw new Error("Solari key is empty");
-  const file = operatorKeyPath(root);
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, `${trimmed}
-`, { mode: 384 });
-  chmodSync(file, 384);
-  return file;
-}
-function ingestOperatorKeyPost(body, root) {
-  let parsed;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    throw new Error("Solari key body is not JSON");
-  }
-  if (typeof parsed.key !== "string") throw new Error("Solari key is missing");
-  writeOperatorKey(root, parsed.key);
-  return { ok: true };
-}
-function sendOperatorKeyAck(res, status, ok) {
-  const payload = JSON.stringify({ ok });
-  res.writeHead(status, {
-    "content-type": "application/json",
-    "content-length": Buffer.byteLength(payload),
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "cache-control": "no-store"
-  });
-  res.end(payload);
-}
-function createOperatorKeyServer(root) {
-  return createServer((req, res) => {
-    const pathOnly = (req.url ?? "/").split("?")[0];
-    if (req.method === "OPTIONS" && pathOnly === OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 204, true);
-      return;
-    }
-    if (req.method === "GET" && pathOnly === OPERATOR_KEY_POST_PATH) {
-      const payload = JSON.stringify({
-        present: operatorKeyIsPresent(root, [path.resolve(root, "../../.env")])
-      });
-      res.writeHead(200, {
-        "content-type": "application/json",
-        "content-length": Buffer.byteLength(payload),
-        "access-control-allow-origin": "*",
-        "cache-control": "no-store"
-      });
-      res.end(payload);
-      return;
-    }
-    if (req.method !== "POST" || pathOnly !== OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 404, false);
-      return;
-    }
-    const chunks = [];
-    let size = 0;
-    req.on("data", (chunk2) => {
-      size += chunk2.length;
-      if (size > 8192) {
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk2);
-    });
-    req.on("end", () => {
-      try {
-        ingestOperatorKeyPost(Buffer.concat(chunks).toString("utf8"), root);
-        sendOperatorKeyAck(res, 200, true);
-      } catch {
-        sendOperatorKeyAck(res, 400, false);
-      }
-    });
-  });
-}
-function startOperatorKeyListener(root, port = OPERATOR_KEY_PORT) {
-  const server2 = createOperatorKeyServer(root);
-  server2.on("error", () => {
-  });
-  server2.listen(port, "127.0.0.1");
-  return server2;
-}
-function fileHasSolariKey(file) {
-  if (!existsSync(file)) return false;
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
-    let line = raw.trim();
-    if (!line || line.startsWith("#")) continue;
-    if (line.startsWith("export ")) line = line.slice(7).trim();
-    if (!line.startsWith("SOLARI_API_KEY=")) continue;
-    let value = line.slice("SOLARI_API_KEY=".length).trim();
-    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-      value = value.slice(1, -1);
-    }
-    if (value) return true;
-  }
-  return false;
-}
-function operatorKeyIsPresent(root, extraEnvFiles = []) {
-  if (process.env.SOLARI_API_KEY?.trim()) return true;
-  if (readOperatorKey(operatorKeyPath(root))) return true;
-  if (fileHasSolariKey(path.join(root, ".env"))) return true;
-  return extraEnvFiles.some((file) => fileHasSolariKey(file));
-}
-function readOperatorKey(file) {
-  if (!existsSync(file)) return void 0;
-  const lines = readFileSync(file, "utf8").split("\n").map((line2) => line2.trim()).filter((line2) => line2 && !line2.startsWith("#"));
-  const line = lines[0];
-  if (!line) return void 0;
-  if (line.startsWith("SOLARI_API_KEY=")) {
-    let value = line.slice("SOLARI_API_KEY=".length).trim();
-    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
-      value = value.slice(1, -1);
-    }
-    return value || void 0;
-  }
-  if (line.includes("=")) return void 0;
-  return line;
-}
-var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP, OPERATOR_KEY_PORT, OPERATOR_KEY_POST_PATH;
-var init_operator_session = __esm({
-  "src/operator-session.ts"() {
-    "use strict";
-    OPERATOR_IDLE_MS = 30 * 60 * 1e3;
-    PHONE_LIST_MS = 10 * 60 * 1e3;
-    SIGNUP_BUSY_MS = 30 * 60 * 1e3;
-    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. The Solari key in the browser or .auspex/operator-key is not that wipe.";
-    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent and is not the 30-minute profile wipe.";
-    OPERATOR_KEY_PORT = 17321;
-    OPERATOR_KEY_POST_PATH = "/auspex-operator-key";
-  }
-});
-
 // src/paths.ts
 import { mkdir } from "node:fs/promises";
-import path2 from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 async function ensureRunDir() {
-  const auspexDir = path2.join(packageRoot, ".auspex");
-  const runsDir = path2.join(auspexDir, "runs");
+  const auspexDir = path.join(packageRoot, ".auspex");
+  const runsDir = path.join(auspexDir, "runs");
   const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, -5);
-  const runDir = path2.join(runsDir, stamp);
+  const runDir = path.join(runsDir, stamp);
   await mkdir(runDir, { recursive: true });
   return runDir;
 }
@@ -332,7 +24,7 @@ var packageRoot;
 var init_paths = __esm({
   "src/paths.ts"() {
     "use strict";
-    packageRoot = path2.resolve(path2.dirname(fileURLToPath(import.meta.url)), "..");
+    packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   }
 });
 
@@ -869,7 +561,7 @@ var init_editor_fold = __esm({
 
 // src/login-trace.ts
 import { appendFile, mkdir as mkdir2, readFile, writeFile } from "node:fs/promises";
-import path3 from "node:path";
+import path2 from "node:path";
 function forbiddenTraceKey(key) {
   return FORBIDDEN_KEYS.has(key.toLowerCase());
 }
@@ -919,7 +611,7 @@ async function appendLoginTrace(event, file = LOGIN_TRACE_PATH) {
       ts: event.ts ?? (/* @__PURE__ */ new Date()).toISOString(),
       ...event
     });
-    await mkdir2(path3.dirname(file), { recursive: true });
+    await mkdir2(path2.dirname(file), { recursive: true });
     await appendFile(file, `${JSON.stringify(row)}
 `, "utf8");
     return file;
@@ -1032,7 +724,7 @@ async function recordLoginTrace(event, opts = {}) {
       remintIndex = existing.filter((e) => e.event === "login" && e.profile === profile).length + 1;
       episodeId = event.episodeId ?? newEpisodeId();
       active[profile] = { episodeId, remintIndex };
-      await mkdir2(path3.dirname(activeFile), { recursive: true });
+      await mkdir2(path2.dirname(activeFile), { recursive: true });
       await writeFile(activeFile, `${JSON.stringify(active)}
 `);
     }
@@ -1108,8 +800,8 @@ var init_login_trace = __esm({
     init_profile_storage();
     init_paths();
     init_sso();
-    LOGIN_TRACE_PATH = path3.join(packageRoot, ".auspex", "trace", "login.jsonl");
-    LOGIN_TRACE_ACTIVE_PATH = path3.join(packageRoot, ".auspex", "trace", "active.json");
+    LOGIN_TRACE_PATH = path2.join(packageRoot, ".auspex", "trace", "login.jsonl");
+    LOGIN_TRACE_ACTIVE_PATH = path2.join(packageRoot, ".auspex", "trace", "active.json");
     LOGIN_TRACE_LIMIT_DEFAULT = 50;
     LOGIN_TRACE_LIMIT_MAX = 200;
     COOKIE_HOST_CAP = 40;
@@ -1336,6 +1028,203 @@ var init_profile_slug = __esm({
   }
 });
 
+// src/operator-session.ts
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path3 from "node:path";
+function cleanProfile(name) {
+  return name.trim();
+}
+function siteIdentity(row) {
+  const profile = cleanProfile(row.profile);
+  const site = row.site?.trim() || profile;
+  return { site, profile };
+}
+function decideOperatorSession(input) {
+  const now = input.nowMs;
+  const voluntary = new Set(
+    input.humanAgree === true ? (input.voluntary ?? []).map(cleanProfile).filter(Boolean) : []
+  );
+  const wipe = [];
+  const sites = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of input.profiles) {
+    const profile = cleanProfile(row.profile);
+    if (!profile || seen.has(profile)) continue;
+    seen.add(profile);
+    sites.push(siteIdentity({ profile, site: row.site }));
+    const idle = !row.inUse && now - row.lastUsedMs >= OPERATOR_IDLE_MS;
+    if (idle || voluntary.has(profile)) wipe.push(profile);
+  }
+  return {
+    wipe,
+    agent: {
+      question: OPERATOR_PURGE_QUESTION,
+      idleMinutes: 30,
+      sites
+    }
+  };
+}
+function formatOperatorNotice(agent) {
+  const rows = agent.sites.map((row) => `${row.site} (profile ${row.profile})`);
+  const list = rows.length > 0 ? ` Saved logins: ${rows.join("; ")}.` : "";
+  return `${agent.question}${list}`;
+}
+function attachMatchedPurgeNext(receipt, agent) {
+  if (!agent || receipt.reason !== "matched" || receipt.next) return receipt;
+  if (agent.sites.length === 0) return receipt;
+  return { ...receipt, next: formatOperatorNotice(agent) };
+}
+function emptyOperatorState() {
+  return { profiles: {} };
+}
+function operatorStatePath(root) {
+  return path3.join(root, ".auspex", "operator-session.json");
+}
+function readOperatorState(root) {
+  const file = operatorStatePath(root);
+  if (!existsSync(file)) return emptyOperatorState();
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    if (!parsed || typeof parsed !== "object" || !parsed.profiles || typeof parsed.profiles !== "object") {
+      return emptyOperatorState();
+    }
+    const profiles = {};
+    for (const [name, raw] of Object.entries(parsed.profiles)) {
+      const profile = cleanProfile(name);
+      if (!profile || !raw || typeof raw !== "object") continue;
+      const row = raw;
+      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0;
+      const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : void 0;
+      const busyUntilMs = typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : void 0;
+      profiles[profile] = { site, lastUsedMs, ...busyUntilMs !== void 0 ? { busyUntilMs } : {} };
+    }
+    return { profiles };
+  } catch {
+    return emptyOperatorState();
+  }
+}
+function writeOperatorState(root, state) {
+  const file = operatorStatePath(root);
+  mkdirSync(path3.dirname(file), { recursive: true });
+  const profiles = {};
+  for (const [name, row] of Object.entries(state.profiles)) {
+    const profile = cleanProfile(name);
+    if (!profile) continue;
+    profiles[profile] = {
+      ...row.site ? { site: row.site } : {},
+      lastUsedMs: row.lastUsedMs,
+      ...row.busyUntilMs !== void 0 ? { busyUntilMs: row.busyUntilMs } : {}
+    };
+  }
+  writeFileSync(file, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 384 });
+  chmodSync(file, 384);
+}
+function noteAfterSignupWait(opts) {
+  const note = { profile: opts.profile };
+  if (opts.site) note.site = opts.site;
+  if (opts.status === "completed") note.clearBusy = true;
+  return note;
+}
+function noteOperatorUse(state, note, nowMs) {
+  const profile = cleanProfile(note.profile);
+  if (!profile) return state;
+  const prev = state.profiles[profile];
+  const next = {
+    site: note.site?.trim() || prev?.site,
+    lastUsedMs: nowMs
+  };
+  if (note.busyMs !== void 0 && note.busyMs > 0) {
+    next.busyUntilMs = nowMs + note.busyMs;
+  } else if (note.clearBusy) {
+  } else if (prev?.busyUntilMs !== void 0 && prev.busyUntilMs > nowMs) {
+    next.busyUntilMs = prev.busyUntilMs;
+  }
+  return { profiles: { ...state.profiles, [profile]: next } };
+}
+function profilesFromState(state, nowMs) {
+  return Object.entries(state.profiles).map(([profile, row]) => ({
+    profile,
+    site: row.site,
+    lastUsedMs: row.lastUsedMs,
+    inUse: row.busyUntilMs !== void 0 && row.busyUntilMs > nowMs
+  }));
+}
+function forgetOperatorProfiles(state, names) {
+  const drop = new Set(names.map(cleanProfile));
+  const profiles = {};
+  for (const [name, row] of Object.entries(state.profiles)) {
+    if (!drop.has(name)) profiles[name] = row;
+  }
+  return { profiles };
+}
+async function applyOperatorWipes(names, deps) {
+  const wanted = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const name of names) {
+    const profile = cleanProfile(name);
+    if (!profile || seen.has(profile)) continue;
+    seen.add(profile);
+    wanted.push(profile);
+  }
+  if (wanted.length === 0) return [];
+  const rows = await deps.list();
+  const deleted = [];
+  for (const name of wanted) {
+    const row = rows.find((item) => item.name.trim() === name);
+    if (!row) continue;
+    await deps.deleteProfile(row.id);
+    deleted.push(name);
+  }
+  return deleted;
+}
+async function commitOperatorSession(opts) {
+  let state = readOperatorState(opts.root);
+  if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs);
+  const known = profilesFromState(state, opts.nowMs);
+  const seen = new Set(known.map((row) => row.profile));
+  const agreed = opts.humanAgree === true ? opts.voluntary ?? [] : [];
+  const extras = agreed.map((name) => name.trim()).filter((name) => name && !seen.has(name)).map((profile) => ({ profile, lastUsedMs: opts.nowMs, inUse: true }));
+  const decision = decideOperatorSession({
+    profiles: [...known, ...extras],
+    nowMs: opts.nowMs,
+    humanAgree: opts.humanAgree,
+    voluntary: opts.voluntary
+  });
+  let wiped = [];
+  if (decision.wipe.length > 0 && opts.applyWipes) {
+    wiped = [...await opts.applyWipes(decision.wipe)];
+    state = forgetOperatorProfiles(state, wiped);
+  }
+  writeOperatorState(opts.root, state);
+  return { agent: decision.agent, wiped };
+}
+function readOperatorKey(file) {
+  if (!existsSync(file)) return void 0;
+  const lines = readFileSync(file, "utf8").split("\n").map((line2) => line2.trim()).filter((line2) => line2 && !line2.startsWith("#"));
+  const line = lines[0];
+  if (!line) return void 0;
+  if (line.startsWith("SOLARI_API_KEY=")) {
+    let value = line.slice("SOLARI_API_KEY=".length).trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    return value || void 0;
+  }
+  if (line.includes("=")) return void 0;
+  return line;
+}
+var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP;
+var init_operator_session = __esm({
+  "src/operator-session.ts"() {
+    "use strict";
+    OPERATOR_IDLE_MS = 30 * 60 * 1e3;
+    PHONE_LIST_MS = 10 * 60 * 1e3;
+    SIGNUP_BUSY_MS = 30 * 60 * 1e3;
+    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.";
+    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. Agents use SOLARI_API_KEY, or gitignored .auspex/operator-key written on the operator machine. Door pages have no Solari key field and do not post a key to loopback.";
+  }
+});
+
 // src/phone-expiry.ts
 function parseUnixSeconds(value) {
   if (value == null) return void 0;
@@ -1408,18 +1297,11 @@ function isDoorUrl(url) {
 function isDesktopDoorUrl(url) {
   return Boolean(url?.startsWith(DESKTOP_HANDOFF_PAGE));
 }
-function handoffHash(vncToken, handoffUrl, extra) {
+function handoffHash(vncToken, _handoffUrl, extra) {
   const token = vncToken.trim();
-  const save = handoffUrl.trim();
   if (!token) return "";
   const hash = new URLSearchParams({ v: token });
-  if (save) hash.set("h", save);
-  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
-  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
-  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim());
-  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim());
-  if (extra?.keyInUse) hash.set("k", "1");
   const siteUrl = extra?.siteUrl?.trim() ?? "";
   if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl);
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
@@ -1448,7 +1330,7 @@ function desktopHandoffUrlFromPhone(mobileUrl) {
 function doorHandoffUrlFromPhone(mobileUrl) {
   return swapHandoffPage(mobileUrl, PHONE_HANDOFF_PAGE, DOOR_HANDOFF_PAGE);
 }
-var PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, DOOR_HANDOFF_PAGE;
+var PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, DOOR_HANDOFF_PAGE, HANDOFF_HASH_KEYS;
 var init_handoff_doors = __esm({
   "src/handoff-doors.ts"() {
     "use strict";
@@ -1456,6 +1338,7 @@ var init_handoff_doors = __esm({
     PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
     DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html";
     DOOR_HANDOFF_PAGE = "https://ironadamant.com/auspex/door.html";
+    HANDOFF_HASH_KEYS = ["v", "n", "exp", "u"];
   }
 });
 
@@ -1904,6 +1787,7 @@ __export(profiles_exports, {
   CONSOLE_PROFILES_URL: () => CONSOLE_PROFILES_URL,
   DESKTOP_HANDOFF_PAGE: () => DESKTOP_HANDOFF_PAGE,
   DOOR_HANDOFF_PAGE: () => DOOR_HANDOFF_PAGE,
+  HANDOFF_HASH_KEYS: () => HANDOFF_HASH_KEYS,
   HANDOFF_OPEN_ON_DESKTOP_PAGE: () => HANDOFF_OPEN_ON_DESKTOP_PAGE,
   HANDOFF_OPEN_ON_PHONE: () => HANDOFF_OPEN_ON_PHONE,
   HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK: () => HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
@@ -2254,11 +2138,8 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
     let mobileUrl;
     if (vncMint.token) {
       mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
-        profileId: profile.id,
         profileName: profile.name,
-        handoffToken,
         expiresAt: handoff.expiresAt,
-        keyInUse: true,
         siteUrl: urlHint
       });
     }
@@ -3187,8 +3068,6 @@ var init_profile_persist = __esm({
 });
 
 // src/mcp.ts
-init_operator_session();
-init_paths();
 import { McpServer as McpServer2 } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 // src/mcp-tools.ts
@@ -6211,7 +6090,6 @@ var DualStdioServerTransport = class _DualStdioServerTransport {
 };
 
 // src/mcp.ts
-startOperatorKeyListener(packageRoot);
 var server = new McpServer2({
   name: "auspex",
   version: "0.1.0"
