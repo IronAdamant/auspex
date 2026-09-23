@@ -303,9 +303,15 @@ test("login --wait and MCP wait:true both pass loginWaitAwaitOpts (saveEditor)",
 
 test("mcp-tools desktop payload keeps ASCII log and JSON", () => {
   const tools = readFileSync(path.join(root, "src", "mcp-tools.ts"), "utf8")
-  assert.match(tools, /unshift/)
-  assert.match(tools, /desktopId/)
+  const content = readFileSync(path.join(root, "src", "content.ts"), "utf8")
+  const runners = readFileSync(path.join(root, "src", "runners.ts"), "utf8")
+  assert.match(tools, /runDesktopDoor/)
+  assert.match(tools, /packDesktopToolContent/)
   assert.match(tools, /packToolFailure/)
+  assert.match(content, /packDesktopToolContent/)
+  assert.match(content, /unshift/)
+  assert.match(runners, /runDesktopDoor/)
+  assert.match(runners, /status:\s*process\.stderr/)
 })
 
 test("mcp.ts registers tools via registerAuspexTools; MCP check uses auspexCheckInputObject with FAIL-CLOSED descriptions", () => {

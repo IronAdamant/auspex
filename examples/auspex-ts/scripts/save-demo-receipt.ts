@@ -1,7 +1,8 @@
 /**
- * Refresh demo/ from a public --record check (ironadamant.com),
- * or write the watch player from AUSPEX_WATCH_SESSION_ID (ConsistencyHub Microsoft wall).
+ * Refresh demo/ stills + ndjson from a public --record check (ironadamant.com),
+ * or write watch ndjson from AUSPEX_WATCH_SESSION_ID (ConsistencyHub Microsoft wall).
  * Does not write replayUrl (presigned, ~15 min). Does not record logins.
+ * Does not overwrite the committed demo/replay.html stub — Pages/local preview uses npm run generate:replay.
  * Watch replay is redacted: emails and password/email field values are stripped.
  */
 import { copyFile, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises"
@@ -185,13 +186,12 @@ export async function saveDemoReceipt(): Promise<void> {
       claimOk: verify.claimOk,
       verifyOk: verify.ok,
       claimErrors: verify.claimErrors,
-      note: "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → Replay, or open demo/replay.html. Demo receipt uses synthetic sessionId placeholder.",
+      note: "Presigned replay URLs are not returned or committed. Watch the Pages player at https://ironadamant.com/auspex/demo/replay.html (CI runs npm run generate:replay from replay.ndjson). The committed demo/replay.html is a stub, not the player. Or watch in https://console.getsolari.com → Sessions → Replay. Demo receipt uses synthetic sessionId placeholder.",
     }
     await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
     await writeFile(path.join(staging, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)
     await writeFile(path.join(staging, "replay.ndjson"), text)
-    await writeFile(path.join(staging, "replay.html"), replayHtmlFromNdjson(text, IRONADAMANT_REPLAY_COPY))
-    for (const name of ["ironadamant.png", "receipt.json", "replay.ndjson", "replay.html"]) {
+    for (const name of ["ironadamant.png", "receipt.json", "replay.ndjson"]) {
       await rename(path.join(staging, name), path.join(demoDir, name))
     }
   } finally {
@@ -213,10 +213,6 @@ export async function saveWatchReplayFromSession(sessionId: string): Promise<voi
       throw new Error(`watch replay still has credentials: ${leaks.join(", ")}`)
     }
     await writeFile(path.join(demoDir, "replay.ndjson"), ndjson)
-    await writeFile(
-      path.join(demoDir, "replay.html"),
-      replayHtmlFromNdjson(ndjson, CONSISTENCYHUB_MICROSOFT_REPLAY_COPY),
-    )
   } finally {
     await solari.close()
   }

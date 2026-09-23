@@ -13,7 +13,8 @@ test("mcp-tools static imports stay light (no desktop/sandbox/check/profiles)", 
     assert.equal(staticImports.includes(banned), false, `mcp-tools must not statically import ${banned}`)
   }
   assert.match(src, /await import\("\.\/runners\.ts"\)/)
-  assert.match(src, /await import\("\.\/desktop\.ts"\)/)
+  assert.match(src, /runDesktopDoor/)
+  assert.equal(src.includes('await import("./desktop.ts")'), false, "desktop goes through runners.runDesktopDoor")
   assert.match(src, /from "\.\/job-store\.ts"/)
   assert.match(src, /from "\.\/tool-copy\.ts"/)
 })

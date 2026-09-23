@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "auspex": {
+      "_comment": "After clone: npm install && npm run build:mcp (dist/ is gitignored). Then restart Cursor. bin/auspex-mcp.mjs fail-closes DistMissing if dist/mcp.mjs is absent.",
       "command": "node",
       "args": ["bin/auspex-mcp.mjs"],
       "cwd": "${workspaceFolder}"

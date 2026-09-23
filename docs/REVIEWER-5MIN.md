@@ -9,7 +9,7 @@ Timed walkthrough. No login. No clone required for Watch.
 | 2:30–4:00 | Auth-gated honesty without logging in: redacted SaaS [receipt](../examples/auspex-ts/demo/consistencyhub-receipt.json) + receipt-only [OneDrive](../examples/auspex-ts/demo/onedrive-receipt.json) | Triad stays honest; no OneDrive PNG |
 | 4:00–5:00 | Frozen door (read only): [AGENTS.md](../AGENTS.md#frozen-agent-door-sequence) — mint → human login → Save → `await-login --save-editor` → `finalize-login` → later `check`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged`, `stream-expired`. Optional compose: `auspex_job` (not a fourth primitive). | Not a same-session takeover |
 
-Do not run npm `auspex` (a different scraper). After a clone, `npx auspex` is the local bin.
+Do not run npm `auspex` (a different scraper). After a clone: `npm install && npm run build:mcp`, then `npx auspex` / `npx auspex-mcp`.
 
 Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → tag @harrychow_ @getsolari on LinkedIn or X. Discord is setup help, not a substitute. Agents do not write or post showcase copy. No extra stills invented — use the committed redacted ConsistencyHub still + receipt.
 
