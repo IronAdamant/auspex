@@ -146,7 +146,7 @@ export function needsHumanGuide(profile?: string): {
 } {
   const name = profile?.trim() || "<yours>"
   const text =
-    `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` +
+    `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` +
     HANDOFF_PHONE_DOOR_BAN +
     ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`
   const nextCall: import("./next-call.ts").NextCall = { tool: "auspex_login" }

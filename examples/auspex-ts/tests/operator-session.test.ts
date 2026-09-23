@@ -122,6 +122,9 @@ test("voluntary purge is selected only when the human agrees, and the agent obje
   assert.match(agreed.agent.question, /purged/)
   assert.match(agreed.agent.question, /30 minutes/)
   assert.match(agreed.agent.question, /not included in the agent message/)
+  assert.match(agreed.agent.question, /next Auspex command/)
+  assert.match(agreed.agent.question, /not that wipe/)
+  assert.equal(agreed.agent.question.includes("stay in the local page fields only"), false)
   assert.equal(agreed.agent.idleMinutes, 30)
   assert.deepEqual(agreed.agent.sites, [
     { site: "https://console.neon.tech", profile: "console-neon-tech" },

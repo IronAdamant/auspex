@@ -5,17 +5,20 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   CONSOLE_PROFILES_URL,
+  DOOR_HANDOFF_PAGE,
   PHONE_HANDOFF_PAGE,
   attachHandoffQr,
   fetchEditorVncToken,
   editorStartOk,
   mintStageAfterVnc,
   formatLogin,
+  desktopSavePaste,
   phoneSavePaste,
   saveProfileEditor,
   handoffTokenFromUrl,
   loginInstructions,
   desktopHandoffUrlFromPhone,
+  doorHandoffUrlFromPhone,
   desktopSaveSiteUrl,
   phoneHandoffUrl,
   qrPayloadForHandoff,
@@ -53,23 +56,31 @@ test("loginInstructions with phone IME URL labels the real text-field page", () 
     undefined,
     mobile,
   )
-  assert.equal(result.handoff?.url, solari)
+  const chooser = doorHandoffUrlFromPhone(mobile)
+  assert.equal(result.handoff?.url, chooser)
+  assert.equal(result.handoff?.url?.startsWith(`${DOOR_HANDOFF_PAGE}#`), true)
   assert.equal(result.handoff?.mobileUrl, mobile)
+  assert.match(result.handoff?.url ?? "", /ironadamant\.com\/auspex\/door\.html#/)
   assert.match(result.handoff?.mobileUrl ?? "", /ironadamant\.com\/auspex\/phone\.html/)
   assert.match(result.handoff?.desktopUrl ?? "", /ironadamant\.com\/auspex\/desktop\.html#/)
   const phoneHash = new URLSearchParams(new URL(mobile).hash.slice(1))
   const desktopHash = new URLSearchParams(new URL(result.handoff?.desktopUrl ?? "").hash.slice(1))
+  const chooserHash = new URLSearchParams(new URL(result.handoff?.url ?? "").hash.slice(1))
   assert.equal(desktopHash.get("v"), phoneHash.get("v"))
+  assert.equal(chooserHash.get("v"), phoneHash.get("v"))
   assert.equal(desktopHash.get("h"), phoneHash.get("h"))
   assert.equal(desktopHash.get("n"), phoneHash.get("n"))
   assert.equal(desktopHash.get("t"), phoneHash.get("t"))
   assert.equal(desktopHash.get("exp"), phoneHash.get("exp"))
+  assert.equal(chooserHash.toString(), phoneHash.toString())
   assert.match(result.next, /real text field/)
   assert.match(result.next, /phone keyboard/)
   assert.match(result.next, /seed\/handoff door/)
   assert.match(result.next, /not a same-session VNC takeover/)
   assert.match(result.next, /handoff\.desktopUrl/)
   assert.match(result.next, /desktop\.html/)
+  assert.match(result.next, /handoff\.url/)
+  assert.match(result.next, /chooser/)
   assert.equal(result.next.includes("Open editor"), false)
   assert.match(result.next, /Never paste/)
   assert.match(result.next, /30 minutes/)
@@ -79,11 +90,12 @@ test("loginInstructions with phone IME URL labels the real text-field page", () 
   assert.match(result.handoff?.openOnPhone ?? "", /seed\/handoff door|same-session VNC takeover/)
   assert.match(result.handoff?.openOnDesktop ?? "", /desktop\.html/)
   assert.match(result.handoff?.desktopOneLiner ?? "", /desktop\.html#/)
-  assert.equal(result.handoff?.oneLiner, `Auspex login (phone): ${mobile}`)
+  assert.equal(result.handoff?.oneLiner, `Auspex login: ${chooser}`)
   assert.equal(result.handoff?.savePaste, phoneSavePaste("auspex-goal-test"))
-  assert.equal(qrPayloadForHandoff(result.handoff!), mobile)
+  assert.equal(qrPayloadForHandoff(result.handoff!), chooser)
   const printed = formatLogin(result)
   assert.match(printed, /phone\.html/)
+  assert.match(printed, /door\.html/)
   assert.equal(printed.includes("gateUrl"), false)
 })
 
@@ -104,13 +116,17 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(extra.get("n"), "demo")
   assert.equal(extra.get("t"), "hand_1")
   const desktop = desktopHandoffUrlFromPhone(withIds)
+  const chooser = doorHandoffUrlFromPhone(withIds)
   assert.match(desktop ?? "", /\/desktop\.html#/)
+  assert.match(chooser ?? "", /\/door\.html#/)
   const desk = new URLSearchParams(new URL(desktop ?? "").hash.slice(1))
+  const door = new URLSearchParams(new URL(chooser ?? "").hash.slice(1))
   assert.equal(desk.get("v"), "tok.en")
   assert.equal(desk.get("h"), extra.get("h"))
   assert.equal(desk.get("n"), "demo")
   assert.equal(desk.get("t"), "hand_1")
   assert.equal(desk.get("exp"), extra.get("exp"))
+  assert.equal(door.toString(), desk.toString())
   const withKey = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
     keyInUse: true,
     siteUrl: "https://consistencyhub.io",
@@ -293,6 +309,26 @@ test("phone.html clipboard equals phoneSavePaste", () => {
   assert.equal(phoneHtmlSavePaste(""), phoneSavePaste())
   assert.equal(phoneHtmlSavePaste("  myapp  "), phoneSavePaste("  myapp  "))
   assert.equal(phoneHtmlSavePaste(), phoneSavePaste())
+})
+
+function desktopHtmlSavePaste(name?: string): string {
+  const html = readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/desktop.html"),
+    "utf8",
+  )
+  const match = html.match(/function savePasteLine\(name\) \{[\s\S]*?\n      \}/)
+  assert.ok(match, "desktop.html must define savePasteLine")
+  const fn = new Function(`${match[0]}\nreturn savePasteLine`) as () => (n?: string) => string
+  return fn()(name)
+}
+
+test("desktop.html clipboard equals desktopSavePaste and says desktop page", () => {
+  assert.equal(desktopHtmlSavePaste("consistencyhub"), desktopSavePaste("consistencyhub"))
+  assert.equal(desktopHtmlSavePaste(""), desktopSavePaste())
+  assert.match(desktopSavePaste("app-example"), /Auspex desktop page/)
+  assert.equal(desktopSavePaste("app-example").includes("Auspex phone page"), false)
+  assert.match(phoneSavePaste("app-example"), /Auspex phone page/)
+  assert.equal(phoneSavePaste("app-example").includes("Auspex desktop page"), false)
 })
 
 test("saveProfileEditor POSTs editor/save", async () => {
