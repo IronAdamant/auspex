@@ -309,8 +309,8 @@ var init_operator_session = __esm({
     OPERATOR_IDLE_MS = 30 * 60 * 1e3;
     PHONE_LIST_MS = 10 * 60 * 1e3;
     SIGNUP_BUSY_MS = 30 * 60 * 1e3;
-    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. On the desktop, the same wipe runs when that profile has been idle for 30 minutes. A use resets that profile's 30-minute clock. Other profiles stay. One site at a time. Username and password stay in the local page fields only, and those fields are cleared after paste or Save. They are not included in the agent message.";
-    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. The desktop thin client is docs/desktop.html (Solari remote view plus the typing door). The phone door is docs/phone.html. Paste URL, username, and password on those pages; they stay on the page. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent.";
+    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. The Solari key in the browser or .auspex/operator-key is not that wipe.";
+    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent and is not the 30-minute profile wipe.";
     OPERATOR_KEY_PORT = 17321;
     OPERATOR_KEY_POST_PATH = "/auspex-operator-key";
   }
@@ -1004,7 +1004,9 @@ function summarizeLoginTrace(events) {
     const tries = last.tokenTries ?? 20;
     return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Computer Open editor may still work. Refresh the handoff card once; if still blank after 2-3 minutes, remint.`;
   }
-  const door = last.phoneDoor === "ime" ? "Phone door is phone.html (IME)." : last.phoneDoor === "novnc-fallback" ? "Phone door fell back to Solari noVNC; computer Open editor still works." : "Computer Open editor is the door.";
+  const phoneDoor = last.phoneDoor === "ime" ? "Phone door is phone.html (IME)." : last.phoneDoor === "novnc-fallback" ? "Phone door fell back to Solari noVNC." : "Phone door was not minted.";
+  const computerDoor = last.computerDoor === "desktop-page" ? " Computer door is desktop.html (same hash) via the chooser (door.html)." : last.phoneDoor === "novnc-fallback" || last.phoneDoor === "none" || !last.phoneDoor ? " Computer Open editor is the door." : " Computer Open editor may still work.";
+  const door = `${phoneDoor}${computerDoor}`;
   const clusterNote = last.hostKind === "cluster-internal" ? "Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. " : "";
   if (last.vncMintOk === true) {
     return `${prefix} ${clusterNote}Mint ready. ${door} Mint log stops here. Use await-login / finalize-login / check as normal ops.`;
@@ -1393,6 +1395,67 @@ function resolvePhoneExpirySeconds(opts) {
 var init_phone_expiry = __esm({
   "src/phone-expiry.ts"() {
     "use strict";
+  }
+});
+
+// src/handoff-doors.ts
+function isPhoneImeUrl(url) {
+  return Boolean(url?.startsWith(PHONE_HANDOFF_PAGE));
+}
+function isDoorUrl(url) {
+  return Boolean(url?.startsWith(DOOR_HANDOFF_PAGE));
+}
+function isDesktopDoorUrl(url) {
+  return Boolean(url?.startsWith(DESKTOP_HANDOFF_PAGE));
+}
+function handoffHash(vncToken, handoffUrl, extra) {
+  const token = vncToken.trim();
+  const save = handoffUrl.trim();
+  if (!token) return "";
+  const hash = new URLSearchParams({ v: token });
+  if (save) hash.set("h", save);
+  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
+  if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
+  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
+  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim());
+  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim());
+  if (extra?.keyInUse) hash.set("k", "1");
+  const siteUrl = extra?.siteUrl?.trim() ?? "";
+  if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl);
+  const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
+  if (expiry.exp !== void 0) hash.set("exp", String(expiry.exp));
+  return hash.toString();
+}
+function pageWithHash(page, hash) {
+  return hash ? `${page}#${hash}` : "";
+}
+function phoneHandoffUrl(vncToken, handoffUrl, extra) {
+  return pageWithHash(PHONE_HANDOFF_PAGE, handoffHash(vncToken, handoffUrl, extra));
+}
+function desktopHandoffUrl(vncToken, handoffUrl, extra) {
+  return pageWithHash(DESKTOP_HANDOFF_PAGE, handoffHash(vncToken, handoffUrl, extra));
+}
+function doorHandoffUrl(vncToken, handoffUrl, extra) {
+  return pageWithHash(DOOR_HANDOFF_PAGE, handoffHash(vncToken, handoffUrl, extra));
+}
+function swapHandoffPage(url, from, to) {
+  if (!url?.startsWith(from)) return void 0;
+  return to + url.slice(from.length);
+}
+function desktopHandoffUrlFromPhone(mobileUrl) {
+  return swapHandoffPage(mobileUrl, PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE);
+}
+function doorHandoffUrlFromPhone(mobileUrl) {
+  return swapHandoffPage(mobileUrl, PHONE_HANDOFF_PAGE, DOOR_HANDOFF_PAGE);
+}
+var PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, DOOR_HANDOFF_PAGE;
+var init_handoff_doors = __esm({
+  "src/handoff-doors.ts"() {
+    "use strict";
+    init_phone_expiry();
+    PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
+    DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html";
+    DOOR_HANDOFF_PAGE = "https://ironadamant.com/auspex/door.html";
   }
 });
 
@@ -1840,6 +1903,7 @@ var profiles_exports = {};
 __export(profiles_exports, {
   CONSOLE_PROFILES_URL: () => CONSOLE_PROFILES_URL,
   DESKTOP_HANDOFF_PAGE: () => DESKTOP_HANDOFF_PAGE,
+  DOOR_HANDOFF_PAGE: () => DOOR_HANDOFF_PAGE,
   HANDOFF_OPEN_ON_DESKTOP_PAGE: () => HANDOFF_OPEN_ON_DESKTOP_PAGE,
   HANDOFF_OPEN_ON_PHONE: () => HANDOFF_OPEN_ON_PHONE,
   HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK: () => HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
@@ -1851,16 +1915,24 @@ __export(profiles_exports, {
   classifyHandoffHost: () => classifyHandoffHost,
   defaultProfileHttp: () => defaultProfileHttp,
   deleteSolariProfilesByName: () => deleteSolariProfilesByName,
+  desktopHandoffUrl: () => desktopHandoffUrl,
   desktopHandoffUrlFromPhone: () => desktopHandoffUrlFromPhone,
+  desktopSavePaste: () => desktopSavePaste,
   desktopSaveSiteUrl: () => desktopSaveSiteUrl,
+  doorHandoffUrl: () => doorHandoffUrl,
+  doorHandoffUrlFromPhone: () => doorHandoffUrlFromPhone,
+  doorSavePaste: () => doorSavePaste,
   editorSavePath: () => editorSavePath,
   editorStartOk: () => editorStartOk,
   ensureProfile: () => ensureProfile,
   fetchEditorVncToken: () => fetchEditorVncToken,
   formatHandoffNext: () => formatHandoffNext,
   formatLogin: () => formatLogin,
+  handoffHash: () => handoffHash,
   handoffOpenOnDesktop: () => handoffOpenOnDesktop,
   handoffTokenFromUrl: () => handoffTokenFromUrl,
+  isDesktopDoorUrl: () => isDesktopDoorUrl,
+  isDoorUrl: () => isDoorUrl,
   isPhoneImeUrl: () => isPhoneImeUrl,
   listProfiles: () => listProfiles,
   loadEditorSave: () => loadEditorSave,
@@ -1902,31 +1974,6 @@ function publicHandoffUrl(url) {
     return url;
   }
 }
-function isPhoneImeUrl(url) {
-  return Boolean(url?.startsWith(PHONE_HANDOFF_PAGE));
-}
-function phoneHandoffUrl(vncToken, handoffUrl, extra) {
-  const token = vncToken.trim();
-  const save = handoffUrl.trim();
-  if (!token) return "";
-  const hash = new URLSearchParams({ v: token });
-  if (save) hash.set("h", save);
-  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
-  if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
-  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
-  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim());
-  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim());
-  if (extra?.keyInUse) hash.set("k", "1");
-  const siteUrl = extra?.siteUrl?.trim() ?? "";
-  if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl);
-  const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
-  if (expiry.exp !== void 0) hash.set("exp", String(expiry.exp));
-  return `${PHONE_HANDOFF_PAGE}#${hash.toString()}`;
-}
-function desktopHandoffUrlFromPhone(mobileUrl) {
-  if (!mobileUrl?.startsWith(PHONE_HANDOFF_PAGE)) return void 0;
-  return DESKTOP_HANDOFF_PAGE + mobileUrl.slice(PHONE_HANDOFF_PAGE.length);
-}
 function editorSavePath(name, root = packageRoot) {
   return path5.join(root, ".auspex", "editor-save", `${requireProfileName(name)}.json`);
 }
@@ -1957,9 +2004,17 @@ function requireProfileName(value) {
   if (!name) throw new Error(PROFILE_NAME_ERROR);
   return name;
 }
-function phoneSavePaste(profileName) {
+function doorSavePaste(profileName, door = "phone") {
   const name = (profileName ?? "").trim() || "<yours>";
-  return `I tapped Save on the Auspex phone page for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
+  const page = door === "desktop" ? "desktop page" : "phone page";
+  const solariBan = door === "desktop" ? " Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : " Do not open Solari on the phone (GET editor HTTP 401).";
+  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman.`;
+}
+function phoneSavePaste(profileName) {
+  return doorSavePaste(profileName, "phone");
+}
+function desktopSavePaste(profileName) {
+  return doorSavePaste(profileName, "desktop");
 }
 function desktopSaveSiteUrl(minted, field) {
   const typed = (field ?? "").trim();
@@ -1975,9 +2030,9 @@ function formatHandoffNext(opts) {
   const qrBit = opts.qrPath ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)." : "";
   const profile = opts.profileName?.trim() || "<yours>";
   const derived = opts.profileDerived ? `${derivedProfileNext(profile)} ` : "";
-  const phone = opts.hasPhoneIme ? "Show BOTH URLs, labeled. Phone: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open \u2014 seed/handoff door for off-site typing, not a same-session VNC takeover). Tap the remote Chrome to click, type in the field at the bottom, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
-  const computer = opts.hasDesktopPage ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). Paste URL, username, and password with the buttons on that page. They stay on the page." : `Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save.`;
-  return `${derived}${phone} ${computer} Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`;
+  const phone = opts.hasPhoneIme ? "Show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open \u2014 seed/handoff door for off-site typing, not a same-session VNC takeover) and handoff.desktopUrl (desktop.html). Tap the remote Chrome to click, type or paste in the one field, tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)." : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer.";
+  const computer = opts.hasDesktopPage ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). One typing field: click the remote field, then paste. Keys go into remote Chrome and the site. They stay off agent chat, MCP, and receipts." : `Computer: handoff.desktopUrl, then Profiles \u2192 ${profile} \u2192 Open editor (hardware keyboard), then Save.`;
+  return `${derived}${phone} ${computer} Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. ` + (opts.hasPhoneIme ? `Off-site: paste handoff.oneLiner (chooser). Phone deep link: handoff.mobileUrl. Computer deep link: handoff.desktopOneLiner.` : `Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.`) + `${qrBit}${HANDOFF_HANG_GUIDANCE}`;
 }
 function attachHandoffQr(result, qrPath, urlHint) {
   if (!result.handoff) return result;
@@ -1995,6 +2050,7 @@ function attachHandoffQr(result, qrPath, urlHint) {
   return result;
 }
 function qrPayloadForHandoff(handoff) {
+  if (isDoorUrl(handoff.url)) return handoff.url;
   return handoff.mobileUrl || handoff.url;
 }
 function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
@@ -2004,14 +2060,16 @@ function loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts) {
     const phone = mobileUrl?.trim() || handoff.url;
     const hasPhoneIme = isPhoneImeUrl(phone);
     const thinDesktop = desktopHandoffUrlFromPhone(phone);
+    const chooser = doorHandoffUrlFromPhone(phone);
     const desktopUrl = thinDesktop ?? CONSOLE_PROFILES_URL;
+    const packetUrl = chooser || handoff.url;
     const handoffPacket = {
-      url: handoff.url,
+      url: packetUrl,
       mobileUrl: phone,
       desktopUrl,
       openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
       openOnDesktop: thinDesktop ? HANDOFF_OPEN_ON_DESKTOP_PAGE : handoffOpenOnDesktop(profile.name),
-      oneLiner: `Auspex login (phone): ${phone}`,
+      oneLiner: chooser ? `Auspex login: ${chooser}` : `Auspex login (phone): ${phone}`,
       desktopOneLiner: thinDesktop ? `Auspex login (computer): ${thinDesktop}` : `Auspex login (computer): ${CONSOLE_PROFILES_URL} \u2192 Profiles \u2192 ${profile.name} \u2192 Open editor`,
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : void 0,
       qrPath
@@ -2212,7 +2270,7 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
       event: "login",
       profile: result.name,
       phoneDoor,
-      computerDoor: "console-editor",
+      computerDoor: desktopHandoffUrlFromPhone(result.handoff?.mobileUrl) ? "desktop-page" : "console-editor",
       vncMintOk,
       mintStage,
       urlPresent: true,
@@ -2285,7 +2343,7 @@ async function listProfiles() {
     await solari.close();
   }
 }
-var CONSOLE_PROFILES_URL, PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, PROFILE_NAME_ERROR, profileNameSchema, PHONE_HANDOFF_NOT_TAKEOVER, HANDOFF_PHONE_DOOR_BAN, HANDOFF_OPEN_ON_PHONE, HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_HANG_GUIDANCE;
+var CONSOLE_PROFILES_URL, PROFILE_NAME_ERROR, profileNameSchema, PHONE_HANDOFF_NOT_TAKEOVER, HANDOFF_PHONE_DOOR_BAN, HANDOFF_OPEN_ON_PHONE, HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_HANG_GUIDANCE;
 var init_profiles = __esm({
   "src/profiles.ts"() {
     "use strict";
@@ -2294,19 +2352,18 @@ var init_profiles = __esm({
     init_profile_persist();
     init_profile_slug();
     init_operator_session();
+    init_handoff_doors();
     init_paths();
-    init_phone_expiry();
     init_solari();
+    init_handoff_doors();
     CONSOLE_PROFILES_URL = "https://console.getsolari.com";
-    PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
-    DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html";
     PROFILE_NAME_ERROR = "profile name must be non-empty";
     profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAME_ERROR });
     PHONE_HANDOFF_NOT_TAKEOVER = "Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check.";
     HANDOFF_PHONE_DOOR_BAN = "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone. " + PHONE_HANDOFF_NOT_TAKEOVER;
-    HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type in the field at the bottom (keys go into remote Chrome, not into chat), then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
+    HANDOFF_OPEN_ON_PHONE = "Phone: open handoff.url (chooser) or handoff.mobileUrl in the phone's own Safari or Chrome. That page has a real text field so the phone keyboard can open. Tap the remote Chrome to click, type or paste in the one field at the bottom (keys go into remote Chrome and the site; they stay off agent chat / MCP / receipts), then tap Save on the phone page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
     HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK = "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " + HANDOFF_PHONE_DOOR_BAN + " Never paste the password into chat.";
-    HANDOFF_OPEN_ON_DESKTOP_PAGE = "Computer: open handoff.desktopUrl in the computer's browser. That is the Auspex desktop page (desktop.html), the same remote Chrome and the same link hash as the phone. Hardware keyboard. Paste URL, username, and password with the buttons on that page. They stay on the page. Do not send this URL to a phone.";
+    HANDOFF_OPEN_ON_DESKTOP_PAGE = "Computer: open handoff.url (chooser) or handoff.desktopUrl in the computer's browser. That is the Auspex desktop page (desktop.html), the same remote Chrome and the same link hash as the phone. Hardware keyboard. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site. They stay off agent chat, MCP, and receipts. Do not send this URL to a phone.";
     HANDOFF_HANG_GUIDANCE = " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.";
   }
 });
@@ -4104,7 +4161,7 @@ function checkLoggedOutGuide(profile, cookies) {
 }
 function needsHumanGuide(profile) {
   const name = profile?.trim() || "<yours>";
-  const text = `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open). Computer: handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` + HANDOFF_PHONE_DOOR_BAN + ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`;
+  const text = `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` + HANDOFF_PHONE_DOOR_BAN + ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`;
   const nextCall = { tool: "auspex_login" };
   if (profile?.trim()) nextCall.profile = profile.trim();
   return { text, nextCall };
@@ -5112,7 +5169,7 @@ async function profileStatus(opts, deps) {
       live: true,
       skippedLive: true,
       nextCall: loginCall,
-      skipReason: "password/OTP wall. Skip live. Call auspex_login and show BOTH labeled URLs. Phone: handoff.mobileUrl (Auspex phone page, real text field). Computer: handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
+      skipReason: "password/OTP wall. Skip live. Call auspex_login and show handoff.url (chooser). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor). " + HANDOFF_PHONE_DOOR_BAN + " Agent never types a password.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -5707,11 +5764,11 @@ async function checkThenVerify(opts, deps) {
 init_saved_checks();
 var CHECK_DESCRIPTION = "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. Open a live URL in a Solari cloud browser, optional wait-for (fill/click only without a profile, or with allowPageActions), snapshot, check expected text, close. Verifies by default in a headless sandbox (HTTP fetch + OCR) except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which defaults to verify=false because anonymous sandbox fetch cannot see auth-gated UI (same policy as CLI --name consistencyhub). Public marketing still verifies with a leftover profile. No profile still verifies. verify=true / --verify forces anonymous sandbox verify \u2014 on auth-gated pages this poisons ok (claimOk false). verifyWithProfile / --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate \u2014 ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not equivalent. Pass verify=false to skip. Do not also call auspex_verify when verifying. Parseable receipt: schemaVersion 1 is frozen; required schemaVersion, ok, reason (matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn), url, expect, screenshotPath. Extra keys (diff, verify, protocolOk, \u2026) stay optional. excerpt is fenced untrusted page text. loggedOut/needsHuman skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs. Saved checks: name=ironadamant|checkpoint|consistencyhub (consistencyhub is profile only, no sso/record; fill/click refused unless allowPageActions). JSON plus JPEG attach; on-disk shot is a PNG scaled under 2 MiB. stealth/proxy/captcha are Starter+ (402 not retryable). record+profile forbidden unless allowRecordProfile on a public marketing host. allowRecordProfile is refused for consistencyhub. Never record a logged-in session (sso/saveProfile/dashboard landing). saveProfile persists cookies/localStorage/sessionStorage via POST /profiles/:id/save (not a public /landing session; origin must have bytes). Concurrent save of the same profile is locked (ProfileBusy, not retryable). Profile reuse that lands on /landing or / without a matched expect is ok:false reason:loggedOut. Microsoft and Google password/OTP sets needsHuman (never typed). 429: call auspex_reap, then retry. mobile=true and device=<name> apply Playwright BrowserContextOptions (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch) to browser.newContext(). Best-effort: effectiveness depends on Solari cloud Chrome respecting Playwright viewport/UA overrides; not verified against live Solari.";
 var VERIFY_DESCRIPTION = "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first.";
-var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console \u2192 Profiles \u2192 Open editor. Hardware keyboard. Paste URL, username, and password on that page. They stay on the page. Show both, labeled. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
+var LOGIN_DESCRIPTION = "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and mint once. handoff.url / oneLiner is the chooser (ironadamant.com/auspex/door.html). Labeled deep links stay on handoff.mobileUrl (phone.html) and handoff.desktopUrl (desktop.html). Requires profile or url. url without profile derives a safe host slug (app.example.com \u2192 app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome and the site; they stay off agent chat / MCP / receipts. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console \u2192 Profiles \u2192 Open editor. Hardware keyboard. One typing field: click the remote login field, then paste. " + HANDOFF_PHONE_DOOR_BAN + " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone or desktop page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping.";
 var DESKTOP_DESCRIPTION = "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap.";
 var PROFILES_DESCRIPTION = "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved). " + OPERATOR_PURGE_QUESTION + " Pass purge with humanAgree true only after the human agrees. This tool has no username field and no password field. The Solari key is not an argument.";
-var PROFILE_STATUS_DESCRIPTION = "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
-var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.";
+var PROFILE_STATUS_DESCRIPTION = "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show handoff.url (chooser) plus labeled deep links (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " + HANDOFF_PHONE_DOOR_BAN + " Path / is loggedOut unless expect matched.";
+var AWAIT_LOGIN_DESCRIPTION = "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone or desktop page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password.";
 var FINALIZE_LOGIN_DESCRIPTION = "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now \u2014 do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid.";
 var REAP_DESCRIPTION = "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR.";
 var TRACE_DESCRIPTION = "Treating auspex_trace as a log of check rows, tokens, or session ids is a lie. Read the last Solari LOGIN MINT episode plus one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman) after the handoff is ready. Check rows are not written. Default last mint plus traceSummary: why mint stopped (missing key, 429, 402, 503, no handoff url, editor-start HTTP, VNC timeout, empty handoff token) or Mint ready (only when VNC/token mint succeeded). all=true dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, read this before reminting. Not a fourth primitive. Same as CLI auspex trace.";

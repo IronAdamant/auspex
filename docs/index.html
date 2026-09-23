@@ -115,14 +115,27 @@
     </div>
     <div class="card">
       <strong>Phone door.</strong>
-      <code>npx auspex-solari login</code> prints a link. Open it in the phone's own Safari or Chrome.
+      <code>npx auspex-solari login</code> prints one chooser link (<code>door.html</code>).
+      Open it in the phone's own Safari or Chrome and tap Phone.
       <code>phone.html</code> has a real text field, so the software keyboard opens.
-      Keys go into cloud Chrome. Tap Save (it copies a line). Paste that line, then
+      Click the remote login field, then type or paste in that one field.
+      Keys go into cloud Chrome (and the site). They stay off the AI chat line.
+      Tap Save (it copies a line). Paste that line, then
       <code>await-login --save-editor</code>.
       This is a seed/handoff door for off-site typing (IME + Save paste),
       not a same-session HITL takeover of the live check.
       Solari's picture of Chrome will not open the phone keyboard.
       <!-- Live phone still: insert the tested screenshot here. Do not add it before that test. -->
+    </div>
+    <div class="card">
+      <strong>Desktop door.</strong>
+      Same mint, same hash. Open the chooser on a computer and tap Desktop, or use
+      <code>desktop.html</code> directly. Hardware keyboard. One typing field:
+      click the remote login field, paste here, then click the password field and paste again.
+      Keys go into cloud Chrome (and the site). They stay off the AI chat, MCP, and receipts.
+      Seed/handoff door, not a live-session takeover.
+      An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
+      not a live timer on this field, and not the Solari key in the browser.
     </div>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>

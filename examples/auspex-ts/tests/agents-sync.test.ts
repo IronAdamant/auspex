@@ -29,6 +29,8 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "desktopUrl",
     "real text field",
     "phone.html",
+    "door.html",
+    "desktop.html",
     "saveEditor",
     "GET editor HTTP 401",
   ]) {
@@ -50,6 +52,8 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(tools, /desktopUrl/)
   assert.match(tools, /real text field/)
   assert.match(tools, /phone.html/)
+  assert.match(tools, /door.html/)
+  assert.match(USAGE, /door\.html/)
   assert.match(tools, /HANDOFF_PHONE_DOOR_BAN/)
   for (const [label, text] of [
     ["root AGENTS.md", root],

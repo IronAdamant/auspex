@@ -18,6 +18,9 @@ export type LoginTraceEventName = "login" | "post-handoff"
 
 export type PhoneDoor = "ime" | "novnc-fallback" | "none"
 
+/** Login computer door. desktop-page is docs/desktop.html (same hash as the phone). */
+export type ComputerDoor = "console-editor" | "desktop-page"
+
 export type LoginMintStage =
   | "key-check"
   | "profile-ensure"
@@ -40,7 +43,7 @@ export type LoginTraceEvent = {
   remintIndex?: number
   profile?: string
   phoneDoor?: PhoneDoor
-  computerDoor?: "console-editor"
+  computerDoor?: ComputerDoor
   vncMintOk?: boolean
   mintStage?: LoginMintStage
   urlPresent?: boolean
@@ -247,12 +250,19 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     const tries = last.tokenTries ?? 20
     return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Computer Open editor may still work. Refresh the handoff card once; if still blank after 2-3 minutes, remint.`
   }
-  const door =
+  const phoneDoor =
     last.phoneDoor === "ime"
       ? "Phone door is phone.html (IME)."
       : last.phoneDoor === "novnc-fallback"
-        ? "Phone door fell back to Solari noVNC; computer Open editor still works."
-        : "Computer Open editor is the door."
+        ? "Phone door fell back to Solari noVNC."
+        : "Phone door was not minted."
+  const computerDoor =
+    last.computerDoor === "desktop-page"
+      ? " Computer door is desktop.html (same hash) via the chooser (door.html)."
+      : last.phoneDoor === "novnc-fallback" || last.phoneDoor === "none" || !last.phoneDoor
+        ? " Computer Open editor is the door."
+        : " Computer Open editor may still work."
+  const door = `${phoneDoor}${computerDoor}`
   const clusterNote =
     last.hostKind === "cluster-internal"
       ? "Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. "
