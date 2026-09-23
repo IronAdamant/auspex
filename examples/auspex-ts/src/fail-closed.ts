@@ -16,7 +16,7 @@ import { isPublicMarketingUrl } from "./saved-checks.ts"
  */
 
 /** Reasons that must not be retried and must not spend a second Solari VM. */
-export const NO_RETRY_REASONS = ["loggedOut", "needsHuman", "expectMatchedPublicLanding"] as const
+export const NO_RETRY_REASONS = ["loggedOut", "needsHuman", "expectMatchedPublicLanding", "hostChanged"] as const
 
 export type NoRetryReason = (typeof NO_RETRY_REASONS)[number]
 

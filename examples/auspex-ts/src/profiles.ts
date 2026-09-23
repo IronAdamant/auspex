@@ -75,6 +75,10 @@ export type EditorSaveHandle = {
   expiresAt?: string
   /** Site URL from login --url. Used so await-login can see a host the agent does not repeat. */
   siteUrl?: string
+  /** Live browser host diverged. Cleared by the next login mint. Not cookies. */
+  hostChanged?: boolean
+  suggestedUrl?: string
+  suggestedProfile?: string
 }
 
 export function editorSavePath(name: string, root = packageRoot): string {
@@ -96,12 +100,18 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
     if (!profileId || !handoffToken) return undefined
     const siteRaw = typeof raw.siteUrl === "string" ? raw.siteUrl.trim() : ""
     const siteUrl = siteRaw && isHttpOrHttpsUrl(siteRaw) ? siteRaw : undefined
+    const suggestedUrl = raw.hostChanged === true ? httpsOriginFrom(typeof raw.suggestedUrl === "string" ? raw.suggestedUrl : "") : ""
+    const suggestedProfile =
+      suggestedUrl && typeof raw.suggestedProfile === "string" ? raw.suggestedProfile.trim() : ""
     return {
       profileId,
       name: profileName,
       handoffToken,
       expiresAt: typeof raw.expiresAt === "string" ? raw.expiresAt : undefined,
       ...(siteUrl ? { siteUrl } : {}),
+      ...(suggestedUrl && suggestedProfile
+        ? { hostChanged: true as const, suggestedUrl, suggestedProfile }
+        : {}),
     }
   } catch {
     return undefined
@@ -169,12 +179,22 @@ export function desktopSavePaste(profileName?: string): string {
   return doorSavePaste(profileName, "desktop")
 }
 
-/** https only. A pasted field wins over the URL minted into the link. Secrets are not accepted. */
-export function desktopSaveSiteUrl(minted?: string, field?: string): string {
-  const typed = (field ?? "").trim()
-  const fromMint = (minted ?? "").trim()
-  const chosen = /^https:\/\//i.test(typed) ? typed : fromMint
-  return /^https:\/\//i.test(chosen) ? chosen : ""
+function httpsOriginFrom(value?: string): string {
+  const text = (value ?? "").trim()
+  if (!/^https:\/\//i.test(text)) return ""
+  try {
+    const url = new URL(text)
+    if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return ""
+    return url.origin
+  } catch {
+    return ""
+  }
+}
+
+/** https origin. `typed` is the password field and is never a site picker. A live https URL wins over the minted hash. */
+export function desktopSaveSiteUrl(minted?: string, typed?: string, live?: string): string {
+  void typed
+  return httpsOriginFrom(live) || httpsOriginFrom(minted)
 }
 
 /** Phone.html is IME + Save paste for an auth seed — not a live-session takeover. */

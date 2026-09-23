@@ -233,9 +233,27 @@
         return "I tapped Save on the Auspex desktop page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari's handoff page on a phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman."
       }
 
+      function liveSiteUrl() {
+        // noVNC is a picture of Chrome. This page cannot read the remote address bar
+        // (page.url()). Do not parse the password field. await-login and finalize-login
+        // compare storage origins / cookie hosts and, when CDP exists, page.url().
+        return ""
+      }
+
       function httpsSite(value) {
         var text = String(value || "").trim()
-        return /^https:\/\//i.test(text) ? text : ""
+        var match = text.match(/^https:\/\/([^/?#\s]+)/i)
+        if (!match) return ""
+        var host = match[1]
+        if (!host || host.indexOf("@") !== -1) return ""
+        return "https://" + host
+      }
+
+      function doorSiteUrl(live, minted, typed) {
+        if (typed && typed === typed) { /* IME is credentials, not a site picker */ }
+        var observed = httpsSite(live)
+        if (observed) return observed
+        return httpsSite(minted)
       }
 
       function stripSecret(line, secret) {
@@ -269,7 +287,7 @@
         if (locked) return
         var typed = String(ime && ime.value || "")
         var line = savePasteLine(profileName)
-        var siteUrl = httpsSite(params.get("u"))
+        var siteUrl = doorSiteUrl(liveSiteUrl(), params.get("u"))
         if (siteUrl) line += " Site URL: " + siteUrl + "."
         line = stripSecret(line, typed)
         clearLocalSecrets()

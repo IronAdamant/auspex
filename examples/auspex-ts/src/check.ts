@@ -34,7 +34,8 @@ import {
 } from "./profile-storage.ts"
 import { stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
-import { HANDOFF_PHONE_DOOR_BAN, requireProfileName } from "./profiles.ts"
+import { decideLiveHostPersist, LIVE_HOST_CHANGED_SAVE_ERROR, noteProfileHostChanged, type LiveHostChange } from "./live-host-change.ts"
+import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./replay-save.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
@@ -98,7 +99,7 @@ export type { CheckReason } from "./check-reason.ts"
 export type CheckResult = {
   /** Agent success: reason is matched (verify, when it ran, is folded in by toAgentReceipt). */
   ok: boolean
-  /** Protocol success (URL+PNG, not loggedOut/needsHuman/recordedLoggedIn/expectMatchedPublicLanding). Not the receipt `ok`. */
+  /** Protocol success (URL+PNG, not loggedOut/needsHuman/recordedLoggedIn/expectMatchedPublicLanding/hostChanged). Not the receipt `ok`. */
   protocolOk?: boolean
   reason: CheckReason
   url: string
@@ -119,6 +120,8 @@ export type CheckResult = {
   nextCall?: import("./next-call.ts").NextCall
   profileHostMatch?: boolean
   suggestedProfile?: string
+  hostChanged?: boolean
+  suggestedUrl?: string
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
@@ -215,6 +218,7 @@ export async function runFinalizeLogin(opts: {
     saveProfile: true,
     onProgress: opts.onProgress,
   })
+  if (result.hostChanged) return result
   return stampProfileHostAdvice(result, { profile: opts.profile, url })
 }
 
@@ -282,6 +286,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let profileSaved: ProfileSaveResult | undefined
   let needsHuman = false
   let special: SpecialCheckReason | undefined
+  let liveHostChange: LiveHostChange | undefined
   let workError: unknown
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
@@ -289,6 +294,11 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device })
       onProgress("launching")
       const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
+      const mintHandle = opts.profile ? await loadEditorSave(opts.profile).catch(() => undefined) : undefined
+      const marker =
+        mintHandle?.hostChanged && mintHandle.suggestedProfile && mintHandle.suggestedUrl
+          ? { suggestedProfile: mintHandle.suggestedProfile, suggestedUrl: mintHandle.suggestedUrl }
+          : undefined
       if (isCancelled()) return
       const browser = await observeAbort(
         launchBrowser(solari, sessionCreateFromCheck({ ...opts, profileId }), signal),
@@ -431,25 +441,39 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       }
       if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
         onProgress("save-profile")
-        if (!isPersistableAppUrl(liveUrl)) {
-          profileSaved = {
-            ok: false,
-            cookies: 0,
-            origins: 0,
-            error: PUBLIC_PROFILE_SAVE_ERROR,
-          }
+        const state = await captureStorageState(browser)
+        const gate = decideLiveHostPersist({
+          profile: opts.profile,
+          mintUrl: mintHandle?.siteUrl || opts.url,
+          pageUrl: liveUrl,
+          state,
+          marker,
+          enforceDetect: true,
+        })
+        if (gate) {
+          liveHostChange = gate
+          const seed = seedFromStorageState(state)
+          profileSaved = { ok: false, cookies: seed.cookies, origins: seed.origins, error: LIVE_HOST_CHANGED_SAVE_ERROR }
+        } else if (!isPersistableAppUrl(liveUrl)) {
+          profileSaved = { ok: false, cookies: 0, origins: 0, error: PUBLIC_PROFILE_SAVE_ERROR }
         } else {
-          const state = await captureStorageState(browser)
-          const origin = originOf(liveUrl)
           profileSaved = await persistLiveProfile({
             solari,
             profileId,
             sessionId,
             state,
-            origin,
+            origin: originOf(liveUrl),
             lockName: opts.profile,
           })
         }
+      } else if (marker && opts.profile) {
+        liveHostChange = decideLiveHostPersist({
+          profile: opts.profile,
+          mintUrl: mintHandle?.siteUrl || opts.url,
+          pageUrl: liveUrl,
+          marker,
+          enforceDetect: false,
+        })
       }
     } finally {
       closer.skip()
@@ -484,7 +508,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       })
     }
 
-    if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
+    if (liveHostChange) {
+      special = "hostChanged"
+      matched = false
+    } else if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
       special = "recordedLoggedIn"
     } else if (opts.record && sessionId) {
       onProgress("replay")
@@ -503,7 +530,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         !loggedOut &&
         !blockedHuman &&
         special !== "recordedLoggedIn" &&
-        special !== "expectMatchedPublicLanding",
+        special !== "expectMatchedPublicLanding" &&
+        special !== "hostChanged",
       )
     const reason = deriveCheckReason({
       special,
@@ -517,7 +545,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     
     let next: string | undefined
     let nextCall: CheckResult["nextCall"]
-    if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
+    if (liveHostChange) {
+      next = liveHostChange.nextLead
+      nextCall = liveHostChange.nextCall
+    } else if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
       const guided = checkLoggedOutGuide(opts.profile ?? "<name>", profileSeed.cookies)
       next = guided.text
       nextCall = guided.nextCall
@@ -557,9 +588,20 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       needsHuman: needsHuman || undefined,
       next,
       nextCall,
+      ...(liveHostChange
+        ? {
+            hostChanged: true as const,
+            profileHostMatch: false as const,
+            suggestedProfile: liveHostChange.suggestedProfile,
+            suggestedUrl: liveHostChange.suggestedUrl,
+          }
+        : {}),
       diff,
       profileSeed,
       profileSaved,
+    }
+    if (liveHostChange && opts.profile) {
+      await noteProfileHostChanged(opts.profile, liveHostChange).catch(() => undefined)
     }
     await persistAgentManifest(result)
     if (opts.sso && opts.saveProfile && reason === "needsHuman" && opts.profile) {
