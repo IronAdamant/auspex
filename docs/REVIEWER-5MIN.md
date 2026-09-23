@@ -11,4 +11,6 @@ Timed walkthrough. No login. No clone required for Watch.
 
 Do not run npm `auspex` (a different scraper). After a clone, `npx auspex` is the local bin.
 
+Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → tag Harry + Solari on LinkedIn or X. Discord is setup help, not a substitute. Agents do not write or post showcase copy.
+
 ConsistencyHub / OneDrive are evidence, not the default recipe. Strangers use `login --url <https>` plus *their* URL and expect.

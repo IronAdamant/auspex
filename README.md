@@ -122,7 +122,7 @@ The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **
 
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
 - Reviewer 5-minute path: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
-- Official apply path: fork cookbook → real Solari use case → public GitHub → **tag Harry + Solari on LinkedIn or X**. Discord is Solari setup help, not a substitute ([docs/DRAFT-showcase.md](docs/DRAFT-showcase.md) — DRAFT, do not post).
+- Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → **tag Harry + Solari on LinkedIn or X**. Discord is Solari setup help, not a substitute. The tagged post itself is founder-only.
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
 - Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set). A secretless cron does not verify live Solari sessions.
