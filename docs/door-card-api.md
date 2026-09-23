@@ -63,6 +63,14 @@ Expect must be unique to the logged-in app. `Dashboard` does not match `One Dash
 
 Not `loggedOut`, not `needsHuman`, not a Solari 502.
 
+### `handshake-no-frames` (door UI)
+
+Phone/desktop lock after RFB `securityfailure` or ~30s with no canvas frames. Not a “Connected” lie.
+
+```
+status handshake-no-frames. Remint: npx auspex login --profile app-example (nextCall auspex_login).
+```
+
 ### `editor-save-hung` / `profile-busy`
 
 ```json

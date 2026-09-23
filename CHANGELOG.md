@@ -9,7 +9,8 @@ Tip after #61–#65 (public-landing expect, `hostChanged` remint, door IME/Save,
 - Parseable await-login fail-closed: `stream-expired` (VNC/phone JWT), `editor-save-hung`, `profile-busy`, with remint `nextCall`.
 - Door-card copy: Console Save is not fold; unique expect; `hostChanged` first-run; keep-marker collision hardened.
 - Reviewer 5-minute path, blame matrix, door-card API examples, dogfood pack (`host-changed-receipt.json`).
-- Official apply-path hygiene: tagged LinkedIn/X is required; Discord is setup help only. Outbound copy stays with the founder (no in-repo post draft).
+- Official apply-path hygiene: tag `@harrychow_` `@getsolari` on LinkedIn or X; Discord is setup help only. Outbound copy stays with the founder (no in-repo post draft).
+- Weekly `public` docs match observed Actions run 35605123361 (secret present, ironadamant + checkpoint `ok: true`). Do not remove the secret.
 
 ## 0.1.2 — 2026-09-21 (published)
 

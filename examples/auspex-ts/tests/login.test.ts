@@ -287,6 +287,7 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /id="expired"/)
   assert.match(html, /Link expiry unknown — remint/)
   assert.match(html, /status stream-expired/)
+  assert.match(html, /handshake-no-frames/)
   assert.match(html, /nextCall auspex_login/)
   assert.match(html, /jwtExpSeconds/)
   assert.match(html, /params\.get\("exp"\)/)

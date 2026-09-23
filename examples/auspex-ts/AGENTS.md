@@ -59,7 +59,7 @@ Door-card JSON + remint examples: [docs/door-card-api.md](../../docs/door-card-a
 
 Do not intern-ping. Do not open Solari noVNC on a phone (`GET editor HTTP 401`). Never `--record` a logged-in session.
 
-**Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. It skips without repo secret `SOLARI_API_KEY`. This fork does not add that secret, so weekly live Solari checks are **not** running. Missing the secret does not fail PRs. The workflow does not commit artifacts. Demo files are refreshed by hand. A secretless cron does not verify live sessions.
+**Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked). Observed: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) — ironadamant + checkpoint `ok: true`. The step still skips if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo files are refreshed by hand.
 
 ## Understanding Verification Signals
 

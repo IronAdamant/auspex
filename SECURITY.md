@@ -13,4 +13,4 @@ human browser     →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token 
 operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
 ```
 
-Report issues on GitHub. Do not open a GitHub Actions secret from a PR.
+Report issues on GitHub. Do not add or remove the repo Actions `SOLARI_API_KEY` from a PR. Weekly `public` already runs with that secret present (Actions run 35605123361).

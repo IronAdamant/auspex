@@ -158,10 +158,11 @@
         else boot.classList.remove("hidden")
       }
 
-      function remintLine() {
+      function remintLine(status) {
         var n = String(profileName || "").trim()
         var flag = n ? " --profile " + n : ""
-        return "status stream-expired. Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
+        var reason = status || "stream-expired"
+        return "status " + reason + ". Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
       }
 
       function parseUnixSeconds(value) {
@@ -469,8 +470,10 @@
           } else if (tries > 60) {
             clearInterval(bootTimer)
             bootTimer = null
-            setBoot("Ready", true)
-            setStatus("Connected. If the window is still blank, wait a few seconds or remint.")
+            lockUi(
+              "Remote Chrome opened with no frames",
+              remintLine("handshake-no-frames")
+            )
           }
         }, 500)
       }
@@ -491,6 +494,13 @@
           }
           setBoot("Opening Chromium…")
           hideBootWhenReady()
+        })
+        rfb.addEventListener("securityfailure", function () {
+          if (locked) return
+          lockUi(
+            "VNC handshake failed",
+            remintLine("handshake-no-frames")
+          )
         })
         rfb.addEventListener("disconnect", function () {
           if (locked) return

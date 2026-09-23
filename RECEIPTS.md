@@ -214,7 +214,7 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. A secretless cron does **not** verify live Solari sessions. Issues is on. Enabling the weekly secret is **NEEDS-FOUNDER** (do not add it from a PR).
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21 schedule) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
 
 ## Fail-closed: hostChanged
 

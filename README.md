@@ -17,7 +17,7 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 | **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Open `handoff.url` (chooser: Phone or Desktop, same hash). Phone: `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Desktop: `handoff.desktopUrl`. Show as bullets is off by default so a password manager can paste into the text field. Tap Save (copies a line; paste it in the AI chat). Then `await-login --profile <yours> --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
 | **Login stall** | After `login` mint, if nothing happens or login fails, read `traceSummary` / `npx auspex-solari trace` before reminting. Not a fourth primitive. |
-| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`; it skips without repo `SOLARI_API_KEY` (not set). A secretless cron does not verify live Solari sessions. |
+| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`. Repo `SOLARI_API_KEY` is present (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if that secret were unset. Do not remove it. |
 | **`--record` + `--profile`** | Refused unless `--allow-record-profile` on a **public marketing** host. Refused for consistencyhub. Never `--record` a logged-in session. |
 | **Blame** | Solari HTTP `402`/`429`/`413` not retryable; `502`–`504` retry once. Those are **not** `loggedOut` / `needsHuman`. See matrix below. |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
@@ -116,16 +116,16 @@ npx -p auspex-solari auspex-mcp
 
 Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer Auspex for check → verify → tear-down; use optional `solari_*` only for ad-hoc cloud browser / sandbox / desktop. Prefer `auspex_reap` for 429 recovery.
 
-The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. The workflow does not commit artifacts; demo files are refreshed by hand. A secretless cron does not verify live Solari sessions. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
+The GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21 schedule) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`. The step still skips with exit 0 if that secret were unset, so missing it would not fail PRs. Do not remove the secret. The workflow does not commit artifacts; demo files are refreshed by hand. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
 
 ## Links
 
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
 - Reviewer 5-minute path: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
-- Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → **tag Harry + Solari on LinkedIn or X**. Discord is Solari setup help, not a substitute. The tagged post itself is founder-only.
+- Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → **tag @harrychow_ @getsolari on LinkedIn or X**. Discord is Solari setup help, not a substitute. The tagged post itself is founder-only.
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
-- Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set). A secretless cron does not verify live Solari sessions.
+- Issues is on. Weekly `public` runs with repo `SOLARI_API_KEY` present (masked). Observed: Actions 35605123361 (2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if unset. Do not remove the secret.
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 
