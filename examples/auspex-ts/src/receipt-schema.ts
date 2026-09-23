@@ -26,6 +26,7 @@ export const RECEIPT_V1_OPTIONAL_STRING_KEYS = [
   "filled",
   "clicked",
   "next",
+  "suggestedProfile",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
@@ -33,6 +34,7 @@ export const RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
   "networkIdle",
   "replayReady",
   "needsHuman",
+  "profileHostMatch",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
@@ -72,6 +74,10 @@ export type ReceiptV1 = {
   clicked?: string
   needsHuman?: boolean
   next?: string
+  /** Login / await-login / finalize-login host compare. Omitted when there is no URL. */
+  profileHostMatch?: boolean
+  /** Host slug. Present only when profileHostMatch is false. */
+  suggestedProfile?: string
   nextCall?: NextCall
   diff?: ReceiptDiff
   verify?: VerifyResult

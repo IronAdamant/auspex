@@ -10,6 +10,7 @@ import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { attachMatchedPurgeNext, noteAfterSignupWait, OPERATOR_PURGE_QUESTION, SIGNUP_BUSY_MS } from "./operator-session.ts"
 import { attachHandoffQr, HANDOFF_PHONE_DOOR_BAN, listProfiles, loginProfile, qrPayloadForHandoff, withOperatorSession } from "./profiles.ts"
+import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
@@ -42,7 +43,7 @@ export const VERIFY_DESCRIPTION =
 export const LOGIN_DESCRIPTION =
   "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and mint once. handoff.url / oneLiner is the chooser (ironadamant.com/auspex/door.html). Labeled deep links stay on handoff.mobileUrl (phone.html) and handoff.desktopUrl (desktop.html). Requires profile or url. url without profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome and the site; they stay off agent chat / MCP / receipts. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console → Profiles → Open editor. Hardware keyboard. One typing field: click the remote login field, then paste. " +
   HANDOFF_PHONE_DOOR_BAN +
-  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone or desktop page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
+  " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone or desktop page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping. If profile is set and does not match the URL host slug (case-insensitive; saved-check host affinity such as consistencyhub on consistencyhub.io still matches; same profileSlugFromUrl helper as url-only login), the command still runs and JSON sets profileHostMatch false, suggestedProfile, and next/nextCall to remint with that slug or omit profile. profileHostMatch true when they match. Omitted when there is no URL — omission is not a match. Do not carry a previous profile onto a new host."
 
 export const DESKTOP_DESCRIPTION =
   "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
@@ -58,10 +59,10 @@ export const PROFILE_STATUS_DESCRIPTION =
   " Path / is loggedOut unless expect matched."
 
 export const AWAIT_LOGIN_DESCRIPTION =
-  "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone or desktop page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password."
+  "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. Wait until the human Save stores cookies or origins (default 30 minutes). After they tap Save on the Auspex phone or desktop page, pass saveEditor true so the agent POSTs Solari editor/save (do not open Solari's handoff page on a phone: GET editor HTTP 401) and probes for editor CDP. A version bump with 0 cookies is empty-save (not success). Soft-warns if the profile has cookies/origins but no counted sessionStorage, or folded expiresOn is past/within ~5m (leftover count is not fresh). If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. next then remint or finalize-now. --save-editor / saveEditor does not refresh folded sessionStorage unless editorFold.ok. SPAs that keep tokens in sessionStorage still need auspex_finalize_login while the token is valid (url and expect unless a saved check). Then auspex_finalize_login, then auspex_check. Do not ask the human to paste the password. Pass url for the site host. If profile does not match that host slug, JSON sets profileHostMatch false, suggestedProfile, and next/nextCall to remint (soft advise; the wait still runs). A stored login site URL is used when url is omitted. profileHostMatch true on a match. Do not carry a previous profile onto a new host."
 
 export const FINALIZE_LOGIN_DESCRIPTION =
-  "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now — do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid."
+  "Calling finalize-login without url and expect on an unknown profile fails the call. Post-login one-shot: after await-login (or a weak-seed / stale-expiresOn warn), run SSO + save-profile in one step to capture sessionStorage. Saved-check profiles (e.g. consistencyhub) supply URL and expect; unknown profiles require url and expect. Same as CLI finalize-login / check --profile --sso --save-profile. Use when console Save or --save-editor alone is insufficient; --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave failed or editorFold is no-cdp, run this NOW while the token is live; remint auspex_login if this returns needsHuman. Stale/weak next means remint or finalize-now — do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Later reuse requires claimOkProfile=true from verify-with-profile; ok alone is not enough to treat the profile as reusable. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. If profile does not match the URL host slug, the call still runs and the receipt sets profileHostMatch false, suggestedProfile, and next/nextCall to remint. Saved-check host affinity (consistencyhub on consistencyhub.io) is profileHostMatch true. Do not carry a previous profile onto a new host."
 
 export const REAP_DESCRIPTION =
   "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. List and close leftover Solari browser sessions from Auspex's live ledger. Default kills ledger ids only (plus sessionId/vmId). accountWide also kills every holding sandbox/desktop on this Solari key. Use after 429 ConcurrencyLimitExceeded. dryRun lists without killing. packReceipts copies last receipts per URL into .auspex/pack for an agent to attach to a PR."
@@ -167,21 +168,25 @@ export function registerAuspexTools(server: McpServer): void {
           const qr = await generateQRCode(qrPayloadForHandoff(result.handoff), runDir)
           if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url)
         }
+        const shown = stampLoginHost(result, url)
         if (!wait) {
-          const payload = stampSchema({ ok: true, ...result, operator: book.agent })
-          return buildReceiptToolContent(payload, result.handoff?.qrPath)
+          const payload = stampSchema({ ok: true, ...shown, operator: book.agent })
+          return buildReceiptToolContent(payload, shown.handoff?.qrPath)
         }
-        const waited = await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }))
+        const waited = stampProfileHostAdvice(
+          await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url })),
+          { profile: resolved.name, url },
+        )
         const finished = await withOperatorSession({
           note: noteAfterSignupWait({ profile: resolved.name, site: url, status: waited.status }),
         })
         const payload = stampSchema({
           ok: waited.status === "completed",
-          ...result,
+          ...shown,
           wait: waited,
           operator: finished.agent,
         })
-        return buildReceiptToolContent(payload, result.handoff?.qrPath)
+        return buildReceiptToolContent(payload, shown.handoff?.qrPath)
       } catch (err) {
         return packToolFailure(err)
       }
@@ -194,12 +199,15 @@ export function registerAuspexTools(server: McpServer): void {
       description: AWAIT_LOGIN_DESCRIPTION,
       inputSchema: auspexAwaitLoginInputSchema,
     },
-    async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {
+    async ({ profile, sinceVersion, timeoutMs, saveEditor, url }) => {
       try {
         await withOperatorSession({
-          note: { profile, busyMs: Math.max(SIGNUP_BUSY_MS, timeoutMs ?? 0) },
+          note: { profile, site: url, busyMs: Math.max(SIGNUP_BUSY_MS, timeoutMs ?? 0) },
         })
-        const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs, saveEditor })
+        const result = await stampAwaitLoginHost(
+          await liveAwaitLogin(profile, { sinceVersion, timeoutMs, saveEditor, url }),
+          { profile, url },
+        )
         const finished = await withOperatorSession({
           note: noteAfterSignupWait({ profile, status: result.status }),
         })
