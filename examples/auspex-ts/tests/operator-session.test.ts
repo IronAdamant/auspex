@@ -8,14 +8,9 @@ import {
   OPERATOR_PURGE_QUESTION,
   applyOperatorWipes,
   commitOperatorSession,
-  createOperatorKeyServer,
-  issueOperatorPairingNonce,
   noteAfterSignupWait,
   decideOperatorSession,
   decodePhoneSavedList,
-  OPERATOR_KEY_ORIGINS,
-  OPERATOR_KEY_POST_PATH,
-  operatorKeyOriginAllowed,
   phoneSavedParams,
   PHONE_LIST_MS,
   operatorKeyIsPresent,
@@ -250,7 +245,7 @@ test("await-login timeout and empty-save keep the signup window; only completed 
   assert.deepEqual(idle.wiped, ["supabase-com"])
 })
 
-test("key presence reports yes or no and does not return the key", async () => {
+test("key presence reports yes or no and does not return the key", () => {
   const root = mkdtempSync(path.join(tmpdir(), "auspex-key-present-"))
   const prev = process.env.SOLARI_API_KEY
   delete process.env.SOLARI_API_KEY
@@ -258,122 +253,24 @@ test("key presence reports yes or no and does not return the key", async () => {
     assert.equal(operatorKeyIsPresent(root), false)
     writeOperatorKey(root, SOLARI_KEY)
     assert.equal(operatorKeyIsPresent(root), true)
-    const server = createOperatorKeyServer(root)
-    await new Promise<void>((resolve) => {
-      server.listen(0, "127.0.0.1", () => resolve())
-    })
-    const addr = server.address()
-    if (!addr || typeof addr === "string") throw new Error("operator key server has no port")
-    try {
-      const res = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`)
-      const body = await res.text()
-      assert.equal(res.status, 200)
-      assert.equal(JSON.parse(body).present, true)
-      assert.equal(body.includes(SOLARI_KEY), false)
-      assert.equal("key" in JSON.parse(body), false)
-      assert.equal(res.headers.get("access-control-allow-origin"), null)
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-    }
+    assert.equal(readOperatorKey(path.join(root, ".auspex", "operator-key")), SOLARI_KEY)
   } finally {
     if (prev === undefined) delete process.env.SOLARI_API_KEY
     else process.env.SOLARI_API_KEY = prev
   }
 })
 
-test("desktop key post writes operator-key and a later command can load it", async () => {
-  const root = mkdtempSync(path.join(tmpdir(), "auspex-operator-post-"))
-  const server = createOperatorKeyServer(root)
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve())
-  })
-  const addr = server.address()
-  if (!addr || typeof addr === "string") throw new Error("operator key server has no port")
+test("operator-key file on the machine loads when env is empty", () => {
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-operator-file-"))
   const prev = process.env.SOLARI_API_KEY
   try {
-    const denied = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key: SOLARI_KEY }),
-    })
-    assert.equal(denied.status, 403)
-    const foreign = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "https://evil.example" },
-      body: JSON.stringify({ key: SOLARI_KEY }),
-    })
-    assert.equal(foreign.status, 403)
-    assert.equal(foreign.headers.get("access-control-allow-origin"), null)
-    const res = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "https://ironadamant.com" },
-      body: JSON.stringify({ key: SOLARI_KEY }),
-    })
-    const ack = await res.text()
-    assert.equal(res.status, 200)
-    assert.equal(JSON.parse(ack).ok, true)
-    assert.equal(ack.includes(SOLARI_KEY), false)
-    assert.equal(res.headers.get("access-control-allow-origin"), "https://ironadamant.com")
-    assert.equal(readOperatorKey(path.join(root, ".auspex", "operator-key")), SOLARI_KEY)
+    writeOperatorKey(root, SOLARI_KEY)
     delete process.env.SOLARI_API_KEY
     applyOperatorKeyFile(path.join(root, ".auspex", "operator-key"))
     assert.equal(process.env.SOLARI_API_KEY, SOLARI_KEY)
   } finally {
     if (prev === undefined) delete process.env.SOLARI_API_KEY
     else process.env.SOLARI_API_KEY = prev
-    await new Promise<void>((resolve) => server.close(() => resolve()))
-  }
-})
-
-test("loopback POST requires the minted pairing nonce once one is registered", async () => {
-  assert.deepEqual([...OPERATOR_KEY_ORIGINS], ["https://ironadamant.com", "https://ironadamant.github.io"])
-  assert.equal(operatorKeyOriginAllowed("https://ironadamant.com"), "https://ironadamant.com")
-  assert.equal(operatorKeyOriginAllowed("https://ironadamant.github.io"), "https://ironadamant.github.io")
-  assert.equal(operatorKeyOriginAllowed("https://evil.example"), undefined)
-  assert.equal(operatorKeyOriginAllowed(undefined), undefined)
-  const root = mkdtempSync(path.join(tmpdir(), "auspex-operator-pair-"))
-  const pairing = issueOperatorPairingNonce(root)
-  const server = createOperatorKeyServer(root)
-  await new Promise<void>((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve())
-  })
-  const addr = server.address()
-  if (!addr || typeof addr === "string") throw new Error("operator key server has no port")
-  try {
-    const missing = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "https://ironadamant.com" },
-      body: JSON.stringify({ key: SOLARI_KEY }),
-    })
-    assert.equal(missing.status, 403)
-    const wrong = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "https://ironadamant.com" },
-      body: JSON.stringify({ key: SOLARI_KEY, pair: "nope" }),
-    })
-    assert.equal(wrong.status, 403)
-    const ok = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "https://ironadamant.github.io" },
-      body: JSON.stringify({ key: SOLARI_KEY, pair: pairing.nonce }),
-    })
-    const ack = await ok.text()
-    assert.equal(ok.status, 200)
-    assert.equal(JSON.parse(ack).ok, true)
-    assert.equal(ack.includes(SOLARI_KEY), false)
-    assert.equal(ack.includes(pairing.nonce), false)
-    assert.equal(readOperatorKey(path.join(root, ".auspex", "operator-key")), SOLARI_KEY)
-    const present = await fetch(`http://127.0.0.1:${addr.port}${OPERATOR_KEY_POST_PATH}`, {
-      headers: { origin: "https://ironadamant.com" },
-    })
-    const body = await present.text()
-    assert.equal(JSON.parse(body).present, true)
-    assert.equal(body.includes(SOLARI_KEY), false)
-    assert.equal(body.includes(pairing.nonce), false)
-    assert.equal("key" in JSON.parse(body), false)
-    assert.equal("pair" in JSON.parse(body), false)
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
 

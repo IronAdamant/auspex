@@ -112,7 +112,7 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(params.get("saved"), null)
   assert.equal(params.get("plist"), null)
   for (const key of params.keys()) {
-    assert.ok(["v", "n", "exp", "u", "k", "pair"].includes(key), key)
+    assert.ok(["v", "n", "exp", "u"].includes(key), key)
   }
   const withIds = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
     profileId: "prof_1",
@@ -140,24 +140,15 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(desk.get("t"), null)
   assert.equal(desk.get("exp"), extra.get("exp"))
   assert.equal(door.toString(), desk.toString())
-  const withPair = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
-    profileName: "demo",
-    pair: "a".repeat(24),
-  })
-  const paired = new URLSearchParams(new URL(withPair).hash.slice(1))
-  assert.equal(paired.get("pair"), "a".repeat(24))
-  for (const key of paired.keys()) {
-    assert.ok(["v", "n", "exp", "u", "k", "pair"].includes(key), key)
-  }
-  const withKey = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
-    keyInUse: true,
+  const withSite = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
     siteUrl: "https://consistencyhub.io",
     profileName: "auspex-desktop",
   })
-  const desktopWithSite = desktopHandoffUrlFromPhone(withKey) ?? ""
-  assert.equal(new URL(withKey).hash.includes("k=1"), true)
+  const desktopWithSite = desktopHandoffUrlFromPhone(withSite) ?? ""
+  assert.equal(new URL(withSite).hash.includes("k=1"), false)
+  assert.equal(new URL(withSite).hash.includes("pair="), false)
   assert.equal(new URL(desktopWithSite).pathname.endsWith("/desktop.html"), true)
-  assert.equal(new URL(desktopWithSite).hash, new URL(withKey).hash)
+  assert.equal(new URL(desktopWithSite).hash, new URL(withSite).hash)
   assert.equal(new URL(desktopWithSite).hash.includes("u=https"), true)
   assert.equal(desktopSaveSiteUrl("https://consistencyhub.io", ""), "https://consistencyhub.io")
   assert.equal(
@@ -167,11 +158,11 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(desktopSaveSiteUrl("http://insecure.example", "notaurl"), "")
   const secret = "fixture-login-password"
   const key = "slr_live_fixture_login_key"
-  assert.equal(withKey.includes(secret), false)
+  assert.equal(withSite.includes(secret), false)
   assert.equal(desktopWithSite.includes(secret), false)
-  assert.equal(withKey.includes(key), false)
+  assert.equal(withSite.includes(key), false)
   assert.equal(desktopWithSite.includes(key), false)
-  assert.equal(withKey.includes("slr_"), false)
+  assert.equal(withSite.includes("slr_"), false)
   assert.equal(new URL(url).search, "")
   assert.equal(handoffTokenFromUrl("https://console.getsolari.com/handoff/WS2-abc"), "WS2-abc")
 })

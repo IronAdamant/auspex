@@ -198,7 +198,6 @@
       function clearLocalSecrets() {
         if (ime) ime.value = ""
         last = ""
-        try { localStorage.removeItem("auspex.solariKey") } catch (e) {}
       }
 
       function lockUi(title, message) {
