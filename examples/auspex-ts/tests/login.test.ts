@@ -153,9 +153,13 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(desktopSaveSiteUrl("https://consistencyhub.io", ""), "https://consistencyhub.io")
   assert.equal(
     desktopSaveSiteUrl("https://consistencyhub.io", "https://app.example/login"),
-    "https://app.example/login",
+    "https://consistencyhub.io",
   )
   assert.equal(desktopSaveSiteUrl("http://insecure.example", "notaurl"), "")
+  assert.equal(
+    desktopSaveSiteUrl("https://myapp.example/dashboard", "https://typed.example/secret", "https://app.socialaize.com/home?q=1"),
+    "https://app.socialaize.com",
+  )
   const secret = "fixture-login-password"
   const key = "slr_live_fixture_login_key"
   assert.equal(withSite.includes(secret), false)

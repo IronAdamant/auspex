@@ -19,7 +19,8 @@ export function toAgentReceipt(
   check: CheckResult,
   extras?: { verify?: VerifyResult },
 ): AgentReceipt {
-  const verify = extras?.verify
+  const hostChanged = check.hostChanged === true || check.reason === "hostChanged"
+  const verify = extras?.verify && hostChanged ? { ...extras.verify, claimOkProfile: false } : extras?.verify
   const reason: CheckReason =
     verify && !verify.skipped ? overlayVerifyReason(check.reason, verify) : check.reason
   const ok = agentReceiptOk({
@@ -46,7 +47,7 @@ export function toAgentReceipt(
       next = `${hint}Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available).${ocrNote} Anonymous sandbox verify is honest: do not auto-retry.`
     }
   }
-  next = claimOkProfileReuseNext(verify, next)
+  if (!hostChanged) next = claimOkProfileReuseNext(verify, next)
   const nextCall = check.nextCall
 
   const receipt: Record<string, unknown> = {
@@ -73,6 +74,8 @@ export function toAgentReceipt(
     nextCall,
     profileHostMatch: check.profileHostMatch,
     suggestedProfile: check.suggestedProfile,
+    hostChanged: check.hostChanged,
+    suggestedUrl: check.suggestedUrl,
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,

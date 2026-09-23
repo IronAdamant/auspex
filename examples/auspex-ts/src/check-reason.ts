@@ -9,6 +9,7 @@ export const CHECK_REASONS = [
   "network",
   "recordedLoggedIn",
   "expectMatchedPublicLanding",
+  "hostChanged",
 ] as const
 
 export type CheckReason = (typeof CHECK_REASONS)[number]
@@ -18,6 +19,7 @@ export type SpecialCheckReason =
   | "needsHuman"
   | "recordedLoggedIn"
   | "expectMatchedPublicLanding"
+  | "hostChanged"
 
 /**
  * Expect text hit, and `--save-profile` must refuse this URL.
@@ -43,6 +45,7 @@ export function deriveCheckReason(input: {
   excerpt: string
   screenshotOk: boolean
 }): CheckReason {
+  if (input.special === "hostChanged") return "hostChanged"
   if (input.needsHuman || input.special === "needsHuman") return "needsHuman"
   if (input.special === "expectMatchedPublicLanding") return "expectMatchedPublicLanding"
   if (input.special === "loggedOut") return "loggedOut"

@@ -7,6 +7,7 @@ import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { attachMatchedPurgeNext, noteAfterSignupWait, OPERATOR_HELP, SIGNUP_BUSY_MS } from "./operator-session.ts"
 import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, requireProfileName, withOperatorSession } from "./profiles.ts"
+import { loginWaitPublicFields, preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
@@ -50,15 +51,15 @@ Open a live URL in a Solari cloud browser, snapshot evidence, check a claim, clo
 CLI and MCP are the same contract: every MCP tool is a CLI command; every flag is a JSON field.
 Stdout is one JSON object (schemaVersion plus ok). --help is human text. Exit 0 only when ok is true.
 Saved checks (auspex.yml): --name ironadamant | checkpoint | consistencyhub. consistencyhub is --profile only (no --sso, no --record). fill/click with a profile requires --allow-page-actions.
-check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which default to --no-verify because anonymous fetch cannot see auth-gated UI. Public marketing still verifies with a leftover profile. No profile still verifies. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman/expectMatchedPublicLanding skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
-Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
-ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman/expectMatchedPublicLanding). matched is the word-bounded case-sensitive expect hit (Dashboard does not match Dashboards or the capitalized phrase One Dashboard). reason expectMatchedPublicLanding means the text hit a non-persistable public/landing URL during --save-profile: ok is false, matched is false, and no profile bytes were written. CLI exit 0 requires agent ok.
+check verifies by default (headless sandbox HTTP fetch + OCR of expect) except --name consistencyhub, --profile consistencyhub, or an attached profile on a non-public-marketing URL (not ironadamant.com / checkpointprojects.com), which default to --no-verify because anonymous fetch cannot see auth-gated UI. Public marketing still verifies with a leftover profile. No profile still verifies. --verify forces anonymous sandbox verify (poisons ok on auth-gated pages when claimOk is false). --verify-with-profile is the dogfood path: enables the sandbox, skips anonymous claim, adds claimOkProfile from a second profile-seeded browser; claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable; read claimOkProfile, do not treat ok as that signal. They are not the same. --no-verify skips the sandbox (and wins over --verify-with-profile). Do not also run verify after a default check. loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged skip verify and are not retried. needsHuman omits the screenshot/MCP image and strips digit runs from excerpt.
+Stdout receipt fields (schemaVersion 1 frozen; see AGENTS.md): required schemaVersion, ok, reason (matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged), url, expect, screenshotPath. Extra keys (diff, verify, matched, …) stay optional. excerpt is fenced untrusted page text.
+ok is agent success (reason matched, and verify when it ran). protocolOk is optional on-disk protocol success (URL+PNG, not loggedOut/needsHuman/expectMatchedPublicLanding/hostChanged/hostChanged). matched is the word-bounded case-sensitive expect hit (Dashboard does not match Dashboards or the capitalized phrase One Dashboard). reason expectMatchedPublicLanding means the text hit a non-persistable public/landing URL during --save-profile: ok is false, matched is false, and no profile bytes were written. CLI exit 0 requires agent ok.
 --mobile emulates iPhone viewport/UA (iphone-13-pro). --device <name> uses a specific device profile (${listDevices().join(", ")}). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
 profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold. Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: show handoff.url (chooser). Phone uses handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Auspex desktop page when login minted it, otherwise Open editor, hardware keyboard). The agent never types a password. Never type in Solari noVNC on a phone (that stream will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
 login creates or reuses a named Solari profile and mints once. handoff.url / oneLiner is the chooser (door.html). Labeled deep links: handoff.mobileUrl (phone.html) and handoff.desktopUrl (desktop.html). Requires --profile <name> or --url <https>. --url without --profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. --profile wins when both are set (dogfood --profile consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (real text field so the phone keyboard can open). That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console → Profiles → Open editor. Hardware keyboard. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. Never open handoff.desktopUrl on a phone. The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (chooser SMS), desktopOneLiner, qrPath (QR of the chooser URL). When --profile is set and the URL host slug differs (case-insensitive; saved-check host affinity such as consistencyhub on consistencyhub.io still matches), the command still runs and stdout sets profileHostMatch false, suggestedProfile, and next/nextCall to remint with that slug or omit --profile. profileHostMatch true when they match. Those fields are omitted when there is no URL; omission is not a match. Do not carry a previous --profile onto a new host. --wait then blocks until Save stores cookies or origins (default 30 minutes) and runs --save-editor (same as await-login --save-editor).
-await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). --save-editor POSTs Solari editor/save from the agent (phone Save must not open Solari: GET editor HTTP 401) then probes editor JSON for Playwright CDP. Claim a fold only when editorFold.ok; Solari's editor is noVNC today so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; remint if finalize-login returns needsHuman. Soft-warns if cookies/origins exist but sessionStorage is counted 0, or folded expiresOn is stale. Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold (claimOkProfile will not pass). Returns status: completed | timeout | empty-save | waiting. --url is the site host for the same soft profileHostMatch / suggestedProfile advise as login (a stored login site URL is used when --url is omitted). A mismatch does not stop the wait.
+await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). --save-editor POSTs Solari editor/save from the agent (phone Save must not open Solari: GET editor HTTP 401) then probes editor JSON for Playwright CDP. Claim a fold only when editorFold.ok; Solari's editor is noVNC today so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; remint if finalize-login returns needsHuman. Soft-warns if cookies/origins exist but sessionStorage is counted 0, or folded expiresOn is stale. Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold (claimOkProfile will not pass). Returns status: completed | timeout | empty-save | waiting | host-changed. --url is the site host for the same soft profileHostMatch / suggestedProfile advise as login (a stored login site URL is used when --url is omitted). A profile-slug mismatch does not stop the wait. A live browser host that is a different site than the minted URL fails closed (hostChanged, ok false, nextCall remints auspex_login --profile <slug> --url <https://live-origin>). The password field is not a site picker. Door pages cannot read the remote address bar.
 profiles lists names, ids, version, and whether storage is populated. ${OPERATOR_HELP}
 --save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
 Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile on a public marketing host. --allow-record-profile is refused for consistencyhub. Recording is not started at session create when a profile is attached unless the URL is ironadamant.com or checkpointprojects.com.
@@ -521,12 +522,13 @@ export async function main(argv: string[]): Promise<number> {
         writeStdoutJson(stampSchema({ ok: true, ...shown, operator: book.agent }))
         return 0
       }
-      const waited = stampProfileHostAdvice(
-        await liveAwaitLogin(
-          parsed.command.profile,
-          loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: parsed.command.url }),
-        ),
-        { profile: parsed.command.profile, url: parsed.command.url },
+      const rawWait = await liveAwaitLogin(
+        parsed.command.profile,
+        loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: parsed.command.url }),
+      )
+      const waited = preserveAwaitLiveHost(
+        stampProfileHostAdvice(rawWait, { profile: parsed.command.profile, url: parsed.command.url }),
+        rawWait,
       )
       const finished = await withOperatorSession({
         note: noteAfterSignupWait({
@@ -535,7 +537,8 @@ export async function main(argv: string[]): Promise<number> {
           status: waited.status,
         }),
       })
-      const payload = stampSchema({ ok: waited.status === "completed", ...shown, wait: waited, operator: finished.agent })
+      const pub = loginWaitPublicFields(waited)
+      const payload = stampSchema({ ...shown, ...pub, wait: waited, operator: finished.agent })
       writeStdoutJson(payload)
       return exitFromOk(payload.ok)
     }
@@ -547,14 +550,15 @@ export async function main(argv: string[]): Promise<number> {
           busyMs: Math.max(SIGNUP_BUSY_MS, parsed.command.timeoutMs ?? 0),
         },
       })
-      const waited = await stampAwaitLoginHost(
-        await liveAwaitLogin(parsed.command.profile, {
-          sinceVersion: parsed.command.sinceVersion,
-          timeoutMs: parsed.command.timeoutMs,
-          saveEditor: parsed.command.saveEditor,
-          url: parsed.command.url,
-        }),
-        { profile: parsed.command.profile, url: parsed.command.url },
+      const rawWait = await liveAwaitLogin(parsed.command.profile, {
+        sinceVersion: parsed.command.sinceVersion,
+        timeoutMs: parsed.command.timeoutMs,
+        saveEditor: parsed.command.saveEditor,
+        url: parsed.command.url,
+      })
+      const waited = preserveAwaitLiveHost(
+        await stampAwaitLoginHost(rawWait, { profile: parsed.command.profile, url: parsed.command.url }),
+        rawWait,
       )
       const finished = await withOperatorSession({
         note: noteAfterSignupWait({
