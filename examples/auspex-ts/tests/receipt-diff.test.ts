@@ -5,7 +5,7 @@ import path from "node:path"
 import test from "node:test"
 import { listCompleteRunDirs } from "../src/receipt.ts"
 import { canonicalCheckUrl, diffAgainstLastReceipt } from "../src/receipt-diff.ts"
-import { packLastReceipts } from "../src/receipt-pack.ts"
+import { packLastReceipts } from "../src/reap.ts"
 
 test("canonicalCheckUrl strips trailing slash and lowercases host", () => {
   assert.equal(canonicalCheckUrl("https://IronAdamant.com/"), "https://ironadamant.com/")

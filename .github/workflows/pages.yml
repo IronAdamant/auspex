@@ -24,6 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: examples/auspex-ts/package-lock.json
+      - name: Generate replay player from ndjson
+        working-directory: examples/auspex-ts
+        run: |
+          npm ci
+          npm run generate:replay
       - name: Assemble Pages artifact
         run: |
           mkdir -p _site/demo

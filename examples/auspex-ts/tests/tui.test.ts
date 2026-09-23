@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { Writable } from "node:stream"
 import test from "node:test"
-import { REVIEW_DONE, REVIEW_START } from "../src/banner.ts"
+import { REVIEW_DONE, REVIEW_START } from "../src/tui.ts"
 import {
   createDesktopTui,
   desktopLogHeader,

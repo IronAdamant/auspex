@@ -1,6 +1,6 @@
 /** Live remote host vs the minted door URL. Fail closed. Does not rename jars. */
 
-import type { NextCall } from "./next-call.ts"
+import { hostChangeNextCall, type NextCall } from "./next-call.ts"
 import { profileSlugFromHost } from "./profile-slug.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs, idpAuthHost } from "./sso.ts"
@@ -219,7 +219,7 @@ function changeFor(profile: string, host: string, suggestedUrl: string): LiveHos
     suggestedProfile: suggested,
     suggestedUrl,
     nextLead: liveHostChangedLead(profile, suggested, suggestedUrl),
-    nextCall: { tool: "auspex_login", profile: suggested, url: suggestedUrl },
+    nextCall: hostChangeNextCall(suggested, suggestedUrl),
   }
 }
 
@@ -265,7 +265,7 @@ export function markerLiveHostChange(
     suggestedProfile: suggested,
     suggestedUrl,
     nextLead: liveHostChangedLead(name, suggested, suggestedUrl),
-    nextCall: { tool: "auspex_login", profile: suggested, url: suggestedUrl },
+    nextCall: hostChangeNextCall(suggested, suggestedUrl),
   }
 }
 
@@ -407,11 +407,7 @@ export async function rememberAwaitHostChange(
           suggestedProfile: waited.suggestedProfile,
           suggestedUrl: waited.suggestedUrl,
           next: waited.next,
-          nextCall: waited.nextCall ?? {
-            tool: "auspex_login",
-            profile: waited.suggestedProfile,
-            url: waited.suggestedUrl,
-          },
+          nextCall: waited.nextCall ?? hostChangeNextCall(waited.suggestedProfile, waited.suggestedUrl),
         }
       : foldChange && waited.status === "completed"
         ? awaitLoginHostChangedPatch(foldChange)
@@ -423,7 +419,7 @@ export async function rememberAwaitHostChange(
     suggestedProfile: patch.suggestedProfile,
     suggestedUrl: patch.suggestedUrl,
     nextLead: patch.next,
-    nextCall: patch.nextCall ?? { tool: "auspex_login", profile: patch.suggestedProfile, url: patch.suggestedUrl },
+    nextCall: patch.nextCall ?? hostChangeNextCall(patch.suggestedProfile, patch.suggestedUrl),
   }).catch(() => undefined)
   return patch
 }

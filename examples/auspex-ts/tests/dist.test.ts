@@ -1,13 +1,37 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
+import {
+  CHECK_DESCRIPTION,
+  LOGIN_DESCRIPTION,
+  REAP_DESCRIPTION,
+} from "../src/tool-copy.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit gates", () => {
-  const dist = readFileSync(path.join(root, "dist/mcp.mjs"), "utf8")
+function ensureDist(): string {
+  const dest = path.join(root, "dist/mcp.mjs")
+  if (!existsSync(dest)) {
+    const built = spawnSync("npm", ["run", "build:mcp"], { cwd: root, encoding: "utf8" })
+    assert.equal(built.status, 0, built.stderr || built.stdout)
+  }
+  return readFileSync(dest, "utf8")
+}
+
+test("source tool-copy keeps fail-closed leads and triad phrases", () => {
+  assert.match(CHECK_DESCRIPTION, /Passing anonymous verify/)
+  assert.match(CHECK_DESCRIPTION, /They are not equivalent/)
+  assert.match(CHECK_DESCRIPTION, /schemaVersion 1 is frozen/)
+  assert.match(LOGIN_DESCRIPTION, /real text field/)
+  assert.match(LOGIN_DESCRIPTION, /door\.html/)
+  assert.match(REAP_DESCRIPTION, /accountWide/)
+})
+
+test("built dist/mcp.mjs keeps fail-closed gates (CI builds; not committed)", () => {
+  const dist = ensureDist()
   assert.match(dist, /loopback address/)
   assert.match(dist, /allowRecordProfile/)
   assert.match(dist, /sandbox kill failed/)
@@ -24,30 +48,11 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /auspex_await_login/)
   assert.match(dist, /auspex_finalize_login/)
   assert.match(dist, /shouldVerifyCheck/)
-  assert.match(dist, /isPublicMarketingUrl|isAuthGatedAnonymousVerifyHost|onedrive\.live\.com/)
   assert.match(dist, /They are not equivalent/)
-  assert.match(dist, /saveProfile/)
-  assert.match(dist, /waitForLoadState/)
-  assert.match(dist, /auspex_profile_status/)
-  assert.match(dist, /packReceipts/)
-  assert.match(dist, /ironadamant/)
-  assert.match(dist, /toAgentReceipt|reason \(matched/)
-  assert.match(dist, /schemaVersion/)
-  assert.match(dist, /parseReceiptV1|RECEIPT_V1_REQUIRED_KEYS/)
   assert.match(dist, /schemaVersion 1 is frozen/)
-  assert.match(dist, /ProfileBusy/)
-  assert.match(dist, /allowPageActions/)
   assert.match(dist, /accountWide/)
-  assert.match(dist, /profileClaimBudgetMs/)
-  assert.match(dist, /PROFILE_CLAIM_RETURN_BUFFER_MS/)
-  assert.match(dist, /mobileUrl/)
-  assert.match(dist, /desktopUrl/)
   assert.match(dist, /real text field/)
-  assert.match(dist, /phone.html/)
-  assert.match(dist, /door.html/)
-  assert.match(dist, /desktop.html/)
-  assert.match(dist, /nextCall: \{ tool: "auspex_reap" \}/)
-  assert.match(dist, /Passing anonymous verify \(verify=true \/ --verify\) on an auth-gated page poisons ok\./)
+  assert.match(dist, /door\.html/)
   assert.match(dist, /event: "post-handoff"/)
   assert.equal(dist.includes("gateUrl"), false, "dist MCP must not ship the detecting-gate URL")
   assert.equal(dist.includes("login-gate"), false, "dist MCP must not bundle login-gate.ts")

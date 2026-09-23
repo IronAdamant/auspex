@@ -1,9 +1,11 @@
-/** CLI flags and MCP tool descriptions for auspex_job / auspex_job_status. */
+/** CLI flags for auspex_job / auspex_job_status. Copy lives in tool-copy.ts. */
 
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { requireJobId } from "./job-store.ts"
 import type { ProgressFn } from "./progress.ts"
 import { isNonEmptyExpect } from "./text.ts"
+
+export { JOB_DESCRIPTION, JOB_STATUS_DESCRIPTION } from "./tool-copy.ts"
 
 export const JOB_INPUT_ERROR = "auspex_job requires jobId, name, or url+expect"
 
@@ -106,21 +108,3 @@ export function parseJobStatusFlags(
     return { ok: false, message: err instanceof Error ? err.message : String(err) }
   }
 }
-
-export const JOB_DESCRIPTION =
-  "Treating ok as claimOkProfile, or polling await-login for 30 minutes, is a lie. " +
-  "Run the durable mint→await→finalize→check job for a host (url+expect, or a saved-check name). " +
-  "First call mints and returns waiting + handoff; resume with jobId after the human Saves (wait:true continues into await). " +
-  "Persist under .auspex/jobs/<id>.json (gitignored). Fail-closed nextCall matches the door-card matrix " +
-  "(hostChanged, stream-expired, editor-save-hung, profile-busy, expectMatchedPublicLanding, remint login, finalize-now). " +
-  "On Solari 429 the job reaps the ledger (not accountWide) and nextCall resumes this job. " +
-  "claimOkProfile is set only after verifyWithProfile; ok alone is not reusable. " +
-  "Optional wakeWebhookUrl or AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON — operator-local, not a Solari push API. " +
-  "Not a fourth primitive. Step tools remain for debugging. Never types passwords."
-
-export const JOB_STATUS_DESCRIPTION =
-  "Blind 30-minute polls of await-login waste the slot. " +
-  "Read the local job file; optional waitMs (max 60s) blocks until phase/status changes. " +
-  "This is the honest local wake when AUSPEX_WAKE_WEBHOOK is unset. " +
-  "Phase changes only when a job/resume process writes the file — there is no hosted Solari webhook. " +
-  "After the human Saves, resume auspex_job --job-id. Returns current state + nextCall."

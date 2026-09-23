@@ -27,7 +27,8 @@
     "postinstall": "npm install --prefix examples/auspex-ts",
     "test": "npm test --prefix examples/auspex-ts",
     "typecheck": "npm run typecheck --prefix examples/auspex-ts",
-    "build:mcp": "npm run build:mcp --prefix examples/auspex-ts"
+    "build:mcp": "npm run build:mcp --prefix examples/auspex-ts",
+    "prepublishOnly": "npm run build:mcp"
   },
   "engines": {
     "node": ">=22"

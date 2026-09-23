@@ -1,6 +1,6 @@
 /** Fail-closed await-login statuses. Extra keys only; check schema v1 reasons stay frozen. */
 
-import type { NextCall } from "./next-call.ts"
+import { awaitSaveEditorNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { boundPromise } from "./timeout.ts"
 
 export const STREAM_EXPIRED_STATUS = "stream-expired"
@@ -22,12 +22,7 @@ export const EDITOR_FOLD_BOUND_MS = 30_000
 /** After VNC/stream expiry, poll Save once or twice — do not sit the full 30 minutes. */
 export const STREAM_EXPIRED_WAIT_MS = 8_000
 
-export function remintLoginNextCall(profile: string): NextCall {
-  const nextCall: NextCall = { tool: "auspex_login" }
-  const name = profile.trim()
-  if (name) nextCall.profile = name
-  return nextCall
-}
+export { remintLoginNextCall }
 
 export function streamExpiredGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
@@ -43,28 +38,24 @@ export function streamExpiredGuide(profile: string): { text: string; nextCall: N
 
 export function editorSaveHungGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  const nextCall: NextCall = { tool: "auspex_await_login", saveEditor: true }
-  if (name !== "<name>") nextCall.profile = name
   return {
     text:
       `status editor-save-hung: editorSave or editorFold timed out. Fail-closed. ` +
       `Do not run finalize-login in parallel (ProfileBusy race). ` +
       `Retry npx auspex await-login --profile ${name} --save-editor once. ` +
       `Remint auspex_login if it hangs again or returns stream-expired.`,
-    nextCall,
+    nextCall: awaitSaveEditorNextCall(name === "<name>" ? "" : name),
   }
 }
 
 export function profileBusyAwaitGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  const nextCall: NextCall = { tool: "auspex_await_login", saveEditor: true }
-  if (name !== "<name>") nextCall.profile = name
   return {
     text:
       `status profile-busy: another Auspex save holds the profile lock (often finalize-login). ` +
       `Do not start a second finalize-login. Retry npx auspex await-login --profile ${name} --save-editor ` +
       `after that save ends.`,
-    nextCall,
+    nextCall: awaitSaveEditorNextCall(name === "<name>" ? "" : name),
   }
 }
 

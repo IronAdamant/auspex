@@ -1,5 +1,18 @@
 /** Host → safe Solari profile slug. Additive login --url pickup; not a saved-check name. */
 
+import { z } from "zod"
+
+export const PROFILE_NAME_ERROR = "profile name must be non-empty"
+
+export function requireProfileName(value: string): string {
+  const name = value.trim()
+  if (!name) throw new Error(PROFILE_NAME_ERROR)
+  return name
+}
+
+export const profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAME_ERROR })
+
+
 export const PROFILE_SLUG_ERROR =
   "could not derive a profile name from url; pass --profile <yours>"
 

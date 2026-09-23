@@ -10,6 +10,6 @@
 ## Checklist
 
 - [ ] Tests for touched code
-- [ ] Dist rebuilt if `src/` or shipping door HTML changed (`npm run build:mcp`)
+- [ ] Dist is CI-built (`npm run build:mcp`); do not commit `examples/auspex-ts/dist/`
 - [ ] No `.env` / `SOLARI_API_KEY` / `.auspex/` committed
 - [ ] Did not npm publish (founder publishes `auspex-solari`)

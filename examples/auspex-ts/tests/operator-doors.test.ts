@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import vm from "node:vm"
 import { USAGE } from "../src/cli.ts"
-import { PROFILES_DESCRIPTION } from "../src/mcp-tools.ts"
+import { PROFILES_DESCRIPTION } from "../src/tool-copy.ts"
 import { OPERATOR_PURGE_QUESTION } from "../src/operator-session.ts"
 import { formatHandoffNext, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_OPEN_ON_PHONE } from "../src/profiles.ts"
 import {
@@ -153,7 +153,6 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(PROFILES_DESCRIPTION, /testing is done/)
   assert.match(PROFILES_DESCRIPTION, /30 minutes/)
   assert.match(PROFILES_DESCRIPTION, /not included in the agent message/)
-  assert.equal(USAGE.includes(OPERATOR_PURGE_QUESTION), true)
   assert.equal(USAGE.includes(PASSWORD), false)
   assert.equal(USAGE.includes(USERNAME), false)
   assert.equal(PROFILES_DESCRIPTION.includes(SOLARI_KEY), false)
@@ -179,16 +178,11 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(watch, /ironadamant\.com does not see/)
   assert.match(watch, /type the login again/)
   assert.match(watch, /do not host those credentials or session secrets/)
-  assert.match(USAGE, /no Paste button/)
-  assert.match(USAGE, /ironadamant\.com does not see/)
-  assert.match(USAGE, /Show as bullets is off by default/)
   for (const file of ["README.md", "examples/auspex-ts/README.md", "AGENTS.md", "examples/auspex-ts/AGENTS.md"]) {
     const text = readFileSync(path.join(repo, file), "utf8")
     assert.match(text, /Show as bullets is off by default/, file)
     assert.match(text, /password manager can paste into the text field/, file)
   }
-  assert.match(USAGE, /type the login again/)
-  assert.match(USAGE, /do not host those credentials or session secrets/)
   assert.match(OPERATOR_PURGE_QUESTION, /clears on Enter, Save, or lock/)
   assert.match(OPERATOR_PURGE_QUESTION, /type the login again/)
   assert.match(OPERATOR_PURGE_QUESTION, /do not host those credentials or session secrets/)

@@ -14,7 +14,7 @@ Public watch tape is ConsistencyHub’s Microsoft wall (not a logged-in session)
 
 - Still: [demo/ironadamant.png](demo/ironadamant.png)
 - JSON + `sessionId`: [demo/receipt.json](demo/receipt.json) (**marketing summary** with `sessionId` + verify flags; agent contract is schema v1 on CLI/MCP stdout — see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen))
-- Watch: [demo/replay.html](demo/replay.html) (rrweb of ConsistencyHub → Sign in with Microsoft → empty Microsoft box). Emails and passwords are stripped. After clone, open that file locally, or the [Pages player](https://ironadamant.com/auspex/demo/replay.html) (jsDelivr serves this file as plain text).
+- Watch: generate the rrweb player with `npm run generate:replay` (from committed `demo/replay.ndjson`; the checked-in `demo/replay.html` is a stub). Emails and passwords are stripped. Pages CI generates the player at [ironadamant.com/auspex/demo/replay.html](https://ironadamant.com/auspex/demo/replay.html).
 - Same recording in **your** Solari org: [console](https://console.getsolari.com) → Sessions → that `sessionId` → Replay.
 
 `--record` does not put a presigned replay URL on the JSON receipt. It does poll until replay is ready (`replayReady`) and may write `replay.ndjson` next to the receipt. Do not `--record` a logged-in ConsistencyHub session (recordings capture input).
@@ -85,7 +85,7 @@ Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, t
 
 ## MCP
 
-Auspex tools first. Rebuild with `npm run build:mcp` after changing `src/`.
+Auspex tools first. CI runs `npm run build:mcp` (do not commit `dist/`). Founder builds before npm publish.
 
 **Cursor** — `.cursor/mcp.json` in this repo is the drop-in (same shape as [mcp.cursor.example.json](mcp.cursor.example.json)). Restart Cursor. That plus `npm run public-check` is the loop: MCP tools for agents, weekly public pages for CI.
 
