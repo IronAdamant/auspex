@@ -220,6 +220,7 @@ function loadDoor(
       },
       removeAttribute(name) {
         if (name === "hidden") el.hidden = false
+        if (name === "href") el.href = ""
       },
       setSelectionRange() {},
       querySelector: () => null,
