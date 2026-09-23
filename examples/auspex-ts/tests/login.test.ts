@@ -286,7 +286,8 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /id="ttl"/)
   assert.match(html, /id="expired"/)
   assert.match(html, /Link expiry unknown — remint/)
-  assert.match(html, /regenerate the login link/)
+  assert.match(html, /status stream-expired/)
+  assert.match(html, /nextCall auspex_login/)
   assert.match(html, /jwtExpSeconds/)
   assert.match(html, /params\.get\("exp"\)/)
   assert.match(html, /Math\.min\(fromHash, fromJwt\)/)
@@ -403,7 +404,7 @@ test("attachHandoffQr mentions qrPath only when a PNG was written", () => {
 })
 
 test("stampLoginStreamExpiry writes ISO expiry and never the JWT", () => {
-  const exp = 1_800_000_000
+  const exp = 1_700_000_000
   const header = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url")
   const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url")
   const jwt = `${header}.${payload}.sig`
@@ -411,14 +412,15 @@ test("stampLoginStreamExpiry writes ISO expiry and never the JWT", () => {
   const result = loginInstructions(
     { id: "p", name: "app-example" },
     undefined,
-    { url: "https://console.getsolari.com/handoff/abc", expiresAt: "2026-09-20T15:00:00.000Z" },
+    { url: "https://console.getsolari.com/handoff/abc", expiresAt: "2027-01-15T08:00:00.000Z" },
     undefined,
     mobile,
   )
-  stampLoginStreamExpiry(result, "2026-09-20T15:00:00.000Z")
+  stampLoginStreamExpiry(result, "2027-01-15T08:00:00.000Z")
   assert.equal(result.handoff?.streamExpirySource, "jwt")
   assert.equal(result.handoff?.streamExpiresAt, new Date(exp * 1000).toISOString())
-  assert.equal(JSON.stringify(result.handoff).includes(jwt), false)
+  assert.equal((result.handoff?.streamExpiresAt ?? "").includes(jwt), false)
+  assert.equal((result.handoff?.streamExpiresAt ?? "").includes("nbf"), false)
 })
 
 test("publicHandoffUrl rewrites cluster-internal hosts and keeps the path", () => {
