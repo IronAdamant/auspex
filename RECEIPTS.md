@@ -7,16 +7,16 @@ Committed demo evidence from the Auspex check → verify → teardown workflow.
 ## Default recipe (any host)
 
 ```bash
-npx auspex profile-status --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex login --url https://app.example
 # derives --profile app-example; override with --profile <yours>
 npx auspex await-login --profile app-example --save-editor
-npx auspex finalize-login --profile app-example --url https://app.example --expect "Dashboard"
-npx auspex check --profile app-example --url https://app.example --expect "Dashboard"
+npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
+npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"
 # optional: --verify-with-profile — read claimOkProfile; do not fold it into ok
 ```
 
-Do not invent that any host works without dogfood. The generic path is the recipe; the named check below is the verified example.
+Do not invent that any host works without dogfood. The generic path is the recipe; the named check below is the verified example. Expect must be unique to the logged-in app and absent from public marketing copy. `Dashboard` does not match the capitalized phrase `One Dashboard` (Socialaize-style). A text hit on a public or landing URL during finalize is `expectMatchedPublicLanding` (`ok` false, `matched` false, profile not saved).
 
 ## Understanding Verification Signals
 
@@ -144,7 +144,7 @@ The actual agent contract is **[Receipt schema v1](AGENTS.md#receipt-schema-v1-f
 **Required fields:**
 - `schemaVersion` (frozen at `1`)
 - `ok` (boolean)
-- `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn`)
+- `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn` / `expectMatchedPublicLanding`)
 - `url`
 - `expect`
 - `screenshotPath`

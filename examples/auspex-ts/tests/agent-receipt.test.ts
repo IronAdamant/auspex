@@ -103,6 +103,14 @@ test("overlayVerifyReason maps claim miss to mismatch and fetch fail to network"
     "loggedOut",
   )
   assert.equal(
+    overlayVerifyReason("expectMatchedPublicLanding", {
+      ok: false,
+      claimOk: false,
+      errors: ["expect not found"],
+    }),
+    "expectMatchedPublicLanding",
+  )
+  assert.equal(
     overlayVerifyReason("matched", { ok: false, claimOk: false, errors: ["network timeout"] }),
     "network",
   )
