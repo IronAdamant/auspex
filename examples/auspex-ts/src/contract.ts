@@ -80,7 +80,10 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
   {
     cmd: "profiles",
     tool: "auspex_profiles",
-    fields: [],
+    fields: [
+      { json: "purge", flag: "--purge", kind: "string" },
+      { json: "humanAgree", flag: "--yes", kind: "boolean" },
+    ],
   },
   {
     cmd: "profile-status",

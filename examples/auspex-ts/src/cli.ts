@@ -5,7 +5,8 @@ import { runCheck, runFinalizeLogin, type CheckOptions } from "./check.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
 import { explainSolariError } from "./errors.ts"
 import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
-import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, requireProfileName } from "./profiles.ts"
+import { attachMatchedPurgeNext, noteAfterSignupWait, OPERATOR_HELP, SIGNUP_BUSY_MS } from "./operator-session.ts"
+import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, requireProfileName, withOperatorSession } from "./profiles.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
@@ -38,7 +39,7 @@ export const USAGE = `Usage:
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login [--profile <name>] [--url <https>] [--wait]
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor]
-  npx auspex profiles
+  npx auspex profiles [--purge <name>] [--yes]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
   npx auspex trace [--profile <name>] [--limit <n>] [--all]
   npx auspex mcp
@@ -54,10 +55,10 @@ ok is agent success (reason matched, and verify when it ran). protocolOk is opti
 --mobile emulates iPhone viewport/UA (iphone-13-pro). --device <name> uses a specific device profile (${listDevices().join(", ")}). Both apply Playwright context options (viewport, userAgent, deviceScaleFactor, isMobile, hasTouch).
 desktop is a named Solari sandbox demo (default mousepad). Not the user's Mac. Wait/expect/ok share one process haystack (processList + ps). streamUrl is live VNC. FAIL-CLOSED --type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings). Use only for demo text.
 reap lists/closes leftover browser sessions from the Auspex live ledger (429 recovery). Default kills ledger ids only; --account-wide also wipes holding sandboxes/desktops on the key. --pack-receipts copies last receipts per URL into .auspex/pack for a PR attach.
-profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold. Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: phone uses handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Open editor, hardware keyboard). The agent never types a password. Never type in Solari noVNC on a phone (that stream will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
-login creates or reuses a named Solari profile and prints TWO labeled login URLs. Requires --profile <name> or --url <https>. --url without --profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. --profile wins when both are set (dogfood --profile consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (real text field so the phone keyboard can open). That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. Never open handoff.desktopUrl on a phone. The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL). --wait then blocks until Save stores cookies or origins (default 30 minutes) and runs --save-editor (same as await-login --save-editor).
+profile-status reports loggedIn | loggedOut | needsHuman | weakSeed | emptySave. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold. Public marketing saved checks (ironadamant, checkpoint) stay loggedOut. Re-seed is human SSO once via auspex login: phone uses handoff.mobileUrl (Auspex phone page, real text field) in the phone's own Safari or Chrome; computer uses handoff.desktopUrl (Auspex desktop page when login minted it, otherwise Open editor, hardware keyboard). The agent never types a password. Never type in Solari noVNC on a phone (that stream will not open the software keyboard). Microsoft and Google password/OTP walls are needsHuman. A profile that lands on / is loggedOut unless expect matched.
+login creates or reuses a named Solari profile and prints TWO labeled login URLs. Requires --profile <name> or --url <https>. --url without --profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. --profile wins when both are set (dogfood --profile consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (real text field so the phone keyboard can open). That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console → Profiles → Open editor. Hardware keyboard. Paste URL, username, and password on that page. They stay on the page. Show both, labeled. Never open handoff.desktopUrl on a phone. The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL). --wait then blocks until Save stores cookies or origins (default 30 minutes) and runs --save-editor (same as await-login --save-editor).
 await-login waits for that Save (default 30 minutes so the human can Save from a phone; a version bump with 0 cookies is empty-save, not success). --save-editor POSTs Solari editor/save from the agent (phone Save must not open Solari: GET editor HTTP 401) then probes editor JSON for Playwright CDP. Claim a fold only when editorFold.ok; Solari's editor is noVNC today so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; remint if finalize-login returns needsHuman. Soft-warns if cookies/origins exist but sessionStorage is counted 0, or folded expiresOn is stale. Stale/weak next remint or finalize-now — do not run --verify-with-profile on a dead fold (claimOkProfile will not pass). Returns status: completed | timeout | empty-save | waiting.
-profiles lists names, ids, version, and whether storage is populated.
+profiles lists names, ids, version, and whether storage is populated. ${OPERATOR_HELP}
 --save-profile writes Playwright cookies, localStorage, and sessionStorage into the named profile via POST /profiles/:id/save (never overwrites with an empty seed, a public /landing session, or a save with no bytes for the page origin). A profile directory lock refuses concurrent saves of the same name.
 Never --record a logged-in session (--sso, --save-profile, or a dashboard landing). record+profile is forbidden unless --allow-record-profile on a public marketing host. --allow-record-profile is refused for consistencyhub. Recording is not started at session create when a profile is attached unless the URL is ironadamant.com or checkpointprojects.com.
 SSO is human-once then reuse. Microsoft and Google password/OTP walls fail closed (needsHuman) and are never typed. A later --profile check that lands on /landing, /login, or / without a matched expect is ok: false reason: loggedOut.
@@ -76,7 +77,7 @@ export type CliCommand =
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean }
-  | { cmd: "profiles" }
+  | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
@@ -352,8 +353,21 @@ export function parseArgv(argv: string[]): ParseResult {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
     }
+    const purgeRaw = takeOption(args, "--purge")
+    const humanAgree = takeFlag(args, "--yes")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "profiles" } }
+    if (humanAgree && !purgeRaw) {
+      return { status: "error", message: "--yes requires --purge <name> after the human agrees" }
+    }
+    let purge: string | undefined
+    if (purgeRaw) {
+      try {
+        purge = requireProfileName(purgeRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    return { status: "ok", command: { cmd: "profiles", purge, humanAgree } }
   }
   if (cmd === "profile-status") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -454,31 +468,41 @@ export async function main(argv: string[]): Promise<number> {
   }
   try {
     if (parsed.command.cmd === "check") {
+      const named = applySavedCheckName(parsed.command.opts)
+      const book = await withOperatorSession({
+        note: named.profile ? { profile: named.profile, site: named.url } : undefined,
+      })
       if (parsed.command.verifyAfter !== false) {
         const both = await checkThenVerify(parsed.command.opts, {
           verifyWithProfile: parsed.command.opts.verifyWithProfile,
         })
-        const receipt = toAgentReceipt(both.check, { verify: both.verify })
+        const receipt = attachMatchedPurgeNext(toAgentReceipt(both.check, { verify: both.verify }), book.agent)
         writeStdoutJson(receipt)
         return exitFromOk(receipt.ok)
       }
       const result = await runCheck(parsed.command.opts)
-      const receipt = toAgentReceipt(result)
+      const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }
     if (parsed.command.cmd === "finalize-login") {
+      const book = await withOperatorSession({
+        note: { profile: parsed.command.profile, site: parsed.command.url },
+      })
       const result = await runFinalizeLogin({
         profile: parsed.command.profile,
         url: parsed.command.url,
         expect: parsed.command.expect,
         ssoProvider: parsed.command.ssoProvider,
       })
-      const receipt = toAgentReceipt(result)
+      const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }
     if (parsed.command.cmd === "login") {
+      const book = await withOperatorSession({
+        note: { profile: parsed.command.profile, site: parsed.command.url, busyMs: SIGNUP_BUSY_MS },
+      })
       const runDir = await ensureRunDir()
       const result = await loginProfile(parsed.command.profile, parsed.command.url, undefined, undefined, {
         profileDerived: parsed.command.profileDerived,
@@ -488,24 +512,43 @@ export async function main(argv: string[]): Promise<number> {
         if (qr.qrPath) attachHandoffQr(result, qr.qrPath, parsed.command.url)
       }
       if (!parsed.command.wait) {
-        writeStdoutJson(stampSchema({ ok: true, ...result }))
+        writeStdoutJson(stampSchema({ ok: true, ...result, operator: book.agent }))
         return 0
       }
       const waited = await liveAwaitLogin(
         parsed.command.profile,
         loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: parsed.command.url }),
       )
-      const payload = stampSchema({ ok: waited.status === "completed", ...result, wait: waited })
+      const finished = await withOperatorSession({
+        note: noteAfterSignupWait({
+          profile: parsed.command.profile,
+          site: parsed.command.url,
+          status: waited.status,
+        }),
+      })
+      const payload = stampSchema({ ok: waited.status === "completed", ...result, wait: waited, operator: finished.agent })
       writeStdoutJson(payload)
       return exitFromOk(payload.ok)
     }
     if (parsed.command.cmd === "await-login") {
+      await withOperatorSession({
+        note: {
+          profile: parsed.command.profile,
+          busyMs: Math.max(SIGNUP_BUSY_MS, parsed.command.timeoutMs ?? 0),
+        },
+      })
       const waited = await liveAwaitLogin(parsed.command.profile, {
         sinceVersion: parsed.command.sinceVersion,
         timeoutMs: parsed.command.timeoutMs,
         saveEditor: parsed.command.saveEditor,
       })
-      const payload = stampSchema({ ok: waited.status === "completed", ...waited })
+      const finished = await withOperatorSession({
+        note: noteAfterSignupWait({
+          profile: parsed.command.profile,
+          status: waited.status,
+        }),
+      })
+      const payload = stampSchema({ ok: waited.status === "completed", ...waited, operator: finished.agent })
       writeStdoutJson(payload)
       return exitFromOk(payload.ok)
     }
@@ -543,13 +586,22 @@ export async function main(argv: string[]): Promise<number> {
       return exitFromOk(result.ok)
     }
     if (parsed.command.cmd === "profile-status") {
-      const result = stampSchema(
-        await profileStatus({
+      const named = applySavedCheckName({
+        name: parsed.command.name,
+        profile: parsed.command.profile,
+        url: parsed.command.url,
+      })
+      const book = await withOperatorSession({
+        note: named.profile ? { profile: named.profile, site: named.url } : undefined,
+      })
+      const result = stampSchema({
+        ...(await profileStatus({
           profile: parsed.command.profile,
           name: parsed.command.name,
           url: parsed.command.url,
-        }),
-      )
+        })),
+        operator: book.agent,
+      })
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }
@@ -565,8 +617,13 @@ export async function main(argv: string[]): Promise<number> {
       writeStdoutJson(result)
       return 0
     }
+    const book = await withOperatorSession({
+      humanAgree: parsed.command.cmd === "profiles" ? parsed.command.humanAgree : false,
+      voluntary:
+        parsed.command.cmd === "profiles" && parsed.command.purge ? [parsed.command.purge] : [],
+    })
     const profiles = await listProfiles()
-    writeStdoutJson(stampSchema({ ok: true, profiles }))
+    writeStdoutJson(stampSchema({ ok: true, profiles, operator: book.agent, wiped: book.wiped }))
     return 0
   } catch (err) {
     writeStdoutJson(failureReceipt(err))

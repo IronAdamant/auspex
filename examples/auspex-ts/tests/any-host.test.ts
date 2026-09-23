@@ -19,6 +19,7 @@ import {
   auspexFinalizeLoginInputSchema,
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
+  auspexProfilesInputSchema,
   auspexReapInputSchema,
   auspexTraceInputSchema,
 } from "../src/tool-schema.ts"
@@ -64,6 +65,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     login: auspexLoginInputObject.shape,
     "await-login": auspexAwaitLoginInputSchema.shape,
     "finalize-login": auspexFinalizeLoginInputSchema.shape,
+    profiles: auspexProfilesInputSchema.shape,
     "profile-status": auspexProfileStatusInputSchema.shape,
     desktop: auspexDesktopInputSchema.shape,
     reap: auspexReapInputSchema.shape,

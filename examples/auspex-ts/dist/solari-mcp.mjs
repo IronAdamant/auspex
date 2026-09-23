@@ -193,6 +193,35 @@ var init_profile_slug = __esm({
   }
 });
 
+// src/operator-session.ts
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+function readOperatorKey(file) {
+  if (!existsSync(file)) return void 0;
+  const lines = readFileSync(file, "utf8").split("\n").map((line2) => line2.trim()).filter((line2) => line2 && !line2.startsWith("#"));
+  const line = lines[0];
+  if (!line) return void 0;
+  if (line.startsWith("SOLARI_API_KEY=")) {
+    let value = line.slice("SOLARI_API_KEY=".length).trim();
+    if (value.startsWith('"') && value.endsWith('"') || value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    return value || void 0;
+  }
+  if (line.includes("=")) return void 0;
+  return line;
+}
+var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP;
+var init_operator_session = __esm({
+  "src/operator-session.ts"() {
+    "use strict";
+    OPERATOR_IDLE_MS = 30 * 60 * 1e3;
+    PHONE_LIST_MS = 10 * 60 * 1e3;
+    SIGNUP_BUSY_MS = 30 * 60 * 1e3;
+    OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. On the desktop, the same wipe runs when that profile has been idle for 30 minutes. A use resets that profile's 30-minute clock. Other profiles stay. One site at a time. Username and password stay in the local page fields only, and those fields are cleared after paste or Save. They are not included in the agent message.";
+    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. The desktop thin client is docs/desktop.html (Solari remote view plus the typing door). The phone door is docs/phone.html. Paste URL, username, and password on those pages; they stay on the page. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent.";
+  }
+});
+
 // src/phone-expiry.ts
 var init_phone_expiry = __esm({
   "src/phone-expiry.ts"() {
@@ -210,6 +239,7 @@ var init_profiles = __esm({
     init_errors();
     init_profile_persist();
     init_profile_slug();
+    init_operator_session();
     init_paths();
     init_phone_expiry();
     init_solari();
@@ -248,7 +278,7 @@ var init_timeout = __esm({
 });
 
 // src/solari.ts
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
 import path4 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 import {
@@ -257,9 +287,14 @@ import {
   SolariError as SolariError2
 } from "@solarisdk/browser";
 import { chromium } from "patchright-core";
+function applyOperatorKeyFile(file) {
+  if (process.env.SOLARI_API_KEY) return;
+  const key = readOperatorKey(file);
+  if (key) process.env.SOLARI_API_KEY = key;
+}
 function readSolariKeyFromFile(file) {
-  if (!existsSync(file)) return void 0;
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
+  if (!existsSync2(file)) return void 0;
+  for (const raw of readFileSync2(file, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
     line = line.trim();
@@ -286,12 +321,15 @@ function loadDotEnv(file = DOTENV_PATH) {
       return;
     }
   }
+  if (file !== DOTENV_PATH) return;
+  applyOperatorKeyFile(path4.join(path4.dirname(DOTENV_PATH), ".auspex", "operator-key"));
 }
 var DOTENV_PATH, REPO_DOTENV_PATH;
 var init_solari = __esm({
   "src/solari.ts"() {
     "use strict";
     init_errors();
+    init_operator_session();
     init_timeout();
     init_profile_storage();
     DOTENV_PATH = path4.resolve(path4.dirname(fileURLToPath3(import.meta.url)), "..", ".env");
@@ -302,17 +340,17 @@ var init_solari = __esm({
 // src/solari-mcp-entry.ts
 init_solari();
 import { spawn } from "node:child_process";
-import { existsSync as existsSync3 } from "node:fs";
+import { existsSync as existsSync4 } from "node:fs";
 import path5 from "node:path";
 import { fileURLToPath as fileURLToPath4 } from "node:url";
 
 // src/solari-mcp-gate.ts
 init_solari();
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
 function solariKeyReady(env = process.env, dotenvFile = env.AUSPEX_DOTENV_PATH || DOTENV_PATH) {
   if (env.SOLARI_API_KEY?.trim()) return true;
-  if (!dotenvFile || !existsSync2(dotenvFile)) return false;
-  for (const raw of readFileSync2(dotenvFile, "utf8").split("\n")) {
+  if (!dotenvFile || !existsSync3(dotenvFile)) return false;
+  for (const raw of readFileSync3(dotenvFile, "utf8").split("\n")) {
     let line = raw;
     if (line.charCodeAt(0) === 65279) line = line.slice(1);
     line = line.trim();
@@ -340,7 +378,7 @@ if (!solariKeyReady()) {
   process.exit(1);
 }
 var cli = path5.join(root, "node_modules", "@solarisdk", "mcp", "dist", "cli.js");
-if (!existsSync3(cli)) {
+if (!existsSync4(cli)) {
   console.error("solari MCP not started: @solarisdk/mcp is not installed");
   process.exit(1);
 }

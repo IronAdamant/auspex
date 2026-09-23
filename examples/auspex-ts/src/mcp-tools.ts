@@ -8,7 +8,8 @@ import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
 import { ensureRunDir } from "./paths.ts"
 import { generateQRCode } from "./qr-gen.ts"
-import { attachHandoffQr, HANDOFF_PHONE_DOOR_BAN, listProfiles, loginProfile, qrPayloadForHandoff } from "./profiles.ts"
+import { attachMatchedPurgeNext, noteAfterSignupWait, OPERATOR_PURGE_QUESTION, SIGNUP_BUSY_MS } from "./operator-session.ts"
+import { attachHandoffQr, HANDOFF_PHONE_DOOR_BAN, listProfiles, loginProfile, qrPayloadForHandoff, withOperatorSession } from "./profiles.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { profileStatus } from "./profile-status.ts"
@@ -27,6 +28,7 @@ import {
   auspexFinalizeLoginInputSchema,
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
+  auspexProfilesInputSchema,
   auspexReapInputSchema,
   auspexTraceInputSchema,
 } from "./tool-schema.ts"
@@ -38,7 +40,7 @@ export const VERIFY_DESCRIPTION =
   "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. After auspex_check with verify=false, upload the on-disk receipt into a headless Solari sandbox, independently re-check expect (fetch/OCR, not JSON echo). Integrity ok vs claim claimOk. Kill the VM. Do not call this if auspex_check already verified (the default). 429: auspex_reap leftover VMs first."
 
 export const LOGIN_DESCRIPTION =
-  "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl (Solari console → Profiles → Open editor, hardware keyboard). Show both, labeled. " +
+  "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. Create or reuse a named Solari browser profile and return TWO labeled login URLs. Requires profile or url. url without profile derives a safe host slug (app.example.com → app-example-com) and echoes it on stdout, next, and phone Save paste. Explicit profile wins (dogfood profile=consistencyhub is unchanged). Phone: handoff.mobileUrl is the Auspex phone page (ironadamant.com/auspex/phone.html) with a real text field so the phone keyboard can open; keys go into remote Chrome, not into chat. That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Solari's own handoff/editor is noVNC and will not open the phone keyboard. Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html) with the same link hash as the phone when login minted a remote Chrome; otherwise Solari console → Profiles → Open editor. Hardware keyboard. Paste URL, username, and password on that page. They stay on the page. Show both, labeled. " +
   HANDOFF_PHONE_DOOR_BAN +
   " The agent never copies the password. Packet also has openOnPhone, openOnDesktop, oneLiner (phone SMS), desktopOneLiner, qrPath (QR of the phone URL), plus a QR PNG attach. url is a start hint in the handoff reason. After they tap Save on the phone page, call auspex_await_login with saveEditor true (do not open Solari's handoff page on a phone: GET editor HTTP 401). wait:true / --wait is the composed path: it waits for Save and passes saveEditor true (same as auspex_await_login --save-editor). saveEditor / --save-editor POSTs Solari editor/save then probes for editor CDP; claim a fold only when editorFold.ok. Solari's editor is noVNC today (editorFold.reason=no-cdp) so leftover sessionStorage is not refreshed. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. If next says stale/weakSeed: remint or finalize-now. Then auspex_finalize_login (unknown profiles need url and expect), then auspex_check. A Save with 0 cookies is not success. Do not skip finalize-login after Save. Do not intern-ping."
 
@@ -46,7 +48,9 @@ export const DESKTOP_DESCRIPTION =
   "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. Named Solari sandbox desktop demo: boot a cloud GUI VM, wait for X11, open mousepad by default. This is not the user's Mac and not a fourth primitive. Wait/expect/ok share one process haystack (processList + ps). windowOk only if a real window list exists. clicked only if verified. FAIL-CLOSED type refuses password/OTP-like strings (6-8 digits, password keywords, API-key patterns, high-complexity no-space strings) because desktop cannot detect password fields. Use only for demo text. Returns ASCII log, JSON, optional PNG, and streamUrl (VNC). Desktops may 402 on Free. 429: auspex_reap."
 
 export const PROFILES_DESCRIPTION =
-  "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved)."
+  "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. List Solari browser profile names, ids, version, and populated (whether a non-empty storage state was saved). " +
+  OPERATOR_PURGE_QUESTION +
+  " Pass purge with humanAgree true only after the human agrees. This tool has no username field and no password field. The Solari key is not an argument."
 
 export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave for a named Solari profile. emptySave = profile not found or empty. weakSeed is cookies/origins with a counted sessionStorage of 0, or folded __auspex_ss__:expiresOn past/within ~5m (leftover count is not fresh). Public marketing saved checks stay loggedOut. Default path uses one browser session: inspect only when there is no URL, otherwise one live check. Live probe never uses --sso or --record and never types a password. Microsoft or Google password/OTP wall is needsHuman: call auspex_login and show BOTH labeled URLs (handoff.mobileUrl is the Auspex phone page with a real text field; handoff.desktopUrl on the computer). " +
@@ -128,7 +132,12 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_check")
-        const { receipt } = await executeAuspexCheck({ ...args, onProgress })
+        const named = applySavedCheckName(args)
+        const book = await withOperatorSession({
+          note: named.profile ? { profile: named.profile, site: named.url } : undefined,
+        })
+        const { receipt: checked } = await executeAuspexCheck({ ...args, onProgress })
+        const receipt = attachMatchedPurgeNext(checked, book.agent)
         const packed = await buildCheckToolContent(receipt)
         packed.content[0] = { type: "text", text: toolJson(receipt) }
         return packed
@@ -147,6 +156,9 @@ export function registerAuspexTools(server: McpServer): void {
     async ({ profile, url, wait }) => {
       try {
         const resolved = resolveLoginProfile({ profile, url })
+        const book = await withOperatorSession({
+          note: { profile: resolved.name, site: url, busyMs: SIGNUP_BUSY_MS },
+        })
         const runDir = await ensureRunDir()
         const result = await loginProfile(resolved.name, url, undefined, undefined, {
           profileDerived: resolved.derived,
@@ -156,14 +168,18 @@ export function registerAuspexTools(server: McpServer): void {
           if (qr.qrPath) attachHandoffQr(result, qr.qrPath, url)
         }
         if (!wait) {
-          const payload = stampSchema({ ok: true, ...result })
+          const payload = stampSchema({ ok: true, ...result, operator: book.agent })
           return buildReceiptToolContent(payload, result.handoff?.qrPath)
         }
         const waited = await liveAwaitLogin(resolved.name, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url }))
+        const finished = await withOperatorSession({
+          note: noteAfterSignupWait({ profile: resolved.name, site: url, status: waited.status }),
+        })
         const payload = stampSchema({
           ok: waited.status === "completed",
           ...result,
           wait: waited,
+          operator: finished.agent,
         })
         return buildReceiptToolContent(payload, result.handoff?.qrPath)
       } catch (err) {
@@ -180,8 +196,21 @@ export function registerAuspexTools(server: McpServer): void {
     },
     async ({ profile, sinceVersion, timeoutMs, saveEditor }) => {
       try {
+        await withOperatorSession({
+          note: { profile, busyMs: Math.max(SIGNUP_BUSY_MS, timeoutMs ?? 0) },
+        })
         const result = await liveAwaitLogin(profile, { sinceVersion, timeoutMs, saveEditor })
-        return { content: [{ type: "text" as const, text: toolJson({ ok: result.status === "completed", ...result }) }] }
+        const finished = await withOperatorSession({
+          note: noteAfterSignupWait({ profile, status: result.status }),
+        })
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: toolJson({ ok: result.status === "completed", ...result, operator: finished.agent }),
+            },
+          ],
+        }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -198,8 +227,9 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_finalize_login")
+        const book = await withOperatorSession({ note: { profile, site: url } })
         const result = await runFinalizeLogin({ profile, url, expect, ssoProvider, onProgress })
-        const receipt = toAgentReceipt(result)
+        const receipt = attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
         const packed = await buildCheckToolContent(receipt)
         packed.content[0] = { type: "text", text: toolJson(receipt) }
         return packed
@@ -213,12 +243,23 @@ export function registerAuspexTools(server: McpServer): void {
     "auspex_profiles",
     {
       description: PROFILES_DESCRIPTION,
-      inputSchema: {},
+      inputSchema: auspexProfilesInputSchema,
     },
-    async () => {
+    async ({ purge, humanAgree }) => {
       try {
+        const book = await withOperatorSession({
+          humanAgree,
+          voluntary: purge ? [purge] : [],
+        })
         const profiles = await listProfiles()
-        return { content: [{ type: "text" as const, text: toolJson({ ok: true, profiles }) }] }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: toolJson({ ok: true, profiles, operator: book.agent, wiped: book.wiped }),
+            },
+          ],
+        }
       } catch (err) {
         return packToolFailure(err)
       }
@@ -233,8 +274,12 @@ export function registerAuspexTools(server: McpServer): void {
     },
     async (args) => {
       try {
+        const named = applySavedCheckName(args)
+        const book = await withOperatorSession({
+          note: named.profile ? { profile: named.profile, site: named.url } : undefined,
+        })
         const result = await profileStatus(args)
-        return { content: [{ type: "text" as const, text: toolJson(result) }] }
+        return { content: [{ type: "text" as const, text: toolJson({ ...result, operator: book.agent }) }] }
       } catch (err) {
         return packToolFailure(err)
       }

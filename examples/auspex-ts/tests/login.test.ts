@@ -15,6 +15,8 @@ import {
   saveProfileEditor,
   handoffTokenFromUrl,
   loginInstructions,
+  desktopHandoffUrlFromPhone,
+  desktopSaveSiteUrl,
   phoneHandoffUrl,
   qrPayloadForHandoff,
   requestLoginHandoff,
@@ -54,20 +56,29 @@ test("loginInstructions with phone IME URL labels the real text-field page", () 
   assert.equal(result.handoff?.url, solari)
   assert.equal(result.handoff?.mobileUrl, mobile)
   assert.match(result.handoff?.mobileUrl ?? "", /ironadamant\.com\/auspex\/phone\.html/)
-  assert.equal(result.handoff?.desktopUrl, CONSOLE_PROFILES_URL)
+  assert.match(result.handoff?.desktopUrl ?? "", /ironadamant\.com\/auspex\/desktop\.html#/)
+  const phoneHash = new URLSearchParams(new URL(mobile).hash.slice(1))
+  const desktopHash = new URLSearchParams(new URL(result.handoff?.desktopUrl ?? "").hash.slice(1))
+  assert.equal(desktopHash.get("v"), phoneHash.get("v"))
+  assert.equal(desktopHash.get("h"), phoneHash.get("h"))
+  assert.equal(desktopHash.get("n"), phoneHash.get("n"))
+  assert.equal(desktopHash.get("t"), phoneHash.get("t"))
+  assert.equal(desktopHash.get("exp"), phoneHash.get("exp"))
   assert.match(result.next, /real text field/)
   assert.match(result.next, /phone keyboard/)
   assert.match(result.next, /seed\/handoff door/)
   assert.match(result.next, /not a same-session VNC takeover/)
   assert.match(result.next, /handoff\.desktopUrl/)
-  assert.match(result.next, /Open editor/)
+  assert.match(result.next, /desktop\.html/)
+  assert.equal(result.next.includes("Open editor"), false)
   assert.match(result.next, /Never paste/)
   assert.match(result.next, /30 minutes/)
   assert.match(result.next, /noVNC|software keyboard will not open/)
   assert.equal(result.next.includes("gateUrl"), false)
   assert.match(result.handoff?.openOnPhone ?? "", /real text field/)
   assert.match(result.handoff?.openOnPhone ?? "", /seed\/handoff door|same-session VNC takeover/)
-  assert.match(result.handoff?.openOnDesktop ?? "", /Open editor/)
+  assert.match(result.handoff?.openOnDesktop ?? "", /desktop\.html/)
+  assert.match(result.handoff?.desktopOneLiner ?? "", /desktop\.html#/)
   assert.equal(result.handoff?.oneLiner, `Auspex login (phone): ${mobile}`)
   assert.equal(result.handoff?.savePaste, phoneSavePaste("auspex-goal-test"))
   assert.equal(qrPayloadForHandoff(result.handoff!), mobile)
@@ -92,6 +103,37 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(extra.get("p"), "prof_1")
   assert.equal(extra.get("n"), "demo")
   assert.equal(extra.get("t"), "hand_1")
+  const desktop = desktopHandoffUrlFromPhone(withIds)
+  assert.match(desktop ?? "", /\/desktop\.html#/)
+  const desk = new URLSearchParams(new URL(desktop ?? "").hash.slice(1))
+  assert.equal(desk.get("v"), "tok.en")
+  assert.equal(desk.get("h"), extra.get("h"))
+  assert.equal(desk.get("n"), "demo")
+  assert.equal(desk.get("t"), "hand_1")
+  assert.equal(desk.get("exp"), extra.get("exp"))
+  const withKey = phoneHandoffUrl("tok.en", "https://console.getsolari.com/handoff/abc", {
+    keyInUse: true,
+    siteUrl: "https://consistencyhub.io",
+    profileName: "auspex-desktop",
+  })
+  const desktopWithSite = desktopHandoffUrlFromPhone(withKey) ?? ""
+  assert.equal(new URL(withKey).hash.includes("k=1"), true)
+  assert.equal(new URL(desktopWithSite).pathname.endsWith("/desktop.html"), true)
+  assert.equal(new URL(desktopWithSite).hash, new URL(withKey).hash)
+  assert.equal(new URL(desktopWithSite).hash.includes("u=https"), true)
+  assert.equal(desktopSaveSiteUrl("https://consistencyhub.io", ""), "https://consistencyhub.io")
+  assert.equal(
+    desktopSaveSiteUrl("https://consistencyhub.io", "https://app.example/login"),
+    "https://app.example/login",
+  )
+  assert.equal(desktopSaveSiteUrl("http://insecure.example", "notaurl"), "")
+  const secret = "fixture-login-password"
+  const key = "slr_live_fixture_login_key"
+  assert.equal(withKey.includes(secret), false)
+  assert.equal(desktopWithSite.includes(secret), false)
+  assert.equal(withKey.includes(key), false)
+  assert.equal(desktopWithSite.includes(key), false)
+  assert.equal(withKey.includes("slr_"), false)
   assert.equal(new URL(url).search, "")
   assert.equal(handoffTokenFromUrl("https://console.getsolari.com/handoff/WS2-abc"), "WS2-abc")
 })
