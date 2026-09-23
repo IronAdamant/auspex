@@ -439,6 +439,7 @@ export async function checkThenVerify(
         runDir: dir,
         skipped: true,
         skipReason: check.reason,
+        ...(check.reason === "hostChanged" || check.hostChanged ? { claimOkProfile: false } : {}),
       },
     }
   }

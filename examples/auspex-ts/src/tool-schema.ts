@@ -276,7 +276,7 @@ export const auspexAwaitLoginInputSchema = z.object({
   url: httpUrlSchema
     .optional()
     .describe(
-      "Site URL for the soft profile/host advise. When set, a profile that is not this host's slug sets profileHostMatch false and suggestedProfile (the wait still runs). Omit to use the site URL stored by the last login mint. Omission of the fields is not a match.",
+      "Site URL for the soft profile/host advise. When set, a profile that is not this host's slug sets profileHostMatch false and suggestedProfile (the wait still runs). Omit to use the site URL stored by the last login mint. Omission of the fields is not a match. If the live browser host is a different site than the minted URL, the wait fails closed (status host-changed, hostChanged true) and nextCall remints auspex_login for that https origin. The password field is not a site picker.",
     ),
   sinceVersion: z
     .number()
@@ -339,7 +339,7 @@ export const auspexFinalizeLoginInputSchema = z.object({
     "Profile name to finalize (SSO + save-profile; captures sessionStorage). Run NOW after Save/await-login when editorFold did not refresh; later reuse still needs claimOkProfile=true, not ok alone.",
   ),
   url: httpUrlSchema.optional().describe(
-    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub). A profile that is not this host's slug still finalizes and sets profileHostMatch false plus suggestedProfile.",
+    "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub). A profile that is not this host's slug still finalizes and sets profileHostMatch false plus suggestedProfile. If the live browser host diverges from the minted site, ok is false, reason is hostChanged, the profile is not saved, and nextCall remints auspex_login for the live https origin.",
   ),
   expect: expectSchema.optional().describe(
     "Claim substring. Required with url unless profile matches a saved check (e.g. consistencyhub)",
