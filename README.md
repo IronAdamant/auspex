@@ -6,18 +6,18 @@ Cloud Chrome check → independent sandbox verify → tear-down. **`ok` ≠ `cla
 
 ## For Reviewers
 
-The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted auth-gated SaaS demo** receipt (`ok` / `claimOk` / `claimOkProfile`). The generic recipe is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect — not a named dogfood host. See [RECEIPTS.md](RECEIPTS.md).
+The ironadamant one-liner is a **measured public check (no login)**. It does **not** prove logged-in honesty. The **auth-gated** triad is the **redacted auth-gated SaaS demo** receipt (`ok` / `claimOk` / `claimOkProfile`). The generic recipe is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect — not a named dogfood host. Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint. See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence) and [RECEIPTS.md](RECEIPTS.md).
 
 | Door | Open this |
 | --- | --- |
 | **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (auth-gated Microsoft wall, emails/passwords stripped) |
-| **Auth-gated evidence** | Redacted auth-gated SaaS [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) — [RECEIPTS.md](RECEIPTS.md) |
+| **Auth-gated evidence** | Redacted SaaS [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + receipt-only OneDrive dual pack — [RECEIPTS.md](RECEIPTS.md) |
 | **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Open `handoff.url` (chooser: Phone or Desktop, same hash). Phone: `handoff.mobileUrl` (Auspex page, real keyboard — seed/handoff door, not a same-session VNC takeover). Desktop: `handoff.desktopUrl`. Show as bullets is off by default so a password manager can paste into the text field. Tap Save (copies a line; paste it in the AI chat). Then `await-login --profile <yours> --save-editor`, `finalize-login`, `check`. Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` |
 | **Login stall** | After `login` mint, if nothing happens or login fails, read `traceSummary` / `npx auspex-solari trace` before reminting. Not a fourth primitive. |
-| **Issues** | On. The weekly `public` job still skips without a repo `SOLARI_API_KEY` secret (not set). |
+| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`; it skips without repo `SOLARI_API_KEY` (not set). A secretless cron does not verify live Solari sessions. |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
 ```bash
@@ -86,7 +86,7 @@ npx auspex-solari check --name consistencyhub
 npx auspex-solari check --name consistencyhub --verify-with-profile
 ```
 
-OneDrive with the same Microsoft profile is **recipe only** (no committed PNG/receipt). See [RECEIPTS.md](RECEIPTS.md).
+Same Microsoft profile on OneDrive is **receipt-only** evidence (`examples/auspex-ts/demo/onedrive-receipt.json`, `claimOkProfile=true`) — **no raw OneDrive PNG**. Dual pack is evidence, not the default recipe. See [RECEIPTS.md](RECEIPTS.md).
 
 ## MCP first (Cursor / Claude / Grok)
 
@@ -100,14 +100,14 @@ npx -p auspex-solari auspex-mcp
 
 Official `@solarisdk/mcp` exits unless `SOLARI_API_KEY` is set so hosts do not list empty `solari_*` tools. Prefer `auspex_reap` for 429 recovery.
 
-The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
+The GitHub Actions `public` job is scheduled Monday + `workflow_dispatch` and **skips** without a repo `SOLARI_API_KEY` secret. This fork does not add that secret, so weekly live coverage is not running. Missing the secret does not fail pull requests. The workflow does not commit artifacts; demo files are refreshed by hand. A secretless cron does not verify live Solari sessions. Run locally: `npx auspex-solari check --name ironadamant` and `--name checkpoint`, or `npm run public-check` from `examples/auspex-ts`.
 
 ## Links
 
 - Pitch (hiring managers): [PITCH.md](PITCH.md)
 - Agent instructions (any host): [AGENTS.md](AGENTS.md)
 - Public receipts: [RECEIPTS.md](RECEIPTS.md)
-- Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set).
+- Issues is on. Weekly live coverage still skips without a repo `SOLARI_API_KEY` secret (not set). A secretless cron does not verify live Solari sessions.
 - Console — [console.getsolari.com](https://console.getsolari.com)
 - Docs — [docs.getsolari.com](https://docs.getsolari.com)
 

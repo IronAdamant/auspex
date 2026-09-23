@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://onedrive.live.com/",
+  "expect": "My files",
+  "screenshotPath": "",
+  "title": "Home - OneDrive",
+  "finalUrl": "https://onedrive.live.com/",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated OneDrive home — account identity, storage amounts, and file names omitted for public demo. Live expect matched: My files. Same Microsoft profile seed as ConsistencyHub dogfood.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": true,
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  },
+  "profileSeed": {
+    "cookies": 79,
+    "origins": 5
+  },
+  "demoNote": "Redacted public demo shaped from a live 2026-09-18 AEST profile-seeded OneDrive check (same Microsoft seed as ConsistencyHub). sessionId/sandbox ids omitted. Receipt-only — no public OneDrive PNG (PII). Dual pack is evidence, not the default recipe."
+}
