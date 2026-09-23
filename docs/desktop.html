@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
   <title>Auspex desktop login</title>
   <style>
     html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
@@ -56,6 +57,7 @@
       width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
       border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
     }
+    #imeHint { margin: 6px 0 0; font-size: 12px; color: #6a7a90; }
     #paste { display: none; margin-top: 8px; min-height: 4.5em; font-size: 14px; }
     #paste.show { display: block; }
     #copied {
@@ -74,18 +76,9 @@
     }
     #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
     #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
-    #secrets { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-    #secrets .secret { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #9ab; }
-    #secrets input {
-      width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px;
-      border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
-    }
-    #secrets button {
-      text-align: center; color: #0b0f14; background: #e8eef4; border: 0; border-radius: 8px;
-      padding: 10px; font-size: 15px; font-weight: 600;
-    }
+    #secretNote { margin: 8px 0 0; font-size: 12px; color: #9ab; }
     body.locked #screen { pointer-events: none; }
-    body.locked #ime, body.locked #row button, body.locked #secrets button, body.locked #secrets input { opacity: 0.45; }
+    body.locked #ime, body.locked #row button, body.locked #solari-key, body.locked #save-solari-key { opacity: 0.45; }
     #keybox { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
     #keybox[hidden] { display: none; }
     #keybox label { font-size: 13px; color: #9ab; }
@@ -106,12 +99,12 @@
     <header>
       <strong>Auspex desktop login</strong>
       <div id="ttl">Checking how long this link is active…</div>
-      <div id="status">Desktop thin client. Solari remote view plus the typing door. Seed/handoff door for typing — not a live-session takeover. Tap the remote Chrome to click. Use the paste buttons below. Keys go into the remote Chrome, not into chat. This VNC link is short-lived (~5 min). A saved login on this computer lasts 30 minutes after its last use, or until you agree when the agent asks to purge it.</div>
+      <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote Chrome field, then type or paste below. Keys go into the remote Chrome (and the site). They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. The typing field clears on paste, Save, or lock. The Solari key in this browser is not that wipe.</div>
       <div id="keybox" hidden>
         <label for="solari-key">Solari key</label>
         <input id="solari-key" type="password" autocomplete="off" spellcheck="false" />
         <button type="button" id="save-solari-key">Save Solari key</button>
-        <p id="keynote">Saved on this computer in gitignored .auspex/operator-key when Auspex is listening. Not copied into the AI chat line. Not stored in the repo. Commands read SOLARI_API_KEY from the environment first, then that file.</p>
+        <p id="keynote">Saved on this computer in gitignored .auspex/operator-key when Auspex is listening. Not copied into the AI chat line. Not stored in the repo. Not the 30-minute profile wipe. Commands read SOLARI_API_KEY from the environment first, then that file.</p>
       </div>
     </header>
     <div id="stage">
@@ -128,27 +121,16 @@
       </div>
     </div>
     <div id="bar">
+      <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Type or paste here" aria-describedby="imeHint" />
+      <p id="imeHint">Open the link → pick Phone or Desktop → click the remote login field → paste here → click the password field → paste again. Password managers and long passwords are the reason.</p>
       <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>
       <div id="copied">Copied. Paste it in your AI chat.</div>
       <textarea id="paste" readonly></textarea>
-      <div id="secrets">
-        <label class="secret">URL
-          <input id="paste-url" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" />
-        </label>
-        <button type="button" id="paste-url-btn">Paste URL</button>
-        <label class="secret">username
-          <input id="paste-username" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" />
-        </label>
-        <button type="button" id="paste-username-btn">Paste username</button>
-        <label class="secret">password
-          <input id="paste-password" type="password" autocomplete="off" spellcheck="false" />
-        </label>
-        <button type="button" id="paste-password-btn">Paste password</button>
-        <p id="secretNote">Username and password stay in these boxes on this device only. Paste or Save clears them. They are not copied into the AI chat.</p>
-      </div>
       <div id="row">
+        <button type="button" id="paste-btn">Paste</button>
         <button type="button" id="save" class="ghost">Save</button>
       </div>
+      <p id="secretNote">Keys go into remote Chrome and the site. They stay off the AI chat line. Paste or Save clears this field.</p>
     </div>
   </div>
   <script src="./novnc-rfb.js"></script>
@@ -173,14 +155,7 @@
       var copied = document.getElementById("copied")
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
-      var backspace = document.getElementById("backspace")
-      var enter = document.getElementById("enter")
-      var pasteUrl = document.getElementById("paste-url")
-      var pasteUsername = document.getElementById("paste-username")
-      var pastePassword = document.getElementById("paste-password")
-      var pasteUrlBtn = document.getElementById("paste-url-btn")
-      var pasteUsernameBtn = document.getElementById("paste-username-btn")
-      var pastePasswordBtn = document.getElementById("paste-password-btn")
+      var pasteBtn = document.getElementById("paste-btn")
       var solariKey = document.getElementById("solari-key")
       var saveSolariKey = document.getElementById("save-solari-key")
       var keybox = document.getElementById("keybox")
@@ -287,20 +262,20 @@
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
       }
 
+      function clearLocalSecrets() {
+        if (ime) ime.value = ""
+        last = ""
+      }
+
       function lockUi(title, message) {
         if (locked) return
         locked = true
         document.body.classList.add("locked")
         if (ime) ime.disabled = true
         save.disabled = true
-        if (backspace) backspace.disabled = true
-        if (enter) enter.disabled = true
-        if (pasteUrl) pasteUrl.disabled = true
-        pasteUsername.disabled = true
-        pastePassword.disabled = true
-        if (pasteUrlBtn) pasteUrlBtn.disabled = true
-        pasteUsernameBtn.disabled = true
-        pastePasswordBtn.disabled = true
+        if (pasteBtn) pasteBtn.disabled = true
+        if (solariKey) solariKey.disabled = true
+        if (saveSolariKey) saveSolariKey.disabled = true
         clearLocalSecrets()
         screen.style.pointerEvents = "none"
         expiredTitle.textContent = title
@@ -320,7 +295,17 @@
 
       function savePasteLine(name) {
         name = String(name || "").trim() || "<yours>"
-        return "I tapped Save on the Auspex phone page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari on the phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman."
+        return "I tapped Save on the Auspex desktop page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari's handoff page on a phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman."
+      }
+
+      function httpsSite(value) {
+        var text = String(value || "").trim()
+        return /^https:\/\//i.test(text) ? text : ""
+      }
+
+      function stripSecret(line, secret) {
+        if (!secret || secret.length < 3 || secret === profileName) return line
+        return line.split(secret).join("")
       }
 
       function copyOnTap(text) {
@@ -347,17 +332,11 @@
 
       save.addEventListener("click", function () {
         if (locked) return
+        var typed = String(ime && ime.value || "")
         var line = savePasteLine(profileName)
-        var fieldUrl = pasteUrl ? httpsSite(pasteUrl.value) : ""
-        var siteUrl = fieldUrl || httpsSite(params.get("u"))
+        var siteUrl = httpsSite(params.get("u"))
         if (siteUrl) line += " Site URL: " + siteUrl + "."
-        if (pastedUsername) line += " Username was pasted into the remote page."
-        if (pastedPassword) line += " Password was pasted into the remote page."
-        if (pastedUsername || pastedPassword) {
-          line += " Username and password values are not in this message."
-        }
-        line = stripSecret(line, pasteUsername && pasteUsername.value)
-        line = stripSecret(line, pastePassword && pastePassword.value)
+        line = stripSecret(line, typed)
         clearLocalSecrets()
         paste.value = line
         copyOnTap(line)
@@ -373,11 +352,6 @@
           "Ask your AI agent to regenerate the login link (auspex login) and try again. Do not reuse this page."
         )
         return
-      }
-
-      function httpsSite(value) {
-        var text = String(value || "").trim()
-        return /^https:\/\//i.test(text) ? text : ""
       }
 
       function tick() {
@@ -429,91 +403,41 @@
         for (var n = i; n < next.length; n++) sendChar(next.charAt(n))
       }
 
-      if (ime) {
-        ime.addEventListener("input", function () {
-          if (locked) return
-          var next = ime.value
-          sendDiff(last, next)
-          last = next
-        })
-        ime.addEventListener("keydown", function (e) {
-          if (locked) { e.preventDefault(); return }
-          if (e.key === "Enter") {
-            e.preventDefault()
-            sendKey(XK_RETURN, "Enter")
-          } else if (e.key === "Tab") {
-            e.preventDefault()
-            sendKey(XK_TAB, "Tab")
-          } else if (e.key === "Backspace" && ime.value === "") {
-            e.preventDefault()
-            sendBackspace()
-          }
-        })
-      }
-      if (backspace) {
-        backspace.addEventListener("click", function () {
-          if (locked) return
-          if (ime && ime.value) {
-            ime.value = ime.value.slice(0, -1)
-            sendDiff(last, ime.value)
-            last = ime.value
-          } else {
-            sendBackspace()
-          }
-        })
-      }
-      if (enter) {
-        enter.addEventListener("click", function () {
-          if (locked) return
-          sendKey(XK_RETURN, "Enter")
-        })
-      }
-
-      var pastedUrl = false
-      var pastedUsername = false
-      var pastedPassword = false
-
       function typeText(text) {
         for (var i = 0; i < text.length; i++) sendChar(text.charAt(i))
       }
 
-      function pasteIntoRemote(input, kind) {
-        return function () {
-          if (locked) return
-          var value = input.value
-          if (!value) return
-          typeText(value)
-          if (kind === "url") {
-            sendKey(XK_RETURN, "Enter")
-            pastedUrl = true
-          } else if (kind === "username") {
-            pastedUsername = true
-            input.value = ""
-          } else if (kind === "password") {
-            pastedPassword = true
-            input.value = ""
-          }
+      ime.addEventListener("input", function () {
+        if (locked) return
+        var next = ime.value
+        sendDiff(last, next)
+        last = next
+      })
+      ime.addEventListener("keydown", function (e) {
+        if (locked) { e.preventDefault(); return }
+        if (e.key === "Enter") {
+          e.preventDefault()
+          sendKey(XK_RETURN, "Enter")
+        } else if (e.key === "Tab") {
+          e.preventDefault()
+          sendKey(XK_TAB, "Tab")
+        } else if (e.key === "Backspace" && ime.value === "") {
+          e.preventDefault()
+          sendBackspace()
         }
-      }
-
-      function clearLocalSecrets() {
-        if (pasteUsername) pasteUsername.value = ""
-        if (pastePassword) pastePassword.value = ""
-      }
-
-      function stripSecret(line, secret) {
-        if (!secret || secret.length < 3 || secret === profileName) return line
-        return line.split(secret).join("")
-      }
-
-      if (pasteUrl && pasteUrlBtn) pasteUrlBtn.addEventListener("click", pasteIntoRemote(pasteUrl, "url"))
-      pasteUsernameBtn.addEventListener("click", pasteIntoRemote(pasteUsername, "username"))
-      pastePasswordBtn.addEventListener("click", pasteIntoRemote(pastePassword, "password"))
+      })
+      pasteBtn.addEventListener("click", function () {
+        if (locked) return
+        var value = ime.value
+        if (!value) return
+        if (last !== value) typeText(value)
+        clearLocalSecrets()
+      })
 
       var RFB = (window.NoVNCRFB && window.NoVNCRFB.default) || window.NoVNCRFB
       if (typeof RFB !== "function") {
-        setBoot("Phone viewer failed to load. Remint auspex login.", false)
-        setStatus("Phone viewer failed to load. Remint auspex login.", true)
+        setBoot("Desktop viewer failed to load. Remint auspex login.", false)
+        setStatus("Desktop viewer failed to load. Remint auspex login.", true)
         return
       }
 
@@ -528,8 +452,8 @@
             clearInterval(bootTimer)
             bootTimer = null
             setBoot("Ready", true)
-            setStatus("Connected. Tap the remote Chrome to click, then type in the field below.")
-            if (ime) ime.focus()
+            setStatus("Connected. Click the remote Chrome field, then type or paste below.")
+            ime.focus()
           } else if (tries === 16) {
             setBoot("Still opening remote Chrome…")
           } else if (tries > 60) {
@@ -561,12 +485,10 @@
         rfb.addEventListener("disconnect", function () {
           if (locked) return
           linkClosed = true
-          if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
-          if (bootTimer) { clearInterval(bootTimer); bootTimer = null }
-          ttl.textContent = "The remote Chrome closed. A new login link is required."
-          ttl.className = "dead"
-          setBoot("The remote Chrome closed. A new login link is required.", false)
-          setStatus("The remote Chrome closed. A new login link is required.", true)
+          lockUi(
+            "The remote Chrome closed. A new login link is required.",
+            "The remote Chrome closed. A new login link is required."
+          )
         })
       } catch (err) {
         setBoot("Could not open the remote Chrome. Remint auspex login.", false)

@@ -12,16 +12,16 @@ export const PHONE_LIST_MS = 10 * 60 * 1000
 export const SIGNUP_BUSY_MS = 30 * 60 * 1000
 
 export const OPERATOR_PURGE_QUESTION =
-  "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. On the desktop, the same wipe runs when that profile has been idle for 30 minutes. A use resets that profile's 30-minute clock. Other profiles stay. One site at a time. Username and password stay in the local page fields only, and those fields are cleared after paste or Save. They are not included in the agent message."
+  "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. The Solari key in the browser or .auspex/operator-key is not that wipe."
 
 export const OPERATOR_HELP =
   OPERATOR_PURGE_QUESTION +
   " auspex profiles lists those saved logins (site and profile name only). " +
   "npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. " +
   "humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. " +
-  "The desktop thin client is docs/desktop.html (Solari remote view plus the typing door). " +
-  "The phone door is docs/phone.html. Paste URL, username, and password on those pages; they stay on the page. " +
-  "The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent."
+  "One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. " +
+  "One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. " +
+  "The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent and is not the 30-minute profile wipe."
 
 export type OperatorProfileInput = {
   profile: string

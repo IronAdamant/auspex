@@ -97,6 +97,12 @@ If both pass, the override is safe to keep.
 5. ✓ `--record` on dashboard/landing URLs is refused
 6. ✓ `--allow-record-profile` refused for ConsistencyHub profile
 
+### Operator key loopback (desktop door)
+
+The desktop page may POST a Solari API key to `http://127.0.0.1:17321/auspex-operator-key`. The listener binds loopback only. GET returns `{ present }` without the key. CORS is `Access-Control-Allow-Origin: *`, so any local page that can reach loopback can **overwrite** the operator key (substitution / DoS of the next Auspex command, not a read of the existing key). The 30-minute profile idle wipe does **not** delete this key, browser `localStorage`, or `.auspex/operator-key`. Prefer `SOLARI_API_KEY` in the environment. This is documented, not a key-path redesign.
+
+Username and password typed on the door pages go into Solari remote Chrome (VNC keystrokes) and then the target site. They stay off agent chat, MCP, and receipts. Do not describe them as never-leaves-device.
+
 ### Password/OTP Protection
 
 **Agents must never type passwords or OTPs:**

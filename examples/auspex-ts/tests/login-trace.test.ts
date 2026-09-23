@@ -189,6 +189,25 @@ test("summarizeLoginTrace says mint ready and names mint-stop why", () => {
   ])
   assert.match(ready, /Mint ready/)
   assert.match(ready, /phone\.html/)
+  const readyDesktop = summarizeLoginTrace([
+    {
+      ts: "t",
+      event: "login",
+      profile: "consistencyhub",
+      phoneDoor: "ime",
+      computerDoor: "desktop-page",
+      remintIndex: 1,
+      episodeId: "ep-desk",
+      mintStage: "ready",
+      urlPresent: true,
+      vncMintOk: true,
+    },
+  ])
+  assert.match(readyDesktop, /Mint ready/)
+  assert.match(readyDesktop, /phone\.html/)
+  assert.match(readyDesktop, /desktop\.html/)
+  assert.match(readyDesktop, /door\.html/)
+  assert.equal(/Computer Open editor is the door/.test(readyDesktop), false)
   const noKey = summarizeLoginTrace([
     { ts: "t", event: "login", profile: "x", mintStage: "key-check", solariCode: "MissingApiKey", remintIndex: 1 },
   ])

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Auspex login</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.45 -apple-system, system-ui, sans-serif; }
+    #wrap { max-width: 28rem; margin: 0 auto; padding: 28px 20px calc(24px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 1.45rem; margin: 0 0 0.5rem; }
+    p { color: #9ab; margin: 0 0 1rem; }
+    #ttl { font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; margin-bottom: 1rem; }
+    #ttl.warn { color: #fc6; }
+    #ttl.dead { color: #f88; }
+    #picks { display: flex; flex-direction: column; gap: 12px; }
+    a.pick {
+      display: block; text-align: center; text-decoration: none;
+      color: #0b0f14; background: #e8eef4; border-radius: 12px;
+      padding: 18px 16px; font-size: 1.2rem; font-weight: 700;
+    }
+    a.pick span { display: block; margin-top: 4px; font-size: 0.85rem; font-weight: 500; color: #243044; }
+    a.pick.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
+    a.pick.ghost span { color: #9ab; }
+    #locked { display: none; padding: 16px; border: 1px solid #f88; border-radius: 12px; color: #f88; }
+    #locked.show { display: block; }
+    .err { color: #f88; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <h1>Auspex login</h1>
+    <div id="ttl">Checking how long this link is active…</div>
+    <p>Seed/handoff door for typing — not a live-session takeover. One mint, one link. Pick how you type. Same remote Chrome and the same hash either way.</p>
+    <p>Then click the remote login field and use the one typing field on the next page. Keys go into remote Chrome (and the site). They stay off the AI chat.</p>
+    <div id="locked" role="alert">This page needs a live link from auspex login. Ask your AI agent to regenerate the login link and try again.</div>
+    <div id="picks">
+      <a class="pick" id="phone" href="./phone.html">Phone<span>Software keyboard. Open in this phone's Safari or Chrome.</span></a>
+      <a class="pick ghost" id="desktop" href="./desktop.html">Desktop<span>Hardware keyboard. Open on this computer.</span></a>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var hash = location.hash || ""
+      var params = new URLSearchParams(hash.replace(/^#/, ""))
+      var token = params.get("v") || ""
+      var ttl = document.getElementById("ttl")
+      var locked = document.getElementById("locked")
+      var phone = document.getElementById("phone")
+      var desktop = document.getElementById("desktop")
+      phone.href = "./phone.html" + hash
+      desktop.href = "./desktop.html" + hash
+
+      function parseUnixSeconds(value) {
+        if (value == null || value === "") return null
+        var raw = String(value).trim()
+        if (/^\d+(\.\d+)?$/.test(raw)) {
+          var n = Number(raw)
+          if (!isFinite(n) || n <= 0) return null
+          return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n)
+        }
+        var parsed = Date.parse(raw)
+        return isFinite(parsed) ? Math.floor(parsed / 1000) : null
+      }
+
+      function jwtExpSeconds(rawToken) {
+        var parts = String(rawToken || "").split(".")
+        var earliest = null
+        var limit = parts.length < 2 ? parts.length : 2
+        for (var i = 0; i < limit; i++) {
+          if (!parts[i]) continue
+          try {
+            var b64 = parts[i].replace(/-/g, "+").replace(/_/g, "/")
+            while (b64.length % 4) b64 += "="
+            var payload = JSON.parse(atob(b64))
+            var exp = parseUnixSeconds(payload && payload.exp)
+            if (exp) earliest = earliest == null ? exp : Math.min(earliest, exp)
+          } catch (e) {}
+        }
+        return earliest
+      }
+
+      function formatRemain(sec) {
+        if (sec < 0) sec = 0
+        var m = Math.floor(sec / 60)
+        var s = sec % 60
+        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+      }
+
+      function lock(title) {
+        ttl.textContent = title
+        ttl.className = "dead"
+        locked.classList.add("show")
+        phone.removeAttribute("href")
+        desktop.removeAttribute("href")
+      }
+
+      if (!token) {
+        lock("This page needs a live link from auspex login")
+        return
+      }
+
+      var fromHash = parseUnixSeconds(params.get("exp"))
+      var fromJwt = jwtExpSeconds(token)
+      var expSec = fromHash && fromJwt ? Math.min(fromHash, fromJwt) : (fromHash || fromJwt)
+      if (!expSec) {
+        lock("Link expiry unknown — remint")
+        return
+      }
+
+      function tick() {
+        var left = expSec - Math.floor(Date.now() / 1000)
+        if (left <= 0) {
+          lock("This login link has expired")
+          return
+        }
+        ttl.textContent = "Link active for " + formatRemain(left) + " · VNC ~5 min"
+        ttl.className = left <= 120 ? "warn" : ""
+      }
+      tick()
+      setInterval(tick, 1000)
+    })()
+  </script>
+</body>
+</html>

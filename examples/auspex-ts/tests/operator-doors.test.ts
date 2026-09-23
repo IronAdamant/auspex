@@ -29,33 +29,50 @@ function readDoor(name: string): string {
   return readFileSync(path.join(repo, "docs", name), "utf8")
 }
 
-function assertPasteDoor(html: string, label: string, opts: { urlPaste: boolean }) {
+function assertTypingDoor(html: string, label: string) {
   assert.match(html, /data-solari-remote="vnc"/, `${label} remote mount`)
   assert.match(html, /novnc-rfb\.js/, `${label} noVNC client`)
   assert.match(html, /wss:\/\/api\.getsolari\.com\/vnc-proxy/, `${label} Solari remote UI`)
-  assert.equal(html.includes(">Paste URL<"), opts.urlPaste, `${label} URL paste`)
-  assert.equal(html.includes('id="paste-url"'), opts.urlPaste, `${label} URL field`)
-  assert.match(html, />Paste username</, `${label} username paste`)
-  assert.match(html, />Paste password</, `${label} password paste`)
-  assert.match(html, /id="paste-username"/)
-  assert.match(html, /id="paste-password"/)
-  assert.match(html, /type="password"/)
+  assert.match(html, /id="ime"/, `${label} one typing field`)
+  assert.match(html, /id="paste-btn"/, `${label} Paste button`)
+  assert.match(html, /id="imeHint"/, `${label} typing hint`)
+  assert.match(html, /click the remote login field/, `${label} hint copy`)
+  assert.equal(html.includes(">Paste URL<"), false, `${label} no URL paste`)
+  assert.equal(html.includes('id="paste-url"'), false, `${label} no URL field`)
+  assert.equal(html.includes(">Paste username<"), false, `${label} no username paste`)
+  assert.equal(html.includes(">Paste password<"), false, `${label} no password paste`)
+  assert.equal(html.includes('id="paste-username"'), false)
+  assert.equal(html.includes('id="paste-password"'), false)
   assert.equal(html.includes(PASSWORD), false)
   assert.equal(html.includes(SOLARI_KEY), false)
+  assert.match(html, /stay off the AI chat/)
+  assert.match(html, /next Auspex command after 30 minutes/)
+  assert.equal(html.includes("stay in these boxes on this device only"), false)
+  assert.equal(html.includes("They stay on the page"), false)
 }
 
-test("phone and desktop doors mount Solari and the three paste controls", () => {
+test("phone and desktop doors mount Solari and one typing field", () => {
   const phone = readDoor("phone.html")
   const desktop = readDoor("desktop.html")
-  assertPasteDoor(phone, "phone", { urlPaste: true })
-  assertPasteDoor(desktop, "desktop", { urlPaste: true })
+  const chooser = readDoor("door.html")
+  assertTypingDoor(phone, "phone")
+  assertTypingDoor(desktop, "desktop")
+  assert.match(chooser, /id="phone"/)
+  assert.match(chooser, /id="desktop"/)
+  assert.match(chooser, /\.\/phone\.html/)
+  assert.match(chooser, /\.\/desktop\.html/)
+  assert.match(chooser, /location\.hash/)
+  assert.match(chooser, /Seed\/handoff door for typing/)
+  assert.match(chooser, /not a live-session takeover/)
+  assert.equal(chooser.includes('id="ime"'), false)
+  assert.equal(chooser.includes('id="paste-username"'), false)
   assert.equal(desktop.includes('id="backspace"'), false)
   assert.equal(desktop.includes('id="enter"'), false)
   assert.equal(desktop.includes(">Delete<"), false)
   assert.equal(desktop.includes(">Enter<"), false)
   assert.match(desktop, /id="save"/)
   assert.match(desktop, /#keybox\[hidden\] \{ display: none; \}/)
-  const desktopOrder = ["screen", "paste-url", "paste-url-btn", "paste-username", "paste-password", "save"]
+  const desktopOrder = ["screen", "ime", "paste-btn", "save"]
     .map((id) => desktop.indexOf(`id="${id}"`))
   assert.deepEqual(desktopOrder, [...desktopOrder].sort((a, b) => a - b))
   assert.ok(desktopOrder.every((index) => index > 0))
@@ -64,18 +81,21 @@ test("phone and desktop doors mount Solari and the three paste controls", () => 
   assert.match(desktop, /clamp\(28rem, 72vh, 56rem\)/)
   assert.match(desktop, /min-height: 100vh/)
   assert.match(desktop, /Auspex desktop login/)
-  assert.equal(desktop.includes('id="ime"'), false)
   assert.equal(desktop.includes("phone keyboard"), false)
-  assert.match(readDoor("phone.html"), /id="ime"/)
-  assert.match(readDoor("phone.html"), /phone keyboard/)
+  assert.match(phone, /phone keyboard/)
   assert.match(desktop, /id="solari-key"/)
   assert.match(desktop, /Save Solari key/)
   assert.match(desktop, /localStorage\.setItem\("auspex\.solariKey"/)
   assert.match(desktop, /http:\/\/127\.0\.0\.1:17321\/auspex-operator-key/)
+  assert.match(desktop, /not that wipe|not the 30-minute profile wipe/)
   assert.match(phone, /Seed\/handoff door for typing/)
   assert.match(phone, /not a live-session takeover/)
   assert.match(USAGE, /30 minutes/)
   assert.match(USAGE, /not included in the agent message/)
+  assert.match(USAGE, /chooser|door\.html/)
+  assert.match(OPERATOR_PURGE_QUESTION, /next Auspex command/)
+  assert.match(OPERATOR_PURGE_QUESTION, /not that wipe/)
+  assert.equal(OPERATOR_PURGE_QUESTION.includes("stay in the local page fields only"), false)
   assert.equal(readDoor("phone.html").includes('id="phoneProfiles"'), false)
   assert.match(USAGE, /testing is done/)
   assert.match(USAGE, /purged/)
@@ -86,6 +106,10 @@ test("phone and desktop doors mount Solari and the three paste controls", () => 
   assert.equal(USAGE.includes(PASSWORD), false)
   assert.equal(USAGE.includes(USERNAME), false)
   assert.equal(PROFILES_DESCRIPTION.includes(SOLARI_KEY), false)
+  const watch = readDoor("index.html")
+  assert.match(watch, /Phone door/)
+  assert.match(watch, /Desktop door/)
+  assert.match(watch, /door\.html/)
 })
 
 test("agent tool schemas have no username, password, or Solari key field", () => {
@@ -116,6 +140,8 @@ test("agent tool schemas have no username, password, or Solari key field", () =>
 type DoorEl = {
   textContent: string
   value: string
+  href: string
+  hidden?: boolean
   className: string
   disabled: boolean
   classList: { add: (name: string) => void; remove: (name: string) => void }
@@ -124,7 +150,7 @@ type DoorEl = {
   focus: () => void
   blur: () => void
   setAttribute: () => void
-  removeAttribute: () => void
+  removeAttribute: (name?: string) => void
   setSelectionRange: () => void
   querySelector: () => null
   appendChild: (child: DoorEl) => DoorEl
@@ -147,6 +173,7 @@ function loadDoor(
     const el: DoorEl = {
       textContent: "",
       value: "",
+      href: "",
       className: "",
       disabled: false,
       style: {},
@@ -249,16 +276,22 @@ function click(el: DoorEl | undefined) {
   handler.fn({ preventDefault() {} })
 }
 
-test("a served docs tree returns the desktop page", async () => {
+test("a served docs tree returns the chooser and desktop pages", async () => {
+  const pages: Record<string, string> = {
+    "/door.html": readDoor("door.html"),
+    "/desktop.html": readDoor("desktop.html"),
+    "/phone.html": readDoor("phone.html"),
+  }
   const server = createServer((req, res) => {
-    const name = (req.url ?? "/").split("?")[0]
-    if (name !== "/desktop.html") {
+    const name = (req.url ?? "/").split("?")[0] ?? ""
+    const body = pages[name]
+    if (!body) {
       res.writeHead(404)
       res.end("missing")
       return
     }
     res.writeHead(200, { "content-type": "text/html" })
-    res.end(readDoor("desktop.html"))
+    res.end(body)
   })
   await new Promise<void>((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve())
@@ -266,11 +299,12 @@ test("a served docs tree returns the desktop page", async () => {
   const addr = server.address()
   if (!addr || typeof addr === "string") throw new Error("docs server has no port")
   try {
-    const res = await fetch(`http://127.0.0.1:${addr.port}/desktop.html`)
-    const body = await res.text()
-    assert.equal(res.status, 200)
-    assert.match(body, /data-solari-remote="vnc"/)
-    assert.match(body, />Paste URL</)
+    const desktop = await fetch(`http://127.0.0.1:${addr.port}/desktop.html`)
+    const chooser = await fetch(`http://127.0.0.1:${addr.port}/door.html`)
+    assert.equal(desktop.status, 200)
+    assert.equal(chooser.status, 200)
+    assert.match(await desktop.text(), /data-solari-remote="vnc"/)
+    assert.match(await chooser.text(), /id="phone"/)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
@@ -279,39 +313,30 @@ test("a served docs tree returns the desktop page", async () => {
 test("door scripts run in a browser-like page and keep secrets off the chat paste line", () => {
   for (const name of ["phone.html", "desktop.html"] as const) {
     const loaded = loadDoor(readDoor(name), "")
-    const url = loaded.byId.get("paste-url")
-    const username = loaded.byId.get("paste-username")
-    const password = loaded.byId.get("paste-password")
+    const ime = loaded.byId.get("ime")
     const chat = loaded.byId.get("paste")
-    assert.ok(url && username && password && chat)
-    url.value = "https://supabase.com/dashboard/sign-in"
-    username.value = USERNAME
-    password.value = PASSWORD
+    assert.ok(ime && chat)
+    ime.value = PASSWORD
     click(loaded.byId.get("save"))
-    assert.equal(chat.value.includes(USERNAME), false)
     assert.equal(chat.value.includes(PASSWORD), false)
-    assert.equal(username.value, "")
-    assert.equal(password.value, "")
-    username.value = USERNAME
-    password.value = PASSWORD
-    click(loaded.byId.get("paste-url-btn"))
-    click(loaded.byId.get("paste-username-btn"))
-    click(loaded.byId.get("paste-password-btn"))
-    assert.equal(username.value, "")
-    assert.equal(password.value, "")
+    assert.equal(ime.value, "")
+    ime.value = USERNAME
+    click(loaded.byId.get("paste-btn"))
+    assert.equal(ime.value, "")
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
     assert.equal(chat.value.includes(SOLARI_KEY), false)
+    ime.value = PASSWORD
     click(loaded.byId.get("save"))
     assert.match(chat.value, /I tapped Save/)
     assert.match(chat.value, /supabase-com/)
     if (name === "desktop.html") {
-      assert.match(chat.value, /Site URL: https:\/\/supabase\.com\/dashboard\/sign-in/)
+      assert.match(chat.value, /Auspex desktop page/)
+      assert.equal(chat.value.includes("Auspex phone page"), false)
     } else {
-      assert.match(chat.value, /URL pasted: https:\/\/supabase\.com\/dashboard\/sign-in/)
+      assert.match(chat.value, /Auspex phone page/)
+      assert.equal(chat.value.includes("Auspex desktop page"), false)
     }
-    assert.match(chat.value, /Username was pasted into the remote page/)
-    assert.match(chat.value, /Password was pasted into the remote page/)
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
     if (name === "desktop.html") {
@@ -320,11 +345,12 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
         `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop&u=${encodeURIComponent("https://consistencyhub.io")}`,
       )
       const mintedChat = minted.byId.get("paste")
-      assert.ok(mintedChat)
-      minted.byId.get("paste-username")!.value = USERNAME
-      minted.byId.get("paste-password")!.value = PASSWORD
+      const mintedIme = minted.byId.get("ime")
+      assert.ok(mintedChat && mintedIme)
+      mintedIme.value = PASSWORD
       click(minted.byId.get("save"))
       assert.match(mintedChat.value, /auspex-desktop/)
+      assert.match(mintedChat.value, /Auspex desktop page/)
       assert.match(mintedChat.value, /Site URL: https:\/\/consistencyhub\.io/)
       assert.equal(mintedChat.value.includes(USERNAME), false)
       assert.equal(mintedChat.value.includes(PASSWORD), false)
@@ -361,4 +387,14 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
     }
   }
+})
+
+test("chooser door forwards the same hash to phone and desktop", () => {
+  const hash = `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`
+  const loaded = loadDoor(readDoor("door.html"), hash)
+  const phone = loaded.byId.get("phone")
+  const desktop = loaded.byId.get("desktop")
+  assert.ok(phone && desktop)
+  assert.equal(phone.href, `./phone.html${hash}`)
+  assert.equal(desktop.href, `./desktop.html${hash}`)
 })
