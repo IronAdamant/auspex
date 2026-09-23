@@ -417,13 +417,16 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         saveEditor: true,
         url: record.url,
       })
-      const waited = preserveAwaitLiveHost(await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }), raw)
-      applyAwaitOutcome(record, waited)
+      const waited = preserveAwaitLiveHost(
+        await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }),
+        raw,
+      ) as AwaitLoginResult
+      const afterAwait = applyAwaitOutcome(record, waited)
       await persist()
-      const awaitStopped = record.phase === "failed" || record.phase === "await"
-      const event = awaitStopped ? wakeEventFor(record, "terminal") : "profile-saved"
+      const awaitStopped = afterAwait.phase === "failed" || afterAwait.phase === "await"
+      const event = awaitStopped ? wakeEventFor(afterAwait, "terminal") : "profile-saved"
       const posted = event ? await wake(event) : undefined
-      if (awaitStopped) return publicJob(record, { wake: posted })
+      if (awaitStopped) return publicJob(afterAwait, { wake: posted })
     }
 
     if (record.phase === "finalize") {

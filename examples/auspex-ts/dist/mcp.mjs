@@ -6422,17 +6422,23 @@ function scrubUrlString(value) {
   const redacted = redactSecrets(redactEmailsInString(value));
   try {
     const url = new URL(redacted);
+    let changed = false;
     if (url.username || url.password) {
       url.username = "";
       url.password = "";
+      changed = true;
     }
-    if (url.hash && url.hash.length > 1) url.hash = "#redacted";
+    if (url.hash && url.hash.length > 1) {
+      url.hash = "#redacted";
+      changed = true;
+    }
     for (const key of [...url.searchParams.keys()]) {
       if (/token|secret|key|password|auth|jwt|otp|code/i.test(key)) {
         url.searchParams.set(key, "redacted");
+        changed = true;
       }
     }
-    return url.toString();
+    return changed ? url.toString() : redacted;
   } catch {
     return redacted;
   }
@@ -6447,10 +6453,9 @@ function scrubUrlKeepHash(value) {
   const redacted = redactSecrets(redactEmailsInString(value));
   try {
     const url = new URL(redacted);
-    if (url.username || url.password) {
-      url.username = "";
-      url.password = "";
-    }
+    if (!url.username && !url.password) return redacted;
+    url.username = "";
+    url.password = "";
     return url.toString();
   } catch {
     return redacted;
@@ -6913,13 +6918,16 @@ async function runJob(opts, deps = {}) {
         saveEditor: true,
         url: record.url
       });
-      const waited = preserveAwaitLiveHost(await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }), raw);
-      applyAwaitOutcome(record, waited);
+      const waited = preserveAwaitLiveHost(
+        await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }),
+        raw
+      );
+      const afterAwait = applyAwaitOutcome(record, waited);
       await persist();
-      const awaitStopped = record.phase === "failed" || record.phase === "await";
-      const event = awaitStopped ? wakeEventFor(record, "terminal") : "profile-saved";
+      const awaitStopped = afterAwait.phase === "failed" || afterAwait.phase === "await";
+      const event = awaitStopped ? wakeEventFor(afterAwait, "terminal") : "profile-saved";
       const posted = event ? await wake(event) : void 0;
-      if (awaitStopped) return publicJob(record, { wake: posted });
+      if (awaitStopped) return publicJob(afterAwait, { wake: posted });
     }
     if (record.phase === "finalize") {
       if (!record.skipFinalize) {

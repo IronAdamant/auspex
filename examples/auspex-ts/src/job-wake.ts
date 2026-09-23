@@ -41,17 +41,23 @@ export function scrubUrlString(value: string): string {
   const redacted = redactSecrets(redactEmailsInString(value))
   try {
     const url = new URL(redacted)
+    let changed = false
     if (url.username || url.password) {
       url.username = ""
       url.password = ""
+      changed = true
     }
-    if (url.hash && url.hash.length > 1) url.hash = "#redacted"
+    if (url.hash && url.hash.length > 1) {
+      url.hash = "#redacted"
+      changed = true
+    }
     for (const key of [...url.searchParams.keys()]) {
       if (/token|secret|key|password|auth|jwt|otp|code/i.test(key)) {
         url.searchParams.set(key, "redacted")
+        changed = true
       }
     }
-    return url.toString()
+    return changed ? url.toString() : redacted
   } catch {
     return redacted
   }
@@ -73,10 +79,9 @@ function scrubUrlKeepHash(value: string): string {
   const redacted = redactSecrets(redactEmailsInString(value))
   try {
     const url = new URL(redacted)
-    if (url.username || url.password) {
-      url.username = ""
-      url.password = ""
-    }
+    if (!url.username && !url.password) return redacted
+    url.username = ""
+    url.password = ""
     return url.toString()
   } catch {
     return redacted

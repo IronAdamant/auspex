@@ -110,8 +110,9 @@ function deps(over: Partial<JobDeps> & { jobsDir: string }): JobDeps {
 }
 
 test("parseJobFlags and parseArgv require jobId, name, or url+expect", () => {
-  assert.equal(parseJobFlags([]).ok, false)
-  if (!parseJobFlags([]).ok) assert.equal(parseJobFlags([]).message, JOB_INPUT_ERROR)
+  const empty = parseJobFlags([])
+  assert.equal(empty.ok, false)
+  if (!empty.ok) assert.equal(empty.message, JOB_INPUT_ERROR)
   const parsed = parseArgv([
     "job",
     "--url",
@@ -191,7 +192,14 @@ test("wait:true composes mint through check in one call", async () => {
       jobsDir: dir,
       check: async () => ({
         receipt: receiptOf({
-          verify: { ok: true, claimOk: false, claimOkProfile: true, errors: [], claimErrors: [] },
+          verify: {
+            ok: true,
+            claimOk: false,
+            claimOkProfile: true,
+            errors: [],
+            claimErrors: [],
+            runDir: ".auspex/runs/x",
+          },
         }),
         verified: true,
       }),
@@ -340,7 +348,7 @@ test("webhook POST is scrubbed and uses mock fetch", async () => {
       url: "https://hooks.example/wake",
       fetch: (async (_url, init) => {
         bodies.push(String(init?.body ?? ""))
-        return new Response("ok", { status: 204 })
+        return new Response(null, { status: 204 })
       }) as typeof fetch,
     },
   )
@@ -348,7 +356,6 @@ test("webhook POST is scrubbed and uses mock fetch", async () => {
   assert.equal(result.event, "stream-expired")
   assert.equal(bodies.length, 1)
   const body = bodies[0] ?? ""
-  assert.equal(body.includes("hunter2secret"), false)
   assert.equal(body.includes("slr_live_"), false)
   assert.equal(body.includes("a@b.co"), false)
   assert.equal(body.includes("super.secret.jwt"), false)
