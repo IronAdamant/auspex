@@ -39,6 +39,24 @@ This repo ships optional saved checks (`name=ironadamant|checkpoint|consistencyh
 
 Three primitives: browser check, sandbox verify, named sandbox desktop demo. Login, finalize-login, profile-status, reap, and trace are the auth + hygiene doors. No fourth primitive. `auspex_desktop` (Mousepad) is not the user's Mac. The login desktop door is `docs/desktop.html`.
 
+## Frozen agent door sequence
+
+Operators and agents: this is the **one** door-card sequence. It is a seed/handoff door for off-site typing — **not** a Handraise-style same-session live-view takeover.
+
+1. **Mint** `login --url <https>` (derives `--profile` host slug; override `--profile <yours>`). Chooser is `handoff.url` (Phone or Desktop, same hash).
+2. **Human logs in** in the door / VNC window. Secrets never appear on the agent line, chat, MCP, or receipts.
+3. **Human Save** (desktop Save or phone path). Paste the copied line in chat; the IME is cleared.
+4. **`await-login --save-editor`**, then **`finalize-login`** with `--url` and an expect unique to the logged-in app (absent from public marketing).
+5. Later **`check`**. Optional `--verify-with-profile`. Triad stays honest: **`ok` ≠ `claimOk` ≠ `claimOkProfile`**. After VWP, `claimOkProfile` is the reuse gate.
+
+Fail-closed already on tip:
+- `expectMatchedPublicLanding` (#61) — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save (`ok` false, `matched` false, profile not saved). Use a real app URL and a better expect.
+- `hostChanged` (#62) — live https host diverged from the minted door URL. Remint `auspex_login --profile <suggestedProfile> --url <suggestedUrl>`. Do not save into the old jar.
+
+Do not intern-ping. Do not open Solari noVNC on a phone (`GET editor HTTP 401`). Never `--record` a logged-in session.
+
+**Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. It skips without repo secret `SOLARI_API_KEY`. This fork does not add that secret, so weekly live Solari checks are **not** running. Missing the secret does not fail PRs. The workflow does not commit artifacts. Demo files are refreshed by hand. A secretless cron does not verify live sessions.
+
 ## Understanding Verification Signals
 
 Three distinct booleans in receipts, each with different meaning:
@@ -55,7 +73,7 @@ Three distinct booleans in receipts, each with different meaning:
 
 **For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify` for smoke tests), or use `--verify-with-profile` to get `claimOkProfile`. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL **skip** anonymous verify by default. Public marketing (ironadamant.com, checkpointprojects.com) still verifies even with a leftover profile. No profile still verifies. `--verify` is still anonymous and will poison `ok` on auth-gated pages. A VWP timeout after anonymous claim is skipped keeps `anonymousClaimSkipped` and sets `claimOkProfile=false`; it does not treat the miss as an anonymous `claimOk` failure. When verify integrity fails after that skip, overlay `reason` is `network` (intentional, retry-shaped). That is not a 502 and not an anonymous `claimOk` miss — do not retry the check to chase `claimOkProfile`. `ok` still follows integrity `verify.ok` — do not fold `claimOkProfile` into `ok`.
 
-**Verified dogfood (2026-09-18):** redacted auth-gated SaaS demo with `--verify-with-profile` → `ok=true`, `claimOkProfile=true` (committed redacted receipt under `demo/consistencyhub-*`). Same Microsoft profile on OneDrive is local dogfood only — **no committed OneDrive PNG/receipt** (PII). See [Worked example (dogfood)](#worked-example-dogfood) and [RECEIPTS.md](../../RECEIPTS.md).
+**Verified dogfood (2026-09-18):** redacted auth-gated SaaS demo with `--verify-with-profile` → `ok=true`, `claimOkProfile=true` (committed redacted receipt under `demo/consistencyhub-*`). Same Microsoft profile on OneDrive is **receipt-only** evidence (`demo/onedrive-receipt.json`) — **no raw OneDrive PNG** (PII). See [Worked example (dogfood)](#worked-example-dogfood) and [RECEIPTS.md](../../RECEIPTS.md). Dual pack is evidence, not the default recipe.
 
 If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP), you may use them for ad-hoc cloud browser / sandbox / desktop. Prefer Auspex for check → verify → tear-down. For 429 leftovers call **`auspex_reap`** (works even when Solari MCP did not start). If `solari_*` are missing, do not invent them.
 
@@ -108,7 +126,7 @@ npx auspex check --name consistencyhub --verify-with-profile
 
 Console Save and `--save-editor` do **not** refresh folded sessionStorage unless `editorFold.ok`. If `next` says stale/weakSeed: remint or finalize-now — do not run `--verify-with-profile` on a dead fold. **Verified 2026-09-18:** After reseed v20, `check --name consistencyhub --verify-with-profile` → `ok=true`, `claimOkProfile=true`.
 
-**OneDrive (same Microsoft profile, recipe only):** `check https://onedrive.live.com/ --expect "My files" --profile consistencyhub`. That `check` reuses the seeded Microsoft profile. Do not pass that profile to `login`, `await-login`, or `finalize-login` for a different host — those commands soft-advise with `profileHostMatch` false and `suggestedProfile` and still run. Live dogfood on a local Microsoft profile; **no committed OneDrive PNG/receipt** (PII). Attached profile on a non-public-marketing host defaults to no anonymous verify. **`--verify` is still anonymous** and will poison `ok`. Use `--no-verify` for smoke tests or `--verify-with-profile` for the reuse-gate field.
+**OneDrive (same Microsoft profile, evidence only):** `check https://onedrive.live.com/ --expect "My files" --profile consistencyhub`. That `check` reuses the seeded Microsoft profile. Do not pass that profile to `login`, `await-login`, or `finalize-login` for a different host — those commands soft-advise with `profileHostMatch` false and `suggestedProfile` and still run. Published dual pack: redacted OneDrive receipt at `demo/onedrive-receipt.json` (`claimOkProfile=true`). **No raw OneDrive PNG** (PII; receipt-only). Still evidence, not the default recipe. Attached profile on a non-public-marketing host defaults to no anonymous verify. **`--verify` is still anonymous** and will poison `ok`. Use `--no-verify` for smoke tests or `--verify-with-profile` for the reuse-gate field.
 
 ## CLI
 

@@ -518,14 +518,53 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
 })
 
-test("Save strips any non-empty typed secret, including length 1 and 2", () => {
+function extractStripSecret(html: string, profileName = "app-example") {
+  const match = html.match(/function stripSecret\([^)]*\) \{[\s\S]*?\n      \}/)
+  assert.ok(match, "door must define stripSecret")
+  const fn = new Function(`var profileName = ${JSON.stringify(profileName)}; ${match[0]}; return stripSecret`) as () => (
+    line: string,
+    secret: string,
+    protectedSpans?: string[],
+  ) => string
+  return fn()
+}
+
+test("Save strips any non-empty typed secret without mangling Site URL or template", () => {
   const exp = Math.floor(Date.now() / 1000) + 600
   for (const name of ["phone.html", "desktop.html"] as const) {
     const html = readDoor(name)
     assert.equal(html.includes("secret.length < 3"), false, `${name} no length floor`)
     assert.match(html, /if \(!secret \|\| secret === profileName\) return line/, `${name} stripSecret guard`)
+    assert.match(
+      html,
+      /stripSecret\(template \+ siteClause, typed, \[template, siteClause\]\)/,
+      `${name} protects template + Site URL clause`,
+    )
+    assert.equal(html.includes("return line.split(secret).join(\"\")"), false, `${name} no naive whole-line scrub`)
 
-    const empty = loadDoor(html, `#v=door-token&exp=${exp}&n=app-example`)
+    const stripSecret = extractStripSecret(html)
+
+    // (a) secret that is a host substring does not mangle URL / template
+    const hostSub = "I tapped Save. Site URL: https://q.test."
+    assert.equal(
+      stripSecret(hostSub, "q", ["I tapped Save.", " Site URL: https://q.test."]),
+      hostSub,
+      `${name} host-substring secret leaves Site URL + template intact`,
+    )
+
+    // (b) short secrets still strip from non-structural payload
+    assert.equal(stripSecret("leak: q", "q"), "leak: ")
+    assert.equal(stripSecret("xabx", "ab"), "xx")
+    assert.equal(
+      stripSecret("leak: q Site URL: https://q.test.", "q", [" Site URL: https://q.test."]),
+      "leak:  Site URL: https://q.test.",
+    )
+
+    // (c) empty secret is a noop
+    assert.equal(stripSecret(hostSub, ""), hostSub)
+    assert.equal(stripSecret("I tapped Save.", ""), "I tapped Save.")
+
+    const empty = loadDoor(html, `#v=door-token&exp=${exp}&n=app-example&u=${encodeURIComponent("https://q.test")}`)
     const emptyIme = empty.byId.get("ime")
     const emptyChat = empty.byId.get("paste")
     assert.ok(emptyIme && emptyChat)
@@ -533,6 +572,7 @@ test("Save strips any non-empty typed secret, including length 1 and 2", () => {
     click(empty.byId.get("save"))
     assert.match(emptyChat.value, /I tapped Save/)
     assert.match(emptyChat.value, /--profile app-example/)
+    assert.match(emptyChat.value, /Site URL: https:\/\/q\.test/)
     assert.equal(emptyIme.value, "")
 
     const one = loadDoor(
@@ -544,9 +584,10 @@ test("Save strips any non-empty typed secret, including length 1 and 2", () => {
     assert.ok(oneIme && oneChat)
     oneIme.value = "q"
     click(one.byId.get("save"))
-    assert.equal(oneChat.value.includes("q"), false, `${name} length-1 secret stripped`)
-    assert.match(oneChat.value, /Site URL: https:\/\/\.test/)
+    assert.match(oneChat.value, /Site URL: https:\/\/q\.test/)
+    assert.equal(oneChat.value.includes("https://.test"), false, `${name} length-1 host substring does not mangle URL`)
     assert.match(oneChat.value, /I tapped Save/)
+    assert.match(oneChat.value, /await-login/)
     assert.equal(oneIme.value, "")
 
     const two = loadDoor(
@@ -558,10 +599,24 @@ test("Save strips any non-empty typed secret, including length 1 and 2", () => {
     assert.ok(twoIme && twoChat)
     twoIme.value = "ab"
     click(two.byId.get("save"))
-    assert.equal(twoChat.value.includes("ab"), false, `${name} length-2 secret stripped`)
-    assert.match(twoChat.value, /Site URL: https:\/\/\.test/)
+    assert.match(twoChat.value, /Site URL: https:\/\/ab\.test/)
+    assert.equal(twoChat.value.includes("https://.test"), false, `${name} length-2 host substring does not mangle URL`)
     assert.match(twoChat.value, /I tapped Save/)
     assert.equal(twoIme.value, "")
+
+    const leak = loadDoor(
+      html,
+      `#v=door-token&exp=${exp}&n=app-example&u=${encodeURIComponent("https://q.test")}`,
+    )
+    const leakIme = leak.byId.get("ime")
+    const leakChat = leak.byId.get("paste")
+    assert.ok(leakIme && leakChat)
+    leakIme.value = "zz"
+    click(leak.byId.get("save"))
+    assert.equal(leakChat.value.includes("zz"), false, `${name} short secret still stripped from Save payload`)
+    assert.match(leakChat.value, /Site URL: https:\/\/q\.test/)
+    assert.match(leakChat.value, /I tapped Save/)
+    assert.equal(leakIme.value, "")
 
     const named = loadDoor(html, `#v=door-token&exp=${exp}&n=ab`)
     const namedIme = named.byId.get("ime")

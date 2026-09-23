@@ -264,9 +264,20 @@
         return httpsSite(minted)
       }
 
-      function stripSecret(line, secret) {
+      function stripSecret(line, secret, protectedSpans) {
         if (!secret || secret === profileName) return line
-        return line.split(secret).join("")
+        var text = String(line == null ? "" : line)
+        var spans = Array.isArray(protectedSpans) ? protectedSpans : []
+        var mark0 = "@@AUSPEX_KEEP_0@@"
+        var mark1 = "@@AUSPEX_KEEP_1@@"
+        var span0 = spans[0] || ""
+        var span1 = spans[1] || ""
+        if (span0) text = text.split(span0).join(mark0)
+        if (span1) text = text.split(span1).join(mark1)
+        text = text.split(secret).join("")
+        if (span1) text = text.split(mark1).join(span1)
+        if (span0) text = text.split(mark0).join(span0)
+        return text
       }
 
       function copyOnTap(text) {
@@ -294,10 +305,10 @@
       save.addEventListener("click", function () {
         if (locked) return
         var typed = String(ime && ime.value || "")
-        var line = savePasteLine(profileName)
+        var template = savePasteLine(profileName)
         var siteUrl = doorSiteUrl(liveSiteUrl(), params.get("u"))
-        if (siteUrl) line += " Site URL: " + siteUrl + "."
-        line = stripSecret(line, typed)
+        var siteClause = siteUrl ? " Site URL: " + siteUrl + "." : ""
+        var line = stripSecret(template + siteClause, typed, [template, siteClause])
         clearLocalSecrets()
         paste.value = line
         copyOnTap(line)
