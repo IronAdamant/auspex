@@ -9,7 +9,6 @@ import { derivedProfileNext } from "./profile-slug.ts"
 import {
   applyOperatorWipes,
   commitOperatorSession,
-  issueOperatorPairingNonce,
   type OperatorAgentNotice,
   type OperatorNote,
 } from "./operator-session.ts"
@@ -530,9 +529,7 @@ export async function loginProfile(
       mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
         profileName: profile.name,
         expiresAt: handoff.expiresAt,
-        keyInUse: true,
         siteUrl: urlHint,
-        pair: issueOperatorPairingNonce(packageRoot).nonce,
       })
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)

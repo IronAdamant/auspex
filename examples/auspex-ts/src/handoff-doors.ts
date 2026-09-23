@@ -8,7 +8,7 @@ export const DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html
 export const DOOR_HANDOFF_PAGE = "https://ironadamant.com/auspex/door.html"
 
 /** Hash keys door JS reads. Unused Solari tokens stay off agent JSON / QR / SMS. */
-export const HANDOFF_HASH_KEYS = ["v", "n", "exp", "u", "k", "pair"] as const
+export const HANDOFF_HASH_KEYS = ["v", "n", "exp", "u"] as const
 
 export type HandoffHashExtra = {
   profileId?: string
@@ -17,12 +17,8 @@ export type HandoffHashExtra = {
   expiresAt?: string
   saved?: string
   plist?: string
-  /** True when this mint already has a Solari key. The key is not put in the URL. */
-  keyInUse?: boolean
   /** https site to open. Username and password are never accepted here. */
   siteUrl?: string
-  /** Short-lived loopback pairing nonce. Not the VNC JWT and not the Solari key. */
-  pair?: string
 }
 
 export function isPhoneImeUrl(url: string | undefined): boolean {
@@ -37,7 +33,7 @@ export function isDesktopDoorUrl(url: string | undefined): boolean {
   return Boolean(url?.startsWith(DESKTOP_HANDOFF_PAGE))
 }
 
-/** Shared hash: only door-JS keys (v, n, exp, u, k, pair). Drop t/h/p/saved/plist. */
+/** Shared hash: only door-JS keys (v, n, exp, u). Drop t/h/p/saved/plist/k/pair. */
 export function handoffHash(
   vncToken: string,
   _handoffUrl: string,
@@ -47,11 +43,8 @@ export function handoffHash(
   if (!token) return ""
   const hash = new URLSearchParams({ v: token })
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim())
-  if (extra?.keyInUse) hash.set("k", "1")
   const siteUrl = extra?.siteUrl?.trim() ?? ""
   if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl)
-  const pair = extra?.pair?.trim() ?? ""
-  if (/^[A-Za-z0-9_-]{16,64}$/.test(pair)) hash.set("pair", pair)
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token })
   if (expiry.exp !== undefined) hash.set("exp", String(expiry.exp))
   return hash.toString()

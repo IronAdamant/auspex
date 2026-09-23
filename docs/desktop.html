@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com http://127.0.0.1:17321; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
   <title>Auspex desktop login</title>
   <style>
     html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
@@ -79,19 +79,7 @@
     #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
     #secretNote { margin: 8px 0 0; font-size: 12px; color: #9ab; }
     body.locked #screen { pointer-events: none; }
-    body.locked #ime, body.locked #row button, body.locked #solari-key, body.locked #save-solari-key { opacity: 0.45; }
-    #keybox { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-    #keybox[hidden] { display: none; }
-    #keybox label { font-size: 13px; color: #9ab; }
-    #solari-key {
-      width: 100%; box-sizing: border-box; font-size: 16px; padding: 10px;
-      border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
-    }
-    #save-solari-key {
-      text-align: center; color: #0b0f14; background: #e8eef4; border: 0; border-radius: 8px;
-      padding: 10px; font-size: 15px; font-weight: 600;
-    }
-    #keynote { margin: 0; font-size: 12px; color: #9ab; }
+    body.locked #ime, body.locked #row button { opacity: 0.45; }
     .err { color: #f88; }
   </style>
 </head>
@@ -100,13 +88,7 @@
     <header>
       <strong>Auspex desktop login</strong>
       <div id="ttl">Checking how long this link is active…</div>
-      <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote Chrome field, then type or paste below. Keys go into the remote Chrome (and the site). They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. The typing field clears on paste, Save, or lock. The Solari key in this browser is not that wipe.</div>
-      <div id="keybox" hidden>
-        <label for="solari-key">Solari key</label>
-        <input id="solari-key" type="password" autocomplete="off" spellcheck="false" />
-        <button type="button" id="save-solari-key">Save Solari key</button>
-        <p id="keynote">Prefer SOLARI_API_KEY or gitignored .auspex/operator-key. This box is a fallback when Auspex is listening on this computer. Save posts to loopback only from this door origin, with a short-lived pairing token after mint. The key is stored in this browser only after that post succeeds. Hidden on minted login links (the agent already has the key). Not copied into the AI chat. Not the 30-minute profile wipe.</p>
-      </div>
+      <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote Chrome field, then type or paste below. Keys go into the remote Chrome (and the site). They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). An idle saved profile is deleted on the next Auspex command after 30 minutes without use. The typing field clears on paste, Save, or lock.</div>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -157,56 +139,6 @@
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
       var pasteBtn = document.getElementById("paste-btn")
-      var solariKey = document.getElementById("solari-key")
-      var saveSolariKey = document.getElementById("save-solari-key")
-      var keybox = document.getElementById("keybox")
-
-      var keyAlready = params.get("k") === "1"
-      function keySavedInBrowser() {
-        try { return !!localStorage.getItem("auspex.solariKey") } catch (e) { return false }
-      }
-      function setKeyBox(show) {
-        if (keybox) keybox.hidden = !show
-      }
-      function applyKeyBox(remotePresent) {
-        setKeyBox(!(keyAlready || keySavedInBrowser() || remotePresent))
-      }
-      applyKeyBox(false)
-      if (!keyAlready && typeof fetch === "function") {
-        fetch("http://127.0.0.1:17321/auspex-operator-key").then(function (res) {
-          return res.json()
-        }).then(function (body) {
-          applyKeyBox(!!(body && body.present))
-        }).catch(function () {
-          applyKeyBox(false)
-        })
-      }
-
-      saveSolariKey.addEventListener("click", function () {
-        var value = solariKey.value
-        if (!value) return
-        solariKey.value = ""
-        if (typeof fetch !== "function") {
-          setStatus("Prefer SOLARI_API_KEY or .auspex/operator-key. Auspex was not listening, so the key was not stored in this browser.")
-          return
-        }
-        setStatus("Saving the Solari key on this computer. It is not sent to the AI agent.")
-        var pair = (params.get("pair") || "").trim()
-        var payload = JSON.stringify(pair ? { key: value, pair: pair } : { key: value })
-        fetch("http://127.0.0.1:17321/auspex-operator-key", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: payload,
-        }).then(function (res) {
-          if (!res.ok) throw new Error("save failed")
-          try { localStorage.setItem("auspex.solariKey", value) } catch (e) {}
-          keyAlready = true
-          setKeyBox(false)
-          setStatus("Solari key saved for this computer. It is not sent to the AI agent.")
-        }).catch(function () {
-          setStatus("Solari key was not stored in this browser. Prefer SOLARI_API_KEY or .auspex/operator-key. Loopback save failed (mixed content, listener down, or pairing rejected).")
-        })
-      })
       var rfb = null
       var last = ""
       var bootTimer = null
@@ -270,8 +202,6 @@
       function clearLocalSecrets() {
         if (ime) ime.value = ""
         last = ""
-        if (solariKey) solariKey.value = ""
-        try { localStorage.removeItem("auspex.solariKey") } catch (e) {}
       }
 
       function lockUi(title, message) {
@@ -281,8 +211,6 @@
         if (ime) ime.disabled = true
         save.disabled = true
         if (pasteBtn) pasteBtn.disabled = true
-        if (solariKey) solariKey.disabled = true
-        if (saveSolariKey) saveSolariKey.disabled = true
         clearLocalSecrets()
         screen.style.pointerEvents = "none"
         expiredTitle.textContent = title

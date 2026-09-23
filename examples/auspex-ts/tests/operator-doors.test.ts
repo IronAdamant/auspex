@@ -71,7 +71,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.equal(desktop.includes(">Delete<"), false)
   assert.equal(desktop.includes(">Enter<"), false)
   assert.match(desktop, /id="save"/)
-  assert.match(desktop, /#keybox\[hidden\] \{ display: none; \}/)
+  assert.equal(desktop.includes("keybox"), false)
   const desktopOrder = ["screen", "ime", "paste-btn", "save"]
     .map((id) => desktop.indexOf(`id="${id}"`))
   assert.deepEqual(desktopOrder, [...desktopOrder].sort((a, b) => a - b))
@@ -83,15 +83,13 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(desktop, /Auspex desktop login/)
   assert.equal(desktop.includes("phone keyboard"), false)
   assert.match(phone, /phone keyboard/)
-  assert.match(desktop, /id="solari-key"/)
-  assert.match(desktop, /Save Solari key/)
-  assert.match(desktop, /localStorage\.setItem\("auspex\.solariKey"/)
-  assert.match(desktop, /localStorage\.removeItem\("auspex\.solariKey"/)
-  assert.match(phone, /localStorage\.removeItem\("auspex\.solariKey"/)
-  assert.match(chooser, /localStorage\.removeItem\("auspex\.solariKey"/)
-  assert.match(desktop, /http:\/\/127\.0\.0\.1:17321\/auspex-operator-key/)
-  assert.match(desktop, /not that wipe|not the 30-minute profile wipe/)
-  assert.match(desktop, /Prefer SOLARI_API_KEY/)
+  assert.equal(desktop.includes('id="solari-key"'), false)
+  assert.equal(desktop.includes("Save Solari key"), false)
+  assert.equal(desktop.includes("auspex.solariKey"), false)
+  assert.equal(phone.includes("auspex.solariKey"), false)
+  assert.equal(chooser.includes("auspex.solariKey"), false)
+  assert.equal(desktop.includes("127.0.0.1:17321"), false)
+  assert.equal(desktop.includes("auspex-operator-key"), false)
   for (const [label, html] of [
     ["door", chooser],
     ["phone", phone],
@@ -101,7 +99,8 @@ test("phone and desktop doors mount Solari and one typing field", () => {
     assert.match(html, /frame-ancestors 'none'/, `${label} frame-ancestors`)
   }
   assert.match(phone, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
-  assert.match(desktop, /connect-src 'self' wss:\/\/api\.getsolari\.com http:\/\/127\.0\.0\.1:17321/)
+  assert.match(desktop, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
+  assert.equal(desktop.includes("127.0.0.1:17321"), false)
   assert.equal(chooser.includes("wss://api.getsolari.com"), false)
   assert.match(phone, /Seed\/handoff door for typing/)
   assert.match(phone, /not a live-session takeover/)
@@ -179,16 +178,11 @@ function loadDoor(
     intervals?: Map<number, () => void>
     cleared?: number[]
     clients?: Array<{ fire: (type: string) => void }>
-    fetch?: (
-      url: string,
-      init?: { method?: string; body?: string },
-    ) => Promise<{ ok: boolean; json: () => Promise<unknown> }>
-    seedStorage?: Record<string, string>
   },
 ) {
   const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1] ?? "")
   const byId = new Map<string, DoorEl>()
-  const stored = new Map<string, string>(Object.entries(hooks?.seedStorage ?? {}))
+  const stored = new Map<string, string>()
   function makeEl(init?: { hidden?: boolean }): DoorEl {
     const el: DoorEl = {
       textContent: "",
@@ -272,7 +266,6 @@ function loadDoor(
     },
     console,
   }
-  if (hooks?.fetch) context.fetch = hooks.fetch
   if (hooks?.clients) {
     context.NoVNCRFB = function StubRemote() {
       const listeners: Array<{ type: string; fn: () => void }> = []
@@ -387,18 +380,8 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       assert.match(mintedChat.value, /Site URL: https:\/\/consistencyhub\.io/)
       assert.equal(mintedChat.value.includes(USERNAME), false)
       assert.equal(mintedChat.value.includes(PASSWORD), false)
-      const exp = Math.floor(Date.now() / 1000) + 600
-      const withKey = loadDoor(readDoor(name), `#v=door-token&exp=${exp}&n=auspex-desktop&k=1`)
-      assert.equal(withKey.byId.get("keybox")?.hidden, true)
-      const key = loaded.byId.get("solari-key")
-      assert.ok(key)
-      key.value = SOLARI_KEY
-      click(loaded.byId.get("save-solari-key"))
-      assert.equal(key.value, "")
-      assert.equal(loaded.stored.get("auspex.solariKey"), undefined)
-      assert.equal(chat.value.includes(SOLARI_KEY), false)
-      assert.equal((loaded.byId.get("status")?.textContent ?? "").includes(SOLARI_KEY), false)
-      assert.match(loaded.byId.get("status")?.textContent ?? "", /Prefer SOLARI_API_KEY/)
+      assert.equal(minted.byId.get("solari-key"), undefined)
+      assert.equal(minted.byId.get("keybox"), undefined)
     }
     const intervals = new Map<number, () => void>()
     const cleared: number[] = []
@@ -408,7 +391,6 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
       { intervals, cleared, clients },
     )
-    live.stored.set("auspex.solariKey", SOLARI_KEY)
     live.byId.get("ime")!.value = PASSWORD
     assert.match(live.byId.get("ttl")?.textContent ?? "", /Link active/)
     const ticking = [...intervals.entries()]
@@ -421,56 +403,10 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     assert.equal(ttl.includes("Link active"), false)
     assert.equal(live.byId.get("ime")?.value, "")
     assert.equal(live.byId.get("ime")?.disabled, true)
-    assert.equal(live.stored.get("auspex.solariKey"), undefined)
     assert.ok(cleared.length > 0)
     for (const [, fn] of ticking) fn()
     assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
   }
-})
-
-test("desktop Solari key stays out of localStorage unless loopback POST succeeds", async () => {
-  const posts: string[] = []
-  const failed = loadDoor(
-    readDoor("desktop.html"),
-    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
-    {
-      fetch: async () => {
-        throw new Error("listener down")
-      },
-    },
-  )
-  const failKey = failed.byId.get("solari-key")
-  assert.ok(failKey)
-  failKey.value = SOLARI_KEY
-  click(failed.byId.get("save-solari-key"))
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.equal(failed.stored.get("auspex.solariKey"), undefined)
-  assert.match(failed.byId.get("status")?.textContent ?? "", /not stored in this browser/)
-
-  const ok = loadDoor(
-    readDoor("desktop.html"),
-    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop&pair=${"b".repeat(24)}`,
-    {
-      fetch: async (_url, init) => {
-        if (init?.method === "POST") {
-          posts.push(String(init.body ?? ""))
-          return { ok: true, json: async () => ({ ok: true }) }
-        }
-        return { ok: true, json: async () => ({ present: false }) }
-      },
-    },
-  )
-  const okKey = ok.byId.get("solari-key")
-  assert.ok(okKey)
-  okKey.value = SOLARI_KEY
-  click(ok.byId.get("save-solari-key"))
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.equal(ok.stored.get("auspex.solariKey"), SOLARI_KEY)
-  assert.equal(ok.byId.get("keybox")?.hidden, true)
-  assert.equal(posts.some((body) => body.includes(SOLARI_KEY) && body.includes("b".repeat(24))), true)
-  assert.equal((ok.byId.get("status")?.textContent ?? "").includes(SOLARI_KEY), false)
 })
 
 test("chooser door forwards the same hash to phone and desktop", () => {
@@ -481,8 +417,7 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   assert.ok(phone && desktop)
   assert.equal(phone.href, `./phone.html${hash}`)
   assert.equal(desktop.href, `./desktop.html${hash}`)
-  const dead = loadDoor(readDoor("door.html"), "#", { seedStorage: { "auspex.solariKey": SOLARI_KEY } })
+  const dead = loadDoor(readDoor("door.html"), "#")
   assert.equal(dead.byId.get("phone")?.href, "")
   assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
-  assert.equal(dead.stored.get("auspex.solariKey"), undefined)
 })

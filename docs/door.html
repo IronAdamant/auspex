@@ -88,17 +88,12 @@
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
       }
 
-      function clearBrowserKey() {
-        try { localStorage.removeItem("auspex.solariKey") } catch (e) {}
-      }
-
       function lock(title) {
         ttl.textContent = title
         ttl.className = "dead"
         locked.classList.add("show")
         phone.removeAttribute("href")
         desktop.removeAttribute("href")
-        clearBrowserKey()
       }
 
       if (!token) {
