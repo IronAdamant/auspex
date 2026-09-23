@@ -8,6 +8,7 @@ import {
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { createClient } from "./solari.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
+import type { LiveHostChange } from "./live-host-change.ts"
 import type { NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
@@ -44,6 +45,8 @@ export type ProfileSeed = {
   cookieHosts?: string[]
   foldedExpiresInSec?: number
   idpCookies?: boolean
+  /** App host seen in storage (hostname only). */
+  liveHost?: string
 }
 
 export type ProfileSaveResult = {
@@ -56,7 +59,7 @@ export type ProfileSaveResult = {
   error?: string
 }
 
-export type AwaitLoginStatus = "completed" | "timeout" | "empty-save" | "waiting"
+export type AwaitLoginStatus = "completed" | "timeout" | "empty-save" | "waiting" | "host-changed"
 
 export type AwaitLoginResult = {
   status: AwaitLoginStatus
@@ -70,6 +73,10 @@ export type AwaitLoginResult = {
   cookieHosts?: string[]
   foldedExpiresInSec?: number
   idpCookies?: boolean
+  hostChanged?: boolean
+  profileHostMatch?: boolean
+  suggestedProfile?: string
+  suggestedUrl?: string
   next: string
   nextCall?: NextCall
   editorSave?: { ok: boolean; status: number; error?: string }
@@ -414,7 +421,9 @@ export async function inspectProfileSeed(
   const session = await solari.sessions.create({ profileId })
   try {
     const state = session.storageState ?? undefined
-    return { ...seedFromStorageState(state, origin), ...loginTraceSeedExtras(state, origin) }
+    const seed = { ...seedFromStorageState(state, origin), ...loginTraceSeedExtras(state, origin) }
+    const live = (await import("./live-host-change.ts")).selectLiveHost({ state })
+    return live ? { ...seed, liveHost: live.host } : seed
   } finally {
     await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
   }
@@ -481,6 +490,8 @@ export async function waitForProfileSave(
     sinceVersion?: number
     timeoutMs?: number
     url?: string
+    mintUrl?: string
+    pageUrl?: string
     deps: AwaitLoginDeps
   },
 ): Promise<AwaitLoginResult> {
@@ -520,9 +531,12 @@ export async function waitForProfileSave(
     status = "timeout"
   }
   
-  const guided = awaitGuide(status, profile, version, seed)
+  const hostPatch = await import("./live-host-change.ts").then((m) =>
+    m.completedAwaitHostPatch({ status, profile: profile.name, mintUrl: opts.mintUrl ?? opts.url, pageUrl: opts.pageUrl, liveHost: seed.liveHost }),
+  )
+  const guided = awaitGuide(hostPatch ? "waiting" : status, profile, version, seed)
   return {
-    status,
+    status: hostPatch?.status ?? status,
     profileId: profile.id,
     name: profile.name,
     version,
@@ -533,12 +547,16 @@ export async function waitForProfileSave(
     cookieHosts: seed.cookieHosts,
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: seed.idpCookies,
-    next: guided.text,
-    nextCall: guided.nextCall,
+    ...(hostPatch ?? {}),
+    next: hostPatch?.next ?? guided.text,
+    nextCall: hostPatch?.nextCall ?? guided.nextCall,
   }
 }
 
 function postHandoffOutcome(result: AwaitLoginResult): { status: string; foldReason: string } | undefined {
+  if (result.hostChanged || result.status === "host-changed") {
+    return { status: "host-changed", foldReason: "host-changed" }
+  }
   if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
     return { status: "editor-save-failed", foldReason: "401" }
   }
@@ -565,9 +583,11 @@ export async function liveAwaitLogin(
   try {
     let editorSave: AwaitLoginResult["editorSave"]
     let editorFold: EditorFoldResult | undefined
+    let mintUrl = opts.url?.trim() || undefined, pageUrl: string | undefined, foldChange: LiveHostChange | undefined
+    const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
+    const handle = await loadEditorSave(name).catch(() => undefined)
+    if (handle?.siteUrl) mintUrl = handle.siteUrl
     if (opts.saveEditor) {
-      const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
-      const handle = await loadEditorSave(name)
       if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" }
       } else {
@@ -578,17 +598,22 @@ export async function liveAwaitLogin(
             saveJson: saved.json,
             ...opts.foldCapture,
           })
-          editorFold = await persistCapturedEditorFold({
-            handle,
-            captured,
-            persist: (state) =>
-              persistLiveProfile({
-                solari,
-                profileId: handle.profileId,
-                state,
-                lockName: handle.name,
-              }),
-          })
+          const host = await import("./live-host-change.ts")
+          pageUrl = host.httpsPageUrlFromRecord(saved.json)
+          foldChange = host.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state })
+          editorFold = foldChange
+            ? { ok: false, reason: "persist-blocked", error: host.LIVE_HOST_CHANGED_SAVE_ERROR }
+            : await persistCapturedEditorFold({
+                handle,
+                captured,
+                persist: (state) =>
+                  persistLiveProfile({
+                    solari,
+                    profileId: handle.profileId,
+                    state,
+                    lockName: handle.name,
+                  }),
+              })
         }
       }
     }
@@ -596,6 +621,8 @@ export async function liveAwaitLogin(
       sinceVersion: opts.sinceVersion,
       timeoutMs: opts.timeoutMs,
       url: opts.url,
+      mintUrl,
+      pageUrl,
       deps: {
         list: async () =>
           (await solari.profiles.list()).map((p) => ({
@@ -606,8 +633,11 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
-    const guided =
-      editorSave || editorFold
+    const host = await import("./live-host-change.ts")
+    const patch = await host.rememberAwaitHostChange(waited.name, waited, foldChange)
+    const guided = patch
+      ? { text: patch.next, nextCall: patch.nextCall }
+      : editorSave || editorFold
         ? overlaySaveEditorGuidance({
             next: waited.next,
             nextCall: waited.nextCall,
@@ -620,6 +650,7 @@ export async function liveAwaitLogin(
       ...waited,
       ...(editorSave ? { editorSave } : {}),
       ...(editorFold ? { editorFold } : {}),
+      ...(patch ?? {}),
       next: guided.text,
       nextCall: guided.nextCall,
     }

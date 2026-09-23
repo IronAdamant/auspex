@@ -27,6 +27,7 @@ export const RECEIPT_V1_OPTIONAL_STRING_KEYS = [
   "clicked",
   "next",
   "suggestedProfile",
+  "suggestedUrl",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
@@ -35,6 +36,7 @@ export const RECEIPT_V1_OPTIONAL_BOOLEAN_KEYS = [
   "replayReady",
   "needsHuman",
   "profileHostMatch",
+  "hostChanged",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
@@ -78,6 +80,10 @@ export type ReceiptV1 = {
   profileHostMatch?: boolean
   /** Host slug. Present only when profileHostMatch is false. */
   suggestedProfile?: string
+  /** Live remote https host diverged from the minted profile host. ok is false. */
+  hostChanged?: boolean
+  /** https origin of that live site. Remint login with this URL. */
+  suggestedUrl?: string
   nextCall?: NextCall
   diff?: ReceiptDiff
   verify?: VerifyResult
