@@ -92,6 +92,11 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(chooser, /ironadamant\.com does not see/)
   assert.match(chooser, /type the login again/)
   assert.match(chooser, /do not host those credentials or session secrets/)
+  assert.match(chooser, /Console Solari Save does not capture Microsoft\/SPA sessionStorage/)
+  assert.match(chooser, /finalize-login/)
+  assert.match(chooser, /hostChanged/)
+  assert.match(chooser, /expectMatchedPublicLanding|Dashboard does not match One Dashboard/)
+  assert.match(chooser, /id="card"/)
   assert.equal(chooser.includes('id="ime"'), false)
   assert.equal(chooser.includes('id="paste-btn"'), false)
   assert.equal(chooser.includes('id="paste-username"'), false)
@@ -134,6 +139,9 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(phone, /Seed\/handoff door for typing/)
   assert.match(phone, /not a live-session takeover/)
   assert.match(USAGE, /30 minutes/)
+  assert.match(USAGE, /stream-expired/)
+  assert.match(USAGE, /editor-save-hung/)
+  assert.match(USAGE, /profile-busy/)
   assert.match(USAGE, /not included in the agent message/)
   assert.match(USAGE, /chooser|door\.html/)
   assert.match(OPERATOR_PURGE_QUESTION, /next Auspex command/)
@@ -152,6 +160,20 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   const watch = readDoor("index.html")
   assert.match(watch, /Phone door/)
   assert.match(watch, /Desktop door/)
+  assert.match(watch, /not the Mousepad sandbox demo/)
+  assert.match(watch, /keyless Pages/)
+  assert.match(watch, /SOLARI_API_KEY or \.auspex\/operator-key/)
+  assert.match(phone, /Console Solari Save does not capture Microsoft\/SPA sessionStorage/)
+  assert.match(desktop, /Console Solari Save does not capture Microsoft\/SPA sessionStorage/)
+  assert.match(phone, /status stream-expired/)
+  assert.match(desktop, /status stream-expired/)
+  assert.match(chooser, /status stream-expired/)
+  assert.match(phone, /handshake-no-frames/)
+  assert.match(desktop, /handshake-no-frames/)
+  assert.match(phone, /securityfailure/)
+  assert.match(desktop, /securityfailure/)
+  assert.equal(phone.includes("If the window is still blank, wait a few seconds or remint"), false)
+  assert.equal(desktop.includes("If the window is still blank, wait a few seconds or remint"), false)
   assert.match(watch, /door\.html/)
   assert.match(watch, /no Paste button/)
   assert.match(watch, /ironadamant\.com does not see/)
@@ -628,6 +650,13 @@ test("Save strips any non-empty typed secret without mangling Site URL or templa
     assert.match(namedChat.value, /profile ab/)
     assert.match(namedChat.value, /I tapped Save/)
     assert.equal(namedIme.value, "")
+
+    const marker = "@@AUSPEX_KEEP_0@@"
+    assert.equal(
+      stripSecret(`keep ${marker} Site URL: https://x.test.`, marker, [" Site URL: https://x.test."]),
+      "keep  Site URL: https://x.test.",
+      `${name} keep-marker secret does not eat the Site URL protect span`,
+    )
   }
 })
 

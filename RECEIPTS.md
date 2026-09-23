@@ -47,6 +47,9 @@ Published redacted receipts — evidence, not the default recipe. Strangers stil
 | --- | --- | --- |
 | ConsistencyHub | [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + [blurred PNG](examples/auspex-ts/demo/consistencyhub.png) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | OneDrive | [receipt-only](examples/auspex-ts/demo/onedrive-receipt.json) — **no raw PNG** (PII) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| hostChanged remint | [golden](examples/auspex-ts/demo/host-changed-receipt.json) — synthetic hosts | `ok=false`, `reason=hostChanged`, `nextCall` remints `auspex_login` |
+
+Pack manifest: [`examples/auspex-ts/demo/dogfood-pack.json`](examples/auspex-ts/demo/dogfood-pack.json). Optional silent mint sample (redacted, no tokens): [`login-trace-sample.jsonl`](examples/auspex-ts/demo/login-trace-sample.jsonl).
 
 ```bash
 npx auspex check https://onedrive.live.com/ --expect "My files" \
@@ -211,4 +214,8 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is scheduled Monday + `workflow_dispatch`. It **skips** without a repo `SOLARI_API_KEY` secret; this fork does not add that secret, so weekly live coverage is **not** running. Missing the secret does not fail pull requests. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. A secretless cron does **not** verify live Solari sessions. Issues is on.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21 schedule) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
+
+## Fail-closed: hostChanged
+
+When the live remote https host diverges from the minted door URL, await/finalize/`--save-profile` fail closed. `claimOkProfile` is not granted. Remint `auspex_login --profile <suggestedProfile> --url <suggestedUrl>`. Golden: [`examples/auspex-ts/demo/host-changed-receipt.json`](examples/auspex-ts/demo/host-changed-receipt.json). The typing field is not a site picker.

@@ -34,6 +34,9 @@ jobs:
             examples/auspex-ts/demo/ironadamant-receipt.json \
             examples/auspex-ts/demo/consistencyhub.png \
             examples/auspex-ts/demo/consistencyhub-receipt.json \
+            examples/auspex-ts/demo/onedrive-receipt.json \
+            examples/auspex-ts/demo/host-changed-receipt.json \
+            examples/auspex-ts/demo/dogfood-pack.json \
             _site/demo/
       - id: pages
         uses: actions/configure-pages@v5

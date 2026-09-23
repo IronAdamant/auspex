@@ -13,6 +13,17 @@ import type { NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import { hostIs } from "./sso.ts"
+import {
+  boundEditorWork,
+  EDITOR_FOLD_BOUND_MS,
+  EDITOR_SAVE_BOUND_MS,
+  editorSaveHungGuide,
+  isProfileBusyMessage,
+  profileBusyAwaitGuide,
+  STREAM_EXPIRED_WAIT_MS,
+  streamExpiredGuide,
+} from "./await-fail.ts"
+import { isStreamExpired } from "./phone-expiry.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -59,7 +70,15 @@ export type ProfileSaveResult = {
   error?: string
 }
 
-export type AwaitLoginStatus = "completed" | "timeout" | "empty-save" | "waiting" | "host-changed"
+export type AwaitLoginStatus =
+  | "completed"
+  | "timeout"
+  | "empty-save"
+  | "waiting"
+  | "host-changed"
+  | "stream-expired"
+  | "editor-save-hung"
+  | "profile-busy"
 
 export type AwaitLoginResult = {
   status: AwaitLoginStatus
@@ -478,6 +497,9 @@ function awaitGuide(
       text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`,
     }
   }
+  if (status === "stream-expired") return streamExpiredGuide(profile.name)
+  if (status === "editor-save-hung") return editorSaveHungGuide(profile.name)
+  if (status === "profile-busy") return profileBusyAwaitGuide(profile.name)
   return {
     text: `No non-empty Save yet for ${profile.name}. Keep the handoff open, Save, then retry auspex_await_login.`,
     nextCall: { tool: "auspex_await_login" },
@@ -557,6 +579,15 @@ function postHandoffOutcome(result: AwaitLoginResult): { status: string; foldRea
   if (result.hostChanged || result.status === "host-changed") {
     return { status: "host-changed", foldReason: "host-changed" }
   }
+  if (result.status === "stream-expired") {
+    return { status: "stream-expired", foldReason: "stream-expired" }
+  }
+  if (result.status === "editor-save-hung") {
+    return { status: "editor-save-hung", foldReason: "editor-save-hung" }
+  }
+  if (result.status === "profile-busy") {
+    return { status: "profile-busy", foldReason: "profile-busy" }
+  }
   if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
     return { status: "editor-save-failed", foldReason: "401" }
   }
@@ -583,6 +614,9 @@ export async function liveAwaitLogin(
   try {
     let editorSave: AwaitLoginResult["editorSave"]
     let editorFold: EditorFoldResult | undefined
+    let streamExpired = false
+    let editorHung = false
+    let profileBusy = false
     let mintUrl = opts.url?.trim() || undefined, pageUrl: string | undefined, foldChange: LiveHostChange | undefined
     const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
     const handle = await loadEditorSave(name).catch(() => undefined)
@@ -590,36 +624,70 @@ export async function liveAwaitLogin(
     if (opts.saveEditor) {
       if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" }
+      } else if (isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
+        streamExpired = true
+        editorSave = {
+          ok: false,
+          status: 401,
+          error: "stream-expired: VNC/handoff expiry is past; remint auspex_login",
+        }
       } else {
-        const saved = await saveProfileEditor(handle)
-        editorSave = { ok: saved.ok, status: saved.status, error: saved.error }
-        if (saved.ok) {
-          const captured = await captureEditorFoldState({
-            saveJson: saved.json,
-            ...opts.foldCapture,
-          })
-          const host = await import("./live-host-change.ts")
-          pageUrl = host.httpsPageUrlFromRecord(saved.json)
-          foldChange = host.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state })
-          editorFold = foldChange
-            ? { ok: false, reason: "persist-blocked", error: host.LIVE_HOST_CHANGED_SAVE_ERROR }
-            : await persistCapturedEditorFold({
-                handle,
-                captured,
-                persist: (state) =>
-                  persistLiveProfile({
-                    solari,
-                    profileId: handle.profileId,
-                    state,
-                    lockName: handle.name,
-                  }),
-              })
+        const savedBound = await boundEditorWork(
+          () => saveProfileEditor(handle),
+          EDITOR_SAVE_BOUND_MS,
+          `editorSave timed out after ${EDITOR_SAVE_BOUND_MS}ms`,
+        )
+        if (!savedBound.ok) {
+          editorHung = true
+          editorSave = { ok: false, status: 0, error: savedBound.error }
+        } else {
+          const saved = savedBound.value
+          editorSave = { ok: saved.ok, status: saved.status, error: saved.error }
+          if (saved.ok) {
+            const capturedBound = await boundEditorWork(
+              () =>
+                captureEditorFoldState({
+                  saveJson: saved.json,
+                  ...opts.foldCapture,
+                }),
+              EDITOR_FOLD_BOUND_MS,
+              `editorFold timed out after ${EDITOR_FOLD_BOUND_MS}ms`,
+            )
+            if (!capturedBound.ok) {
+              editorHung = true
+              editorFold = { ok: false, reason: "connect-failed", error: capturedBound.error }
+            } else {
+              const captured = capturedBound.value
+              const host = await import("./live-host-change.ts")
+              pageUrl = host.httpsPageUrlFromRecord(saved.json)
+              foldChange = host.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state })
+              editorFold = foldChange
+                ? { ok: false, reason: "persist-blocked", error: host.LIVE_HOST_CHANGED_SAVE_ERROR }
+                : await persistCapturedEditorFold({
+                    handle,
+                    captured,
+                    persist: (state) =>
+                      persistLiveProfile({
+                        solari,
+                        profileId: handle.profileId,
+                        state,
+                        lockName: handle.name,
+                      }),
+                  })
+              if (isProfileBusyMessage(editorFold.error)) profileBusy = true
+            }
+          } else if (saved.status === 401 && isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
+            streamExpired = true
+          }
         }
       }
     }
     const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion,
-      timeoutMs: opts.timeoutMs,
+      timeoutMs:
+        streamExpired || editorHung
+          ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
+          : opts.timeoutMs,
       url: opts.url,
       mintUrl,
       pageUrl,
@@ -635,22 +703,35 @@ export async function liveAwaitLogin(
     })
     const host = await import("./live-host-change.ts")
     const patch = await host.rememberAwaitHostChange(waited.name, waited, foldChange)
+    const failClosed =
+      !patch && waited.status !== "completed" && waited.status !== "host-changed"
+        ? streamExpired
+          ? { status: "stream-expired" as const, ...streamExpiredGuide(waited.name) }
+          : editorHung
+            ? { status: "editor-save-hung" as const, ...editorSaveHungGuide(waited.name) }
+            : profileBusy
+              ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(waited.name) }
+              : undefined
+        : undefined
     const guided = patch
       ? { text: patch.next, nextCall: patch.nextCall }
-      : editorSave || editorFold
-        ? overlaySaveEditorGuidance({
-            next: waited.next,
-            nextCall: waited.nextCall,
-            profile: waited.name,
-            editorSave,
-            editorFold,
-          })
-        : { text: waited.next, nextCall: waited.nextCall }
+      : failClosed
+        ? { text: failClosed.text, nextCall: failClosed.nextCall }
+        : editorSave || editorFold
+          ? overlaySaveEditorGuidance({
+              next: waited.next,
+              nextCall: waited.nextCall,
+              profile: waited.name,
+              editorSave,
+              editorFold,
+            })
+          : { text: waited.next, nextCall: waited.nextCall }
     const result: AwaitLoginResult = {
       ...waited,
       ...(editorSave ? { editorSave } : {}),
       ...(editorFold ? { editorFold } : {}),
       ...(patch ?? {}),
+      ...(failClosed ? { status: failClosed.status } : {}),
       next: guided.text,
       nextCall: guided.nextCall,
     }
