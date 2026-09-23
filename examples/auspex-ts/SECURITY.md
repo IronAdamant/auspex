@@ -99,7 +99,9 @@ If both pass, the override is safe to keep.
 
 ### Operator key loopback (desktop door)
 
-The desktop page may POST a Solari API key to `http://127.0.0.1:17321/auspex-operator-key`. The listener binds loopback only. GET returns `{ present }` without the key. CORS is `Access-Control-Allow-Origin: *`, so any local page that can reach loopback can **overwrite** the operator key (substitution / DoS of the next Auspex command, not a read of the existing key). The 30-minute profile idle wipe does **not** delete this key, browser `localStorage`, or `.auspex/operator-key`. Prefer `SOLARI_API_KEY` in the environment. This is documented, not a key-path redesign.
+The desktop page may POST a Solari API key to `http://127.0.0.1:17321/auspex-operator-key`. The listener binds loopback only. GET returns `{ present }` without the key (never the key, never the pairing nonce).
+
+**POST hardening:** CORS is an Origin allowlist (`https://ironadamant.com`, `https://ironadamant.github.io`), not `*`. Missing or other origins are refused. After `auspex login` mints a pairing nonce into `.auspex/operator-pair` and the door hash (`pair`), POST also requires that nonce. An overwrite while MCP is running can make the **next mint use an attacker Solari account**, so the human types into attacker-controlled VNC — not only DoS of the next command. Prefer `SOLARI_API_KEY` in the environment, then gitignored `.auspex/operator-key`. The desktop key box is a fallback: it is hidden on minted `k=1` links; it writes `localStorage.auspex.solariKey` only after the loopback POST succeeds; lock / expiry / VNC disconnect clear `#ime` and that localStorage key. The 30-minute profile idle wipe does **not** delete `.auspex/operator-key`, `.env`, or leftover Solari VMs. No username, password, or Solari key field is on CLI/MCP.
 
 Username and password typed on the door pages go into Solari remote Chrome (VNC keystrokes) and then the target site. They stay off agent chat, MCP, and receipts. Do not describe them as never-leaves-device.
 

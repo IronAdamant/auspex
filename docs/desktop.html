@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="referrer" content="no-referrer" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com http://127.0.0.1:17321; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
   <title>Auspex desktop login</title>
   <style>
     html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
@@ -104,7 +105,7 @@
         <label for="solari-key">Solari key</label>
         <input id="solari-key" type="password" autocomplete="off" spellcheck="false" />
         <button type="button" id="save-solari-key">Save Solari key</button>
-        <p id="keynote">Saved on this computer in gitignored .auspex/operator-key when Auspex is listening. Not copied into the AI chat line. Not stored in the repo. Not the 30-minute profile wipe. Commands read SOLARI_API_KEY from the environment first, then that file.</p>
+        <p id="keynote">Prefer SOLARI_API_KEY or gitignored .auspex/operator-key. This box is a fallback when Auspex is listening on this computer. Save posts to loopback only from this door origin, with a short-lived pairing token after mint. The key is stored in this browser only after that post succeeds. Hidden on minted login links (the agent already has the key). Not copied into the AI chat. Not the 30-minute profile wipe.</p>
       </div>
     </header>
     <div id="stage">
@@ -184,22 +185,26 @@
       saveSolariKey.addEventListener("click", function () {
         var value = solariKey.value
         if (!value) return
-        try { localStorage.setItem("auspex.solariKey", value) } catch (e) {}
         solariKey.value = ""
+        if (typeof fetch !== "function") {
+          setStatus("Prefer SOLARI_API_KEY or .auspex/operator-key. Auspex was not listening, so the key was not stored in this browser.")
+          return
+        }
         setStatus("Saving the Solari key on this computer. It is not sent to the AI agent.")
-        var payload = JSON.stringify({ key: value })
-        if (typeof fetch !== "function") return
+        var pair = (params.get("pair") || "").trim()
+        var payload = JSON.stringify(pair ? { key: value, pair: pair } : { key: value })
         fetch("http://127.0.0.1:17321/auspex-operator-key", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: payload,
         }).then(function (res) {
           if (!res.ok) throw new Error("save failed")
+          try { localStorage.setItem("auspex.solariKey", value) } catch (e) {}
           keyAlready = true
           setKeyBox(false)
           setStatus("Solari key saved for this computer. It is not sent to the AI agent.")
         }).catch(function () {
-          setStatus("Solari key stayed in this browser. Auspex was not listening, so the next command still needs the key file.")
+          setStatus("Solari key was not stored in this browser. Prefer SOLARI_API_KEY or .auspex/operator-key. Loopback save failed (mixed content, listener down, or pairing rejected).")
         })
       })
       var rfb = null
@@ -265,6 +270,8 @@
       function clearLocalSecrets() {
         if (ime) ime.value = ""
         last = ""
+        if (solariKey) solariKey.value = ""
+        try { localStorage.removeItem("auspex.solariKey") } catch (e) {}
       }
 
       function lockUi(title, message) {

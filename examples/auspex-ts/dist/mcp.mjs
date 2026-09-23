@@ -9,6 +9,7 @@ var __export = (target, all) => {
 };
 
 // src/operator-session.ts
+import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -192,6 +193,65 @@ function writeOperatorKey(root, key) {
   chmodSync(file, 384);
   return file;
 }
+function operatorPairPath(root) {
+  return path.join(root, ".auspex", "operator-pair");
+}
+function issueOperatorPairingNonce(root, nowMs = Date.now()) {
+  const nonce = randomBytes(18).toString("base64url");
+  const exp = Math.floor((nowMs + OPERATOR_PAIR_MS) / 1e3);
+  const file = operatorPairPath(root);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ n: nonce, exp })}
+`, { mode: 384 });
+  chmodSync(file, 384);
+  return { nonce, exp };
+}
+function readOperatorPairingNonce(root, nowMs = Date.now()) {
+  const file = operatorPairPath(root);
+  if (!existsSync(file)) return void 0;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8"));
+    if (typeof parsed.n !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(parsed.n)) return void 0;
+    if (typeof parsed.exp !== "number" || !Number.isFinite(parsed.exp)) return void 0;
+    if (parsed.exp <= Math.floor(nowMs / 1e3)) return void 0;
+    return { nonce: parsed.n, exp: parsed.exp };
+  } catch {
+    return void 0;
+  }
+}
+function operatorKeyOriginAllowed(origin) {
+  const raw = origin?.trim() ?? "";
+  if (!raw) return void 0;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:") return void 0;
+    return OPERATOR_KEY_ORIGINS.includes(parsed.origin) ? parsed.origin : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function requestOrigin(req) {
+  const raw = req.headers.origin;
+  return typeof raw === "string" ? raw : void 0;
+}
+function operatorKeyCorsHeaders(origin) {
+  const allowed = operatorKeyOriginAllowed(origin);
+  const headers = {
+    "cache-control": "no-store",
+    vary: "Origin"
+  };
+  if (!allowed) return headers;
+  headers["access-control-allow-origin"] = allowed;
+  headers["access-control-allow-methods"] = "GET, POST, OPTIONS";
+  headers["access-control-allow-headers"] = "content-type";
+  headers["access-control-allow-private-network"] = "true";
+  return headers;
+}
+function pairingAccepts(root, pair, nowMs = Date.now()) {
+  const registered = readOperatorPairingNonce(root, nowMs);
+  if (!registered) return true;
+  return typeof pair === "string" && pair === registered.nonce;
+}
 function ingestOperatorKeyPost(body, root) {
   let parsed;
   try {
@@ -203,23 +263,26 @@ function ingestOperatorKeyPost(body, root) {
   writeOperatorKey(root, parsed.key);
   return { ok: true };
 }
-function sendOperatorKeyAck(res, status, ok) {
+function sendOperatorKeyAck(res, status, ok, origin) {
   const payload = JSON.stringify({ ok });
   res.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(payload),
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "cache-control": "no-store"
+    ...operatorKeyCorsHeaders(origin)
   });
   res.end(payload);
 }
 function createOperatorKeyServer(root) {
   return createServer((req, res) => {
     const pathOnly = (req.url ?? "/").split("?")[0];
+    const origin = requestOrigin(req);
+    const allowed = operatorKeyOriginAllowed(origin);
     if (req.method === "OPTIONS" && pathOnly === OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 204, true);
+      if (!allowed) {
+        sendOperatorKeyAck(res, 403, false, origin);
+        return;
+      }
+      sendOperatorKeyAck(res, 204, true, origin);
       return;
     }
     if (req.method === "GET" && pathOnly === OPERATOR_KEY_POST_PATH) {
@@ -229,14 +292,17 @@ function createOperatorKeyServer(root) {
       res.writeHead(200, {
         "content-type": "application/json",
         "content-length": Buffer.byteLength(payload),
-        "access-control-allow-origin": "*",
-        "cache-control": "no-store"
+        ...operatorKeyCorsHeaders(origin)
       });
       res.end(payload);
       return;
     }
     if (req.method !== "POST" || pathOnly !== OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 404, false);
+      sendOperatorKeyAck(res, 404, false, origin);
+      return;
+    }
+    if (!allowed) {
+      sendOperatorKeyAck(res, 403, false, origin);
       return;
     }
     const chunks = [];
@@ -251,10 +317,22 @@ function createOperatorKeyServer(root) {
     });
     req.on("end", () => {
       try {
-        ingestOperatorKeyPost(Buffer.concat(chunks).toString("utf8"), root);
-        sendOperatorKeyAck(res, 200, true);
+        const raw = Buffer.concat(chunks).toString("utf8");
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          sendOperatorKeyAck(res, 400, false, origin);
+          return;
+        }
+        if (!pairingAccepts(root, parsed.pair)) {
+          sendOperatorKeyAck(res, 403, false, origin);
+          return;
+        }
+        ingestOperatorKeyPost(raw, root);
+        sendOperatorKeyAck(res, 200, true, origin);
       } catch {
-        sendOperatorKeyAck(res, 400, false);
+        sendOperatorKeyAck(res, 400, false, origin);
       }
     });
   });
@@ -302,7 +380,7 @@ function readOperatorKey(file) {
   if (line.includes("=")) return void 0;
   return line;
 }
-var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP, OPERATOR_KEY_PORT, OPERATOR_KEY_POST_PATH;
+var OPERATOR_IDLE_MS, PHONE_LIST_MS, SIGNUP_BUSY_MS, OPERATOR_PURGE_QUESTION, OPERATOR_HELP, OPERATOR_KEY_PORT, OPERATOR_KEY_POST_PATH, OPERATOR_KEY_ORIGINS, OPERATOR_PAIR_MS;
 var init_operator_session = __esm({
   "src/operator-session.ts"() {
     "use strict";
@@ -310,9 +388,14 @@ var init_operator_session = __esm({
     PHONE_LIST_MS = 10 * 60 * 1e3;
     SIGNUP_BUSY_MS = 30 * 60 * 1e3;
     OPERATOR_PURGE_QUESTION = "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on paste, Save, or lock. They are not included in the agent message. The Solari key in the browser or .auspex/operator-key is not that wipe.";
-    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent and is not the 30-minute profile wipe.";
+    OPERATOR_HELP = OPERATOR_PURGE_QUESTION + " auspex profiles lists those saved logins (site and profile name only). npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. Prefer SOLARI_API_KEY or gitignored .auspex/operator-key. The desktop key box is a fallback: it posts to loopback only from the door origin, with a short-lived pairing nonce after mint, and writes browser localStorage only if that post succeeds. Minted k=1 links hide the box. The key is not echoed to the agent and is not the 30-minute profile wipe.";
     OPERATOR_KEY_PORT = 17321;
     OPERATOR_KEY_POST_PATH = "/auspex-operator-key";
+    OPERATOR_KEY_ORIGINS = [
+      "https://ironadamant.com",
+      "https://ironadamant.github.io"
+    ];
+    OPERATOR_PAIR_MS = 30 * 60 * 1e3;
   }
 });
 
@@ -1408,20 +1491,16 @@ function isDoorUrl(url) {
 function isDesktopDoorUrl(url) {
   return Boolean(url?.startsWith(DESKTOP_HANDOFF_PAGE));
 }
-function handoffHash(vncToken, handoffUrl, extra) {
+function handoffHash(vncToken, _handoffUrl, extra) {
   const token = vncToken.trim();
-  const save = handoffUrl.trim();
   if (!token) return "";
   const hash = new URLSearchParams({ v: token });
-  if (save) hash.set("h", save);
-  if (extra?.profileId?.trim()) hash.set("p", extra.profileId.trim());
   if (extra?.profileName?.trim()) hash.set("n", extra.profileName.trim());
-  if (extra?.handoffToken?.trim()) hash.set("t", extra.handoffToken.trim());
-  if (extra?.saved?.trim()) hash.set("saved", extra.saved.trim());
-  if (extra?.plist?.trim()) hash.set("plist", extra.plist.trim());
   if (extra?.keyInUse) hash.set("k", "1");
   const siteUrl = extra?.siteUrl?.trim() ?? "";
   if (/^https:\/\//i.test(siteUrl)) hash.set("u", siteUrl);
+  const pair = extra?.pair?.trim() ?? "";
+  if (/^[A-Za-z0-9_-]{16,64}$/.test(pair)) hash.set("pair", pair);
   const expiry = resolvePhoneExpirySeconds({ expiresAt: extra?.expiresAt, jwt: token });
   if (expiry.exp !== void 0) hash.set("exp", String(expiry.exp));
   return hash.toString();
@@ -1448,7 +1527,7 @@ function desktopHandoffUrlFromPhone(mobileUrl) {
 function doorHandoffUrlFromPhone(mobileUrl) {
   return swapHandoffPage(mobileUrl, PHONE_HANDOFF_PAGE, DOOR_HANDOFF_PAGE);
 }
-var PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, DOOR_HANDOFF_PAGE;
+var PHONE_HANDOFF_PAGE, DESKTOP_HANDOFF_PAGE, DOOR_HANDOFF_PAGE, HANDOFF_HASH_KEYS;
 var init_handoff_doors = __esm({
   "src/handoff-doors.ts"() {
     "use strict";
@@ -1456,6 +1535,7 @@ var init_handoff_doors = __esm({
     PHONE_HANDOFF_PAGE = "https://ironadamant.com/auspex/phone.html";
     DESKTOP_HANDOFF_PAGE = "https://ironadamant.com/auspex/desktop.html";
     DOOR_HANDOFF_PAGE = "https://ironadamant.com/auspex/door.html";
+    HANDOFF_HASH_KEYS = ["v", "n", "exp", "u", "k", "pair"];
   }
 });
 
@@ -1904,6 +1984,7 @@ __export(profiles_exports, {
   CONSOLE_PROFILES_URL: () => CONSOLE_PROFILES_URL,
   DESKTOP_HANDOFF_PAGE: () => DESKTOP_HANDOFF_PAGE,
   DOOR_HANDOFF_PAGE: () => DOOR_HANDOFF_PAGE,
+  HANDOFF_HASH_KEYS: () => HANDOFF_HASH_KEYS,
   HANDOFF_OPEN_ON_DESKTOP_PAGE: () => HANDOFF_OPEN_ON_DESKTOP_PAGE,
   HANDOFF_OPEN_ON_PHONE: () => HANDOFF_OPEN_ON_PHONE,
   HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK: () => HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
@@ -2254,12 +2335,11 @@ async function loginProfile(name, urlHint, http, qrPath, opts) {
     let mobileUrl;
     if (vncMint.token) {
       mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
-        profileId: profile.id,
         profileName: profile.name,
-        handoffToken,
         expiresAt: handoff.expiresAt,
         keyInUse: true,
-        siteUrl: urlHint
+        siteUrl: urlHint,
+        pair: issueOperatorPairingNonce(packageRoot).nonce
       });
     }
     const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts);
@@ -2369,7 +2449,7 @@ var init_profiles = __esm({
 });
 
 // src/profile-lock.ts
-import { randomBytes } from "node:crypto";
+import { randomBytes as randomBytes2 } from "node:crypto";
 import { open, mkdir as mkdir4, readFile as readFile3, rename, stat, unlink } from "node:fs/promises";
 import path6 from "node:path";
 function defaultLockDir() {
@@ -2398,7 +2478,7 @@ async function stealIfDead(lockPath) {
     if (st1.ino !== st2.ino || st1.mtimeMs !== st2.mtimeMs || st1.size !== st2.size) {
       return false;
     }
-    const trash = `${lockPath}.${process.pid}.${randomBytes(6).toString("hex")}`;
+    const trash = `${lockPath}.${process.pid}.${randomBytes2(6).toString("hex")}`;
     await rename(lockPath, trash);
     await unlink(trash).catch(() => void 0);
     return true;

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import path from "node:path"
@@ -21,7 +22,7 @@ export const OPERATOR_HELP =
   "humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. " +
   "One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. " +
   "One typing field: click the remote login field, then paste. Keys go into remote Chrome and the site; they stay off agent chat, MCP, and receipts. " +
-  "The desktop Solari key stays in that browser, or in gitignored .auspex/operator-key. It is not echoed to the agent and is not the 30-minute profile wipe."
+  "Prefer SOLARI_API_KEY or gitignored .auspex/operator-key. The desktop key box is a fallback: it posts to loopback only from the door origin, with a short-lived pairing nonce after mint, and writes browser localStorage only if that post succeeds. Minted k=1 links hide the box. The key is not echoed to the agent and is not the 30-minute profile wipe."
 
 export type OperatorProfileInput = {
   profile: string
@@ -88,6 +89,13 @@ export type OperatorNote = {
 /** Loopback door the desktop page posts the Solari key to. Not an agent field. */
 export const OPERATOR_KEY_PORT = 17321
 export const OPERATOR_KEY_POST_PATH = "/auspex-operator-key"
+/** Door origins allowed to POST a Solari key. Never CORS `*`. */
+export const OPERATOR_KEY_ORIGINS = [
+  "https://ironadamant.com",
+  "https://ironadamant.github.io",
+] as const
+/** Pairing nonce life. Issued at login mint; not the VNC JWT. */
+export const OPERATOR_PAIR_MS = 30 * 60 * 1000
 
 export type OperatorWipeDeps = {
   list: () => Promise<Array<{ id: string; name: string }>>
@@ -312,7 +320,77 @@ export function writeOperatorKey(root: string, key: string): string {
   return file
 }
 
-/** Desktop Save posts `{ key }` here. The ack never includes the key. */
+export function operatorPairPath(root: string): string {
+  return path.join(root, ".auspex", "operator-pair")
+}
+
+export type OperatorPairing = { nonce: string; exp: number }
+
+/** Writes a short-lived pairing nonce under gitignored .auspex/. Does not return the Solari key. */
+export function issueOperatorPairingNonce(root: string, nowMs = Date.now()): OperatorPairing {
+  const nonce = randomBytes(18).toString("base64url")
+  const exp = Math.floor((nowMs + OPERATOR_PAIR_MS) / 1000)
+  const file = operatorPairPath(root)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFileSync(file, `${JSON.stringify({ n: nonce, exp })}\n`, { mode: 0o600 })
+  chmodSync(file, 0o600)
+  return { nonce, exp }
+}
+
+export function readOperatorPairingNonce(root: string, nowMs = Date.now()): OperatorPairing | undefined {
+  const file = operatorPairPath(root)
+  if (!existsSync(file)) return undefined
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as { n?: unknown; exp?: unknown }
+    if (typeof parsed.n !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(parsed.n)) return undefined
+    if (typeof parsed.exp !== "number" || !Number.isFinite(parsed.exp)) return undefined
+    if (parsed.exp <= Math.floor(nowMs / 1000)) return undefined
+    return { nonce: parsed.n, exp: parsed.exp }
+  } catch {
+    return undefined
+  }
+}
+
+export function operatorKeyOriginAllowed(origin: string | undefined): string | undefined {
+  const raw = origin?.trim() ?? ""
+  if (!raw) return undefined
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== "https:") return undefined
+    return OPERATOR_KEY_ORIGINS.includes(parsed.origin as (typeof OPERATOR_KEY_ORIGINS)[number])
+      ? parsed.origin
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function requestOrigin(req: IncomingMessage): string | undefined {
+  const raw = req.headers.origin
+  return typeof raw === "string" ? raw : undefined
+}
+
+function operatorKeyCorsHeaders(origin: string | undefined): Record<string, string> {
+  const allowed = operatorKeyOriginAllowed(origin)
+  const headers: Record<string, string> = {
+    "cache-control": "no-store",
+    vary: "Origin",
+  }
+  if (!allowed) return headers
+  headers["access-control-allow-origin"] = allowed
+  headers["access-control-allow-methods"] = "GET, POST, OPTIONS"
+  headers["access-control-allow-headers"] = "content-type"
+  headers["access-control-allow-private-network"] = "true"
+  return headers
+}
+
+function pairingAccepts(root: string, pair: unknown, nowMs = Date.now()): boolean {
+  const registered = readOperatorPairingNonce(root, nowMs)
+  if (!registered) return true
+  return typeof pair === "string" && pair === registered.nonce
+}
+
+/** Desktop Save posts `{ key, pair? }` here. The ack never includes the key. */
 export function ingestOperatorKeyPost(body: string, root: string): { ok: true } {
   let parsed: { key?: unknown }
   try {
@@ -325,25 +403,33 @@ export function ingestOperatorKeyPost(body: string, root: string): { ok: true } 
   return { ok: true }
 }
 
-function sendOperatorKeyAck(res: ServerResponse, status: number, ok: boolean): void {
+function sendOperatorKeyAck(
+  res: ServerResponse,
+  status: number,
+  ok: boolean,
+  origin?: string,
+): void {
   const payload = JSON.stringify({ ok })
   res.writeHead(status, {
     "content-type": "application/json",
     "content-length": Buffer.byteLength(payload),
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "cache-control": "no-store",
+    ...operatorKeyCorsHeaders(origin),
   })
   res.end(payload)
 }
 
-/** Loopback server. The desktop page is the only caller. The response is `{ ok }`. */
+/** Loopback server. The desktop page is the only caller. GET is `{ present }` only. */
 export function createOperatorKeyServer(root: string): Server {
   return createServer((req: IncomingMessage, res: ServerResponse) => {
     const pathOnly = (req.url ?? "/").split("?")[0]
+    const origin = requestOrigin(req)
+    const allowed = operatorKeyOriginAllowed(origin)
     if (req.method === "OPTIONS" && pathOnly === OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 204, true)
+      if (!allowed) {
+        sendOperatorKeyAck(res, 403, false, origin)
+        return
+      }
+      sendOperatorKeyAck(res, 204, true, origin)
       return
     }
     if (req.method === "GET" && pathOnly === OPERATOR_KEY_POST_PATH) {
@@ -353,14 +439,17 @@ export function createOperatorKeyServer(root: string): Server {
       res.writeHead(200, {
         "content-type": "application/json",
         "content-length": Buffer.byteLength(payload),
-        "access-control-allow-origin": "*",
-        "cache-control": "no-store",
+        ...operatorKeyCorsHeaders(origin),
       })
       res.end(payload)
       return
     }
     if (req.method !== "POST" || pathOnly !== OPERATOR_KEY_POST_PATH) {
-      sendOperatorKeyAck(res, 404, false)
+      sendOperatorKeyAck(res, 404, false, origin)
+      return
+    }
+    if (!allowed) {
+      sendOperatorKeyAck(res, 403, false, origin)
       return
     }
     const chunks: Buffer[] = []
@@ -375,10 +464,22 @@ export function createOperatorKeyServer(root: string): Server {
     })
     req.on("end", () => {
       try {
-        ingestOperatorKeyPost(Buffer.concat(chunks).toString("utf8"), root)
-        sendOperatorKeyAck(res, 200, true)
+        const raw = Buffer.concat(chunks).toString("utf8")
+        let parsed: { pair?: unknown }
+        try {
+          parsed = JSON.parse(raw) as { pair?: unknown }
+        } catch {
+          sendOperatorKeyAck(res, 400, false, origin)
+          return
+        }
+        if (!pairingAccepts(root, parsed.pair)) {
+          sendOperatorKeyAck(res, 403, false, origin)
+          return
+        }
+        ingestOperatorKeyPost(raw, root)
+        sendOperatorKeyAck(res, 200, true, origin)
       } catch {
-        sendOperatorKeyAck(res, 400, false)
+        sendOperatorKeyAck(res, 400, false, origin)
       }
     })
   })

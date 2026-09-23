@@ -48,4 +48,7 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /event: "post-handoff"/)
   assert.equal(dist.includes("gateUrl"), false, "dist MCP must not ship the detecting-gate URL")
   assert.equal(dist.includes("login-gate"), false, "dist MCP must not bundle login-gate.ts")
+  assert.equal(dist.includes('"access-control-allow-origin": "*"'), false)
+  assert.match(dist, /ironadamant\.github\.io/)
+  assert.match(dist, /issueOperatorPairingNonce|operator-pair/)
 })
