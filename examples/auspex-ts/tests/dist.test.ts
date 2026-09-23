@@ -41,6 +41,8 @@ test("dist/mcp.mjs includes current loopback, record-profile, kill, and PNG-fit 
   assert.match(dist, /desktopUrl/)
   assert.match(dist, /real text field/)
   assert.match(dist, /phone.html/)
+  assert.match(dist, /door.html/)
+  assert.match(dist, /desktop.html/)
   assert.match(dist, /nextCall: \{ tool: "auspex_reap" \}/)
   assert.match(dist, /Passing anonymous verify \(verify=true \/ --verify\) on an auth-gated page poisons ok\./)
   assert.match(dist, /event: "post-handoff"/)
