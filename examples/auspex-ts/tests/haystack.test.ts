@@ -16,6 +16,21 @@ test("match and excerpt agree on extra-whitespace haystacks", () => {
   assert.equal(excerptOf(haystack).includes("Build it."), haystackMatches(raw, "Build it."))
 })
 
+test("Dashboard does not match inside One Dashboard; case stays sensitive", () => {
+  const marketing = "10+ Platforms , One Dashboard"
+  assert.equal(haystackMatches(marketing, "Dashboard"), false)
+  assert.equal(haystackMatches("One Dashboard", "Dashboard"), false)
+  assert.equal(haystackMatches("Dashboards", "Dashboard"), false)
+  assert.equal(haystackMatches("MyDashboard", "Dashboard"), false)
+  assert.equal(haystackMatches("one dashboard", "Dashboard"), false)
+  assert.equal(haystackMatches("Welcome to your Dashboard", "Dashboard"), true)
+  assert.equal(haystackMatches("Dashboard", "Dashboard"), true)
+  assert.equal(haystackMatches(marketing, "One Dashboard"), true)
+  assert.equal(haystackMatches("Open the Document Editor today", "Document Editor"), true)
+  assert.equal(haystackMatches("Checkpoint Projects", "Checkpoint"), true)
+  assert.equal(haystackMatches("One office job. Your accounts.", "One office job."), true)
+})
+
 test("expectSchema and httpUrlSchema reject whitespace and non-http(s)", () => {
   assert.equal(expectSchema.safeParse("").success, false)
   assert.equal(expectSchema.safeParse("   ").success, false)

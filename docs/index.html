@@ -166,8 +166,10 @@ npx auspex-solari login --url https://app.example
 # New host: do not carry a previous --profile. Omit --profile or pass that host's slug.
 # mint is traced; if silent or login fails: npx auspex-solari trace (not a fourth primitive)
 npx auspex-solari await-login --profile app-example --save-editor
-npx auspex-solari finalize-login --profile app-example --url https://app.example --expect "Dashboard"
-npx auspex-solari check --profile app-example --url https://app.example --expect "Dashboard"</pre>
+npx auspex-solari finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
+npx auspex-solari check --profile app-example --url https://app.example --expect "Workspace ready"
+# Expect must be unique to the logged-in app, not public marketing copy.
+# Dashboard does not match One Dashboard. A public-URL hit during finalize is expectMatchedPublicLanding, not matched.</pre>
   </main>
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>

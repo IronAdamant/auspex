@@ -1,4 +1,6 @@
-/** Parseable check `reason` codes. Keep this list stable for agents. */
+import { isPersistableAppUrl } from "./profile-storage.ts"
+
+/** Parseable check `reason` codes. schemaVersion stays 1; this is a reason value, not a new required key. */
 export const CHECK_REASONS = [
   "matched",
   "loggedOut",
@@ -6,11 +8,31 @@ export const CHECK_REASONS = [
   "mismatch",
   "network",
   "recordedLoggedIn",
+  "expectMatchedPublicLanding",
 ] as const
 
 export type CheckReason = (typeof CHECK_REASONS)[number]
 
-export type SpecialCheckReason = "loggedOut" | "needsHuman" | "recordedLoggedIn"
+export type SpecialCheckReason =
+  | "loggedOut"
+  | "needsHuman"
+  | "recordedLoggedIn"
+  | "expectMatchedPublicLanding"
+
+/**
+ * Expect text hit, and `--save-profile` must refuse this URL.
+ * Callers clear `matched` and set `reason` to `expectMatchedPublicLanding`.
+ */
+export function expectOnUnpersistableLanding(input: {
+  saveProfile: boolean
+  textMatched: boolean
+  finalUrl: string
+  needsHuman: boolean
+}): boolean {
+  if (!input.saveProfile || !input.textMatched || input.needsHuman) return false
+  if (!input.finalUrl) return false
+  return !isPersistableAppUrl(input.finalUrl)
+}
 
 export function deriveCheckReason(input: {
   special?: SpecialCheckReason
@@ -22,6 +44,7 @@ export function deriveCheckReason(input: {
   screenshotOk: boolean
 }): CheckReason {
   if (input.needsHuman || input.special === "needsHuman") return "needsHuman"
+  if (input.special === "expectMatchedPublicLanding") return "expectMatchedPublicLanding"
   if (input.special === "loggedOut") return "loggedOut"
   if (input.special === "recordedLoggedIn") return "recordedLoggedIn"
   if (!input.finalUrl || !input.screenshotOk) return "network"

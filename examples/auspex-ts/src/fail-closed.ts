@@ -16,12 +16,12 @@ import { isPublicMarketingUrl } from "./saved-checks.ts"
  */
 
 /** Reasons that must not be retried and must not spend a second Solari VM. */
-export const NO_RETRY_REASONS = ["loggedOut", "needsHuman"] as const
+export const NO_RETRY_REASONS = ["loggedOut", "needsHuman", "expectMatchedPublicLanding"] as const
 
 export type NoRetryReason = (typeof NO_RETRY_REASONS)[number]
 
 export function isNoRetryReason(reason: string | undefined): reason is NoRetryReason {
-  return reason === "loggedOut" || reason === "needsHuman"
+  return typeof reason === "string" && (NO_RETRY_REASONS as readonly string[]).includes(reason)
 }
 
 /** Blind retry after these reasons burns minutes and cannot succeed without a human. */

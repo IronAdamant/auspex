@@ -35,12 +35,12 @@ The agent thinks it's logged in. The human wastes hours debugging. The SaaS rema
 
 ### 1. Check (live browser with profile)
 ```bash
-npx auspex-solari check --profile app-example --expect "Dashboard"
+npx auspex-solari check --profile app-example --expect "Workspace ready"
 ```
 - Launch Solari browser WITH the saved profile (cookies + sessionStorage)
 - Navigate to URL
 - Screenshot + extract text
-- `matched: true` if expect substring found
+- `matched: true` if the expect hits on word boundaries (case-sensitive). `Dashboard` does not match `One Dashboard`. A hit on a public or landing URL during save is `reason: expectMatchedPublicLanding` (`matched` false, profile not saved)
 
 ### 2. Independent anonymous verify (optional, runs by default for public checks)
 - Upload screenshot + manifest to a **fresh headless Solari sandbox** (no profile)
@@ -57,7 +57,7 @@ npx auspex-solari check --profile app-example --expect "Dashboard"
 
 ### 3. Profile-seeded claim recheck (optional, additive)
 ```bash
-npx auspex-solari check --profile app-example --expect "Dashboard" --verify-with-profile
+npx auspex-solari check --profile app-example --expect "Workspace ready" --verify-with-profile
 ```
 - **Skips** anonymous claim (integrity still runs: PNG decode, URL not leftover IdP). Production does **not** run anonymous fetch/OCR first.
 - Launches a **second** Solari browser WITH the profile
