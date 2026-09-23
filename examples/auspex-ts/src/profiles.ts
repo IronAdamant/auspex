@@ -221,7 +221,11 @@ export function formatHandoffNext(opts: {
     : `Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save.`
   return (
     `${derived}${phone} ${computer} Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
-    `Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner (chooser). Phone deep link: handoff.mobileUrl. Computer deep link: handoff.desktopOneLiner.${qrBit}${HANDOFF_HANG_GUIDANCE}`
+    `Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. ` +
+    (opts.hasPhoneIme
+      ? `Off-site: paste handoff.oneLiner (chooser). Phone deep link: handoff.mobileUrl. Computer deep link: handoff.desktopOneLiner.`
+      : `Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.`) +
+    `${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
 
