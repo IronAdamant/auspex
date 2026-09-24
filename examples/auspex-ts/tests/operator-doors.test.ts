@@ -554,11 +554,11 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     assert.match(chat.value, /I tapped Save/)
     assert.match(chat.value, /supabase-com/)
     if (name === "desktop.html") {
-      assert.match(chat.value, /Auspex desktop page/)
-      assert.equal(chat.value.includes("Auspex phone page"), false)
+      assert.match(chat.value, /chooser\/desktop door/)
+      assert.equal(chat.value.includes("chooser/phone door"), false)
     } else {
-      assert.match(chat.value, /Auspex phone page/)
-      assert.equal(chat.value.includes("Auspex desktop page"), false)
+      assert.match(chat.value, /chooser\/phone door/)
+      assert.equal(chat.value.includes("chooser/desktop door"), false)
     }
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
@@ -573,7 +573,7 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       mintedIme.value = PASSWORD
       click(minted.byId.get("save"))
       assert.match(mintedChat.value, /auspex-desktop/)
-      assert.match(mintedChat.value, /Auspex desktop page/)
+      assert.match(mintedChat.value, /chooser\/desktop door/)
       assert.match(mintedChat.value, /Site URL: https:\/\/consistencyhub\.io/)
       assert.equal(mintedChat.value.includes(USERNAME), false)
       assert.equal(mintedChat.value.includes(PASSWORD), false)

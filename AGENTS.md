@@ -46,7 +46,7 @@ Operators and agents: this is the **one** door-card sequence. It is a seed/hando
 
 1. **Mint** `login --url <https>` (derives `--profile` host slug; override `--profile <yours>`). Chooser is `handoff.url` (Phone or Desktop, same hash).
 2. **Human logs in** in the door / VNC window. Secrets never appear on the agent line, chat, MCP, or receipts.
-3. **Human Save** (desktop Save or phone path). Paste the copied line in chat; the IME is cleared.
+3. **Human Save** (desktop Save or phone path). Paste the copied line in chat; the IME is cleared. The clipboard (`handoff.savePaste`) names the profile plus `await-login --save-editor` and `finalize-login --url` / `--expect`, and the fail-closed remint lines (stream-expired, editorSave/no-cdp, hostChanged, no Solari editor on a phone). Word-bounded expect (`Dashboard` does not match `One Dashboard`) and SPA sessionStorage fold stay in this file.
 4. **`await-login --save-editor`**, then **`finalize-login`** with `--url` and an expect unique to the logged-in app (absent from public marketing).
 5. Later **`check`**. Optional `--verify-with-profile`. Triad stays honest: **`ok` ≠ `claimOk` ≠ `claimOkProfile`**. After VWP, `claimOkProfile` is the reuse gate.
 

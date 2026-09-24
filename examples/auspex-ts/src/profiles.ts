@@ -170,12 +170,17 @@ export type DoorSaveKind = "phone" | "desktop"
 
 export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"): string {
   const name = (profileName ?? "").trim() || "<yours>"
-  const page = door === "desktop" ? "desktop page" : "phone page"
-  const solariBan =
-    door === "desktop"
-      ? " Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
-      : " Do not open Solari on the phone (GET editor HTTP 401)."
-  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile ${name} (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged — remint, do not finalize the old profile.`
+  const doorLabel = door === "desktop" ? "chooser/desktop door" : "chooser/phone door"
+  return [
+    `I tapped Save on the Auspex ${doorLabel} (Phone or Desktop, same hash) for profile ${name}.`,
+    `Run: npx auspex await-login --profile ${name} --save-editor`,
+    `(MCP: auspex_await_login with saveEditor true).`,
+    `Then: npx auspex finalize-login --profile ${name} --url <https> --expect "<unique logged-in text>".`,
+    `Never open Solari's editor on a phone (GET editor HTTP 401).`,
+    `stream-expired → remint auspex_login. editorSave fail or editorFold no-cdp → finalize-login NOW; skip verify-with-profile (claimOkProfile will not pass).`,
+    `hostChanged → remint auspex_login --profile <suggestedProfile> --url <suggestedUrl>. Do not save into the old profile.`,
+    `Expect matching and SPA sessionStorage: see AGENTS.md.`,
+  ].join("\n")
 }
 
 export function phoneSavePaste(profileName?: string): string {
