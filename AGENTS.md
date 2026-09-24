@@ -60,7 +60,7 @@ Fail-closed already on tip:
 
 Desktop is **not** the product answer for this path. Phone must work standalone.
 
-- **Dogfood browser:** Chrome on the phone (Safari also works). `phone.html` shows a notification banner.
+- **Dogfood browser:** Chrome on the phone (Safari also works). Operator note only — `phone.html` has no dogfood banner.
 - **Autofill without leaving Chrome:** the typing field is password-manager discoverable (`autocomplete="current-password"`, pairing `username` field, form that cannot POST). Check **Show as bullets** for a real `type=password` box (1Password / iOS Passwords / Android / Chrome). Paste still works with bullets off. **SMS / email code** sets `one-time-code`. Keys still stream only into remote Chrome; ironadamant.com does not see or store them.
 - **Brief background:** mobile Chrome suspends the WebSocket. The door **pauses** (does not mark `stream-expired`) and **reconnects the same VNC JWT** on visibility return. It does not invent a live stream.
 - **Solari limit (verified in-repo):** editor VNC tokens live ~305s (`streamExpirySource: jwt`). `POST /editor/token` has no TTL body. Door hash keys are `v,n,exp,u` only — no handoff token, no Solari HTTP from Pages. The JWT **cannot** be extended client-side. After `exp`, or if reconnect / `securityfailure` fails, `stream-expired` + remint `nextCall` stays honest.
