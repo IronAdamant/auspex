@@ -44,7 +44,7 @@ npx auspex check --profile app-example --url https://app.example --expect "Works
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
 ```
 
-The generic `login --url` / `--profile <yours>` path is the recipe (`https://app.example` derives `--profile app-example`). A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood). Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. See root [AGENTS.md](../../AGENTS.md#frozen-agent-door-sequence). Expect must be unique to the logged-in app and absent from public marketing copy. Match is case-sensitive and word-bounded (`Dashboard` does not match `One Dashboard`, a Socialaize-style pitfall). A text hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during finalize is `reason: expectMatchedPublicLanding` (`ok` false, `matched` false, profile not saved).
+The generic `login --url` / `--profile <yours>` path is the recipe (`https://app.example` derives `--profile app-example`). A named saved check is optional; see [Worked example (dogfood)](#worked-example-dogfood). Frozen door sequence (not a same-session takeover): mint → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. See root [AGENTS.md](../../AGENTS.md#frozen-agent-door-sequence). Expect must be unique to the logged-in app and absent from public marketing copy. Prefer the URL the logged-in app itself lands on (Clozemaster `/languages`, not a `/dashboard` that redirects). An expect miss with cookies still on the profile is not a login failure. Match is case-sensitive and word-bounded (`Dashboard` does not match `One Dashboard`, a Socialaize-style pitfall). A text hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during finalize is `reason: expectMatchedPublicLanding` (`ok` false, `matched` false, profile not saved).
 
 Always close the browser session (the CLI does this in `finally`) and **kill** the sandbox VM (`verify` does this in `finally`; `close()` is not teardown). Never commit `.env`, the API key, or `.auspex/` run artifacts.
 
@@ -57,7 +57,7 @@ npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex login [--profile <name>] [--url <https>] [--wait]
-npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>]
+npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
 npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]

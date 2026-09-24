@@ -574,6 +574,12 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       const guided = needsHumanGuide(opts.profile)
       next = guided.text
       nextCall = guided.nextCall
+    } else if (reason === "mismatch" && (profileSeed?.cookies ?? 0) > 0) {
+      next =
+        `Expect did not match. The profile still has ${profileSeed?.cookies} cookies` +
+        (title ? ` and the page title is "${title.slice(0, 120)}"` : "") +
+        `. This is an expect miss on an authenticated session, not a login failure. ` +
+        `Pass the URL the logged-in app itself lands on (after redirects) and an expect that appears only there.`
     } else if (reason === "expectMatchedPublicLanding") {
       const guided = expectMatchedPublicLandingGuide(opts.profile)
       next = guided.text

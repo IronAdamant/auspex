@@ -68,6 +68,41 @@ export function siteFamily(hostname: string): string {
   return last2
 }
 
+/** Explicit rebrands. Same product, different registrable domain. Not a hijack. */
+export const PRODUCT_HOST_ALIASES: readonly (readonly string[])[] = [
+  ["app.skysql.com", "cloud.mariadb.com"],
+]
+
+export function sameProductHosts(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase()
+  const right = b.trim().toLowerCase()
+  if (!left || !right) return false
+  if (hostsAlign(left, right)) return true
+  return PRODUCT_HOST_ALIASES.some(
+    (group) => group.some((host) => hostIs(left, host)) && group.some((host) => hostIs(right, host)),
+  )
+}
+
+export type SameProductAdopt = {
+  adopted: true
+  fromHost: string
+  toHost: string
+  canonicalUrl: string
+}
+
+export function sameProductAdopt(opts: { mintUrl?: string; liveHost?: string; pageUrl?: string }): SameProductAdopt | undefined {
+  const mintOrigin = httpsOriginOnly(opts.mintUrl)
+  const mintHost = mintOrigin ? hostnameOf(mintOrigin) : ""
+  const pageHost = hostnameOf(httpsOriginOnly(opts.pageUrl) || "")
+  const live = (pageHost || opts.liveHost || "").trim().toLowerCase().replace(/^\./, "")
+  if (!mintHost || !live || ignoredLiveHost(live)) return undefined
+  if (hostsAlign(mintHost, live)) return undefined
+  if (!sameProductHosts(mintHost, live)) return undefined
+  const canonicalUrl = httpsOriginOnly(`https://${live}`)
+  if (!canonicalUrl) return undefined
+  return { adopted: true, fromHost: mintHost, toHost: live, canonicalUrl }
+}
+
 export function hostsAlign(a: string, b: string): boolean {
   const left = a.trim().toLowerCase()
   const right = b.trim().toLowerCase()
@@ -246,6 +281,7 @@ export function adviseLiveHostChange(opts: {
   const mintOrigin = httpsOriginOnly(opts.mintUrl)
   const mintHost = mintOrigin ? hostnameOf(mintOrigin) : ""
   if (mintHost && hostsAlign(selected.host, mintHost)) return undefined
+  if (mintHost && sameProductHosts(selected.host, mintHost)) return undefined
   if (profileOwnsHost(profile, selected.host)) return undefined
   if (!mintHost && !savedCheckForProfile(profile)) return undefined
   return changeFor(profile, selected.host, selected.suggestedUrl)
@@ -311,6 +347,26 @@ function pageUrlFromUnknown(json: unknown, depth: number): string | undefined {
     if (nested) return nested
   }
   return undefined
+}
+
+export async function noteProfileCanonicalUrl(
+  profile: string,
+  adopt: SameProductAdopt,
+  root?: string,
+): Promise<void> {
+  const { loadEditorSave, persistEditorSave } = await import("./profiles.ts")
+  const handle = await loadEditorSave(profile, root)
+  if (!handle) return
+  await persistEditorSave(
+    {
+      ...handle,
+      siteUrl: adopt.canonicalUrl,
+      hostChanged: false,
+      suggestedUrl: undefined,
+      suggestedProfile: undefined,
+    },
+    root,
+  )
 }
 
 export async function noteProfileHostChanged(

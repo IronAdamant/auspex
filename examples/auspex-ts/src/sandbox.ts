@@ -8,7 +8,7 @@ import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
-import { sessionCreateFromCheck } from "./launch-options.ts"
+import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches } from "./text.ts"
 
@@ -122,6 +122,7 @@ export function defaultVerifyDeps(): VerifyDeps {
   }
 }
 
+/** Fresh POST /sessions from the saved profile. Does not touch the handoff editor or its JWT. */
 export async function defaultProfileClaimCheck(opts: {
   finalUrl: string
   expect: string
@@ -133,7 +134,7 @@ export async function defaultProfileClaimCheck(opts: {
   let sessionId = ""
   const signal = opts.signal ?? new AbortController().signal
   try {
-    const browser = await launchBrowser(solari, sessionCreateFromCheck({ profileId: opts.profileId }), signal)
+    const browser = await launchBrowser(solari, profileClaimSessionCreate(opts.profileId), signal)
     closer.set(async () => {
       await closeThenRelease(
         () => browser.close(),

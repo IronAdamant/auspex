@@ -121,6 +121,9 @@ export async function runAwaitLoginDoor(opts: {
   timeoutMs?: number
   saveEditor?: boolean
   url?: string
+  expect?: string
+  chainFinalize?: boolean
+  ssoProvider?: SsoProvider
 }) {
   await withOperatorSession({
     note: { profile: opts.profile, site: opts.url, busyMs: Math.max(SIGNUP_BUSY_MS, opts.timeoutMs ?? 0) },
@@ -130,6 +133,8 @@ export async function runAwaitLoginDoor(opts: {
     timeoutMs: opts.timeoutMs,
     saveEditor: opts.saveEditor,
     url: opts.url,
+    expect: opts.expect,
+    chainFinalize: opts.chainFinalize,
   })
   const result = preserveAwaitLiveHost(
     await stampAwaitLoginHost(rawWait, { profile: opts.profile, url: opts.url }),
@@ -138,7 +143,30 @@ export async function runAwaitLoginDoor(opts: {
   const finished = await withOperatorSession({
     note: noteAfterSignupWait({ profile: opts.profile, status: result.status }),
   })
-  return stampSchema({ ok: result.status === "completed", ...result, operator: finished.agent })
+  if (result.chainFinalize && result.nextCall?.tool === "auspex_finalize_login" && result.nextCall.url && result.nextCall.expect) {
+    const finalized = await runFinalizeLogin({
+      profile: result.name,
+      url: opts.url ?? result.nextCall.url,
+      expect: opts.expect ?? result.nextCall.expect,
+      ssoProvider: opts.ssoProvider,
+    })
+    const receipt = toAgentReceipt(finalized)
+    return stampSchema({
+      ...receipt,
+      chainedFinalize: true,
+      awaitLogin: {
+        status: result.status,
+        foldMiss: result.foldMiss,
+        editorSave: result.editorSave,
+        editorFold: result.editorFold,
+        next: result.next,
+        nextCall: result.nextCall,
+      },
+      operator: finished.agent,
+    })
+  }
+  const ok = result.status === "completed" && result.foldMiss !== true
+  return stampSchema({ ok, ...result, operator: finished.agent })
 }
 
 export async function runFinalizeLoginDoor(opts: {

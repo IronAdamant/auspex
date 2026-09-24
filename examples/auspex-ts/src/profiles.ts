@@ -170,12 +170,17 @@ export type DoorSaveKind = "phone" | "desktop"
 
 export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"): string {
   const name = (profileName ?? "").trim() || "<yours>"
-  const page = door === "desktop" ? "desktop page" : "phone page"
-  const solariBan =
-    door === "desktop"
-      ? " Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
-      : " Do not open Solari on the phone (GET editor HTTP 401)."
-  return `I tapped Save on the Auspex ${page} for profile ${name}. Run npx auspex await-login --profile ${name} --save-editor (or auspex_await_login with saveEditor true).${solariBan} --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile ${name} (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged — remint, do not finalize the old profile.`
+  const doorLabel = door === "desktop" ? "chooser/desktop door" : "chooser/phone door"
+  return [
+    `I tapped Save on the Auspex ${door === "desktop" ? "desktop page" : "phone page"} (${doorLabel}, Phone or Desktop, same hash) for profile ${name}.`,
+    `Run: npx auspex await-login --profile ${name} --save-editor`,
+    `(MCP: auspex_await_login with saveEditor true).`,
+    `Then: npx auspex finalize-login --profile ${name} --url <the URL the logged-in app lands on> --expect "<unique logged-in text>".`,
+    `Never open Solari's editor on a phone (GET editor HTTP 401).`,
+    `editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.`,
+    `A different product is hostChanged → remint. A same-product rebrand is adopted (SkySQL and MariaDB).`,
+    `Console Save is cookies only. sessionStorage still needs finalize-login. Expect must be unique to the logged-in app surface, not marketing.`,
+  ].join("\n")
 }
 
 export function phoneSavePaste(profileName?: string): string {

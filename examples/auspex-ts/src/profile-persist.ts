@@ -25,6 +25,7 @@ import {
 } from "./await-fail.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
+import { DEAD_FOLD_VERIFY_BAN, foldMissFinalizeGuide, shouldSteerToFinalize } from "./fold-steer.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -93,6 +94,7 @@ export type AwaitLoginResult = {
   cookieHosts?: string[]
   foldedExpiresInSec?: number
   idpCookies?: boolean
+  liveHost?: string
   hostChanged?: boolean
   profileHostMatch?: boolean
   suggestedProfile?: string
@@ -102,6 +104,10 @@ export type AwaitLoginResult = {
   editorSave?: { ok: boolean; status: number; error?: string }
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
+  /** Door should call finalize-login now. Set only when url and expect are known. */
+  chainFinalize?: boolean
+  /** editorSave/fold could not refresh sessionStorage. Primary next is finalize, not remint. */
+  foldMiss?: boolean
 }
 
 export type AwaitLoginDeps = {
@@ -199,8 +205,7 @@ export function finalizeLoginGuidance(profile: string): string {
   return finalizeLoginGuide(profile).text
 }
 
-export const DEAD_FOLD_VWP_BAN =
-  "Do not run check --verify-with-profile on this seed — claimOkProfile will not pass on a dead fold."
+export const DEAD_FOLD_VWP_BAN = DEAD_FOLD_VERIFY_BAN
 
 /** After --verify-with-profile, this field is the reuse signal. ok is not. */
 export const CLAIM_OK_PROFILE_REUSE_GATE =
@@ -574,6 +579,7 @@ export async function waitForProfileSave(
     cookieHosts: seed.cookieHosts,
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: seed.idpCookies,
+    liveHost: seed.liveHost,
     ...(hostPatch ?? {}),
     next: hostPatch?.next ?? guided.text,
     nextCall: hostPatch?.nextCall ?? guided.nextCall,
@@ -612,6 +618,9 @@ export async function liveAwaitLogin(
     timeoutMs?: number
     saveEditor?: boolean
     url?: string
+    expect?: string
+    /** Default true: door may chain finalize when this returns status completed from a fold miss. */
+    chainFinalize?: boolean
     foldCapture?: CaptureEditorFoldOpts
   } = {},
 ): Promise<AwaitLoginResult> {
@@ -724,40 +733,101 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
       },
     })
-    const host = await import("./live-host-change.ts")
-    const patch = await host.rememberAwaitHostChange(waited.name, waited, foldChange)
     if (waited.status === "stream-expired") streamExpired = true
-    const failClosed =
-      !patch && waited.status !== "completed" && waited.status !== "host-changed"
-        ? streamExpired
-          ? { status: "stream-expired" as const, ...streamExpiredGuide(waited.name) }
-          : editorHung
-            ? { status: "editor-save-hung" as const, ...editorSaveHungGuide(waited.name) }
-            : profileBusy
-              ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(waited.name) }
-              : undefined
-        : undefined
-    const guided = patch
-      ? { text: patch.next, nextCall: patch.nextCall }
-      : failClosed
-        ? { text: failClosed.text, nextCall: failClosed.nextCall }
-        : editorSave || editorFold
-          ? overlaySaveEditorGuidance({
-              next: waited.next,
-              nextCall: waited.nextCall,
-              profile: waited.name,
+    let steered = waited
+    const host = await import("./live-host-change.ts")
+    const adopt = host.sameProductAdopt({
+      mintUrl,
+      pageUrl: pageUrl ?? (steered.liveHost ? `https://${steered.liveHost}` : undefined),
+      liveHost: steered.liveHost,
+    })
+    if (adopt) {
+      await host.noteProfileCanonicalUrl(waited.name, adopt).catch(() => undefined)
+      mintUrl = adopt.canonicalUrl
+    }
+    const patch = await host.rememberAwaitHostChange(
+      waited.name,
+      adopt ? { ...steered, hostChanged: false } : steered,
+      adopt ? undefined : foldChange,
+    )
+    if (
+      !patch &&
+      opts.saveEditor &&
+      streamExpired &&
+      steered.cookies === 0 &&
+      steered.origins === 0
+    ) {
+      const seed = await inspectProfileSeed(solari, waited.profileId, inspectOriginForAwait({ name: waited.name, url: opts.url ?? mintUrl })).catch(
+        () => undefined,
+      )
+      if (seed && (seed.cookies > 0 || seed.origins > 0)) {
+        steered = { ...waited, cookies: seed.cookies, origins: seed.origins, sessionStorage: seed.sessionStorage, sessionStorageStale: seed.sessionStorageStale }
+      }
+    }
+    const foldLead =
+      !patch &&
+      shouldSteerToFinalize({
+        editorSave,
+        editorFold,
+        cookies: steered.cookies,
+        origins: steered.origins,
+        hostChanged: false,
+      })
+        ? {
+            status: "completed" as const,
+            ...foldMissFinalizeGuide({
+              profile: steered.name,
               editorSave,
               editorFold,
-            })
-          : { text: waited.next, nextCall: waited.nextCall }
+              streamNoted: streamExpired,
+              url: opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url,
+              expect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
+            }),
+          }
+        : undefined
+    const failClosed =
+      !patch && !foldLead && steered.status !== "completed" && steered.status !== "host-changed"
+        ? streamExpired
+          ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
+          : editorHung
+            ? { status: "editor-save-hung" as const, ...editorSaveHungGuide(steered.name) }
+            : profileBusy
+              ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(steered.name) }
+              : undefined
+        : undefined
+    let guided = patch
+      ? { text: patch.next, nextCall: patch.nextCall }
+      : foldLead
+        ? { text: foldLead.text, nextCall: foldLead.nextCall }
+        : failClosed
+          ? { text: failClosed.text, nextCall: failClosed.nextCall }
+          : editorSave || editorFold
+            ? overlaySaveEditorGuidance({
+                next: steered.next,
+                nextCall: steered.nextCall,
+                profile: steered.name,
+                editorSave,
+                editorFold,
+              })
+            : { text: steered.next, nextCall: steered.nextCall }
+    if (adopt && !patch) {
+      guided = {
+        ...guided,
+        text: `Same product: profile canonical URL is now ${adopt.canonicalUrl} (was ${adopt.fromHost}). Continue finalize on that host. ${guided.text ?? ""}`.trim(),
+      }
+    }
+    const chain =
+      Boolean(foldLead) && opts.chainFinalize !== false && Boolean(foldLead?.nextCall.url && foldLead?.nextCall.expect)
     const result: AwaitLoginResult = {
-      ...waited,
+      ...steered,
       ...(editorSave ? { editorSave } : {}),
       ...(editorFold ? { editorFold } : {}),
       ...(patch ?? {}),
+      ...(foldLead ? { status: foldLead.status, foldMiss: true as const } : {}),
       ...(failClosed ? { status: failClosed.status } : {}),
       next: guided.text,
       nextCall: guided.nextCall,
+      ...(chain ? { chainFinalize: true as const } : {}),
     }
     const outcome = postHandoffOutcome(result)
     if (outcome) {

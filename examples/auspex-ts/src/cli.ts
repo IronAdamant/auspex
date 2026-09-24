@@ -27,7 +27,7 @@ export const USAGE = `Usage:
   npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex login [--profile <name>] [--url <https>] [--wait]
-  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>]
+  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
   npx auspex profiles [--purge <name>] [--yes]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
   npx auspex trace [--profile <name>] [--limit <n>] [--all]
@@ -53,7 +53,7 @@ export type CliCommand =
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean; verify?: boolean }
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
-  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string }
+  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean }
   | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
   | { cmd: "verify"; runDir?: string }
@@ -299,6 +299,8 @@ export function parseArgv(argv: string[]): ParseResult {
     const timeoutRaw = takeOption(args, "--timeout-ms")
     const saveEditor = takeFlag(args, "--save-editor")
     const url = takeOption(args, "--url")
+    const expect = takeOption(args, "--expect")
+    const chainFinalize = takeFlag(args, "--no-chain-finalize") ? false : undefined
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
@@ -322,7 +324,7 @@ export function parseArgv(argv: string[]): ParseResult {
       if (!Number.isFinite(n)) return { status: "error", message: "--timeout-ms must be a number" }
       timeoutMs = n
     }
-    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url } }
+    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize } }
   }
   if (cmd === "verify") {
     if (args.includes("--help") || args.includes("-h")) {
