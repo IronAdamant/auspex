@@ -296,9 +296,13 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /VNC ~5 min/)
   assert.match(html, /short-lived/)
   assert.match(html, /body\.classList\.add\("locked"\)/)
+  assert.match(html, /autocomplete="current-password"/)
+  assert.match(html, /door-stream\.js/)
+  assert.match(html, /reconnectStream/)
+  assert.match(html, /Chrome on this phone is the dogfood browser/)
   assert.equal(html.includes("location.href = saveUrl"), false)
   assert.equal(html.includes("console.log"), false)
-  assert.equal(/reconnect/i.test(html), false)
+  assert.equal(html.includes('autocomplete="off"'), false)
 })
 
 function phoneHtmlSavePaste(name?: string): string {
