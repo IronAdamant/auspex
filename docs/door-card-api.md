@@ -65,7 +65,7 @@ Not `loggedOut`, not `needsHuman`, not a Solari 502.
 
 ### Phone background / password manager (door UI)
 
-Chrome on the phone is the dogfood browser. `phone.html` shows a notification banner.
+Chrome on the phone is the dogfood browser. Operator copy lives in AGENTS.md; `phone.html` does not show a dogfood banner.
 
 - Autofill: the typing field uses `autocomplete="current-password"` (and optional `one-time-code`). Check Show as bullets for a real password box. The form cannot POST (`form-action 'none'`). Keys stream only into Solari remote Chrome.
 - Brief background (password manager / Mail / authenticator): mobile Chrome drops the WebSocket. The door **pauses** and **reconnects the same VNC JWT** on visibility return. That is not `stream-expired`.
