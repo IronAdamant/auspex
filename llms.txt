@@ -1,8 +1,20 @@
 # Auspex — agent quick card
 
-Source of truth: [AGENTS.md](AGENTS.md). This file is the short door. Product name is Auspex. ConsistencyHub and OneDrive are evidence only, not the default recipe.
+Source of truth: [AGENTS.md](AGENTS.md). This file is the short door. Product name is Auspex. Repo is `IronAdamant/auspex`. ConsistencyHub and OneDrive are worked examples of a logged-in app, not the recipe for every site.
 
-`ok` ≠ `claimOk` ≠ `claimOkProfile`. After `--verify-with-profile`, `claimOkProfile` is the reuse gate. `ok` alone is not enough to treat the profile as reusable. We do not claim Alice-vs-Bob wrong-account detection.
+Auspex opens the site in Solari cloud Chrome, checks the claim, then checks again on a second machine. It does not type passwords or log in for the user.
+
+- `ok` means the live browser matched the claim, and the second check passed when it ran.
+- `claimOk` means an anonymous second machine saw the claim, with no saved login.
+- `claimOkProfile` means a second browser that reused the saved login saw the claim. After `--verify-with-profile`, this is the reuse signal. `ok` alone is not enough.
+
+We do not claim Alice-vs-Bob wrong-account detection.
+
+`npx auspex-solari check --name ironadamant` is a public page with no login. It does **not** prove logged-in honesty.
+
+**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
+
+After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
 
 ## Frozen door sequence
 
@@ -29,13 +41,13 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 
 ## If stuck
 
-- `expectMatchedPublicLanding` — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save. Better URL and expect. Profile not saved.
-- `hostChanged` — live https host diverged. Remint `auspex_login` for `suggestedProfile` and `suggestedUrl`. Do not save into the old jar.
-- `stream-expired` with no cookies — remint. Do not poll await-login for 30 minutes.
-- `editorSave` 200 and a fold that cannot refresh sessionStorage, with cookies — finalize-login now. Do not remint on stream-expired alone. Do not `--verify-with-profile` on that fold.
-- `weakSeed` / `emptySave` — counted `sessionStorage === 0` (or a stale fold), or no profile. Remint or finalize-now. Not a verify-with-profile.
-- `429` — `auspex_reap` (ledger ids), then retry. Not retryable while the slot is held.
-- Silent mint — read `traceSummary` / `npx auspex trace` before reminting.
+- The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
+- The live site moved to a different host than the one minted into the door (`hostChanged`). Mint `auspex_login` again for `suggestedProfile` and `suggestedUrl`. Leave the old profile alone.
+- The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. Skip a 30-minute wait.
+- Save returned 200 but could not refresh in-tab session storage, and cookies exist. Run finalize-login now. Skip `--verify-with-profile` on that fold.
+- Cookies exist but in-tab session storage is empty or stale, or there is no saved profile (`weakSeed`, `emptySave`). Mint again or finalize now. Skip `--verify-with-profile`.
+- Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
+- Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
 
 ## Do not
 
@@ -44,8 +56,7 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - Run `auspex_verify` after a default check.
 - Treat `ok` as `claimOk` or `claimOkProfile`.
 - Commit `SOLARI_API_KEY`, `.env`, or `.auspex/`.
-- Use npm `auspex` (a different scraper). Install `auspex-solari`. Repo is `IronAdamant/auspex`.
-- `npm publish`. Founder publishes.
+- Install npm `auspex` (a different scraper) or run `npm publish`.
 
 ## Links
 

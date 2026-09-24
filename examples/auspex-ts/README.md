@@ -57,15 +57,17 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 
 ## MCP
 
-After a clone: `npm install && npm run build:mcp` (do not commit `dist/`). Missing `dist/mcp.mjs` fail-closes (`DistMissing`). From this directory without dist: `npx tsx src/mcp.ts`.
+After a git clone, run `npm install && npm run build:mcp` in this directory (do not commit `dist/`). If `dist/mcp.mjs` is missing, MCP fail-closes with reason `DistMissing` (not an empty silent server). From this directory without `dist/`: `npx tsx src/mcp.ts`.
 
-**Cursor** — repo [`.cursor/mcp.json`](../../.cursor/mcp.json) matches [mcp.cursor.example.json](mcp.cursor.example.json). After `npm install && npm run build:mcp`, restart Cursor.
+**Published package** — `npx -p auspex-solari auspex-mcp` already includes `dist/`. Paste-ready Cursor `mcp.json` (command `npx`, args `-p`, `auspex-solari`, `auspex-mcp`, `SOLARI_API_KEY` in `env`) is on the [root README](../../README.md#mcp).
 
-**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path (same build).
+**Cursor (this clone)** — repo [`.cursor/mcp.json`](../../.cursor/mcp.json) matches [mcp.cursor.example.json](mcp.cursor.example.json). After `npm install && npm run build:mcp`, restart Cursor.
+
+**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path (same clone build).
 
 **Grok** — copy [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. If PATH lacks node, pin absolute `node` plus `bin/auspex-mcp.mjs`.
 
-Published tarball: `npx -p auspex-solari auspex-mcp` (includes `dist/`). Tool list and when to use each one: [AGENTS.md](../../AGENTS.md#tools).
+Tool list: [AGENTS.md](../../AGENTS.md#tools).
 
 ## Worked example (dogfood)
 

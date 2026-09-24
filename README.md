@@ -1,14 +1,18 @@
 # Auspex
 
-Agents report a dashboard loaded when the page is still the login screen. Auspex checks that claim on Solari cloud Chrome, then a second machine checks it again.
+Agents often say a page loaded when it is still a login screen. Auspex opens the site in Solari cloud Chrome (a browser Solari runs in their cloud, not on your computer), checks the claim, then checks again on a second machine.
 
-**`ok` ≠ `claimOk` ≠ `claimOkProfile`.** We do not claim Alice-vs-Bob wrong-account detection. Never types passwords. Never `--record` a logged-in session. After `--verify-with-profile`, **`claimOkProfile` is the reuse gate** — `ok` alone is not enough to treat the profile as reusable.
+Three results come back. They are separate.
+
+- `ok` means the live browser matched the claim, and the second check passed when it ran.
+- `claimOk` means an anonymous second machine saw the claim, with no saved login.
+- `claimOkProfile` means a second browser that reused the saved login saw the claim. After `--verify-with-profile`, this is the signal that the saved login is worth reusing. `ok` alone is not enough.
+
+We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session.
 
 ## Login doors (Phone and Desktop)
 
-Silent screencasts of the Auspex login-door paths: login page → Phone or Desktop chooser → chosen door → remote Chrome opening on a Google New Tab. These are the handoff doors, not a full auth-gated SaaS walk and not the redacted ConsistencyHub dashboard below. Phone and desktop pages are a seed/handoff door for off-site typing, not a same-session VNC takeover. Show as bullets is off by default so a password manager can paste into the text field.
-
-**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The Auspex phone page has a real text field (Solari noVNC will not open the phone keyboard).
+**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The phone page has a real text field so the phone keyboard can open.
 
 ![Phone login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-phone.gif)
 
@@ -16,64 +20,87 @@ Silent screencasts of the Auspex login-door paths: login page → Phone or Deskt
 
 ![Desktop login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-desktop.gif)
 
-## Pick your path
+These are handoff doors (you type or paste off-site). They are not a same-session remote desktop takeover. They are not a full logged-in SaaS walkthrough.
 
-For Reviewers: the ironadamant one-liner is a **measured public check (no login)**. It does not prove logged-in honesty. Auth-gated evidence is the redacted demo receipt (`ok` / `claimOk` / `claimOkProfile`) — a redacted auth-gated SaaS demo, not the recipe. Generic recipe: `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Frozen door sequence: [AGENTS.md](AGENTS.md#frozen-agent-door-sequence).
+## 30-second public proof
 
-| Door | Open this |
-| --- | --- |
-| **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (auth-gated Microsoft wall, emails/passwords stripped) |
-| **Auth-gated evidence** | Redacted SaaS [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + receipt-only OneDrive — [RECEIPTS.md](RECEIPTS.md) |
-| **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
-| **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
-| **Any Microsoft-gated host** | `npx auspex-solari login --url <https>` (derives `--profile`; override `--profile <yours>`). Chooser `handoff.url`. Phone: `handoff.mobileUrl`. Desktop: `handoff.desktopUrl`. tap Save, then `await-login --save-editor`, `auspex_finalize_login`. Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. Never `--record`. |
-| **MCP** | `npx -p auspex-solari auspex-mcp` |
-| **Autonomous agents (job)** | `npx auspex-solari job --url <https> --expect "<unique>"` then `job-status` / resume `--job-id` |
-| **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`. Repo `SOLARI_API_KEY` is **present** (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if that secret were unset. Do not remove it. |
-| **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
+This checks a public page. It does **not** prove logged-in honesty.
+
+```bash
+export SOLARI_API_KEY=slr_live_…   # https://console.getsolari.com — env only, never commit
+npx auspex-solari check --name ironadamant
+```
 
 **Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.**
 
-```bash
-export SOLARI_API_KEY=slr_live_…   # console.getsolari.com — env only, never commit
-npx auspex-solari check --name ironadamant
-npx auspex-solari check https://example.com --expect "Example Domain"
-npx -p auspex-solari auspex-mcp
+npm `auspex` is a different scraper. `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
+
+## Pick your path
+
+| Door | Open this |
+| --- | --- |
+| **Watch** (no clone, no API key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (Microsoft login wall; emails and passwords stripped) |
+| **Logged-in evidence** | Blurred dashboard below · [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) · [RECEIPTS.md](RECEIPTS.md) |
+| **Public check** | `npx auspex-solari check --name ironadamant` — does **not** prove logged-in honesty |
+| **Any site** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
+| **Microsoft login** | 1. `npx auspex-solari login --url <https>` (profile name comes from the host). 2. Open `handoff.url` (Phone: `handoff.mobileUrl`, Desktop: `handoff.desktopUrl`). 3. You sign in and tap Save. 4. `await-login --save-editor`, then `finalize-login`. [Door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
+| **MCP** | `npx -p auspex-solari auspex-mcp` — paste the Cursor config below |
+| **Hands-off job** | `npx auspex-solari job --url <https> --expect "<unique logged-in text>"`, then `job-status` |
+| **Issues** | On. Weekly public check: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (2026-09-21) ironadamant + checkpoint `ok: true`. |
+| **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY`, `.env`, or `.auspex/` |
+
+## MCP
+
+Cursor, using the published package (this build already includes the server files). Put `SOLARI_API_KEY` in `env`.
+
+```json
+{
+  "mcpServers": {
+    "auspex": {
+      "command": "npx",
+      "args": ["-p", "auspex-solari", "auspex-mcp"],
+      "env": {
+        "SOLARI_API_KEY": "slr_live_…"
+      }
+    }
+  }
+}
 ```
 
-npm `auspex` is a different scraper. After a clone: `npm install && npm run build:mcp` (`dist/` is gitignored), then `npx auspex` and `npx auspex-mcp`. `auspex-solari` **0.1.3 is published** on npm (latest). Agents do not `npm publish`.
+After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
 
-## Fail-closed
+Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
 
-- `expectMatchedPublicLanding` — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save. Use a real app URL and a better expect.
-- `hostChanged` — live https host diverged from the minted door URL. Remint `auspex_login`. Do not save into the old jar.
-- `stream-expired` — VNC JWT past and the profile has no cookies. Remint. `editorSave` 200 with a fold that cannot refresh sessionStorage is finalize-login now, not a remint.
-- `weakSeed` / `emptySave` — cookies/origins with a counted `sessionStorage === 0` (or a stale fold), or the profile is missing. Do not `--verify-with-profile` on a dead fold.
-- Solari HTTP `402` / `429` / `413` are not retryable (`429` → `auspex_reap`). `502`–`504` retry once. Those are not `loggedOut` / `needsHuman`. Matrix: [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
-- Three primitives, plus login / finalize / profile-status / reap / trace as the auth + hygiene doors. The named Solari sandbox Mousepad demo is not the user's Mac (402 on Free). any attached profile on a non-public-marketing URL skips anonymous verify. Login trace writes one post-handoff row. Check rows are not written. Never tokens.
+## When a check refuses
 
-## Auth-gated evidence
+- The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
+- The live site moved to a different host than the one minted into the door (`hostChanged`). Mint login again. Leave the old profile alone.
+- The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. If save returned 200 but could not refresh in-tab session storage, run finalize-login now.
+- Cookies exist but in-tab session storage is empty or stale, or there is no saved profile (`weakSeed`, `emptySave`). Skip `--verify-with-profile` on that seed.
+- Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 
-**Redacted auth-gated SaaS demo** — blurred dashboard. Blur ≠ blank fail. The name in the demo path is dogfood evidence, not the recipe.
+If login mint is silent, read `npx auspex-solari trace` before minting again. Deep contract: [AGENTS.md](AGENTS.md).
+
+## Logged-in evidence
+
+Blurred dashboard from a real logged-in app. The blur hides personal data. The name in the file path is a worked example, not the recipe for every site.
 
 ![Redacted auth-gated SaaS demo (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
 
-Verification triad: `ok=true`, `claimOk=false` (anonymous skipped), `claimOkProfile=true`. Full fence: [package README](examples/auspex-ts/README.md#worked-example-dogfood). Receipts: [RECEIPTS.md](RECEIPTS.md).
-
-## Worked example (dogfood)
-
-Evidence only — not the first fence. `npx auspex-solari login` for that saved-check host, plus await / finalize / check, lives in the [package README](examples/auspex-ts/README.md#worked-example-dogfood). OneDrive is receipt-only (no raw PNG).
+On that receipt: `ok=true` (the live check passed), `claimOk=false` (the anonymous second machine was skipped), `claimOkProfile=true` (the saved login saw the claim). Commands: [package README](examples/auspex-ts/README.md#worked-example-dogfood). OneDrive is a receipt only (no raw screenshot).
 
 ## Links
+
+Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial.
 
 - Reviewer skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
 - Agent contract: [AGENTS.md](AGENTS.md) · quick card: [llms.txt](llms.txt)
 - Receipts: [RECEIPTS.md](RECEIPTS.md) · thesis: [PITCH.md](PITCH.md)
-- Official apply path (Harry Chow, LinkedIn 2026-08-31): fork cookbook → real Solari use case → public GitHub → **tag @harrychow_ @getsolari on LinkedIn or X**. Discord is Solari setup help, not a substitute. The tagged post itself is founder-only.
+- Apply path (Harry Chow, LinkedIn 2026-08-31): fork the cookbook, ship a real Solari use case, make the repo public, and tag @harrychow_ @getsolari on LinkedIn or X. The tagged post is founder-only.
 - Console — [console.getsolari.com](https://console.getsolari.com) · Docs — [docs.getsolari.com](https://docs.getsolari.com)
 
-## Upstream cookbook (unmodified, not the submission)
+## Upstream cookbook
 
-This repo is a public fork of the Solari cookbook. GitHub's behind count is other cookbook examples added upstream after this fork. The submission is [examples/auspex-ts](examples/auspex-ts). Directories under [`examples/`](examples/) other than **[auspex-ts](examples/auspex-ts)** are the original Solari samples, unmodified, with no Auspex CI. One `slr_live_` key works across browsers, sandboxes, and desktops. Call `await solari.close()` in TypeScript or the process hangs. 429 is not retryable — call `auspex_reap`.
+This repo is a public fork of the Solari cookbook. The submission is [examples/auspex-ts](examples/auspex-ts). Other folders under [`examples/`](examples/) are the original Solari samples. In those TypeScript samples, call `await solari.close()` or the process hangs.
 
 MIT licensed.
