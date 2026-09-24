@@ -28,10 +28,12 @@ export function streamExpiredGuide(profile: string): { text: string; nextCall: N
   const name = profile.trim() || "<name>"
   return {
     text:
-      `status stream-expired: the VNC/phone stream (JWT ~5 min, or stored streamExpiresAt) is past. ` +
+      `status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. ` +
+      `Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). ` +
       `This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. ` +
-      `Remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
-      `Ask the human to open the new handoff.url.`,
+      `If editorSave already returned 200, ignore this remint and run finalize-login instead. ` +
+      `Otherwise remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
+      `Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect.`,
     nextCall: remintLoginNextCall(name === "<name>" ? "" : name),
   }
 }
