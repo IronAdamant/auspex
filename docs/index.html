@@ -53,7 +53,21 @@
       font-size: 0.88rem;
       color: var(--fg);
     }
-    .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .signals, .kinds { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; max-width: 1100px; margin: 0.75rem 0 0; }
+    .signals div, .kinds p {
+      margin: 0;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .signals strong, .kinds strong { color: var(--fg); display: block; margin-bottom: 0.25rem; }
+    .hero { margin: 0.85rem 0 0; max-width: 1100px; }
+    .hero img { max-height: 280px; object-fit: cover; object-position: top; }
+    .aside-shot { margin: 0.85rem 0 0; max-width: 36rem; }
+    .aside-shot img { max-height: 160px; object-fit: cover; object-position: top; }
     figure { margin: 0; }
     figure img {
       width: 100%;
@@ -63,8 +77,17 @@
       display: block;
     }
     figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+    .wall-label { border-left: 3px solid var(--fg); padding-left: 12px; }
     @media (max-width: 800px) {
-      .shots { grid-template-columns: 1fr; }
+      .signals { grid-template-columns: 1fr; }
+      .kinds { gap: 0.35rem; }
+      .kinds p { padding: 6px 8px; font-size: 0.78rem; }
+      .skim { display: flex; flex-direction: column; }
+      .skim > .formula { order: 1; }
+      .skim > .hero { order: 2; }
+      .skim > .kinds { order: 3; }
+      .skim > .signals { order: 4; }
+      .hero img { max-height: 220px; object-fit: cover; object-position: top; }
       .watch { min-height: 420px; }
     }
   </style>
@@ -77,42 +100,59 @@
       Auspex opens cloud Chrome, reads the page, and a second machine checks that claim.
       It never types a password.
     </p>
-    <p>
+    <div class="skim">
+    <p class="formula">
       <strong>ok ≠ claimOk ≠ claimOkProfile.</strong>
-      Those three receipt booleans are not interchangeable.
+      Three separate results on one receipt. They are not interchangeable.
       We do not claim Alice-vs-Bob wrong-account detection.
+      Numbers below are the redacted auth-gated receipt, not the public page.
     </p>
-    <p>
-      <strong>Measured:</strong> ironadamant public check.
-      <strong>Redacted demo:</strong> auth-gated SaaS triad
-      <a href="demo/consistencyhub-receipt.json">receipt</a>
-      (blur ≠ blank fail).
-      The generic recipe is <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>) plus <em>their</em> URL and expect.
-      Worked example (dogfood) lives in
-      <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">RECEIPTS.md</a>.
-    </p>
-    <div class="shots">
-      <figure>
-        <img
-          src="demo/ironadamant.png"
-          alt="Cloud Chrome on ironadamant.com, a public page with no login"
-        />
-        <figcaption>
-          <strong>Measured public check</strong> (no login). Live schema-v1 receipt.
-          <a href="demo/ironadamant-receipt.json">Receipt</a>
-        </figcaption>
-      </figure>
-      <figure>
-        <img
-          src="demo/consistencyhub.png"
-          alt="Blurred auth-gated SaaS dashboard. Redacted demo; blur protects PII. Not a blank fail."
-        />
-        <figcaption>
-          <strong>Redacted auth-gated SaaS demo.</strong> Live triad on a blurred dashboard (PII). Not a blank fail.
-          <a href="demo/consistencyhub-receipt.json">Receipt</a>.
-        </figcaption>
-      </figure>
+    <div class="signals" aria-label="Three receipt results on the redacted demo">
+      <div>
+        <strong>ok · true</strong>
+        The live browser matched the claim, and the second check passed.
+      </div>
+      <div>
+        <strong>claimOk · false</strong>
+        Skipped. A machine with no saved login cannot see a logged-in page. That false is on purpose, not a failed public check.
+      </div>
+      <div>
+        <strong>claimOkProfile · true</strong>
+        A second browser that reused the saved login saw the claim. That is the reuse gate. <code>ok</code> alone is not enough.
+      </div>
     </div>
+    <div class="kinds" aria-label="Measured, redacted demo, and stripped wall">
+      <p><strong>Measured.</strong> Public page, no login. Does not prove a logged-in app.</p>
+      <p><strong>Redacted demo.</strong> Blurred logged-in page below, plus its receipt. The blur hides personal data. It is not a blank fail.</p>
+      <p><strong>Stripped wall.</strong> The player lower on this page is only a Microsoft sign-in wall. Emails and passwords are removed. Not logged-in proof.</p>
+    </div>
+    <figure class="hero">
+      <img
+        src="demo/consistencyhub.png"
+        alt="Blurred logged-in page from an auth-gated app. Redacted demo. The blur hides personal data. Not a blank fail."
+      />
+      <figcaption>
+        <strong>Redacted auth-gated SaaS demo.</strong>
+        ok true, claimOk false (skipped), claimOkProfile true.
+        <a href="demo/consistencyhub-receipt.json">Receipt</a>.
+      </figcaption>
+    </figure>
+    </div>
+    <figure class="aside-shot">
+      <img
+        src="demo/ironadamant.png"
+        alt="Cloud Chrome on ironadamant.com, a public page with no login"
+      />
+      <figcaption>
+        <strong>Measured public check</strong> (no login). ok true, claimOk true.
+        This does not prove a logged-in app.
+        <a href="demo/ironadamant-receipt.json">Receipt</a>
+      </figcaption>
+    </figure>
+    <p>
+      Recipe for any other site: <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>).
+      <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">Receipts</a>.
+    </p>
     <div class="card">
       <strong>Phone door.</strong>
       <code>npx auspex-solari login</code> prints one chooser link (<code>door.html</code>).
@@ -163,15 +203,20 @@ Pages never collect the key. Agents never type a password.</pre>
     </p>
   </header>
   <main>
+    <h2>Stripped wall</h2>
+    <p class="wall-label">
+      <strong>Microsoft login wall only.</strong>
+      Emails and passwords stripped. Not a logged-in recording and not logged-in proof.
+      Auspex did not type a password. The logged-in dashboard is the blur above.
+    </p>
     <iframe
       class="watch"
-      title="Auth-gated SaaS: Sign in with Microsoft. Emails and passwords stripped."
+      title="Stripped wall: Microsoft sign-in only. Emails and passwords stripped. Not logged-in proof."
       src="demo/replay.html"
       loading="lazy"
       referrerpolicy="no-referrer"
     ></iframe>
     <p>
-      The tape is an <strong>auth-gated Microsoft wall</strong> (emails and passwords stripped).
       This iframe is the Pages-generated player (<code>npm run generate:replay</code> from <code>replay.ndjson</code>).
       The committed repo file <code>demo/replay.html</code> is a stub, not the player.
       The logged-in dashboard is the blur above. We do not publish that session.
