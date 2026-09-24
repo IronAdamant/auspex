@@ -179,7 +179,7 @@ export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"
     `Never open Solari's editor on a phone (GET editor HTTP 401).`,
     `stream-expired → remint auspex_login. editorSave fail or editorFold no-cdp → finalize-login NOW; skip verify-with-profile (claimOkProfile will not pass).`,
     `hostChanged → remint auspex_login --profile <suggestedProfile> --url <suggestedUrl>. Do not save into the old profile.`,
-    `Expect matching and SPA sessionStorage: see AGENTS.md.`,
+    `Console Save is cookies and localStorage only. sessionStorage still needs finalize-login. Expect must be unique to the logged-in app surface, not marketing.`,
   ].join("\n")
 }
 
