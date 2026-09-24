@@ -4,7 +4,7 @@ Aron posts this from the personal Discord (nickname **Iron Adamant**). The agent
 
 Do not paste live API keys, `.env`, unredacted dashboards, live session ids, or promo codes. The `slr_live_…` line is an ellipsis placeholder.
 
-Watch URL is GitHub Pages (`https://ironadamant.com/auspex/`). The player is ConsistencyHub + Microsoft with emails and passwords stripped. Do not hero jsDelivr `replay.html`: it is served as `text/plain`, so the browser prints the source.
+Watch URL is GitHub Pages (`https://ironadamant.com/auspex/`). The player is ConsistencyHub + Microsoft with emails and passwords stripped. Do not hero jsDelivr `replay.html`: it is served as `text/plain`, so the browser prints the source. Do not open the committed repo `demo/replay.html` as the player — that file is a stub; Pages CI runs `npm run generate:replay`.
 
 Phone still: not in the paste yet. After the live phone test, attach that screenshot with the image button on the right of the composer, beside the watch-page shot. Do not claim the still before it exists.
 

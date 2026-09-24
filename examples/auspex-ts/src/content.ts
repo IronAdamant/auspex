@@ -72,6 +72,16 @@ export async function buildCheckToolContent(
   return buildReceiptToolContent(result, result.screenshotPath)
 }
 
+/** MCP desktop: ASCII log first, then schema-stamped JSON + optional PNG. Shared with CLI via runDesktopDoor. */
+export async function packDesktopToolContent(result: {
+  log?: string
+  screenshotPath?: string
+}): Promise<{ content: ToolContent[] }> {
+  const packed = await buildReceiptToolContent(result, result.screenshotPath)
+  if (result.log) packed.content.unshift({ type: "text", text: result.log })
+  return packed
+}
+
 /** MCP failure payload: structured issue plus any receipt/log/sessionId already produced. */
 export async function packToolFailure(err: unknown): Promise<{ content: ToolContent[]; isError: true }> {
   const extra = err instanceof AuspexError ? err : undefined

@@ -20,6 +20,7 @@ test("demo receipt has sessionId and no replayUrl", () => {
     matched?: boolean
     claimOk?: boolean
     verifyOk?: boolean
+    note?: string
   }
   assert.equal(receipt.ok, true)
   assert.equal(typeof receipt.sessionId, "string")
@@ -33,6 +34,9 @@ test("demo receipt has sessionId and no replayUrl", () => {
   assert.equal(receipt.matched, true)
   assert.equal(receipt.verifyOk, true)
   assert.equal(receipt.claimOk, true)
+  assert.equal((receipt.note ?? "").includes("open demo/replay.html"), false)
+  assert.match(receipt.note ?? "", /stub/)
+  assert.match(receipt.note ?? "", /generate:replay/)
 })
 
 test("demo ironadamant-receipt.json is schema v1", () => {

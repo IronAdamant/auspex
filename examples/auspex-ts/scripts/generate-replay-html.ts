@@ -1,4 +1,4 @@
-/** Build demo/replay.html from committed replay.ndjson. Used by Pages CI and local preview. */
+/** Build the rrweb player from committed replay.ndjson. Pages CI and local preview only — do not commit the generated file over the stub. */
 import { readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"

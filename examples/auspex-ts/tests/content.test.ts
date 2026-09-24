@@ -149,6 +149,21 @@ test("buildCheckToolContent notes a missing screenshot file", async () => {
   assert.match(note, /missing/)
 })
 
+test("packDesktopToolContent unshifts ASCII log then JSON", async () => {
+  const { packDesktopToolContent } = await import("../src/content.ts")
+  const desktopPayload = {
+    log: ":: booting\n==> ok=true",
+    screenshotPath: fixture,
+    ok: true,
+    desktopId: "desk-pack",
+  }
+  const packed = await packDesktopToolContent(desktopPayload)
+  const texts = packed.content.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : ""))
+  assert.equal(texts[0], ":: booting\n==> ok=true")
+  assert.match(texts.join("\n"), /desk-pack/)
+  assert.ok(packed.content.some((p) => p.type === "image"))
+})
+
 test("packToolFailure attaches a screenshot when AuspexError has a path", async () => {
   const { packToolFailure } = await import("../src/content.ts")
   const { AuspexError } = await import("../src/errors.ts")

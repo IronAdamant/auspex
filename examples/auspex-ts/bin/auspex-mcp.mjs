@@ -1,4 +1,4 @@
 #!/usr/bin/env node
-import { spawnAuspex } from "./run.mjs"
+import { spawnAuspexMcp } from "./run.mjs"
 
-spawnAuspex("src/mcp.ts")
+spawnAuspexMcp()

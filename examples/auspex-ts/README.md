@@ -85,15 +85,15 @@ Stdout for `check` is JSON: `ok`, `reason`, `url`, `expect`, `screenshotPath`, t
 
 ## MCP
 
-Auspex tools first. CI runs `npm run build:mcp` (do not commit `dist/`). Founder builds before npm publish.
+Auspex tools first. After a clone: `npm install && npm run build:mcp` (do not commit `dist/`). CI and founder `prepublishOnly` build the same way. Missing `dist/mcp.mjs` fail-closes (`DistMissing`).
 
-**Cursor** — `.cursor/mcp.json` in this repo is the drop-in (same shape as [mcp.cursor.example.json](mcp.cursor.example.json)). Restart Cursor. That plus `npm run public-check` is the loop: MCP tools for agents, weekly public pages for CI.
+**Cursor** — `.cursor/mcp.json` in this repo is the drop-in (same shape as [mcp.cursor.example.json](mcp.cursor.example.json)). After clone run `npm install && npm run build:mcp`, then restart Cursor. That plus `npm run public-check` is the loop: MCP tools for agents, weekly public pages for CI.
 
-**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path.
+**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path (same `npm install && npm run build:mcp`).
 
-**npx (stdio):** from the repo root, `npx auspex-mcp` or `node bin/auspex-mcp.mjs`. From this directory, `npx tsx src/mcp.ts`.
+**npx (stdio):** from the repo root, `npm run build:mcp` then `npx auspex-mcp` or `node bin/auspex-mcp.mjs`. Equivalent without dist: `npx tsx src/mcp.ts` from this directory.
 
-**Grok** — copy both tables from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. Auspex hero is `npx auspex-mcp` from the clone; if PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`. Dual Content-Length transport is Grok-specific.
+**Grok** — copy both tables from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. After clone: `npm install && npm run build:mcp`, then `npx auspex-mcp`. If PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs` (still needs `dist/mcp.mjs`). Official Solari sibling is `dist/solari-mcp.mjs`. Dual Content-Length transport is Grok-specific.
 
 Tools:
 

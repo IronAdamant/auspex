@@ -22,6 +22,7 @@ npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex reap
+# clone MCP: npm install && npm run build:mcp, then npx auspex-mcp (dist/ is gitignored)
 ```
 
 Named `--name consistencyhub` is an optional worked example (dogfood), not the default.

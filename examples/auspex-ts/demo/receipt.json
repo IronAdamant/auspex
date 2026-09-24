@@ -10,5 +10,5 @@
   "claimOk": true,
   "verifyOk": true,
   "claimErrors": [],
-  "note": "Presigned replay URLs are not returned or committed. Watch in https://console.getsolari.com → Sessions → this sessionId → Replay, or open demo/replay.html. Demo receipt uses synthetic sessionId placeholder."
+  "note": "Presigned replay URLs are not returned or committed. Watch the Pages player at https://ironadamant.com/auspex/demo/replay.html (CI runs npm run generate:replay from replay.ndjson). The committed demo/replay.html is a stub, not the player. Or watch in https://console.getsolari.com → Sessions → this sessionId → Replay. Demo receipt uses synthetic sessionId placeholder."
 }
