@@ -1,0 +1,55 @@
+# Auspex — agent quick card
+
+Source of truth: [AGENTS.md](AGENTS.md). This file is the short door. Product name is Auspex. ConsistencyHub and OneDrive are evidence only, not the default recipe.
+
+`ok` ≠ `claimOk` ≠ `claimOkProfile`. After `--verify-with-profile`, `claimOkProfile` is the reuse gate. `ok` alone is not enough to treat the profile as reusable. We do not claim Alice-vs-Bob wrong-account detection.
+
+## Frozen door sequence
+
+Seed/handoff door for off-site typing. Not a same-session VNC takeover.
+
+1. Mint `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Chooser is `handoff.url`. Phone: `handoff.mobileUrl`. Desktop: `handoff.desktopUrl`.
+2. Human logs in. Secrets stay off agent chat, MCP, and receipts.
+3. Human Save. Paste the copied line. The local field is cleared.
+4. `await-login --save-editor`, then `finalize-login` with `--url` and an expect unique to the logged-in app (absent from public marketing).
+5. Later `check`. Optional `--verify-with-profile`.
+
+New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
+
+## Schema v1 required keys
+
+Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required keys. Exit 0 only when `ok` is true.
+
+- `schemaVersion` — `1`
+- `ok` — agent success: `reason` is `matched`, and sandbox verify passed when it ran
+- `reason` — `matched` | `loggedOut` | `needsHuman` | `mismatch` | `network` | `recordedLoggedIn` | `expectMatchedPublicLanding` | `hostChanged` | `stream-expired`
+- `url` — requested URL, or landed URL if the request was empty
+- `expect` — claim substring
+- `screenshotPath` — on-disk PNG under `.auspex/runs/`
+
+## If stuck
+
+- `expectMatchedPublicLanding` — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save. Better URL and expect. Profile not saved.
+- `hostChanged` — live https host diverged. Remint `auspex_login` for `suggestedProfile` and `suggestedUrl`. Do not save into the old jar.
+- `stream-expired` with no cookies — remint. Do not poll await-login for 30 minutes.
+- `editorSave` 200 and a fold that cannot refresh sessionStorage, with cookies — finalize-login now. Do not remint on stream-expired alone. Do not `--verify-with-profile` on that fold.
+- `weakSeed` / `emptySave` — counted `sessionStorage === 0` (or a stale fold), or no profile. Remint or finalize-now. Not a verify-with-profile.
+- `429` — `auspex_reap` (ledger ids), then retry. Not retryable while the slot is held.
+- Silent mint — read `traceSummary` / `npx auspex trace` before reminting.
+
+## Do not
+
+- Type passwords or OTP. Never copy a password into chat.
+- `--record` a logged-in session.
+- Run `auspex_verify` after a default check.
+- Treat `ok` as `claimOk` or `claimOkProfile`.
+- Commit `SOLARI_API_KEY`, `.env`, or `.auspex/`.
+- Use npm `auspex` (a different scraper). Package is `auspex-solari`.
+- `npm publish`. Founder publishes.
+
+## Links
+
+- Contract: [AGENTS.md](AGENTS.md)
+- Receipts: [RECEIPTS.md](RECEIPTS.md)
+- Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
+- Install and commands: [examples/auspex-ts/README.md](examples/auspex-ts/README.md)
