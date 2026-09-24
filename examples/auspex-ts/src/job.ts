@@ -174,6 +174,14 @@ function applyFailClosedReceipt(record: JobRecord, receipt: AgentReceipt): boole
     record.ok = false
     return true
   }
+  if (receipt.reason === "stream-expired") {
+    record.status = "stream-expired"
+    record.phase = "failed"
+    record.reason = "stream-expired"
+    record.ok = false
+    record.nextCall = receipt.nextCall ?? remintLoginNextCall(record.profile)
+    return true
+  }
   return false
 }
 
