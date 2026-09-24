@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  doorStreamDisconnectAction,
+  imeAutocomplete,
+  imeInputType,
   isStreamExpired,
   jwtExpSeconds,
   parseUnixSeconds,
@@ -99,4 +102,41 @@ test("isStreamExpired and streamExpiryStamp stay off the JWT", () => {
   assert.equal(stamp.streamExpirySource, "jwt")
   assert.equal(stamp.streamExpiresAt, new Date(future * 1000).toISOString())
   assert.equal(JSON.stringify(stamp).includes("nbf"), false)
+})
+
+test("doorStreamDisconnectAction pauses a live JWT on background and remints only when gone", () => {
+  assert.equal(
+    doorStreamDisconnectAction({ streamExpired: true, pageHidden: true, reconnectAttempts: 0 }),
+    "remint",
+  )
+  assert.equal(
+    doorStreamDisconnectAction({ streamExpired: false, pageHidden: true, reconnectAttempts: 0 }),
+    "pause",
+  )
+  assert.equal(
+    doorStreamDisconnectAction({ streamExpired: false, pageHidden: false, reconnectAttempts: 0 }),
+    "reconnect",
+  )
+  assert.equal(
+    doorStreamDisconnectAction({ streamExpired: false, pageHidden: false, reconnectAttempts: 3 }),
+    "remint",
+  )
+  assert.equal(
+    doorStreamDisconnectAction({
+      streamExpired: false,
+      pageHidden: false,
+      reconnectAttempts: 2,
+      maxReconnects: 2,
+    }),
+    "remint",
+  )
+})
+
+test("imeAutocomplete stays discoverable and never off", () => {
+  assert.equal(imeAutocomplete({ bulletsOn: false }), "current-password")
+  assert.equal(imeAutocomplete({ bulletsOn: true }), "current-password")
+  assert.equal(imeAutocomplete({ bulletsOn: false, otpOn: true }), "one-time-code")
+  assert.equal(imeAutocomplete({ bulletsOn: true, otpOn: true }), "current-password")
+  assert.equal(imeInputType(false), "text")
+  assert.equal(imeInputType(true), "password")
 })

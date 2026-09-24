@@ -188,3 +188,36 @@ export function streamExpiryStamp(opts: { expiresAt?: string; jwt?: string }): {
     ...(exp !== undefined ? { streamExpiresAt: new Date(exp * 1000).toISOString() } : {}),
   }
 }
+
+/**
+ * Door follow-up after the noVNC WebSocket drops.
+ * Mobile Chrome suspends WS on background; that is not stream-expired by itself.
+ * Same JWT can reconnect while exp is still in the future. JWT cannot be extended
+ * from the door (hash is v/n/exp/u only; POST /editor/token has no TTL in-repo).
+ */
+export const DOOR_STREAM_MAX_RECONNECT = 3
+export const DOOR_STREAM_RECONNECT_GRACE_MS = 400
+
+export type DoorStreamAction = "remint" | "pause" | "reconnect"
+
+export function doorStreamDisconnectAction(opts: {
+  streamExpired: boolean
+  pageHidden: boolean
+  reconnectAttempts: number
+  maxReconnects?: number
+}): DoorStreamAction {
+  if (opts.streamExpired) return "remint"
+  if (opts.pageHidden) return "pause"
+  if (opts.reconnectAttempts >= (opts.maxReconnects ?? DOOR_STREAM_MAX_RECONNECT)) return "remint"
+  return "reconnect"
+}
+
+/** Password-manager attributes for the one typing field. Never autocomplete=off. */
+export function imeAutocomplete(opts: { bulletsOn: boolean; otpOn?: boolean }): "current-password" | "one-time-code" {
+  if (opts.otpOn && !opts.bulletsOn) return "one-time-code"
+  return "current-password"
+}
+
+export function imeInputType(bulletsOn: boolean): "password" | "text" {
+  return bulletsOn ? "password" : "text"
+}

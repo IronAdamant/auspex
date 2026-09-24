@@ -83,6 +83,16 @@
     #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
     #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
     #secretNote { margin: 8px 0 0; font-size: 12px; color: #9ab; }
+    #banner {
+      margin: 8px 12px 0; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid #3a4a60; background: #1a2230; color: #cde; font-size: 13px;
+    }
+    #banner strong { display: block; font-size: 14px; margin-bottom: 4px; color: #e8eef4; }
+    #imeForm { margin: 0; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
     body.locked #screen { pointer-events: none; }
     body.locked #ime, body.locked #row button, body.locked #bulletsLabel { opacity: 0.45; }
     .err { color: #f88; }
@@ -94,6 +104,10 @@
       <strong>Auspex desktop login</strong>
       <div id="ttl">Checking how long this link is active…</div>
       <div id="status">Desktop thin client. Seed/handoff door for typing — not a live-session takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off the AI chat, MCP, and receipts. This VNC link is short-lived (~5 min). Console Solari Save does not capture Microsoft/SPA sessionStorage — after Save the agent must run finalize-login. Expect must be unique to the logged-in app (not marketing). Dashboard does not match One Dashboard. This typing field is not a site picker. If remote Chrome opens a different site, the agent sees hostChanged and remints — do not finalize into the old profile. An idle saved profile is deleted on the next Auspex command after 30 minutes without use (purge only after the human agrees). Enter, Save, or lock clears this field.</div>
+      <div id="banner" role="status">
+        <strong>Same VNC token on disconnect.</strong>
+        A brief sleep or tab blur pauses the stream. Return while the link timer is live to reconnect. Password managers can autofill this field (check Show as bullets for a real password box). If the timer is gone or reconnect fails, status is stream-expired — remint. Desktop is not the product answer for phone password-manager backgrounding.
+      </div>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -109,8 +123,12 @@
       </div>
     </div>
     <div id="bar">
-      <input id="ime" type="text" autocapitalize="none" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Type here" aria-describedby="imeHint" />
-      <p id="imeHint">Click the remote address bar, or the remote field you mean to fill, before typing anything. Keys stream into remote Chrome as you type. Press Enter to send Enter and clear this field before the next field. Show as bullets is off by default so a password manager can paste into this text field.</p>
+      <form id="imeForm" action="#" method="post" autocomplete="on">
+        <label class="sr-only" for="imeUser">Account for password-manager matching. Not streamed.</label>
+        <input id="imeUser" class="sr-only" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" tabindex="-1" />
+        <input id="ime" name="password" type="text" autocapitalize="none" autocomplete="current-password" autocorrect="off" spellcheck="false" placeholder="Type here" aria-describedby="imeHint" />
+      </form>
+      <p id="imeHint">Click the remote address bar, or the remote field you mean to fill, before typing anything. Keys stream into remote Chrome as you type. Press Enter to send Enter and clear this field before the next field. Show as bullets is off by default so a password manager can paste into this text field. Check Show as bullets for a real password box so a password manager can autofill without leaving this tab.</p>
       <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
       <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>
       <div id="copied">Copied. Paste it in your AI chat.</div>
@@ -122,6 +140,7 @@
     </div>
   </div>
   <script src="./novnc-rfb.js"></script>
+  <script src="./door-stream.js"></script>
   <script>
     (function () {
       var XK_BACKSPACE = 0xff08
@@ -144,12 +163,34 @@
       var screen = document.getElementById("screen")
       var save = document.getElementById("save")
       var bullets = document.getElementById("bullets")
+      var imeUser = document.getElementById("imeUser")
+      var imeForm = document.getElementById("imeForm")
       var rfb = null
       var last = ""
       var clearing = false
       var bootTimer = null
       var tickTimer = null
+      var reconnectTimer = null
       var locked = false
+      var streamConnected = false
+      var streamPaused = false
+      var ignoreDisconnect = false
+      var reconnectAttempts = 0
+      var Door = (window.AuspexDoorStream) || {
+        MAX_RECONNECT: 3,
+        RECONNECT_GRACE_MS: 400,
+        doorStreamDisconnectAction: function (expired, hidden, attempts, maxAttempts) {
+          if (expired) return "remint"
+          if (hidden) return "pause"
+          if (attempts >= (maxAttempts || 3)) return "remint"
+          return "reconnect"
+        },
+        imeAutocomplete: function (bulletsOn, otpOn) {
+          if (otpOn && !bulletsOn) return "one-time-code"
+          return "current-password"
+        },
+        imeInputType: function (bulletsOn) { return bulletsOn ? "password" : "text" },
+      }
 
       function setStatus(text, err) {
         status.textContent = text
@@ -215,6 +256,7 @@
       function clearLocalSecrets() {
         clearing = true
         if (ime) ime.value = ""
+        if (imeUser) imeUser.value = ""
         last = ""
         clearing = false
       }
@@ -226,6 +268,7 @@
         if (ime) ime.disabled = true
         save.disabled = true
         if (bullets) bullets.disabled = true
+        if (imeUser) imeUser.disabled = true
         clearLocalSecrets()
         screen.style.pointerEvents = "none"
         expiredTitle.textContent = title
@@ -237,10 +280,13 @@
         setBoot(title, false)
         if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
         if (bootTimer) { clearInterval(bootTimer); bootTimer = null }
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
+        ignoreDisconnect = true
         if (rfb && typeof rfb.disconnect === "function") {
           try { rfb.disconnect() } catch (e) {}
         }
         rfb = null
+        streamConnected = false
       }
 
       function savePasteLine(name) {
@@ -333,7 +379,6 @@
         showCopied()
       })
 
-      var linkClosed = false
       var expSec = resolveExpirySeconds()
       if (!expSec) {
         lockUi(
@@ -344,7 +389,7 @@
       }
 
       function tick() {
-        if (locked || linkClosed) return
+        if (locked) return
         var left = expSec - Math.floor(Date.now() / 1000)
         if (left <= 0) {
           lockUi(
@@ -392,15 +437,29 @@
         for (var n = i; n < next.length; n++) sendChar(next.charAt(n))
       }
 
-      function applyBulletMode() {
+      function applyFieldMode() {
         if (!ime) return
         var keep = ime.value
+        var bulletsOn = Boolean(bullets && bullets.checked)
         clearing = true
-        ime.type = bullets && bullets.checked ? "password" : "text"
-        if (typeof ime.setAttribute === "function") ime.setAttribute("autocomplete", "off")
+        ime.type = Door.imeInputType(bulletsOn)
+        if (typeof ime.setAttribute === "function") {
+          ime.setAttribute("autocomplete", Door.imeAutocomplete(bulletsOn, false))
+        }
         if (ime.value !== keep) ime.value = keep
         last = keep
         clearing = false
+      }
+
+      function applyBulletMode() {
+        applyFieldMode()
+      }
+
+      if (imeForm) {
+        imeForm.addEventListener("submit", function (e) {
+          if (e && e.preventDefault) e.preventDefault()
+          return false
+        })
       }
 
       ime.addEventListener("input", function () {
@@ -465,37 +524,143 @@
       }
 
       var ws = "wss://api.getsolari.com/vnc-proxy/ws?token=" + encodeURIComponent(token)
-      try {
-        rfb = new RFB(screen, ws)
-        rfb.scaleViewport = true
-        rfb.resizeSession = true
-        rfb.background = "#0b0f14"
-        rfb.addEventListener("connect", function () {
-          if (locked) {
-            if (rfb && typeof rfb.disconnect === "function") {
-              try { rfb.disconnect() } catch (e) {}
+
+      function streamStillLive() {
+        return Boolean(expSec && expSec - Math.floor(Date.now() / 1000) > 0)
+      }
+
+      function pageHidden() {
+        if (typeof document.visibilityState === "string") return document.visibilityState === "hidden"
+        return Boolean(document.hidden)
+      }
+
+      function remintClosed() {
+        lockUi(
+          "The remote Chrome closed. A new login link is required.",
+          "The remote Chrome closed. A new login link is required. " + remintLine()
+        )
+      }
+
+      function pauseStream() {
+        streamPaused = true
+        streamConnected = false
+        setBoot("Remote Chrome paused. Return to this tab to reconnect.", false)
+        setStatus("Paused — this tab was backgrounded. The stream is not marked expired. Return before the link timer ends to reconnect the same VNC token. ironadamant.com still does not see keystrokes.")
+        ttl.className = "warn"
+      }
+
+      function closeRfb() {
+        ignoreDisconnect = true
+        if (rfb && typeof rfb.disconnect === "function") {
+          try { rfb.disconnect() } catch (e) {}
+        }
+        rfb = null
+        ignoreDisconnect = false
+      }
+
+      function clearScreenMount() {
+        if (!screen || typeof screen.removeChild !== "function") return
+        while (screen.firstChild) screen.removeChild(screen.firstChild)
+      }
+
+      function followDisconnect() {
+        if (locked || streamConnected) return
+        var action = Door.doorStreamDisconnectAction(
+          !streamStillLive(),
+          pageHidden(),
+          reconnectAttempts,
+          Door.MAX_RECONNECT
+        )
+        if (action === "pause") pauseStream()
+        else if (action === "reconnect") reconnectStream()
+        else remintClosed()
+      }
+
+      function reconnectStream() {
+        if (locked) return
+        if (!streamStillLive()) {
+          remintClosed()
+          return
+        }
+        if (reconnectAttempts >= Door.MAX_RECONNECT) {
+          remintClosed()
+          return
+        }
+        reconnectAttempts += 1
+        streamPaused = false
+        streamConnected = false
+        setBoot("Reconnecting to remote Chrome…", false)
+        setStatus("Reconnecting with the same VNC token. Not a new login link. If this fails, status is stream-expired.")
+        closeRfb()
+        clearScreenMount()
+        openRfb()
+      }
+
+      function scheduleDisconnectFollowup() {
+        if (reconnectTimer) clearTimeout(reconnectTimer)
+        reconnectTimer = setTimeout(function () {
+          reconnectTimer = null
+          followDisconnect()
+        }, Door.RECONNECT_GRACE_MS)
+      }
+
+      function onPageVisible() {
+        if (locked || !streamPaused) return
+        if (!streamStillLive()) {
+          remintClosed()
+          return
+        }
+        reconnectAttempts = 0
+        streamPaused = false
+        reconnectStream()
+      }
+
+      function openRfb() {
+        try {
+          rfb = new RFB(screen, ws)
+          rfb.scaleViewport = true
+          rfb.resizeSession = true
+          rfb.background = "#0b0f14"
+          rfb.addEventListener("connect", function () {
+            if (locked) {
+              closeRfb()
+              return
             }
-            rfb = null
-            return
-          }
-          setBoot("Opening Chromium…")
-          hideBootWhenReady()
-        })
-        rfb.addEventListener("securityfailure", function () {
-          if (locked) return
-          lockUi(
-            "VNC handshake failed",
-            remintLine("handshake-no-frames")
-          )
-        })
-        rfb.addEventListener("disconnect", function () {
-          if (locked) return
-          linkClosed = true
-          lockUi(
-            "The remote Chrome closed. A new login link is required.",
-            "The remote Chrome closed. A new login link is required. " + remintLine()
-          )
-        })
+            streamConnected = true
+            streamPaused = false
+            reconnectAttempts = 0
+            setBoot("Opening Chromium…")
+            hideBootWhenReady()
+          })
+          rfb.addEventListener("securityfailure", function () {
+            if (locked || ignoreDisconnect) return
+            lockUi(
+              "VNC handshake failed",
+              remintLine("handshake-no-frames")
+            )
+          })
+          rfb.addEventListener("disconnect", function () {
+            if (locked || ignoreDisconnect) return
+            streamConnected = false
+            scheduleDisconnectFollowup()
+          })
+        } catch (err) {
+          setBoot("Could not open the remote Chrome. Remint auspex login.", false)
+          setStatus("Could not open the remote Chrome. Remint auspex login.", true)
+        }
+      }
+
+      document.addEventListener("visibilitychange", function () {
+        if (pageHidden()) return
+        onPageVisible()
+      })
+      window.addEventListener("pageshow", function () {
+        if (pageHidden()) return
+        onPageVisible()
+      })
+
+      try {
+        openRfb()
       } catch (err) {
         setBoot("Could not open the remote Chrome. Remint auspex login.", false)
         setStatus("Could not open the remote Chrome. Remint auspex login.", true)
