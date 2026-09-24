@@ -282,6 +282,16 @@ test("summarizeLoginTrace does not say Mint ready when VNC/token mint failed", (
   assert.match(legacyReadyLabel, /VNC did not/)
 })
 
+test("summarizeLoginTrace says login mint does not send stealth", () => {
+  const s402 = summarizeLoginTrace([
+    { ts: "t", event: "login", profile: "app-example", solariStatus: 402, solariCode: "FeatureRequiresPlan" },
+  ])
+  assert.match(s402, /402/)
+  assert.match(s402, /does not send stealth/)
+  assert.match(s402, /POST \/sessions/)
+  assert.equal(/does not need stealth/.test(s402), false)
+})
+
 test("summarizeLoginTrace advises reap on 429 and remint on 503", () => {
   const s429 = summarizeLoginTrace([
     { ts: "t", event: "login", profile: "consistencyhub", solariStatus: 429, solariCode: "ConcurrencyLimitExceeded" },

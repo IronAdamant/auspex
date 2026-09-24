@@ -225,7 +225,7 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     return `${prefix} Mint stopped: Solari 429 ConcurrencyLimitExceeded. Call auspex_reap, then remint. Do not retry create while the slot is held.`
   }
   if (last.solariStatus === 402 || last.solariCode === "FeatureRequiresPlan") {
-    return `${prefix} Mint stopped: Solari 402 FeatureRequiresPlan. Not retryable. Drop stealth/proxy/captcha/desktop or upgrade. Login mint does not need stealth.`
+    return `${prefix} Mint stopped: Solari 402 FeatureRequiresPlan. Not retryable. Drop the gated option or upgrade. Login mint does not send stealth: POST /profiles/:id/login-handoff and the profile editor ignore a stealth body (same cold handoff, no 402). Stealth is honored only on POST /sessions (auspex check --stealth).`
   }
   if (last.solariStatus === 403 || last.solariCode === "PlanLimitExceeded") {
     return `${prefix} Mint stopped: Solari 403 PlanLimitExceeded. Not retryable. Delete unused profiles or upgrade. Do not retry create.`

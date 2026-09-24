@@ -89,6 +89,7 @@ Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
 - The live site moved to a different host than the one minted into the door (`hostChanged`). Mint login again. Leave the old profile alone.
 - The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. If save returned 200 but could not refresh in-tab session storage, run finalize-login now.
 - Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
+- Stealth applies only when a check opens a session (`auspex check --stealth`). Login mint cannot request it. The cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 
 ## Logged-in evidence
 
