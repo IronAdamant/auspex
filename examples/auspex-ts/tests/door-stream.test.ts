@@ -73,7 +73,7 @@ test("docs/door-stream.js matches the TypeScript door helpers", () => {
   assert.equal(Door.PREVIEW_ZOOM_MAX, PREVIEW_ZOOM_MAX)
   assert.equal(Door.PREVIEW_ZOOM_STEP, PREVIEW_ZOOM_STEP)
   assert.equal(Door.PREVIEW_ZOOM_DEFAULT, PREVIEW_ZOOM_DEFAULT)
-  assert.equal(Door.clampPreviewZoom(1.37), clampPreviewZoom(1.37))
+  assert.equal(Door.clampPreviewZoom(1.4), clampPreviewZoom(1.4))
   assert.equal(Door.nextPreviewZoom(1, 1), nextPreviewZoom(1, 1))
   assert.equal(Door.previewZoomLabel(1.5), previewZoomLabel(1.5))
   assert.equal(JSON.stringify(Door).includes("off"), false)
@@ -83,7 +83,7 @@ test("preview zoom clamps locally and does not invent remote DPI", () => {
   assert.equal(clampPreviewZoom(Number.NaN), PREVIEW_ZOOM_DEFAULT)
   assert.equal(clampPreviewZoom(0), PREVIEW_ZOOM_MIN)
   assert.equal(clampPreviewZoom(9), PREVIEW_ZOOM_MAX)
-  assert.equal(clampPreviewZoom(1.37), 1.5)
+  assert.equal(clampPreviewZoom(1.4), 1.5)
   assert.equal(nextPreviewZoom(1, 1), 1.25)
   assert.equal(nextPreviewZoom(1, -1), PREVIEW_ZOOM_MIN)
   assert.equal(nextPreviewZoom(PREVIEW_ZOOM_MAX, 1), PREVIEW_ZOOM_MAX)
@@ -127,4 +127,4 @@ test("preview zoom clamps locally and does not invent remote DPI", () => {
   inClicks[0]?.()
   assert.equal(live.get(), 2.5)
   void outClicks
-}))
+})
