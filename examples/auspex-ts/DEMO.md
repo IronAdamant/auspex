@@ -77,7 +77,7 @@ Weekly public loop (ironadamant.com `One office job.` + Checkpoint; skips withou
 npm run public-check
 ```
 
-MCP: copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok toml. Ask the agent to verify https://ironadamant.com for `"One office job."` via `auspex_check`.
+MCP: after clone run `npm install && npm run build:mcp`, then copy `mcp.cursor.example.json` or `mcp.claude.example.json`, or the Grok toml. Ask the agent to verify https://ironadamant.com for `"One office job."` via `auspex_check`.
 
 Public demo artifacts (Solari cloud Chrome, not a local window):
 

@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
-import { buildCheckToolContent, buildReceiptToolContent, packToolFailure } from "./content.ts"
+import { buildCheckToolContent, buildReceiptToolContent, packDesktopToolContent, packToolFailure } from "./content.ts"
 import { createProgress, type ProgressExtra } from "./progress.ts"
 import { readJobStatus } from "./job-store.ts"
 import { stampSchema } from "./schema-version.ts"
@@ -167,36 +167,15 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_desktop")
-        const { defaultDesktopDeps, runDesktopReview } = await import("./desktop.ts")
-        const result = await runDesktopReview({
-          ...defaultDesktopDeps(),
-          task: {
-            open,
-            type,
-            expect,
-            click: clickX !== undefined && clickY !== undefined ? { x: clickX, y: clickY } : undefined,
-          },
-          status: process.stderr,
+        const { runDesktopDoor } = await import("./runners.ts")
+        const result = await runDesktopDoor({
+          open,
+          type,
+          expect,
+          onProgress,
+          click: clickX !== undefined && clickY !== undefined ? { x: clickX, y: clickY } : undefined,
         })
-        const packed = await buildReceiptToolContent(
-          stampSchema({
-            ok: result.ok,
-            ready: result.ready,
-            processOk: result.processOk,
-            windowOk: result.windowOk,
-            clicked: result.clicked,
-            click: result.click,
-            matched: result.matched,
-            screenshotPath: result.screenshotPath,
-            errors: result.errors,
-            desktopId: result.desktopId,
-            streamUrl: result.streamUrl,
-            overview: result.overview,
-          }),
-          result.screenshotPath,
-        )
-        packed.content.unshift({ type: "text", text: result.log })
-        return packed
+        return packDesktopToolContent(result)
       } catch (err) {
         return packToolFailure(err)
       }

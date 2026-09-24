@@ -30,6 +30,30 @@ test("source tool-copy keeps fail-closed leads and triad phrases", () => {
   assert.match(REAP_DESCRIPTION, /accountWide/)
 })
 
+test("auspex-mcp fail-closes DistMissing when dist is absent", () => {
+  const missing = path.join(root, "dist", "no-such-mcp.mjs")
+  const bins = [
+    path.join(root, "bin", "auspex-mcp.mjs"),
+    path.join(path.resolve(root, "../.."), "bin", "auspex-mcp.mjs"),
+  ]
+  for (const bin of bins) {
+    const ran = spawnSync(process.execPath, [bin], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, AUSPEX_MCP_DIST: missing },
+    })
+    assert.notEqual(ran.status, 0, `${bin} must exit non-zero`)
+    const line = ran.stdout.trim().split("\n").find((row) => row.startsWith("{")) ?? ran.stdout
+    const payload = JSON.parse(line) as { ok?: boolean; schemaVersion?: number; code?: string; next?: string; error?: string }
+    assert.equal(payload.ok, false)
+    assert.equal(payload.schemaVersion, 1)
+    assert.equal(payload.code, "DistMissing")
+    assert.match(payload.error ?? "", /build:mcp/)
+    assert.match(payload.next ?? "", /build:mcp/)
+    assert.match(ran.stderr, /build:mcp/)
+  }
+})
+
 test("built dist/mcp.mjs keeps fail-closed gates (CI builds; not committed)", () => {
   const dist = ensureDist()
   assert.match(dist, /loopback address/)
