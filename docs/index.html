@@ -77,6 +77,7 @@
       display: block;
     }
     figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
+    .hero .dual-pack { margin: 0.35rem 0 0; font-size: 0.9rem; max-width: 46rem; }
     .wall-label { border-left: 3px solid var(--fg); padding-left: 12px; }
     .proof {
       border: 1px solid var(--border);
@@ -143,6 +144,14 @@
         ok true, claimOk false (skipped), claimOkProfile true.
         <a href="demo/consistencyhub-receipt.json">Receipt</a>.
       </figcaption>
+      <p class="dual-pack">
+        Same Microsoft login seed.
+        ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a>.
+        OneDrive: receipt-only <a href="demo/onedrive-receipt.json">onedrive-receipt.json</a> (no public PNG, PII).
+        Both: ok true, claimOk false (skipped), claimOkProfile true.
+        Worked evidence, not the recipe — strangers still use <code>login --url</code> plus their URL and expect.
+        <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#dual-pack-same-microsoft-seed">RECEIPTS.md Dual pack</a>.
+      </p>
     </figure>
     </div>
     <p class="proof">
