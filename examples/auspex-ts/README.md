@@ -52,6 +52,7 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 - `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or a stale fold. `emptySave` means the profile is missing or empty.
 - Show as bullets is off by default so a password manager can paste into the text field.
 - `desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. 402 on Free.
+- `--stealth` is on `check` only (`POST /sessions`). `login` has no `--stealth`: the cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 - Login trace: one post-handoff row after the handoff is ready. Check rows are not written. Never tokens, passwords, or session ids.
 - **429** is not retryable. Call `auspex_reap`, then retry.
 
