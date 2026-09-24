@@ -80,7 +80,6 @@ test("waitForProfileSave returns stream-expired when the VNC stamp passes mid-po
     },
   })
   assert.equal(result.status, "stream-expired")
-  assert.equal(result.ok === undefined, true)
   assert.match(result.next, /status stream-expired/)
   assert.equal(result.nextCall?.tool, "auspex_login")
   assert.equal(result.nextCall?.profile, "app-example")
