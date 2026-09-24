@@ -554,7 +554,7 @@ export async function waitForProfileSave(
   }
   
   if (status === "waiting") status = "timeout"
-  if ((status === "waiting" || status === "timeout") && streamIsPast(opts.streamExpiresAt, now())) {
+  if (status === "timeout" && streamIsPast(opts.streamExpiresAt, now())) {
     status = "stream-expired"
   }
   
