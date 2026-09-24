@@ -4,7 +4,7 @@ Agents often say a page loaded when it is still a login screen. Auspex opens the
 
 ## For Reviewers
 
-The ironadamant one-liner is a **measured public check** (no login). It does **not** prove logged-in honesty. **Auth-gated evidence** is the redacted demo: a redacted auth-gated SaaS demo, receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json). Watch with no clone and no API key: https://ironadamant.com/auspex/
+The ironadamant one-liner is a **measured public check** (no login). It does **not** prove logged-in honesty. **Auth-gated evidence** is the redacted demo: a redacted auth-gated SaaS demo, receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json). Watch with no clone and no API key: https://ironadamant.com/auspex/ — the landing opens on the blurred redacted demo and the three results; the player lower on the page is the stripped Microsoft wall, not logged-in proof.
 
 Recipe: `login --url <https>` (override `--profile <yours>`). We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session.
 
