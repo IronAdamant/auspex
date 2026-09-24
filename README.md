@@ -2,13 +2,19 @@
 
 Agents often say a page loaded when it is still a login screen. Auspex opens the site in Solari cloud Chrome (a browser Solari runs in their cloud, not on your computer), checks the claim, then checks again on a second machine.
 
+## For Reviewers
+
+The ironadamant one-liner is a **measured public check** (no login). It does **not** prove logged-in honesty. **Auth-gated evidence** is the redacted demo: a redacted auth-gated SaaS demo, receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json). Watch with no clone and no API key: https://ironadamant.com/auspex/
+
+Recipe: `login --url <https>` (override `--profile <yours>`). We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session.
+
+**Issues** is on. The weekly public job still skips if the secret is unset. Do not remove it. Repo `SOLARI_API_KEY` is **present** (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (2026-09-21) ironadamant + checkpoint `ok: true`.
+
 Three results come back. They are separate.
 
 - `ok` means the live browser matched the claim, and the second check passed when it ran.
 - `claimOk` means an anonymous second machine saw the claim, with no saved login.
-- `claimOkProfile` means a second browser that reused the saved login saw the claim. After `--verify-with-profile`, this is the signal that the saved login is worth reusing. `ok` alone is not enough.
-
-We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session.
+- `claimOkProfile` means a second browser that reused the saved login saw the claim. After `--verify-with-profile`, **`claimOkProfile` is the reuse gate**. `ok` alone is not enough to treat the profile as reusable.
 
 ## Login doors (Phone and Desktop)
 
@@ -20,34 +26,42 @@ We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwor
 
 ![Desktop login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-desktop.gif)
 
-These are handoff doors (you type or paste off-site). They are not a same-session remote desktop takeover. They are not a full logged-in SaaS walkthrough.
+These pages are a seed/handoff door (you type or paste off-site), not a same-session VNC takeover, and not a full logged-in SaaS walkthrough. Show as bullets is off by default so a password manager can paste into the text field.
 
 ## 30-second public proof
 
-This checks a public page. It does **not** prove logged-in honesty.
+**Public check** (no login). It does **not** prove logged-in honesty.
 
 ```bash
 export SOLARI_API_KEY=slr_live_…   # https://console.getsolari.com — env only, never commit
 npx auspex-solari check --name ironadamant
+npx -p auspex-solari auspex-mcp
 ```
 
 **Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.**
 
 npm `auspex` is a different scraper. `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
 
+After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
+
 ## Pick your path
 
 | Door | Open this |
 | --- | --- |
 | **Watch** (no clone, no API key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (Microsoft login wall; emails and passwords stripped) |
-| **Logged-in evidence** | Blurred dashboard below · [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) · [RECEIPTS.md](RECEIPTS.md) |
+| **Auth-gated evidence** | Redacted demo [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) · [RECEIPTS.md](RECEIPTS.md) |
 | **Public check** | `npx auspex-solari check --name ironadamant` — does **not** prove logged-in honesty |
 | **Any site** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
-| **Microsoft login** | 1. `npx auspex-solari login --url <https>` (profile name comes from the host). 2. Open `handoff.url` (Phone: `handoff.mobileUrl`, Desktop: `handoff.desktopUrl`). 3. You sign in and tap Save. 4. `await-login --save-editor`, then `finalize-login`. [Door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
-| **MCP** | `npx -p auspex-solari auspex-mcp` — paste the Cursor config below |
+| **Microsoft login** | 1. `npx auspex-solari login --url <https>` (override `--profile <yours>`). 2. Open `handoff.url` (Phone: `handoff.mobileUrl`, Desktop: `handoff.desktopUrl`). 3. You sign in and tap Save. 4. `await-login --save-editor`, then `auspex_finalize_login`. Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. [Frozen door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
+| **MCP** | `npx -p auspex-solari auspex-mcp` — Cursor config below |
 | **Hands-off job** | `npx auspex-solari job --url <https> --expect "<unique logged-in text>"`, then `job-status` |
-| **Issues** | On. Weekly public check: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (2026-09-21) ironadamant + checkpoint `ok: true`. |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY`, `.env`, or `.auspex/` |
+
+Anonymous verify is skipped for any attached profile on a non-public-marketing URL. Login, finalize, profile-status, reap, and trace are the auth + hygiene doors. The named Solari sandbox Mousepad demo is not your computer (402 on Free).
+
+`weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold. `emptySave` means the profile is missing. Skip `--verify-with-profile` on that seed.
+
+Login trace writes one post-handoff row. Check rows are not written. Never tokens, passwords, or session ids. If mint is silent, read `npx auspex-solari trace` before minting again.
 
 ## MCP
 
@@ -67,8 +81,6 @@ Cursor, using the published package (this build already includes the server file
 }
 ```
 
-After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
-
 Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
 
 ## When a check refuses
@@ -76,10 +88,7 @@ Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
 - The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
 - The live site moved to a different host than the one minted into the door (`hostChanged`). Mint login again. Leave the old profile alone.
 - The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. If save returned 200 but could not refresh in-tab session storage, run finalize-login now.
-- Cookies exist but in-tab session storage is empty or stale, or there is no saved profile (`weakSeed`, `emptySave`). Skip `--verify-with-profile` on that seed.
 - Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
-
-If login mint is silent, read `npx auspex-solari trace` before minting again. Deep contract: [AGENTS.md](AGENTS.md).
 
 ## Logged-in evidence
 
@@ -87,11 +96,24 @@ Blurred dashboard from a real logged-in app. The blur hides personal data. The n
 
 ![Redacted auth-gated SaaS demo (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
 
-On that receipt: `ok=true` (the live check passed), `claimOk=false` (the anonymous second machine was skipped), `claimOkProfile=true` (the saved login saw the claim). Commands: [package README](examples/auspex-ts/README.md#worked-example-dogfood). OneDrive is a receipt only (no raw screenshot).
+On that receipt: `ok=true` (the live check passed), `claimOk=false` (the anonymous second machine was skipped), `claimOkProfile=true` (the saved login saw the claim). OneDrive is a receipt only (no raw screenshot).
+
+## Worked example (dogfood)
+
+Evidence only — not the first command. Use the published package.
+
+```bash
+npx auspex-solari login --profile consistencyhub
+npx auspex-solari await-login --profile consistencyhub --save-editor
+npx auspex-solari finalize-login --profile consistencyhub
+npx auspex-solari check --name consistencyhub --verify-with-profile
+```
+
+Full fence: [package README](examples/auspex-ts/README.md#worked-example-dogfood).
 
 ## Links
 
-Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial.
+Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial. Deep contract: [AGENTS.md](AGENTS.md).
 
 - Reviewer skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
 - Agent contract: [AGENTS.md](AGENTS.md) · quick card: [llms.txt](llms.txt)
