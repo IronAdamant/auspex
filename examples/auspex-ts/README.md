@@ -112,6 +112,8 @@ See [AGENTS.md](../../AGENTS.md) (canonical) and [DEMO.md](DEMO.md).
 
 ## Worked example (dogfood)
 
+Backend-family door dogfood (2026-09-24, Sydney; prefer the chooser): [docs/dogfood-2026-09-24.md](docs/dogfood-2026-09-24.md).
+
 ConsistencyHub / OneDrive are **evidence that auth-gated SaaS works** — not the default recipe. The generic `login --url` / `--profile <yours>` path is the recipe; `--name consistencyhub` is the verified example. Do not invent that any host works without dogfood.
 
 ```bash

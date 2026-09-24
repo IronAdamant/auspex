@@ -61,6 +61,8 @@ The generic path is the recipe. A named saved check is optional; do not invent t
 
 ## Worked example (dogfood)
 
+Backend-family door dogfood (2026-09-24, Sydney; prefer the chooser): [docs/dogfood-2026-09-24.md](docs/dogfood-2026-09-24.md).
+
 Redacted auth-gated SaaS demo (ConsistencyHub). Evidence that auth-gated verify works — not the default recipe.
 
 ```bash

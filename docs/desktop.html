@@ -292,7 +292,14 @@
 
       function savePasteLine(name) {
         name = String(name || "").trim() || "<yours>"
-        return "I tapped Save on the Auspex desktop page for profile " + name + ". Run npx auspex await-login --profile " + name + " --save-editor (or auspex_await_login with saveEditor true). Do not open Solari's handoff page on a phone (GET editor HTTP 401). --save-editor does not refresh folded sessionStorage unless editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp: finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Remint if finalize-login returns needsHuman. Console Save is not fold: Microsoft/SPA sessionStorage still needs finalize-login --profile " + name + " (pass --url and --expect unique to the logged-in app, not marketing; Dashboard does not match One Dashboard). If remote Chrome opened a different site, await-login returns hostChanged — remint, do not finalize the old profile."
+        return "I tapped Save on the Auspex chooser/desktop door (Phone or Desktop, same hash) for profile " + name + ".\n" +
+          "Run: npx auspex await-login --profile " + name + " --save-editor\n" +
+          "(MCP: auspex_await_login with saveEditor true).\n" +
+          "Then: npx auspex finalize-login --profile " + name + " --url <https> --expect \"<unique logged-in text>\".\n" +
+          "Never open Solari's editor on a phone (GET editor HTTP 401).\n" +
+          "stream-expired → remint auspex_login. editorSave fail or editorFold no-cdp → finalize-login NOW; skip verify-with-profile (claimOkProfile will not pass).\n" +
+          "hostChanged → remint auspex_login --profile <suggestedProfile> --url <suggestedUrl>. Do not save into the old profile.\n" +
+          "Expect matching and SPA sessionStorage: see AGENTS.md."
       }
 
       function liveSiteUrl() {
