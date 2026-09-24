@@ -4,6 +4,18 @@ Canonical any-host instructions: [AGENTS.md](../../AGENTS.md) at the repository 
 
 We do **not** claim Alice-vs-Bob wrong-account detection. A seeded profile can still be the wrong Microsoft user and match expect.
 
+Quick card: [llms.txt](../../llms.txt). Human front door: [README.md](../../README.md).
+
+## If stuck, read this
+
+- **Remint vs finalize-now** — [Frozen agent door sequence](#frozen-agent-door-sequence). Empty `stream-expired` remints. `editorSave` 200 plus a fold that cannot refresh sessionStorage, with cookies, is finalize-login now.
+- **429 / reap** — [Rules](#rules) and `auspex_reap`. Not retryable while the slot is held.
+- **`expectMatchedPublicLanding`** — [Frozen agent door sequence](#frozen-agent-door-sequence). Expect hit a public or landing URL during save.
+- **`hostChanged`** — [Frozen agent door sequence](#frozen-agent-door-sequence) and [Rules](#rules). Remint for the live https origin. Do not save into the old jar.
+- **`weakSeed` / `emptySave`** — [Tools](#tools) (`auspex_profile_status`). Do not `--verify-with-profile` on a dead fold.
+- **Schema v1** — [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen) in the root contract. Required keys stay frozen.
+- **Job compose** — [Autonomous agents](#autonomous-agents-job-compose). Prefer `auspex_job`; step tools stay for debugging.
+
 ## First calls
 
 From npm (no clone): `npx auspex-solari <command>`. MCP: `npx -p auspex-solari auspex-mcp`. Do not use npm `auspex` (a different scraper). After clone: `npm install && npm run build:mcp`, then `npx auspex` / `npx auspex-mcp`.
@@ -17,9 +29,9 @@ npx auspex check https://example.com --expect "Example Domain"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex login --url https://app.example
 # derives --profile app-example from the URL host; override with --profile <yours>
-# New host: do not carry a previous --profile. Omit --profile or pass that host's slug. A mismatch sets profileHostMatch false and suggestedProfile; remint with that name.
-# human: open handoff.url (chooser: Phone or Desktop, same hash). Phone: handoff.mobileUrl in the phone's own Safari or Chrome (real text field). Chrome on phone is the dogfood browser. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving; paste still works with bullets off. If they swipe out for a manager or Mail (OTP), phone.html pauses and reconnects the same VNC token on return — remint only when stream-expired. Computer: handoff.desktopUrl (desktop.html). Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Seed/handoff door for off-site typing — not a Handraise-style same-session VNC takeover; tap Save on that page. Do not open Solari (GET editor HTTP 401). Then await-login --save-editor. Do not intern-ping.
-# mint is traced; if silent or login fails, read traceSummary / npx auspex trace before reminting (not a fourth primitive)
+# New host: omit --profile or pass that host's slug. Mismatch sets profileHostMatch false and suggestedProfile; remint.
+# Human: handoff.url (Phone or Desktop). Phone: handoff.mobileUrl. Desktop: handoff.desktopUrl. tap Save on that page. Do not intern-ping. Do not open Solari (GET editor HTTP 401).
+# If mint is silent or login fails, read traceSummary / npx auspex trace before reminting.
 npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"   # never --record
@@ -62,7 +74,7 @@ Fail-closed already on tip:
 
 Desktop is **not** the product answer for this path. Phone must work standalone.
 
-- **Dogfood browser:** Chrome on the phone (Safari also works). Operator note only — `phone.html` has no dogfood banner.
+- **Dogfood browser:** open `handoff.mobileUrl` in the phone's own Safari or Chrome (Safari also works). Operator note only — `phone.html` has no dogfood banner.
 - **Autofill without leaving Chrome:** the typing field is password-manager discoverable (`autocomplete="current-password"`, pairing `username` field, form that cannot POST). Check **Show as bullets** for a real `type=password` box (1Password / iOS Passwords / Android / Chrome). Paste still works with bullets off. **SMS / email code** sets `one-time-code`. Keys still stream only into remote Chrome; ironadamant.com does not see or store them.
 - **Brief background:** mobile Chrome suspends the WebSocket. The door **pauses** (does not mark `stream-expired`) and **reconnects the same VNC JWT** on visibility return. It does not invent a live stream.
 - **Solari limit (verified in-repo):** editor VNC tokens live ~305s (`streamExpirySource: jwt`). `POST /editor/token` has no TTL body. Door hash keys are `v,n,exp,u` only — no handoff token, no Solari HTTP from Pages. The JWT **cannot** be extended client-side. After `exp`, or if reconnect / `securityfailure` fails, `stream-expired` + remint `nextCall` stays honest.
@@ -111,6 +123,20 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 - `auspex_trace` — last **login mint** episode plus `traceSummary`. Traces **lead-up only** (`event: login`; API key, profile ensure, handoff POST, editor-start, editor-token). After the handoff is ready, production writes one redacted post-handoff row (status and fold reason: empty-save, editor 401, no-cdp, or finalize needsHuman). Check rows are not written. `mintStage: ready` only when VNC/token mint succeeded. If mint fails, the summary says why (missing key, 429, 402, 503, no url, editor-start HTTP, VNC timeout, empty handoff token). `--all` dumps history. Never tokens, passwords, excerpts, or session ids. If mint is silent or fails, **read `traceSummary` / `auspex_trace` before reminting**. Not a fourth primitive. Never commit `.auspex/`.
 - `auspex_job` — durable compose of mint→await→finalize→check. Prefer this for autonomous agents; step tools remain for debugging. Persist under `.auspex/jobs/` (gitignored). Resume with `jobId`. Optional `wakeWebhookUrl` / `AUSPEX_WAKE_WEBHOOK` (operator-local POST, not a Solari push API). On 429, ledger reap then `nextCall` resumes the job. `claimOkProfile` only after `verifyWithProfile`. Not a fourth primitive.
 - `auspex_job_status` — read the local job file; optional short `waitMs` (max 60s) until phase change. Honest local wake when no webhook is configured. Do not blind-poll `await-login` for 30 minutes.
+
+## Blame Solari vs Auspex
+
+| Signal | Whose | Retry? |
+| --- | --- | --- |
+| `402` FeatureRequiresPlan | Solari plan | No — drop stealth/proxy/captcha/desktop or upgrade |
+| `429` ConcurrencyLimitExceeded | Solari slot | No — `auspex_reap`, then retry |
+| `413` profile save too large | Solari limit | No — remint; leaner Save |
+| `502` / `503` / `504` | Solari infra | Yes, once (5–10s). Not `loggedOut` / `needsHuman` |
+| `loggedOut` / `needsHuman` | Auspex page | No — human SSO / remint |
+| `expectMatchedPublicLanding` | Auspex expect | No — better URL/expect |
+| `hostChanged` / `stream-expired` | Auspex door | No — remint `auspex_login` (`editorSave` 200 + fold miss with cookies is finalize-login now, not this row) |
+
+Detail is in [Rules](#rules) below. Do not conflate Solari HTTP with `loggedOut` or `needsHuman`.
 
 ## Rules
 
