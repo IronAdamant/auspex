@@ -221,25 +221,3 @@ export function imeAutocomplete(opts: { bulletsOn: boolean; otpOn?: boolean }): 
 export function imeInputType(bulletsOn: boolean): "password" | "text" {
   return bulletsOn ? "password" : "text"
 }
-
-/** Local CSS scale of the noVNC canvas. Does not change Solari remote DPI. */
-export const PREVIEW_ZOOM_MIN = 1
-export const PREVIEW_ZOOM_MAX = 2.5
-export const PREVIEW_ZOOM_STEP = 0.25
-export const PREVIEW_ZOOM_DEFAULT = 1
-
-export function clampPreviewZoom(value: number): number {
-  if (!Number.isFinite(value)) return PREVIEW_ZOOM_DEFAULT
-  const clamped = Math.min(PREVIEW_ZOOM_MAX, Math.max(PREVIEW_ZOOM_MIN, value))
-  const steps = Math.round(clamped / PREVIEW_ZOOM_STEP)
-  return Number((steps * PREVIEW_ZOOM_STEP).toFixed(2))
-}
-
-export function nextPreviewZoom(current: number, direction: number): number {
-  const delta = direction < 0 ? -PREVIEW_ZOOM_STEP : PREVIEW_ZOOM_STEP
-  return clampPreviewZoom(clampPreviewZoom(current) + delta)
-}
-
-export function previewZoomLabel(scale: number): string {
-  return `${Math.round(clampPreviewZoom(scale) * 100)}%`
-}
