@@ -22,8 +22,8 @@ export function seedHasCookies(seed: { cookies?: number; origins?: number }): bo
 }
 
 /**
- * True when the operator story is finalize-login, even if the VNC JWT is past.
- * Empty seeds stay on remint. A successful fold is not this path.
+ * Finalize only after a successful editor save whose fold cannot refresh sessionStorage.
+ * A failed editorSave plus leftover cookies is not this path (pre-login jars look the same).
  */
 export function shouldSteerToFinalize(opts: {
   editorSave?: EditorSaveSnap
@@ -33,11 +33,10 @@ export function shouldSteerToFinalize(opts: {
   hostChanged?: boolean
 }): boolean {
   if (opts.hostChanged) return false
+  if (!opts.editorSave?.ok) return false
   if (!seedHasCookies(opts)) return false
   if (opts.editorFold?.ok) return false
-  if (opts.editorSave?.ok) return foldCannotRefresh(opts.editorFold)
-  if (opts.editorSave && !opts.editorSave.ok) return foldCannotRefresh(opts.editorFold)
-  return false
+  return foldCannotRefresh(opts.editorFold)
 }
 
 export function foldMissFinalizeGuide(opts: {
@@ -60,7 +59,7 @@ export function foldMissFinalizeGuide(opts: {
       : `editorSave failed (${opts.editorSave.status}${opts.editorSave.error ? `: ${opts.editorSave.error}` : ""}). Fold cannot refresh sessionStorage.`
   const stream =
     opts.streamNoted
-      ? " The VNC JWT may already be past. That is not a remint. Cookies are already in the profile."
+      ? " The VNC JWT may already be past. editorSave succeeded and the profile has cookies. That is not a remint. Cookies alone are not proof of login."
       : ""
   const expectNote = targets.expect
     ? ""
