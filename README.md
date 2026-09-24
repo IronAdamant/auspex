@@ -10,7 +10,7 @@ The ironadamant one-liner is a **measured public check (no login)**. It does **n
 
 | Door | Open this |
 | --- | --- |
-| **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (auth-gated Microsoft wall, emails/passwords stripped) |
+| **Watch** (no clone, no key) | [Landing](https://ironadamant.com/auspex/) · [rrweb player](https://ironadamant.com/auspex/demo/replay.html) (auth-gated Microsoft wall, emails/passwords stripped). In-repo Phone and Desktop door GIFs are below. |
 | **Auth-gated evidence** | Redacted SaaS [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + receipt-only OneDrive dual pack — [RECEIPTS.md](RECEIPTS.md) |
 | **Public check (no login)** | `npx auspex-solari check --name ironadamant` |
 | **Any host** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
@@ -49,6 +49,18 @@ Do not run npm `auspex` (a different scraper). After a clone: `npm install && np
 Built for [Pinetree Research's intern challenge](https://x.com/harrychow_/status/2094437473912844480) ([submissions close 30 Sep](https://x.com/harrychow_/status/2099130594076557556)). Thesis: [PITCH.md](PITCH.md).
 
 ![Solari cloud Chrome checking ironadamant.com (measured public check, no login)](examples/auspex-ts/demo/ironadamant.png)
+
+### Login doors (Phone and Desktop)
+
+Silent screencasts of the Auspex login-door paths: login page → Phone or Desktop chooser → chosen door → remote Chrome opening on a Google New Tab. These are the handoff doors, not a full auth-gated SaaS walk and not the redacted ConsistencyHub dashboard below.
+
+**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab.
+
+![Phone login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-phone.gif)
+
+**Desktop** — Auspex login, then the Desktop door, then remote Chrome on a Google New Tab.
+
+![Desktop login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-desktop.gif)
 
 ### Auth-gated SaaS (redacted demo)
 
