@@ -12,7 +12,7 @@ We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwor
 
 ## Login doors (Phone and Desktop)
 
-**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The phone page has a real text field so the phone keyboard can open.
+**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The phone page has a real text field because Solari’s remote view will not open the phone keyboard — you type or paste there (a password manager works).
 
 ![Phone login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-phone.gif)
 
