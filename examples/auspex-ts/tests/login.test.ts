@@ -300,6 +300,8 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /autocomplete="current-password"/)
   assert.match(html, /door-stream\.js/)
   assert.match(html, /reconnectStream/)
+  assert.match(html, /id="zoomBar"/)
+  assert.match(html, /bindPreviewZoom/)
   assert.equal(html.includes("Chrome on this phone is the dogfood browser"), false)
   assert.equal(html.includes('id="banner"'), false)
   assert.equal(html.includes("location.href = saveUrl"), false)

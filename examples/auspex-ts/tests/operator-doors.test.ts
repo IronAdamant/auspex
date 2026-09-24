@@ -39,6 +39,21 @@ function assertTypingDoor(html: string, label: string) {
   assert.match(html, /id="bullets"/, `${label} bullets checkbox`)
   assert.match(html, /Show as bullets/, `${label} bullets label`)
   assert.match(html, /id="imeHint"/, `${label} typing hint`)
+  assert.match(html, /id="zoomBar"/, `${label} preview zoom bar`)
+  assert.match(html, /id="zoomOut"/, `${label} zoom out`)
+  assert.match(html, /id="zoomIn"/, `${label} zoom in`)
+  assert.match(html, /id="zoomReset"/, `${label} zoom reset`)
+  assert.match(html, /id="viewport"/, `${label} zoom viewport`)
+  assert.match(html, /--preview-zoom/, `${label} CSS preview scale`)
+  assert.match(html, /Remote preview zoom/, `${label} zoom group label`)
+  assert.ok(
+    html.indexOf('id="zoomBar"') < html.indexOf('id="bar"'),
+    `${label} zoom stays on the remote stage`,
+  )
+  assert.ok(
+    html.indexOf('id="zoomBar"') < html.indexOf('id="ime"'),
+    `${label} zoom does not sit in the typing bar`,
+  )
   assert.match(html, /remote field you want, then type here/, `${label} click-before-type hint`)
   assert.match(html, /Enter clears this box/, `${label} Enter clears`)
   assert.match(html, /Show as bullets for password autofill/, `${label} bullets how-to`)
@@ -187,6 +202,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.equal(desktop.includes("If the window is still blank, wait a few seconds or remint"), false)
   assert.match(watch, /door\.html/)
   assert.match(watch, /no Paste button/)
+  assert.match(watch, /enlarge the noVNC canvas/)
   assert.match(watch, /ironadamant\.com does not see/)
   assert.match(watch, /type the login again/)
   assert.match(watch, /do not host those credentials or session secrets/)
@@ -268,7 +284,7 @@ type DoorEl = {
   querySelector: () => null
   appendChild: (child: DoorEl) => DoorEl
   removeChild: (child: DoorEl) => DoorEl
-  style: Record<string, string>
+  style: Record<string, string> & { setProperty: (name: string, value: string) => void }
 }
 
 function loadDoor(
@@ -299,7 +315,6 @@ function loadDoor(
       checked: init?.checked ?? false,
       autocomplete: "",
       firstChild: null,
-      style: {},
       listeners: [],
       classList: {
         add(name: string) {
@@ -322,6 +337,11 @@ function loadDoor(
         if (name === "type") el.type = String(value ?? "")
         if (name === "autocomplete") el.autocomplete = String(value ?? "")
       },
+      style: Object.assign(Object.create({
+        setProperty(this: Record<string, string>, name: string, value: string) {
+          this[name] = value
+        },
+      }), {}),
       removeAttribute(name) {
         if (name === "hidden") el.hidden = false
         if (name === "href") el.href = ""
@@ -462,6 +482,32 @@ function emit(
   assert.ok(handler, `missing ${type} handler`)
   handler.fn(ev ?? { preventDefault() {} })
 }
+
+test("phone and desktop doors scale the remote preview without touching the typing field", () => {
+  for (const name of ["phone.html", "desktop.html"] as const) {
+    const loaded = loadDoor(readDoor(name), "")
+    const ime = loaded.byId.get("ime")
+    const viewport = loaded.byId.get("viewport")
+    const zoomIn = loaded.byId.get("zoomIn")
+    const zoomOut = loaded.byId.get("zoomOut")
+    const zoomReset = loaded.byId.get("zoomReset")
+    assert.ok(ime && viewport && zoomIn && zoomOut && zoomReset)
+    ime.value = PASSWORD
+    assert.equal(zoomReset.textContent, "100%")
+    assert.equal(viewport.style["--preview-zoom"], "1")
+    click(zoomIn)
+    assert.equal(viewport.style["--preview-zoom"], "1.25")
+    assert.equal(zoomReset.textContent, "125%")
+    assert.equal(ime.value, PASSWORD)
+    click(zoomIn)
+    assert.equal(viewport.style["--preview-zoom"], "1.5")
+    click(zoomReset)
+    assert.equal(viewport.style["--preview-zoom"], "1")
+    assert.equal(zoomReset.textContent, "100%")
+    assert.equal(ime.value, PASSWORD)
+    assert.equal(ime.disabled, false)
+  }
+})
 
 test("a served docs tree returns the chooser and desktop pages", async () => {
   const pages: Record<string, string> = {
