@@ -165,7 +165,7 @@ The actual agent contract is **[Receipt schema v1](AGENTS.md#receipt-schema-v1-f
 **Required fields:**
 - `schemaVersion` (frozen at `1`)
 - `ok` (boolean)
-- `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn` / `expectMatchedPublicLanding` / `hostChanged`)
+- `reason` (`matched` / `loggedOut` / `needsHuman` / `mismatch` / `network` / `recordedLoggedIn` / `expectMatchedPublicLanding` / `hostChanged` / `stream-expired`)
 - `url`
 - `expect`
 - `screenshotPath`

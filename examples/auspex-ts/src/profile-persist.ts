@@ -24,6 +24,7 @@ import {
   streamExpiredGuide,
 } from "./await-fail.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
+import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -508,6 +509,8 @@ export async function waitForProfileSave(
     url?: string
     mintUrl?: string
     pageUrl?: string
+    /** VNC JWT stamp. When set, the poll stops at this time instead of the 30-minute default. */
+    streamExpiresAt?: string
     deps: AwaitLoginDeps
   },
 ): Promise<AwaitLoginResult> {
@@ -516,7 +519,8 @@ export async function waitForProfileSave(
   const timeoutMs = clampAwaitLoginTimeoutMs(opts.timeoutMs)
   const sleepFn = opts.deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
   const now = opts.deps.now ?? Date.now
-  const deadline = now() + timeoutMs
+  const streamEnd = streamWatchDeadlineMs(opts.streamExpiresAt)
+  const deadline = streamEnd !== undefined ? Math.min(now() + timeoutMs, streamEnd) : now() + timeoutMs
   let profile = (await opts.deps.list()).find((p) => p.name.trim() === want)
   if (!profile) throw new Error(`Solari profile not found: ${want}. Run login --profile ${want} first.`)
   const since = opts.sinceVersion ?? profile.version ?? 0
@@ -525,7 +529,13 @@ export async function waitForProfileSave(
   let status: AwaitLoginStatus = "waiting"
   const inspectOrigin = inspectOriginForAwait({ name: want, url: opts.url })
 
-  while (now() < deadline) {
+  if (streamIsPast(opts.streamExpiresAt, now())) status = "stream-expired"
+
+  while (status === "waiting" && now() < deadline) {
+    if (streamIsPast(opts.streamExpiresAt, now())) {
+      status = "stream-expired"
+      break
+    }
     const rows = await opts.deps.list()
     profile = rows.find((p) => p.name.trim() === want)
     if (!profile) throw new Error(`profile ${want} no longer exists`)
@@ -543,8 +553,9 @@ export async function waitForProfileSave(
     await sleepFn(Math.min(HANDOFF_POLL_MS, remain))
   }
   
-  if (status === "waiting") {
-    status = "timeout"
+  if (status === "waiting") status = "timeout"
+  if ((status === "waiting" || status === "timeout") && streamIsPast(opts.streamExpiresAt, now())) {
+    status = "stream-expired"
   }
   
   const hostPatch = await import("./live-host-change.ts").then((m) =>
@@ -615,8 +626,25 @@ export async function liveAwaitLogin(
     const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
     const handle = await loadEditorSave(name).catch(() => undefined)
     if (handle?.siteUrl) mintUrl = handle.siteUrl
+    const streamPlan = awaitStreamPlan({
+      saveEditor: opts.saveEditor,
+      streamExpiresAt: handle?.streamExpiresAt,
+      timeoutMs: opts.timeoutMs,
+      nowMs: Date.now(),
+      defaultTimeoutMs: AWAIT_LOGIN_DEFAULT_MS,
+    })
+    if (streamPlan.preflight !== "proceed") streamExpired = true
     if (opts.saveEditor) {
-      if (!handle) {
+      if (streamPlan.preflight === "low" || streamPlan.preflight === "past") {
+        editorSave = {
+          ok: false,
+          status: 401,
+          error:
+            streamPlan.preflight === "low"
+              ? "stream-expired: VNC JWT has under 90s left; remint auspex_login"
+              : "stream-expired: VNC/handoff expiry is past; remint auspex_login",
+        }
+      } else if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" }
       } else if (isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
         streamExpired = true
@@ -681,10 +709,11 @@ export async function liveAwaitLogin(
       timeoutMs:
         streamExpired || editorHung
           ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
-          : opts.timeoutMs,
+          : streamPlan.waitTimeoutMs,
       url: opts.url,
       mintUrl,
       pageUrl,
+      streamExpiresAt: streamPlan.watchStreamExpiresAt,
       deps: {
         list: async () =>
           (await solari.profiles.list()).map((p) => ({
@@ -697,6 +726,7 @@ export async function liveAwaitLogin(
     })
     const host = await import("./live-host-change.ts")
     const patch = await host.rememberAwaitHostChange(waited.name, waited, foldChange)
+    if (waited.status === "stream-expired") streamExpired = true
     const failClosed =
       !patch && waited.status !== "completed" && waited.status !== "host-changed"
         ? streamExpired
