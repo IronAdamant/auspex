@@ -78,6 +78,13 @@
     }
     figcaption { color: var(--muted); font-size: 0.9rem; margin-top: 0.5rem; }
     .wall-label { border-left: 3px solid var(--fg); padding-left: 12px; }
+    .proof {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 0.75rem 0 0;
+    }
     @media (max-width: 800px) {
       .signals { grid-template-columns: 1fr; }
       .kinds { gap: 0.35rem; }
@@ -138,6 +145,12 @@
       </figcaption>
     </figure>
     </div>
+    <p class="proof">
+      <a href="https://www.npmjs.com/package/auspex-solari">npm auspex-solari@0.1.3</a>.
+      Install <code>auspex-solari</code> (not npm <code>auspex</code>). Repo is <a href="https://github.com/IronAdamant/auspex">IronAdamant/auspex</a>.
+      Actions measured check <a href="https://github.com/IronAdamant/auspex/actions/runs/35605123361">ok: true</a>
+      (2026-09-21, run 35605123361, ironadamant + checkpoint).
+    </p>
     <figure class="aside-shot">
       <img
         src="demo/ironadamant.png"
@@ -192,6 +205,19 @@
       An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
       not a live timer on this field. Purge a used login only after the human agrees.
       Door pages do not collect the Solari API key.
+    </div>
+    <div class="card">
+      <strong>Agent door.</strong>
+      Mint <code>login --url</code> (the profile comes from the host; <code>https://app.example</code> becomes <code>app-example</code>)
+      → the human opens the handoff and logs in
+      → the human taps Save and pastes the copied line
+      → <code>await-login --save-editor</code>
+      → <code>finalize-login</code>, then later <code>check</code> (optional <code>--verify-with-profile</code>).
+      Seed/handoff door for off-site typing — not a same-session VNC takeover.
+      Agents never type a password. Secrets stay off chat, MCP, and receipts.
+      <a href="https://github.com/IronAdamant/auspex/blob/main/AGENTS.md#frozen-agent-door-sequence">Frozen door sequence</a>
+      (<a href="https://github.com/IronAdamant/auspex/blob/main/llms.txt">llms.txt</a>).
+      A worked example is evidence only, not this recipe.
     </div>
     <pre class="key-paths" aria-label="Keyless Pages vs live SOLARI_API_KEY">human browser  →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in hash
 operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API

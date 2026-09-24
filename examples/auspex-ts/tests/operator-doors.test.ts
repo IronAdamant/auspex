@@ -177,6 +177,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   const watch = readDoor("index.html")
   assert.match(watch, /Phone door/)
   assert.match(watch, /Desktop door/)
+  assert.match(watch, /Agent door/)
   assert.match(watch, /not the Mousepad sandbox demo/)
   assert.match(watch, /keyless Pages/)
   assert.match(watch, /SOLARI_API_KEY or \.auspex\/operator-key/)
