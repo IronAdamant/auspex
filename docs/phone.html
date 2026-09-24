@@ -16,38 +16,8 @@
     #ttl.dead { color: #f88; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
     #status:empty { display: none; }
-    #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; overflow: hidden; }
-    #viewport {
-      --preview-zoom: 1;
-      position: absolute; inset: 0;
-      overflow: auto;
-      overscroll-behavior: contain;
-      touch-action: pan-x pan-y;
-    }
-    #zoomPad {
-      width: calc(100% * var(--preview-zoom));
-      height: calc(100% * var(--preview-zoom));
-      position: relative;
-    }
-    #screen {
-      position: absolute; top: 0; left: 0;
-      width: calc(100% / var(--preview-zoom));
-      height: calc(100% / var(--preview-zoom));
-      transform: scale(var(--preview-zoom));
-      transform-origin: 0 0;
-    }
-    #zoomBar {
-      position: absolute; right: 8px; bottom: 8px; z-index: 4;
-      display: flex; gap: 4px; padding: 4px;
-      border-radius: 10px; background: rgba(18, 24, 33, 0.88);
-      border: 1px solid #3a4a60;
-    }
-    #zoomBar button {
-      min-width: 2.25rem; min-height: 2.25rem; padding: 0 8px;
-      border: 0; border-radius: 8px; background: #e8eef4; color: #0b0f14;
-      font-size: 16px; font-weight: 700;
-    }
-    #zoomBar button:disabled { opacity: 0.4; }
+    #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; }
+    #screen { position: absolute; inset: 0; }
     #boot {
       position: absolute; inset: 0; z-index: 2;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -111,7 +81,6 @@
       overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
     }
     body.locked #screen { pointer-events: none; }
-    body.locked #zoomBar { pointer-events: none; opacity: 0.45; }
     body.locked #ime, body.locked #row button, body.locked #bulletsLabel, body.locked #otpLabel { opacity: 0.45; }
     .err { color: #f88; }
   </style>
@@ -128,16 +97,7 @@
         <div class="spin" aria-hidden="true"></div>
         <p id="bootText">Opening remote Chrome…</p>
       </div>
-      <div id="viewport">
-        <div id="zoomPad">
-          <div id="screen" data-solari-remote="vnc"></div>
-        </div>
-      </div>
-      <div id="zoomBar" role="group" aria-label="Remote preview zoom">
-        <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
-        <button type="button" id="zoomReset" aria-label="Reset zoom">100%</button>
-        <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
-      </div>
+      <div id="screen" data-solari-remote="vnc"></div>
       <div id="expired" role="alertdialog" aria-modal="true" aria-labelledby="expiredTitle">
         <div id="expiredBox">
           <strong id="expiredTitle">This login link has expired</strong>
@@ -198,10 +158,6 @@
       var otpMode = document.getElementById("otpMode")
       var imeUser = document.getElementById("imeUser")
       var imeForm = document.getElementById("imeForm")
-      var viewport = document.getElementById("viewport")
-      var zoomOut = document.getElementById("zoomOut")
-      var zoomIn = document.getElementById("zoomIn")
-      var zoomReset = document.getElementById("zoomReset")
       var rfb = null
       var last = ""
       var clearing = false
@@ -309,9 +265,6 @@
         if (bullets) bullets.disabled = true
         if (otpMode) otpMode.disabled = true
         if (imeUser) imeUser.disabled = true
-        if (zoomOut) zoomOut.disabled = true
-        if (zoomIn) zoomIn.disabled = true
-        if (zoomReset) zoomReset.disabled = true
         clearLocalSecrets()
         screen.style.pointerEvents = "none"
         expiredTitle.textContent = title
@@ -559,10 +512,6 @@
           if (ime && !ime.disabled) ime.focus()
         })
       }
-      if (Door.bindPreviewZoom) {
-        Door.bindPreviewZoom(function () { return locked }, viewport, zoomOut, zoomIn, zoomReset)
-      }
-
       var RFB = (window.NoVNCRFB && window.NoVNCRFB.default) || window.NoVNCRFB
       if (typeof RFB !== "function") {
         setBoot("Phone viewer failed to load. Remint auspex login.", false)
