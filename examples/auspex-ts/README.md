@@ -6,6 +6,8 @@ Product story: [root README](../../README.md). Behavior and the frozen contract:
 
 ## Run
 
+**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** The fence below is the local `auspex` bin after `npm install` in this directory. Without a clone, use `npx auspex-solari`.
+
 ```bash
 cd examples/auspex-ts
 npm install

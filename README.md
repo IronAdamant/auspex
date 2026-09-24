@@ -32,6 +32,8 @@ For Reviewers: the ironadamant one-liner is a **measured public check (no login)
 | **Issues** | On. Weekly `public` job is Monday + `workflow_dispatch`. Repo `SOLARI_API_KEY` is **present** (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) ironadamant + checkpoint `ok: true`. Still skips if that secret were unset. Do not remove it. |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY` / `.env` / `.auspex/` |
 
+**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.**
+
 ```bash
 export SOLARI_API_KEY=slr_live_…   # console.getsolari.com — env only, never commit
 npx auspex-solari check --name ironadamant
@@ -39,7 +41,7 @@ npx auspex-solari check https://example.com --expect "Example Domain"
 npx -p auspex-solari auspex-mcp
 ```
 
-Do not run npm `auspex` (a different scraper). After a clone: `npm install && npm run build:mcp` (`dist/` is gitignored), then `npx auspex` and `npx auspex-mcp`. **npm `auspex-solari` 0.1.3** is prepared on this tip (doors + fail-closed after published **0.1.2**). **Founder must publish.** Agents do not `npm publish`.
+npm `auspex` is a different scraper. After a clone: `npm install && npm run build:mcp` (`dist/` is gitignored), then `npx auspex` and `npx auspex-mcp`. `auspex-solari` **0.1.3 is published** on npm (latest). Agents do not `npm publish`.
 
 ## Fail-closed
 
