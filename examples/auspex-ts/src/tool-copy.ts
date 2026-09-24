@@ -40,7 +40,11 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. " +
   "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone/desktop Save " +
   "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
-  "If editorSave fails or editorFold is no-cdp, next says finalize-login NOW; leftover sessionStorage is not a fresh capture. " +
+  "If editorSave is 200 and editorFold is no-cdp and the profile has cookies, finalize-login NOW even when the VNC JWT is past. " +
+  "If editorSave fails, remint. Cookies alone are not proof of login. " +
+  "Leftover sessionStorage is not a fresh capture. " +
+  "Do not remint for stream-expired after editorSave 200 when cookies exist. Do not verify-with-profile on that fold. " +
+  "verify-with-profile after finalize uses a fresh session from the saved profile, not the editor JWT. " +
   "Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Stale/weak next: remint or finalize-now. " +
   "Statuses: completed | timeout | empty-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
   "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +

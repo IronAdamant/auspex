@@ -69,7 +69,7 @@ Chrome on the phone is the dogfood browser. Operator copy lives in AGENTS.md; `p
 
 - Autofill: the typing field uses `autocomplete="current-password"` (and optional `one-time-code`). Check Show as bullets for a real password box. The form cannot POST (`form-action 'none'`). Keys stream only into Solari remote Chrome.
 - Brief background (password manager / Mail / authenticator): mobile Chrome drops the WebSocket. The door **pauses** and **reconnects the same VNC JWT** on visibility return. That is not `stream-expired`.
-- Solari JWT is ~305s. In-repo `POST /editor/token` has no TTL. Pages cannot refresh the token (hash keys `v,n,exp,u` only). After `exp` or a failed reconnect/handshake, the door remints with `status stream-expired` (`nextCall auspex_login`). Do not fake a live stream.
+- Solari JWT is ~305s. In-repo `POST /editor/token` has no TTL. Pages cannot refresh the token (hash keys `v,n,exp,u` only). After `exp` or a failed reconnect/handshake, the door remints with `status stream-expired` (`nextCall auspex_login`) when the profile has no cookies. If `editorSave` already returned 200 and cookies exist, `await-login` leads with `finalize-login` instead. Do not fake a live stream. Design note: [stream-jwt-solari.md](stream-jwt-solari.md). Login typing limits: [login-handoff-input.md](login-handoff-input.md).
 
 ### `handshake-no-frames` (door UI)
 
