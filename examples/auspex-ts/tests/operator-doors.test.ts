@@ -48,7 +48,12 @@ function assertTypingDoor(html: string, label: string) {
   assert.match(html, /off by default/, `${label} bullets default documented`)
   assert.match(html, /<input id="ime"[^>]*type="text"/, `${label} visible text by default`)
   assert.equal(/<input id="bullets"[^>]*\schecked/.test(html), false, `${label} bullets default off`)
-  assert.equal(/<form[\s>]/i.test(html), false, `${label} no form post`)
+  assert.match(html, /<form id="imeForm"/, `${label} autofill form`)
+  assert.match(html, /form-action 'none'/, `${label} form cannot post off-origin`)
+  assert.match(html, /autocomplete="current-password"/, `${label} password autocomplete`)
+  assert.match(html, /id="imeUser"/, `${label} username pairing field`)
+  assert.match(html, /id="banner"/, `${label} notification banner`)
+  assert.equal(html.includes('autocomplete="off"'), false, `${label} autocomplete stays discoverable`)
   assert.equal(html.includes("sendBeacon"), false, `${label} no beacon`)
   assert.equal(html.includes("XMLHttpRequest"), false, `${label} no XHR`)
   assert.equal(/\bfetch\s*\(/.test(html), false, `${label} no fetch`)
@@ -58,8 +63,8 @@ function assertTypingDoor(html: string, label: string) {
   assert.equal(html.includes("gtag("), false, `${label} no gtag`)
   assert.deepEqual(
     [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((match) => match[1]),
-    ["./novnc-rfb.js"],
-    `${label} only the local noVNC client`,
+    ["./novnc-rfb.js", "./door-stream.js"],
+    `${label} local noVNC plus door-stream helpers`,
   )
   assert.equal(html.includes(">Paste URL<"), false, `${label} no URL paste`)
   assert.equal(html.includes('id="paste-url"'), false, `${label} no URL field`)
@@ -117,6 +122,10 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(desktop, /Auspex desktop login/)
   assert.equal(desktop.includes("phone keyboard"), false)
   assert.match(phone, /phone keyboard/)
+  assert.match(phone, /Chrome on this phone is the dogfood browser/)
+  assert.match(phone, /id="otpMode"/)
+  assert.equal(desktop.includes('id="otpMode"'), false)
+  assert.match(chooser, /Chrome on phone is the dogfood browser/)
   assert.equal(desktop.includes('id="solari-key"'), false)
   assert.equal(desktop.includes("Save Solari key"), false)
   assert.equal(desktop.includes("auspex.solariKey"), false)
@@ -243,6 +252,8 @@ type DoorEl = {
   disabled: boolean
   type: string
   checked: boolean
+  autocomplete: string
+  firstChild: DoorEl | null
   classList: { add: (name: string) => void; remove: (name: string) => void }
   listeners: Array<{ type: string; fn: (ev?: { key?: string; preventDefault?: () => void }) => void }>
   addEventListener: (type: string, fn: (ev?: { key?: string; preventDefault?: () => void }) => void) => void
@@ -253,6 +264,7 @@ type DoorEl = {
   setSelectionRange: () => void
   querySelector: () => null
   appendChild: (child: DoorEl) => DoorEl
+  removeChild: (child: DoorEl) => DoorEl
   style: Record<string, string>
 }
 
@@ -261,15 +273,18 @@ function loadDoor(
   hash: string,
   hooks?: {
     intervals?: Map<number, () => void>
+    timeouts?: Map<number, () => void>
     cleared?: number[]
     clients?: Array<{ fire: (type: string) => void }>
     keys?: number[]
+    hidden?: boolean
   },
 ) {
   const ids = [...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1] ?? "")
   const byId = new Map<string, DoorEl>()
   const stored = new Map<string, string>()
   function makeEl(init?: { hidden?: boolean; type?: string; checked?: boolean }): DoorEl {
+    const children: DoorEl[] = []
     const el: DoorEl = {
       textContent: "",
       value: "",
@@ -279,6 +294,8 @@ function loadDoor(
       disabled: false,
       type: init?.type ?? "",
       checked: init?.checked ?? false,
+      autocomplete: "",
+      firstChild: null,
       style: {},
       listeners: [],
       classList: {
@@ -299,6 +316,8 @@ function loadDoor(
       blur() {},
       setAttribute(name, value) {
         if (name === "hidden") el.hidden = value !== "false"
+        if (name === "type") el.type = String(value ?? "")
+        if (name === "autocomplete") el.autocomplete = String(value ?? "")
       },
       removeAttribute(name) {
         if (name === "hidden") el.hidden = false
@@ -307,7 +326,15 @@ function loadDoor(
       setSelectionRange() {},
       querySelector: () => null,
       appendChild(child: DoorEl) {
+        children.push(child)
+        el.firstChild = children[0] ?? null
         el.textContent = `${el.textContent}\n${child.textContent}`.trim()
+        return child
+      },
+      removeChild(child: DoorEl) {
+        const index = children.indexOf(child)
+        if (index >= 0) children.splice(index, 1)
+        el.firstChild = children[0] ?? null
         return child
       },
     }
@@ -322,15 +349,23 @@ function loadDoor(
       checked: /\schecked(?:\s|>|=)/.test(tag),
     }))
   }
+  const docListeners: Array<{ type: string; fn: () => void }> = []
   const document = {
+    hidden: hooks?.hidden ?? false,
+    visibilityState: hooks?.hidden ? "hidden" : "visible",
     getElementById: (id: string) => byId.get(id) ?? makeEl(),
     createElement: () => makeEl(),
     body: makeEl(),
     execCommand: () => false,
+    addEventListener: (type: string, fn: () => void) => {
+      docListeners.push({ type, fn })
+    },
   }
   const exp = Math.floor(Date.now() / 1000) + 600
   const location = { hash: hash || `#v=door-token&exp=${exp}&n=supabase-com` }
   let intervalId = 0
+  let timeoutId = 0
+  const timeouts = hooks?.timeouts ?? new Map<number, () => void>()
   const context: Record<string, unknown> = {
     document,
     location,
@@ -344,8 +379,14 @@ function loadDoor(
       hooks?.cleared?.push(id)
       hooks?.intervals?.delete(id)
     },
-    setTimeout: () => 1,
-    clearTimeout: () => {},
+    setTimeout: (fn: () => void) => {
+      timeoutId += 1
+      timeouts.set(timeoutId, fn)
+      return timeoutId
+    },
+    clearTimeout: (id: number) => {
+      timeouts.delete(id)
+    },
     atob: (value: string) => Buffer.from(value, "base64").toString("binary"),
     navigator: { clipboard: { writeText: async () => {}, readText: async () => "" } },
     localStorage: {
@@ -377,17 +418,31 @@ function loadDoor(
         addEventListener(type: string, fn: () => void) {
           listeners.push({ type, fn })
         },
+        disconnect() {},
       }
     }
   }
   context.window = context
+  context.addEventListener = () => {}
+  const streamJs = readFileSync(path.join(repo, "docs", "door-stream.js"), "utf8")
+  vm.runInNewContext(streamJs, context, { filename: "door-stream.js" })
   const scripts = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
     (match) => match[1] ?? "",
   )
   for (const code of scripts) {
     vm.runInNewContext(code, context, { filename: "door.html" })
   }
-  return { byId, stored, location }
+  function flushTimeouts() {
+    const pending = [...timeouts.values()]
+    timeouts.clear()
+    for (const fn of pending) fn()
+  }
+  function fireVisibility(hidden: boolean) {
+    document.hidden = hidden
+    document.visibilityState = hidden ? "hidden" : "visible"
+    for (const row of docListeners) if (row.type === "visibilitychange") row.fn()
+  }
+  return { byId, stored, location, document, flushTimeouts, fireVisibility }
 }
 
 function click(el: DoorEl | undefined) {
@@ -495,29 +550,63 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       assert.equal(minted.byId.get("keybox"), undefined)
     }
     const intervals = new Map<number, () => void>()
-    const cleared: number[] = []
+    const timeouts = new Map<number, () => void>()
     const clients: Array<{ fire: (type: string) => void }> = []
     const live = loadDoor(
       readDoor(name),
       `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
-      { intervals, cleared, clients },
+      { intervals, timeouts, clients },
     )
     live.byId.get("ime")!.value = PASSWORD
     assert.match(live.byId.get("ttl")?.textContent ?? "", /Link active/)
-    const ticking = [...intervals.entries()]
     assert.ok(clients[0])
     clients[0].fire("disconnect")
+    live.flushTimeouts()
     const status = live.byId.get("status")?.textContent ?? ""
-    const ttl = live.byId.get("ttl")?.textContent ?? ""
-    assert.match(status, /remote Chrome closed/)
+    assert.match(status, /Reconnecting with the same VNC token/)
+    assert.equal(status.includes("new login link is required"), false)
+    assert.equal(live.byId.get("ime")?.disabled, false)
+    assert.equal(live.byId.get("ime")?.value, PASSWORD)
+    assert.ok(clients.length >= 2, `${name} reconnect opens a new RFB`)
+
+    const pauseClients: Array<{ fire: (type: string) => void }> = []
+    const hidden = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
+      { clients: pauseClients, hidden: true },
+    )
+    hidden.byId.get("ime")!.value = PASSWORD
+    assert.ok(pauseClients[0])
+    pauseClients[0].fire("disconnect")
+    hidden.flushTimeouts()
+    assert.match(hidden.byId.get("status")?.textContent ?? "", /Paused/)
+    assert.equal(hidden.byId.get("ime")?.disabled, false)
+    assert.equal(hidden.byId.get("ime")?.value, PASSWORD)
+    hidden.fireVisibility(false)
+    assert.match(hidden.byId.get("status")?.textContent ?? "", /Reconnecting/)
+    assert.equal((hidden.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+  }
+})
+
+test("door remints after exhausted reconnects and on a truly expired stream", () => {
+  for (const name of ["phone.html", "desktop.html"] as const) {
+    const clients: Array<{ fire: (type: string) => void }> = []
+    const live = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+      { clients },
+    )
+    for (let i = 0; i < 4; i++) {
+      const client = clients[clients.length - 1]
+      assert.ok(client, `${name} missing RFB client ${i}`)
+      client.fire("disconnect")
+      live.flushTimeouts()
+    }
+    const status = live.byId.get("status")?.textContent ?? ""
     assert.match(status, /new login link is required/)
-    assert.equal(ttl.includes("Link active"), false)
-    assert.equal(live.byId.get("ime")?.value, "")
+    assert.match(status, /stream-expired/)
     assert.equal(live.byId.get("ime")?.disabled, true)
-    assert.equal(live.byId.get("bullets")?.disabled, true)
-    assert.ok(cleared.length > 0)
-    for (const [, fn] of ticking) fn()
-    assert.equal((live.byId.get("ttl")?.textContent ?? "").includes("Link active"), false)
+    assert.equal(live.byId.get("ime")?.value, "")
   }
 })
 
@@ -680,6 +769,7 @@ test("Enter clears the IME after sending the key, and bullets mode still sends r
     bullets.checked = true
     emit(bullets, "change")
     assert.equal(ime.type, "password")
+    assert.equal(ime.autocomplete, "current-password")
     assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
     emit(ime, "keydown", { key: "Enter", preventDefault() {} })
     ime.value = PASSWORD
@@ -697,5 +787,21 @@ test("Enter clears the IME after sending the key, and bullets mode still sends r
     bullets.checked = false
     emit(bullets, "change")
     assert.equal(ime.type, "text")
+    assert.equal(ime.autocomplete, "current-password")
+    if (name === "phone.html") {
+      const otp = loaded.byId.get("otpMode")
+      assert.ok(otp)
+      otp.checked = true
+      emit(otp, "change")
+      assert.equal(bullets.checked, false)
+      assert.equal(ime.type, "text")
+      assert.equal(ime.autocomplete, "one-time-code")
+    }
+    const user = loaded.byId.get("imeUser")
+    assert.ok(user)
+    user.value = USERNAME
+    click(loaded.byId.get("save"))
+    assert.equal(chat.value.includes(USERNAME), false)
+    assert.equal(user.value, "")
   }
 })

@@ -27,7 +27,7 @@ export const VERIFY_DESCRIPTION =
 export const LOGIN_DESCRIPTION =
   "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. " +
   "Mint once. handoff.url / oneLiner is the chooser (door.html). Labeled deep links: handoff.mobileUrl " +
-  "(phone.html, real text field) and handoff.desktopUrl (desktop.html). Packet also has openOnPhone, " +
+  "(phone.html, real text field; Chrome-on-phone dogfood; autofill / reconnect same VNC JWT; remint only when stream-expired) and handoff.desktopUrl (desktop.html). Packet also has openOnPhone, " +
   "openOnDesktop, qrPath. url without profile derives a safe host slug; explicit profile wins. " +
   "That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Never type in Solari noVNC on a phone " +
   "(software keyboard will not open). The agent never copies the password. After Save: " +

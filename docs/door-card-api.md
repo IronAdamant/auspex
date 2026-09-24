@@ -63,6 +63,14 @@ Expect must be unique to the logged-in app. `Dashboard` does not match `One Dash
 
 Not `loggedOut`, not `needsHuman`, not a Solari 502.
 
+### Phone background / password manager (door UI)
+
+Chrome on the phone is the dogfood browser. `phone.html` shows a notification banner.
+
+- Autofill: the typing field uses `autocomplete="current-password"` (and optional `one-time-code`). Check Show as bullets for a real password box. The form cannot POST (`form-action 'none'`). Keys stream only into Solari remote Chrome.
+- Brief background (password manager / Mail / authenticator): mobile Chrome drops the WebSocket. The door **pauses** and **reconnects the same VNC JWT** on visibility return. That is not `stream-expired`.
+- Solari JWT is ~305s. In-repo `POST /editor/token` has no TTL. Pages cannot refresh the token (hash keys `v,n,exp,u` only). After `exp` or a failed reconnect/handshake, the door remints with `status stream-expired` (`nextCall auspex_login`). Do not fake a live stream.
+
 ### `handshake-no-frames` (door UI)
 
 Phone/desktop lock after RFB `securityfailure` or ~30s with no canvas frames. Not a “Connected” lie.
