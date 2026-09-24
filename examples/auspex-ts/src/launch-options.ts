@@ -21,6 +21,14 @@ export function parseProxyFlag(raw: string | undefined, sticky?: string): Create
   return pin ? { country: v, session: pin } : v
 }
 
+/**
+ * Fresh session for claimOkProfile. Saved profile id only.
+ * No editor JWT, no fold CDP, no handoff token, no stealth flag.
+ */
+export function profileClaimSessionCreate(profileId: string): CreateSessionOptions {
+  return { profileId }
+}
+
 export function sessionCreateFromCheck(opts: {
   stealth?: boolean
   record?: boolean

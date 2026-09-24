@@ -1,3 +1,5 @@
+import { insertTextAt, pageHasInsertText } from "./remote-input.ts"
+
 export type ActionPage = {
   waitForSelector: (
     selector: string,
@@ -8,6 +10,7 @@ export type ActionPage = {
     click: (opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
   }
   evaluate: <R, Arg>(pageFunction: (arg: Arg) => R, arg?: Arg) => Promise<R>
+  keyboard?: { insertText: (text: string) => Promise<unknown> }
 }
 
 export type PageActionOpts = {
@@ -99,7 +102,19 @@ export async function runPageActions(
     if (isPassword) {
       throw new Error(PASSWORD_FILL_ERROR)
     }
-    await page.locator(opts.fill).fill(opts.value, { timeout, signal })
+    const box = page.locator(opts.fill)
+    if (pageHasInsertText(page)) {
+      await insertTextAt(
+        {
+          click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),
+          insertText: (text) => page.keyboard.insertText(text).then(() => undefined),
+        },
+        opts.value,
+        timeout,
+      )
+    } else {
+      await box.fill(opts.value, { timeout, signal })
+    }
     out.filled = opts.fill
   }
   if (opts.click) {

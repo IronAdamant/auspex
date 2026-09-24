@@ -53,7 +53,9 @@ Operators and agents: this is the **one** door-card sequence. It is a seed/hando
 Fail-closed already on tip:
 - `expectMatchedPublicLanding` (#61) — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save (`ok` false, `matched` false, profile not saved). Use a real app URL and a better expect.
 - `hostChanged` (#62) — live https host diverged from the minted door URL. Remint `auspex_login --profile <suggestedProfile> --url <suggestedUrl>`. Do not save into the old jar.
-- `stream-expired` — VNC/phone JWT or stored `streamExpiresAt` is past (or under ~90s left at `--save-editor` start). Await caps the Save poll to `streamExpiresAt` plus a short grace and re-checks that stamp each poll. `nextCall` remints `auspex_login`. Do not poll await-login for 30 minutes. Finalize and check refuse a new `POST /sessions` when that JWT is past and the profile has no completed non-empty seed.
+- `stream-expired` — VNC/phone JWT or stored `streamExpiresAt` is past (or under ~90s left at `--save-editor` start) **and the profile has no cookies**. Await caps the Save poll to `streamExpiresAt` plus a short grace. `nextCall` remints `auspex_login` only in that empty case. Do not poll await-login for 30 minutes. Finalize and check refuse a new `POST /sessions` when that JWT is past and the profile has no completed non-empty seed. Solari owns the ~5 minute editor JWT (`POST /editor/token` has no TTL). Auspex cannot lengthen it. See [docs/stream-jwt-solari.md](../../docs/stream-jwt-solari.md).
+- `editorSave` 200 + `editorFold` `no-cdp` (or any fold that cannot refresh sessionStorage) with cookies is **finalize-login now**, even if the JWT is already past. `status` is `completed`, `foldMiss` is true, `nextCall` is `auspex_finalize_login`. Do not remint because of stream-expired alone. Do not `--verify-with-profile` on that fold. After finalize writes the profile store, `--verify-with-profile` boots a **fresh** `POST /sessions` from that store (no editor JWT, no fold CDP). Default `--save-editor` chains finalize when url and expect are known (`--no-chain-finalize` opts out).
+- Same-product host move (explicit alias, today `app.skysql.com` and `cloud.mariadb.com`) updates the profile canonical URL and continues finalize. A different product stays `hostChanged` and remints.
 - `editor-save-hung` / `profile-busy` — editorSave/fold timed out or the save lock is held. Do not run finalize-login in parallel.
 
 ### Phone + password manager (Chrome-on-phone dogfood)
@@ -156,7 +158,7 @@ From the **repository root** after `npm install`: `npx auspex <command>`. Clone 
 npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
 npx auspex login [--profile <name>] [--url <https>] [--wait]
 npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
-npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>]
+npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
 npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex verify [runDir]
