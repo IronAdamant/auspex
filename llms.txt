@@ -44,11 +44,12 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - Run `auspex_verify` after a default check.
 - Treat `ok` as `claimOk` or `claimOkProfile`.
 - Commit `SOLARI_API_KEY`, `.env`, or `.auspex/`.
-- Use npm `auspex` (a different scraper). Package is `auspex-solari`.
+- Use npm `auspex` (a different scraper). Install `auspex-solari`. Repo is `IronAdamant/auspex`.
 - `npm publish`. Founder publishes.
 
 ## Links
 
+- Repo: [IronAdamant/auspex](https://github.com/IronAdamant/auspex) · npm package `auspex-solari`
 - Contract: [AGENTS.md](AGENTS.md)
 - Receipts: [RECEIPTS.md](RECEIPTS.md)
 - Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)

@@ -2,7 +2,9 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## 0.1.3 — unreleased (NEEDS-FOUNDER publish)
+## 0.1.3 — 2026-09-24 (published)
+
+npm `auspex-solari@0.1.3` is published (latest). Agents do not `npm publish`.
 
 Tip after #61–#65 (public-landing expect, `hostChanged` remint, door IME/Save, Site-URL `stripSecret`). This release adds:
 
@@ -19,7 +21,7 @@ Tip after #61–#65 (public-landing expect, `hostChanged` remint, door IME/Save,
 
 ## 0.1.2 — 2026-09-21 (published)
 
-npm `auspex-solari@0.1.2`. Later main commits #61–#65 are **not** in this tarball until 0.1.3 is published.
+npm `auspex-solari@0.1.2`. Later main commits #61–#65 shipped in published `auspex-solari@0.1.3`.
 
 ## Fail-closed / Solari-workaround labels (PR hygiene)
 
