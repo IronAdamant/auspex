@@ -25,6 +25,7 @@ import {
   type ProfileSaveResult,
   type ProfileSeed,
 } from "./profile-persist.ts"
+import { deadStreamCheckResult, shouldRefuseDeadStreamSession } from "./stream-deadline.ts"
 import {
   captureStorageState,
   isLoggedOutLanding,
@@ -285,6 +286,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let special: SpecialCheckReason | undefined
   let liveHostChange: LiveHostChange | undefined
   let workError: unknown
+  let refusedDeadStream = false
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
     try {
@@ -296,6 +298,22 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         mintHandle?.hostChanged && mintHandle.suggestedProfile && mintHandle.suggestedUrl
           ? { suggestedProfile: mintHandle.suggestedProfile, suggestedUrl: mintHandle.suggestedUrl }
           : undefined
+      if (opts.profile && mintHandle?.streamExpiresAt) {
+        const rows = await solari.profiles.list()
+        const row = rows.find((p) => p.name.trim() === opts.profile)
+        const raw = row as { sizeBytes?: unknown; storageStateS3Key?: unknown } | undefined
+        const sizeBytes = typeof raw?.sizeBytes === "number" ? raw.sizeBytes : undefined
+        if (
+          shouldRefuseDeadStreamSession({
+            streamExpiresAt: mintHandle.streamExpiresAt,
+            nowMs: Date.now(),
+            seed: { sizeBytes, storageStateS3Key: raw?.storageStateS3Key },
+          })
+        ) {
+          refusedDeadStream = true
+          return
+        }
+      }
       if (isCancelled()) return
       const browser = await observeAbort(
         launchBrowser(solari, sessionCreateFromCheck({ ...opts, profileId }), signal),
@@ -495,6 +513,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         if (workError) throw new Error(`${explainSolariError(workError)}; ${closeMsg}`)
         throw new Error(closeMsg)
       }
+    }
+    if (refusedDeadStream && opts.profile) {
+      return deadStreamCheckResult({ url: opts.url, expect: opts.expect, profile: opts.profile })
     }
     if (workError) {
       throw new AuspexError(explainSolariError(workError), {
