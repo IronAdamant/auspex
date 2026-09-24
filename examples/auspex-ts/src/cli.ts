@@ -37,7 +37,7 @@ export const USAGE = `Usage:
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
 CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
-Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged. Await also: stream-expired | editor-save-hung | profile-busy.
+Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged | stream-expired. Await also: editor-save-hung | profile-busy.
 ok is not claimOk and not claimOkProfile. claimOkProfile only after --verify-with-profile (reuse gate). They are not the same.
 429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.

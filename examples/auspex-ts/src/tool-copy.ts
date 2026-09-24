@@ -8,7 +8,7 @@ const DOOR = "Detail: docs/door-card-api.md and AGENTS.md."
 export const CHECK_DESCRIPTION =
   "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. " +
   "Live Solari check + schema v1 receipt (schemaVersion 1 is frozen; required schemaVersion, ok, " +
-  "reason matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged, " +
+  "reason matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged|stream-expired, " +
   "url, expect, screenshotPath). Default verify is HTTP fetch + OCR except name=consistencyhub / " +
   "profile=consistencyhub / attached profile on a non-public-marketing URL (defaults to verify=false). " +
   "verify=true is anonymous and poisons ok on auth-gated pages. verifyWithProfile adds claimOkProfile " +
@@ -43,6 +43,8 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "If editorSave fails or editorFold is no-cdp, next says finalize-login NOW; leftover sessionStorage is not a fresh capture. " +
   "Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Stale/weak next: remint or finalize-now. " +
   "Statuses: completed | timeout | empty-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
+  "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
+  "Under ~90s left, or once the stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll. " +
   "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +
   "Live host divergence: hostChanged, remint auspex_login. " +
   DOOR
@@ -53,6 +55,8 @@ export const FINALIZE_LOGIN_DESCRIPTION =
   "unknown profiles require url and expect. Reuse requires claimOkProfile=true from verifyWithProfile; " +
   "ok alone is not enough to treat the profile as reusable. Public-landing expect hit is " +
   "expectMatchedPublicLanding (not matched). Live host divergence: hostChanged, remint. " +
+  "If the editor-save VNC JWT (streamExpiresAt) is past and the profile has no completed non-empty seed, " +
+  "finalize refuses POST /sessions and returns reason stream-expired with a remint nextCall. " +
   "If profile is not the host slug: profileHostMatch false, suggestedProfile. " +
   DOOR
 
