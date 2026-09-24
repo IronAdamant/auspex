@@ -287,7 +287,7 @@ export const auspexAwaitLoginInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. If editorSave fails (e.g. 401) or editorFold is no-cdp, next says finalize-login NOW while the token is live; do not run verify-with-profile on a dead fold. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. editorSave 200 with editorFold no-cdp and cookies: finalize-login NOW. If editorSave fails (e.g. 401), remint — cookies are not proof of login. Do not run verify-with-profile on a dead fold. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
     ),
 })
 

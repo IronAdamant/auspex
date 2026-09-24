@@ -11,7 +11,6 @@ import {
   DEAD_FOLD_VWP_BAN,
   overlaySaveEditorNext,
   remintLoginGuidance,
-  SAVE_NOT_FOLD_NOW,
   saveEditorMissedFold,
   weakSeedWarning,
 } from "../src/profile-persist.ts"
@@ -163,10 +162,10 @@ test("overlaySaveEditorNext is loud when editorSave fails or editorFold misses",
   })
   assert.equal(failed.includes("Run auspex check"), false)
   assert.match(failed, /editorSave failed \(401: Unauthorized\)/)
-  assert.match(failed, /Finalize-login NOW while the token is live/)
+  assert.match(failed, /not proof this login saved/)
   assert.match(failed, /claimOkProfile will not pass/)
-  assert.match(failed, /Remint auspex_login if finalize-login returns needsHuman/)
-  assert.match(failed, new RegExp(SAVE_NOT_FOLD_NOW.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(failed, /Remint now:/)
+  assert.equal(/Finalize-login NOW/.test(failed), false)
 
   const noCdp = overlaySaveEditorNext({
     next: healthy,

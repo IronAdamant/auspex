@@ -33,14 +33,15 @@ test("editorSave 200 and fold no-cdp with cookies steers to finalize", () => {
   assert.equal(/auspex_login/.test(guide.text) && /Remint now:/.test(guide.text), false)
 })
 
-test("editorSave 401 with cookies still steers to finalize", () => {
+test("editorSave 401 with cookies does not steer to finalize", () => {
   assert.equal(
     shouldSteerToFinalize({
       editorSave: { ok: false, status: 401, error: "Unauthorized" },
       editorFold: { ok: false, reason: "no-cdp" },
       cookies: 2,
+      origins: 3,
     }),
-    true,
+    false,
   )
 })
 

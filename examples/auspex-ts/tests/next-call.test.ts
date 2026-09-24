@@ -228,7 +228,8 @@ test("save-editor overlay does not replace a leading retry, remint, or empty sav
     profile: timeout.name,
     editorSave: { ok: false, status: 401, error: "unauthorized" },
   })
-  assert.ok(timeoutGuided.text.indexOf("retry auspex_await_login") < timeoutGuided.text.indexOf("Finalize-login NOW"))
+  assert.match(timeoutGuided.text, /not proof this login saved/)
+  assert.equal(/Finalize-login NOW/.test(timeoutGuided.text), false)
   assert.equal(timeoutGuided.nextCall?.tool, "auspex_await_login")
   assert.equal(timeoutGuided.nextCall?.saveEditor, undefined)
 

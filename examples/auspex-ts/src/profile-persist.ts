@@ -249,7 +249,7 @@ export function saveEditorMissedFold(opts: {
   return false
 }
 
-/** Append the fold miss. The incoming nextCall stays the lead; the footer does not retarget it. */
+/** Fold miss after a successful save keeps the incoming nextCall. A failed editorSave does not point nextCall at finalize. */
 export function overlaySaveEditorGuidance(opts: {
   next: string
   nextCall?: NextCall
@@ -257,7 +257,12 @@ export function overlaySaveEditorGuidance(opts: {
   editorSave?: { ok: boolean; status: number; error?: string }
   editorFold?: EditorFoldResult
 }): { text: string; nextCall?: NextCall } {
-  return { text: overlaySaveEditorNext(opts), nextCall: opts.nextCall }
+  const failedSave = opts.editorSave && !opts.editorSave.ok
+  const nextCall =
+    failedSave && opts.nextCall?.tool === "auspex_finalize_login"
+      ? remintLoginNextCall(opts.profile)
+      : opts.nextCall
+  return { text: overlaySaveEditorNext(opts), nextCall }
 }
 
 /** Louder await-login next when --save-editor failed to refresh folded sessionStorage. */
@@ -277,6 +282,13 @@ export function overlaySaveEditorNext(opts: {
         : "editorFold missing after editorSave; leftover sessionStorage is not a fresh capture."
   const stripped = opts.next.replace(/\s*Run auspex check with --profile \S+\.?/g, "").trim()
   const prefix = stripped || opts.next
+  if (opts.editorSave && !opts.editorSave.ok) {
+    const remint = remintLoginGuidance(opts.profile)
+    return (
+      `${prefix} ${why} Cookies in the profile are not proof this login saved (a pre-login jar looks the same). ` +
+      `${remint} Do not finalize-login on this seed. If a later finalize returns needsHuman, that remint stands. ${DEAD_FOLD_VWP_BAN}`
+    )
+  }
   if (prefix.includes("Finalize-login NOW") && prefix.includes("claimOkProfile will not pass")) {
     return `${prefix} ${why} ${SAVE_NOT_FOLD_NOW}`
   }
