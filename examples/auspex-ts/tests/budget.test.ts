@@ -31,6 +31,10 @@ test("check+verify worst-case budget fits Auspex MCP host timeout; Solari stays 
     CHECK_THEN_VERIFY_WORST_MS <= auspex,
     `CHECK_THEN_VERIFY_WORST_MS ${CHECK_THEN_VERIFY_WORST_MS} exceeds Auspex tool_timeout_sec ${auspex}`,
   )
+  assert.ok(
+    auspex >= 1_800_000,
+    `Auspex tool_timeout_sec ${auspex} is under the 30-minute await-login cap`,
+  )
 })
 
 test("profile claim budget is the remainder of VERIFY_OVERALL_MS, not a second envelope", () => {

@@ -331,6 +331,40 @@ test("clone MCP and replay stub stay honest after slim", () => {
   assert.match(saveDemo, /Does not overwrite the committed demo\/replay\.html stub/)
 })
 
+test("published MCP paste cards use auspex-solari, env, and the job path for long awaits", () => {
+  const claude = readFileSync(path.join(pkg, "mcp.claude.example.json"), "utf8")
+  const grok = readFileSync(path.join(pkg, "grok.mcp.example.toml"), "utf8")
+  const claudeMd = readFileSync(path.join(repo, "CLAUDE.md"), "utf8")
+  const hosts = readFileSync(path.join(repo, "docs", "HOSTS.md"), "utf8")
+  const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
+  for (const [label, text] of [
+    ["mcp.claude.example.json", claude],
+    ["grok.mcp.example.toml", grok],
+    ["root README.md", rootReadme],
+    ["docs/HOSTS.md", hosts],
+  ] as const) {
+    assert.match(text, /auspex-solari/, `${label} must name the published package`)
+    assert.match(text, /auspex-mcp/, `${label} must name the MCP bin`)
+    assert.match(text, /SOLARI_API_KEY/, `${label} must put the key in env`)
+  }
+  assert.match(claude, /"-p"/)
+  assert.match(grok, /args = \["-p", "auspex-solari", "auspex-mcp"\]/)
+  assert.match(grok, /SOLARI_API_KEY = "\$\{SOLARI_API_KEY\}"/)
+  assert.match(grok, /tool_timeout_sec = 1800/)
+  const auspexBlock = grok.split("[mcp_servers.solari]")[0] ?? ""
+  assert.equal(auspexBlock.includes("tool_timeout_sec = 300"), false, "Auspex Grok block must not use a 300s tool timeout")
+  assert.match(claudeMd, /@AGENTS\.md/)
+  assert.match(claudeMd, /@llms\.txt/)
+  assert.ok(claudeMd.length < 800, "CLAUDE.md stays a thin pointer")
+  for (const host of ["Qwen Code", "Kimi Code", "DeepSeek Harness", "OpenHands"]) {
+    assert.match(hosts, new RegExp(host))
+  }
+  assert.match(hosts, /auspex_job/)
+  assert.match(hosts, /Doubao/)
+  assert.match(hosts, /does not publish one/)
+  assert.equal(/https?:\/\/[^\s)]*auspex[^\s)]*\/mcp/.test(hosts), false, "HOSTS.md must not invent an Auspex HTTP MCP URL")
+})
+
 test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
