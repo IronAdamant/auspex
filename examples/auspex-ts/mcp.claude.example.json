@@ -1,10 +1,12 @@
 {
   "mcpServers": {
     "auspex": {
-      "_comment": "After clone: npm install && npm run build:mcp (dist/ is gitignored). Then restart Claude. npx auspex-mcp fail-closes DistMissing if dist/mcp.mjs is absent.",
+      "_comment": "Published package. No clone. Put SOLARI_API_KEY in env. Clone path after npm run build:mcp is npx auspex-mcp with cwd set to the repo. Missing dist/mcp.mjs fail-closes DistMissing.",
       "command": "npx",
-      "args": ["auspex-mcp"],
-      "cwd": "/path/to/auspex"
+      "args": ["-p", "auspex-solari", "auspex-mcp"],
+      "env": {
+        "SOLARI_API_KEY": "slr_live_…"
+      }
     }
   }
 }

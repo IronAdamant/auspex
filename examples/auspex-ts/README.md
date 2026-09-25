@@ -58,15 +58,23 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 
 ## MCP
 
-After a git clone, run `npm install && npm run build:mcp` in this directory (do not commit `dist/`). If `dist/mcp.mjs` is missing, MCP fail-closes with reason `DistMissing` (not an empty silent server). From this directory without `dist/`: `npx tsx src/mcp.ts`.
+Strangers paste the published package. No clone. Command `npx`, args `-p`, `auspex-solari`, `auspex-mcp`, and `SOLARI_API_KEY` in `env`. Cursor, Claude, and Grok blocks are on the [root README](../../README.md#mcp).
 
-**Published package** — `npx -p auspex-solari auspex-mcp` already includes `dist/`. Paste-ready Cursor `mcp.json` (command `npx`, args `-p`, `auspex-solari`, `auspex-mcp`, `SOLARI_API_KEY` in `env`) is on the [root README](../../README.md#mcp).
+**Claude** — [mcp.claude.example.json](mcp.claude.example.json) is that published JSON (Desktop `claude_desktop_config.json` or Claude Code `.mcp.json`). Terminal:
 
-**Cursor (this clone)** — repo [`.cursor/mcp.json`](../../.cursor/mcp.json) matches [mcp.cursor.example.json](mcp.cursor.example.json). After `npm install && npm run build:mcp`, restart Cursor.
+```bash
+claude mcp add --transport stdio auspex --env SOLARI_API_KEY=slr_live_… -- npx -p auspex-solari auspex-mcp
+```
 
-**Claude Desktop** — merge [mcp.claude.example.json](mcp.claude.example.json) into `claude_desktop_config.json` with an absolute path (same clone build).
+Claude Code reads [CLAUDE.md](../../CLAUDE.md), which points at [AGENTS.md](../../AGENTS.md).
 
-**Grok** — copy [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. If PATH lacks node, pin absolute `node` plus `bin/auspex-mcp.mjs`.
+**Grok Build** — copy the `auspex` block from [grok.mcp.example.toml](grok.mcp.example.toml) into `~/.grok/config.toml`. It sets `env = { SOLARI_API_KEY = "${SOLARI_API_KEY}" }`, `startup_timeout_sec = 120` (cold `npx`), and `tool_timeout_sec = 1800`.
+
+**Long login waits** — `await-login` can run about 30 minutes. A tool timeout near 300 seconds ends before that wait. Call `auspex_job`, then `auspex_job_status`. A single check fits in a few minutes. Same note on the [root README](../../README.md#mcp) and [docs/HOSTS.md](../../docs/HOSTS.md).
+
+**Other hosts** — Qwen Code, Kimi Code, DeepSeek Harness, OpenHands: [docs/HOSTS.md](../../docs/HOSTS.md). Local stdio only. No Auspex HTTP URL.
+
+**After a git clone** — `npm install && npm run build:mcp` in this directory (do not commit `dist/`). If `dist/mcp.mjs` is missing, MCP fail-closes with reason `DistMissing` (not an empty silent server). From this directory without `dist/`: `npx tsx src/mcp.ts`. Repo [`.cursor/mcp.json`](../../.cursor/mcp.json) matches [mcp.cursor.example.json](mcp.cursor.example.json). Restart Cursor after the build. The Solari sibling in the Grok file is that clone path (`dist/solari-mcp.mjs`), separate from the Auspex paste.
 
 Tool list: [AGENTS.md](../../AGENTS.md#tools).
 

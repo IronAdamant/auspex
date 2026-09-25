@@ -83,7 +83,13 @@ Login trace writes one post-handoff row (one redacted note after the login door 
 
 ## MCP
 
-Cursor, using the published package (this build already includes the server files). Put `SOLARI_API_KEY` in `env`.
+The agent connection is a local program: `npx -p auspex-solari auspex-mcp`. Put `SOLARI_API_KEY` in `env`. No clone. The published package already includes the server files.
+
+There is no Auspex web address for a cloud connector. Claude.ai custom connectors need a remote HTTP MCP server. This repo does not publish one. Solari's hosted browser MCP is a different product from this login-truth gate.
+
+A login wait (`await-login`) can run for about 30 minutes while a person signs in. A tool timeout of about 300 seconds ends before that wait. For a hands-off run, use `auspex_job`, then `auspex_job_status` (CLI: `npx auspex-solari job`, then `job-status`). A single public check fits in a few minutes.
+
+### Cursor
 
 ```json
 {
@@ -99,7 +105,37 @@ Cursor, using the published package (this build already includes the server file
 }
 ```
 
-Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
+### Claude
+
+Same JSON for Claude Desktop (`claude_desktop_config.json`) and a Claude Code project file (`.mcp.json`). File: [mcp.claude.example.json](examples/auspex-ts/mcp.claude.example.json).
+
+```bash
+claude mcp add --transport stdio auspex --env SOLARI_API_KEY=slr_live_… -- npx -p auspex-solari auspex-mcp
+```
+
+Claude Code reads [CLAUDE.md](CLAUDE.md), which points at [AGENTS.md](AGENTS.md) and [llms.txt](llms.txt).
+
+### Grok Build
+
+Copy into `~/.grok/config.toml` or a project `.grok/config.toml`. Grok expands `${SOLARI_API_KEY}` from your environment. Full file: [grok.mcp.example.toml](examples/auspex-ts/grok.mcp.example.toml).
+
+```toml
+[mcp_servers.auspex]
+command = "npx"
+args = ["-p", "auspex-solari", "auspex-mcp"]
+env = { SOLARI_API_KEY = "${SOLARI_API_KEY}" }
+enabled = true
+startup_timeout_sec = 120
+tool_timeout_sec = 1800
+```
+
+`startup_timeout_sec` is 120 because the first `npx` download can be slow. `tool_timeout_sec` is 1800 seconds (30 minutes), the same cap as `await-login`. The previous example used 300. That covers one check and ends during the login wait. Prefer `auspex_job` when the host will not hold a tool call that long.
+
+### Other hosts
+
+Qwen Code, Kimi Code, DeepSeek Harness, and OpenHands can start this same local program. Paste cards: [docs/HOSTS.md](docs/HOSTS.md). Following the English door and the three results is up to the model. This page does not claim Doubao, MarsCode, or a GLM IDE as an Auspex host.
+
+Contributors who cloned the repo still run `npm install && npm run build:mcp` in `examples/auspex-ts`. Clone Cursor file: [mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json). Notes: [package README](examples/auspex-ts/README.md#mcp).
 
 ## When a check refuses
 
@@ -135,7 +171,8 @@ Full fence: [package README](examples/auspex-ts/README.md#worked-example-dogfood
 Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial. Deep contract: [AGENTS.md](AGENTS.md).
 
 - Reviewer skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
-- Agent contract: [AGENTS.md](AGENTS.md) · quick card: [llms.txt](llms.txt)
+- Agent contract: [AGENTS.md](AGENTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md) · quick card: [llms.txt](llms.txt)
+- Host paste cards: [docs/HOSTS.md](docs/HOSTS.md)
 - Receipts: [RECEIPTS.md](RECEIPTS.md) · thesis: [PITCH.md](PITCH.md)
 - Apply path (Harry Chow, LinkedIn 2026-08-31): fork the cookbook, ship a real Solari use case, make the repo public, and tag @harrychow_ @getsolari on LinkedIn or X. The tagged post is founder-only.
 - Console — [console.getsolari.com](https://console.getsolari.com) · Docs — [docs.getsolari.com](https://docs.getsolari.com)
