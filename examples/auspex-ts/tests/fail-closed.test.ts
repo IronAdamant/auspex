@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
-  isAuthGatedAnonymousVerifyHost,
   isNoRetryReason,
   mayRetryCheck,
   shouldVerifyAfterCheck,
@@ -91,10 +90,6 @@ test("shouldVerifyCheck skips anonymous verify for ad-hoc auth hosts with a prof
     }),
     true,
   )
-  assert.equal(isAuthGatedAnonymousVerifyHost("https://onedrive.live.com/"), true)
-  assert.equal(isAuthGatedAnonymousVerifyHost("https://www.onedrive.live.com/"), true)
-  assert.equal(isAuthGatedAnonymousVerifyHost("https://ironadamant.com"), false)
-  assert.equal(isAuthGatedAnonymousVerifyHost("https://example.com"), false)
 })
 
 test("shouldVerifyCheck skips anonymous verify for any attached profile except public marketing", () => {

@@ -3,6 +3,7 @@ import test from "node:test"
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { doorSaveSiteUrl } from "../src/live-host-change.ts"
 import {
   CONSOLE_PROFILES_URL,
   DOOR_HANDOFF_PAGE,
@@ -21,7 +22,6 @@ import {
   loginInstructions,
   desktopHandoffUrlFromPhone,
   doorHandoffUrlFromPhone,
-  desktopSaveSiteUrl,
   phoneHandoffUrl,
   qrPayloadForHandoff,
   requestLoginHandoff,
@@ -155,14 +155,14 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(new URL(desktopWithSite).pathname.endsWith("/desktop.html"), true)
   assert.equal(new URL(desktopWithSite).hash, new URL(withSite).hash)
   assert.equal(new URL(desktopWithSite).hash.includes("u=https"), true)
-  assert.equal(desktopSaveSiteUrl("https://consistencyhub.io", ""), "https://consistencyhub.io")
+  assert.equal(doorSaveSiteUrl("", "https://consistencyhub.io", ""), "https://consistencyhub.io")
   assert.equal(
-    desktopSaveSiteUrl("https://consistencyhub.io", "https://app.example/login"),
+    doorSaveSiteUrl("", "https://consistencyhub.io", "https://app.example/login"),
     "https://consistencyhub.io",
   )
-  assert.equal(desktopSaveSiteUrl("http://insecure.example", "notaurl"), "")
+  assert.equal(doorSaveSiteUrl("", "http://insecure.example", "notaurl"), "")
   assert.equal(
-    desktopSaveSiteUrl("https://myapp.example/dashboard", "https://typed.example/secret", "https://app.socialaize.com/home?q=1"),
+    doorSaveSiteUrl("https://app.socialaize.com/home?q=1", "https://myapp.example/dashboard", "https://typed.example/secret"),
     "https://app.socialaize.com",
   )
   const secret = "fixture-login-password"

@@ -6,21 +6,23 @@ import {
   isBoundTimeoutMessage,
   isProfileBusyMessage,
   profileBusyAwaitGuide,
-  remintLoginNextCall,
   STREAM_EXPIRED_STATUS,
   streamExpiredGuide,
 } from "../src/await-fail.ts"
+import { remintLoginNextCall } from "../src/next-call.ts"
 import { ProfileBusyError } from "../src/profile-lock.ts"
 
 test("stream-expired guide remints auspex_login and is parseable", () => {
   const g = streamExpiredGuide("app-example")
   assert.match(g.text, /status stream-expired/)
   assert.match(g.text, /not loggedOut/)
-  assert.match(g.text, /auspex login --profile app-example/)
+  assert.match(g.text, /Remint now: npx auspex login --profile app-example/)
+  assert.equal(/ignore this remint/i.test(g.text), false)
+  assert.equal(/finalize-login instead/i.test(g.text), false)
   assert.equal(g.nextCall.tool, "auspex_login")
   assert.equal(g.nextCall.profile, "app-example")
   assert.equal(STREAM_EXPIRED_STATUS, "stream-expired")
-  assert.deepEqual(remintLoginNextCall("app-example"), { tool: "auspex_login", profile: "app-example" })
+  assert.deepEqual(g.nextCall, remintLoginNextCall("app-example"))
 })
 
 test("editor-save-hung and profile-busy do not point at finalize-login", () => {
