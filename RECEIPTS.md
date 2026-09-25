@@ -43,6 +43,17 @@ npx auspex check --name consistencyhub --verify-with-profile
 ### Dual pack (same Microsoft seed)
 Published redacted receipts — evidence, not the default recipe. Strangers still use `login --url <https>` plus *their* URL and expect.
 
+#### Two truths
+
+The artifact table is **Truth A** only. It does not mean Save always yields a reusable login. `ok` ≠ `claimOk` ≠ `claimOkProfile`.
+
+| | What you see | What to do |
+| --- | --- | --- |
+| **Truth A — finished seed** | Finalize captured the app session. The ConsistencyHub blur + receipt and the OneDrive receipt-only pack both show `claimOkProfile` true. | A later `--verify-with-profile` can reuse that seed. Evidence, not the default recipe. |
+| **Truth B — picture is not the jar** | `editorSave` returned 200. The live host is already the app. The jar is still IdP-only: Microsoft or Google sign-in cookies, in-tab session storage 0. Status `idp-only-save`, kind `app-visible`. | Do not finalize. Solari handoff Save stores cookies and local storage. It cannot read the in-tab session token. That is not Auspex broken, and it is not a reason to mint again to finish Microsoft. That receipt has no next step. |
+
+`sign-in-wall` is still on the Microsoft or Google page. Finish that sign-in, land on the app, then Save. That one mints again. If the jar already includes the app host and Save could not refresh in-tab session storage, finalize now. That case is not Truth B.
+
 | Host | Artifact | Triad |
 | --- | --- | --- |
 | ConsistencyHub | [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + [blurred PNG](examples/auspex-ts/demo/consistencyhub.png) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
