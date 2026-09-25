@@ -405,6 +405,61 @@ test("waitForProfileSave treats a 0-cookie version bump as empty-save", async ()
   assert.match(ok.next, /claimOkProfile/)
 })
 
+test("waitForProfileSave fail-closes an IdP-only jar without a second version bump", async () => {
+  const hosts = ["live.com", "login.live.com", "login.microsoft.com", "login.microsoftonline.com"]
+  let slept = 0
+  const idp = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 20,
+    timeoutMs: 60_000,
+    url: "https://consistencyhub.io",
+    inspectExisting: true,
+    deps: {
+      now: () => 0,
+      sleep: async () => {
+        slept += 1
+      },
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 20 }],
+      inspect: async () => ({
+        cookies: 4,
+        origins: 1,
+        sessionStorage: 0,
+        cookieHosts: hosts,
+      }),
+    },
+  })
+  assert.equal(idp.status, "idp-only-save")
+  assert.equal(idp.idpCookies, true)
+  assert.deepEqual(idp.cookieHosts, hosts)
+  assert.equal(idp.nextCall?.tool, "auspex_login")
+  assert.match(idp.next, /Finish Microsoft or Google/)
+  assert.match(idp.next, /land on the app UI, then tap Save/)
+  assert.equal(/finalize-login NOW/.test(idp.next), false)
+  assert.equal(slept, 0)
+
+  const site = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 20,
+    timeoutMs: 5_000,
+    url: "https://consistencyhub.io",
+    inspectExisting: true,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => (t += 1_000)
+      })(),
+      sleep: async () => undefined,
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 21 }],
+      inspect: async () => ({
+        cookies: 5,
+        origins: 2,
+        sessionStorage: 0,
+        cookieHosts: [...hosts, "consistencyhub.io"],
+      }),
+    },
+  })
+  assert.equal(site.status, "completed")
+  assert.equal(site.idpCookies, undefined)
+})
+
 test("pageForSession uses the default context even when storageState has cookies", async () => {
   let newContextCalls = 0
   const defaultPage = { id: "default" }
