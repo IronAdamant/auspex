@@ -34,6 +34,7 @@ export const LOGIN_DESCRIPTION =
   "auspex_await_login with saveEditor true (GET editor HTTP 401 if you open Solari on a phone). " +
   "wait:true / --wait is that same saveEditor path. If profile is not the host slug: profileHostMatch false, " +
   "suggestedProfile, remint nextCall. " +
+  "Solari editor start 409 is status editor-busy (reason editor-start-409): a prior editor is still running. Do not finalize-login. Wait for it to close, or purge after the human agrees, then remint. " +
   DOOR
 
 export const AWAIT_LOGIN_DESCRIPTION =
@@ -50,7 +51,7 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Stale/weak next: remint or finalize-now. " +
   "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
   "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
-  "Under ~90s left, or once the stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll. " +
+  "Once that stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll and not before the stamp. " +
   "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +
   "Live host divergence: hostChanged, remint auspex_login. " +
   DOOR

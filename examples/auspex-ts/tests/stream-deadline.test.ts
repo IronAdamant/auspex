@@ -27,7 +27,7 @@ test("awaitStreamPlan caps save-editor to streamExpiresAt plus grace", () => {
   assert.equal(plan.watchStreamExpiresAt, stamp)
 })
 
-test("awaitStreamPlan low-JWT preflight does not keep the 30-minute timeout", () => {
+test("awaitStreamPlan keeps a short remaining JWT in the poll until the stamp", () => {
   const stamp = new Date(NOW + 80_000).toISOString()
   const low = awaitStreamPlan({
     saveEditor: true,
@@ -37,8 +37,8 @@ test("awaitStreamPlan low-JWT preflight does not keep the 30-minute timeout", ()
     defaultTimeoutMs: 1_800_000,
   })
   assert.ok(80_000 < STREAM_LOW_REMAINING_MS)
-  assert.equal(low.preflight, "low")
-  assert.equal(low.waitTimeoutMs, undefined)
+  assert.equal(low.preflight, "proceed")
+  assert.equal(low.waitTimeoutMs, 80_000 + STREAM_DEADLINE_GRACE_MS)
   const past = awaitStreamPlan({
     saveEditor: true,
     streamExpiresAt: new Date(NOW - 1_000).toISOString(),
@@ -110,6 +110,48 @@ test("waitForProfileSave still completes when Save lands before the VNC stamp", 
   assert.equal(result.status, "completed")
   assert.equal(result.cookies, 2)
   assert.equal(result.nextCall?.tool, "auspex_finalize_login")
+})
+
+test("short timeout stays timeout while streamExpiresAt is still ahead", async () => {
+  let clock = NOW
+  const result = await waitForProfileSave("app-example", {
+    sinceVersion: 1,
+    timeoutMs: 1_000,
+    streamExpiresAt: new Date(NOW + 240_000).toISOString(),
+    deps: {
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms
+      },
+      list: async () => [{ id: "p1", name: "app-example", version: 1 }],
+      inspect: async () => {
+        throw new Error("inspect must not run")
+      },
+    },
+  })
+  assert.equal(result.status, "timeout")
+  assert.notEqual(result.nextCall?.tool, "auspex_login")
+})
+
+test("short timeout is stream-expired when the stamp is already past", async () => {
+  const result = await waitForProfileSave("app-example", {
+    sinceVersion: 1,
+    timeoutMs: 1_000,
+    streamExpiresAt: new Date(NOW - 1_000).toISOString(),
+    deps: {
+      now: () => NOW,
+      sleep: async () => {
+        throw new Error("must not poll after the stamp")
+      },
+      list: async () => [{ id: "p1", name: "app-example", version: 1 }],
+      inspect: async () => {
+        throw new Error("inspect must not run")
+      },
+    },
+  })
+  assert.equal(result.status, "stream-expired")
+  assert.equal(result.nextCall?.tool, "auspex_login")
+  assert.match(result.next, /status stream-expired/)
 })
 
 test("dead stream without a completed seed refuses a new session and remints", () => {
