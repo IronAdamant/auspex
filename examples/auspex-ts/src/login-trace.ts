@@ -103,11 +103,14 @@ export function cookieHostsFromState(state: StorageState | null | undefined): st
 /**
  * Microsoft / Google sign-in cookie hosts. `live.com` is exact so `onedrive.live.com`
  * is not treated as the IdP wall. `login.microsoft.com` is the account-picker host.
+ * `google.com` and `www.google.com` are exact apex cookies seen on phone Save.
+ * Subdomains such as `mail.google.com` stay app hosts. The door page wall does not
+ * use this apex list — a page on google.com is not the sign-in wall.
  */
 export function cookieHostIsIdp(host: string): boolean {
   const h = host.trim().toLowerCase().replace(/^\./, "")
   if (!h) return false
-  if (h === "live.com") return true
+  if (h === "live.com" || h === "google.com" || h === "www.google.com") return true
   return (
     hostIs(h, "login.microsoftonline.com") ||
     hostIs(h, "login.live.com") ||

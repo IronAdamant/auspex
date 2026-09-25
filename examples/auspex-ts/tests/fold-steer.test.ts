@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { foldMissFinalizeGuide, idpOnlySaveGuide, isIdpOnlySave, shouldSteerToFinalize } from "../src/fold-steer.ts"
+import { foldLeadBlockedByDrain, foldMissFinalizeGuide, idpOnlySaveGuide, isIdpOnlySave, shouldSteerToFinalize } from "../src/fold-steer.ts"
+import { cookieHostIsIdp } from "../src/login-trace.ts"
 import { profileClaimSessionCreate } from "../src/launch-options.ts"
 import { sameProductAdopt, sameProductHosts } from "../src/live-host-change.ts"
 import { adviseLiveHostChange } from "../src/live-host-change.ts"
@@ -70,6 +71,72 @@ test("IdP-only jar for consistencyhub.io does not steer to finalize", () => {
   assert.match(visible.text, /Do not finalize-login/)
   assert.match(visible.text, /Do not remint to finish Microsoft/)
   assert.equal(/Finish Microsoft or Google/.test(visible.text), false)
+})
+
+const PHONE_SAVE_HOSTS = [
+  "google.com",
+  "live.com",
+  "login.live.com",
+  "login.microsoft.com",
+  "login.microsoftonline.com",
+  "www.google.com",
+]
+
+test("google.com apex cookies do not bypass IdP-only when the app host is missing", () => {
+  assert.equal(cookieHostIsIdp("google.com"), true)
+  assert.equal(cookieHostIsIdp("www.google.com"), true)
+  assert.equal(cookieHostIsIdp("mail.google.com"), false)
+  assert.equal(cookieHostIsIdp(".google.com"), true)
+  const seed = {
+    editorSave: { ok: true, status: 200 },
+    editorFold: { ok: false, reason: "no-cdp" as const },
+    cookies: 39,
+    origins: 3,
+    cookieHosts: PHONE_SAVE_HOSTS,
+    siteHost: "consistencyhub.io",
+    liveHost: "consistencyhub.io",
+    sessionStorage: 0,
+  }
+  assert.equal(isIdpOnlySave(seed), true)
+  assert.equal(shouldSteerToFinalize(seed), false)
+  const junk = {
+    ...seed,
+    cookieHosts: ["doubleclick.net", "login.microsoftonline.com"],
+  }
+  assert.equal(isIdpOnlySave(junk), true)
+  assert.equal(shouldSteerToFinalize(junk), false)
+  assert.equal(
+    foldLeadBlockedByDrain({
+      status: "stream-expired",
+      cookieHosts: PHONE_SAVE_HOSTS,
+      siteHost: "consistencyhub.io",
+    }),
+    true,
+  )
+  assert.equal(
+    foldLeadBlockedByDrain({
+      status: "timeout",
+      cookieHosts: PHONE_SAVE_HOSTS,
+      siteHost: "consistencyhub.io",
+    }),
+    true,
+  )
+  assert.equal(
+    foldLeadBlockedByDrain({
+      status: "stream-expired",
+      cookieHosts: [...PHONE_SAVE_HOSTS, "consistencyhub.io"],
+      siteHost: "consistencyhub.io",
+    }),
+    false,
+  )
+  assert.equal(
+    foldLeadBlockedByDrain({
+      status: "completed",
+      cookieHosts: PHONE_SAVE_HOSTS,
+      siteHost: "consistencyhub.io",
+    }),
+    false,
+  )
 })
 
 test("a jar that includes the site host still steers to finalize", () => {

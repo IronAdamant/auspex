@@ -496,6 +496,66 @@ test("waitForProfileSave fail-closes an IdP-only jar without a second version bu
   assert.equal(site.idpCookies, undefined)
 })
 
+test("inspectExisting with no pre-save sinceVersion does not poll a non-app jar until the JWT dies", async () => {
+  const hosts = [
+    "google.com",
+    "live.com",
+    "login.live.com",
+    "login.microsoft.com",
+    "login.microsoftonline.com",
+    "www.google.com",
+  ]
+  let slept = 0
+  const started = Date.now()
+  const saved = await waitForProfileSave("consistencyhub-io", {
+    timeoutMs: 180_000,
+    url: "https://consistencyhub.io",
+    streamExpiresAt: new Date(started + 171_000).toISOString(),
+    inspectExisting: true,
+    deps: {
+      now: () => started,
+      sleep: async () => {
+        slept += 1
+      },
+      list: async () => [{ id: "p71", name: "consistencyhub-io", version: 2 }],
+      inspect: async () => ({
+        cookies: 39,
+        origins: 3,
+        sessionStorage: 0,
+        cookieHosts: hosts,
+        liveHost: "consistencyhub.io",
+      }),
+    },
+  })
+  assert.equal(saved.status, "idp-only-save")
+  assert.equal(saved.idpOnlyKind, "app-visible")
+  assert.equal(saved.nextCall, undefined)
+  assert.equal(/finalize-login NOW/.test(saved.next), false)
+  assert.equal(slept, 0)
+})
+
+test("inspectExisting still waits for a real pre-save sinceVersion when the jar is empty", async () => {
+  let slept = 0
+  const waiting = await waitForProfileSave("consistencyhub", {
+    sinceVersion: 2,
+    timeoutMs: 5_000,
+    inspectExisting: true,
+    deps: {
+      now: (() => {
+        let t = 0
+        return () => (t += 1_000)
+      })(),
+      sleep: async () => {
+        slept += 1
+      },
+      list: async () => [{ id: "p1", name: "consistencyhub", version: 2 }],
+      inspect: async () => ({ cookies: 0, origins: 0 }),
+    },
+  })
+  assert.equal(waiting.status, "timeout")
+  assert.ok(slept > 0)
+})
+
 test("pageForSession uses the default context even when storageState has cookies", async () => {
   let newContextCalls = 0
   const defaultPage = { id: "default" }
