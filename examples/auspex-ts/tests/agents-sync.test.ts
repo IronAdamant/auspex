@@ -5,6 +5,19 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { USAGE } from "../src/cli.ts"
 import {
+  APP_VISIBLE_REFUSE,
+  AWAIT_LOGIN_BEGIN,
+  AWAIT_LOGIN_END,
+  DOOR_AWAIT_BEGIN,
+  DOOR_AWAIT_END,
+  SIGN_IN_WALL_REMIN,
+  agentsAwaitLoginBullet,
+  agentsFoldBullet,
+  awaitLoginDescription,
+  extractMarked,
+  llmsDoorAwaitBlock,
+} from "../src/door-await-contract.ts"
+import {
   AWAIT_LOGIN_DESCRIPTION,
   CHECK_DESCRIPTION,
   LOGIN_DESCRIPTION,
@@ -132,6 +145,8 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /unknown profiles require `--url` and `--expect`/)
   assert.match(cursorRule, /weakSeed/)
   assert.match(cursorRule, /counted `sessionStorage === 0`|counted sessionStorage/)
+  assert.match(cursorRule, /remint or finalize-now|Remint now/)
+  assert.match(cursorRule, /dead fold|claimOkProfile will not pass/)
 })
 
 test("AGENTS first calls lead with login --url / derived slug; CH lives under Worked example", () => {
@@ -536,19 +551,32 @@ test("frozen agent door sequence is documented for operators and not a takeover"
   assert.match(rootReadme, /hostChanged/)
 })
 
-test("stale/weak docs remint or finalize-now and ban VWP on a dead fold", () => {
-  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
-  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
-  for (const [label, text] of [
-    ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
-    ["tool-copy", AWAIT_LOGIN_DESCRIPTION],
-    ["Cursor rule", cursorRule],
-  ] as const) {
-    assert.match(text, /remint or finalize-now|Remint now/, `${label} must push remint or finalize-now`)
-    assert.match(text, /dead fold|claimOkProfile will not pass/, `${label} must not imply VWP on a dead fold`)
+test("door/await contract is generated from one source", () => {
+  assert.equal(AWAIT_LOGIN_DESCRIPTION, awaitLoginDescription())
+  assert.match(AWAIT_LOGIN_DESCRIPTION, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(AWAIT_LOGIN_DESCRIPTION, new RegExp(SIGN_IN_WALL_REMIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not finalize-login/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not remint to finish Microsoft/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /remint or finalize-now/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /dead fold/)
+  const fold = agentsFoldBullet()
+  const awaitBullet = agentsAwaitLoginBullet()
+  assert.match(fold, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(awaitBullet, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(fold, /There is no `nextCall`/)
+  assert.match(fold, /needsHuman/)
+  const llms = llmsDoorAwaitBlock()
+  assert.match(llms, /kind `app-visible`/)
+  assert.match(llms, /Do not finalize/)
+  assert.match(llms, /Do not mint again to finish Microsoft/)
+  assert.equal(/remint auspex_login/.test(llms.split("\n")[1] ?? ""), false)
+  for (const file of [path.join(repo, "AGENTS.md"), path.join(pkg, "AGENTS.md")]) {
+    const text = readFileSync(file, "utf8")
+    assert.equal(extractMarked(text, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), fold, file)
+    assert.equal(extractMarked(text, AWAIT_LOGIN_BEGIN, AWAIT_LOGIN_END), awaitBullet, file)
   }
+  const card = readFileSync(path.join(repo, "llms.txt"), "utf8")
+  assert.equal(extractMarked(card, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), llms)
 })
 
 test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason network", () => {

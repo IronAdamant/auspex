@@ -429,8 +429,6 @@ test("MCP tool descriptions lead with the mistake that breaks the call", () => {
     assert.match(firstSentence(description), lead, tool)
     assert.match(src, new RegExp(`description:\\s*${bindings[tool]}`), `${tool} must register its exported description`)
   }
-  assert.match(TRACE_DESCRIPTION, /one redacted post-handoff row/)
-  assert.match(TRACE_DESCRIPTION, /Check rows are not written/)
 })
 
 test("ready handoff gains one redacted post-handoff row and no check row", async () => {

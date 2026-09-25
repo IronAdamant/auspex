@@ -31,55 +31,58 @@ function readDoor(name: string): string {
 }
 
 function assertTypingDoor(html: string, label: string) {
-  assert.match(html, /data-solari-remote="vnc"/, `${label} remote mount`)
-  assert.match(html, /novnc-rfb\.js/, `${label} noVNC client`)
-  assert.match(html, /wss:\/\/api\.getsolari\.com\/vnc-proxy/, `${label} Solari remote UI`)
+  const text = html.includes("./door-page.js")
+    ? `${html}\n${readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")}`
+    : html
+  assert.match(text, /data-solari-remote="vnc"/, `${label} remote mount`)
+  assert.match(text, /novnc-rfb\.js/, `${label} noVNC client`)
+  assert.match(text, /wss:\/\/api\.getsolari\.com\/vnc-proxy/, `${label} Solari remote UI`)
   assert.match(html, /id="ime"/, `${label} one typing field`)
-  assert.equal(html.includes('id="paste-btn"'), false, `${label} no Paste button`)
-  assert.match(html, /id="bullets"/, `${label} bullets checkbox`)
-  assert.match(html, /Show as bullets/, `${label} bullets label`)
-  assert.match(html, /id="imeHint"/, `${label} typing hint`)
-  assert.equal(html.includes('id="zoomBar"'), false, `${label} no preview zoom bar`)
-  assert.equal(html.includes('id="zoomOut"'), false, `${label} no zoom out`)
-  assert.equal(html.includes('id="zoomIn"'), false, `${label} no zoom in`)
-  assert.equal(html.includes("--preview-zoom"), false, `${label} no CSS preview scale`)
-  assert.equal(html.includes("bindPreviewZoom"), false, `${label} no zoom binder`)
-  assert.match(html, /remote field you want, then type here/, `${label} click-before-type hint`)
-  assert.match(html, /Enter clears this box/, `${label} Enter clears`)
-  assert.match(html, /Show as bullets for password autofill/, `${label} bullets how-to`)
-  assert.match(html, /ironadamant\.com does not see keystrokes/, `${label} privacy copy`)
-  assert.match(html, /They go to remote Chrome and the site only/, `${label} keys stay off this page`)
-  assert.equal(html.includes("destination site logs its own login"), false, `${label} no legal essay on typing door`)
-  assert.equal(html.includes("do not host those credentials or session secrets"), false, `${label} credentials essay stays in docs`)
-  assert.equal(html.includes("off by default"), false, `${label} bullets default is the unchecked box`)
-  assert.match(html, /<input id="ime"[^>]*type="text"/, `${label} visible text by default`)
-  assert.equal(/<input id="bullets"[^>]*\schecked/.test(html), false, `${label} bullets default off`)
-  assert.match(html, /<form id="imeForm"/, `${label} autofill form`)
-  assert.match(html, /form-action 'none'/, `${label} form cannot post off-origin`)
-  assert.match(html, /autocomplete="current-password"/, `${label} password autocomplete`)
-  assert.match(html, /id="imeUser"/, `${label} username pairing field`)
-  assert.equal(html.includes('autocomplete="off"'), false, `${label} autocomplete stays discoverable`)
-  assert.equal(html.includes("sendBeacon"), false, `${label} no beacon`)
-  assert.equal(html.includes("XMLHttpRequest"), false, `${label} no XHR`)
-  assert.equal(/\bfetch\s*\(/.test(html), false, `${label} no fetch`)
-  assert.equal(/\blocalStorage\b/.test(html), false, `${label} no localStorage`)
-  assert.equal(/\bsessionStorage\s*[.\[]/.test(html), false, `${label} no sessionStorage API`)
-  assert.equal(html.includes("google-analytics"), false, `${label} no analytics`)
-  assert.equal(html.includes("gtag("), false, `${label} no gtag`)
+  assert.equal(text.includes('id="paste-btn"'), false, `${label} no Paste button`)
+  assert.match(text, /id="bullets"/, `${label} bullets checkbox`)
+  assert.match(text, /Show as bullets/, `${label} bullets label`)
+  assert.match(text, /id="imeHint"/, `${label} typing hint`)
+  assert.equal(text.includes('id="zoomBar"'), false, `${label} no preview zoom bar`)
+  assert.equal(text.includes('id="zoomOut"'), false, `${label} no zoom out`)
+  assert.equal(text.includes('id="zoomIn"'), false, `${label} no zoom in`)
+  assert.equal(text.includes("--preview-zoom"), false, `${label} no CSS preview scale`)
+  assert.equal(text.includes("bindPreviewZoom"), false, `${label} no zoom binder`)
+  assert.match(text, /remote field you want, then type here/, `${label} click-before-type hint`)
+  assert.match(text, /Enter clears this box/, `${label} Enter clears`)
+  assert.match(text, /Show as bullets for password autofill/, `${label} bullets how-to`)
+  assert.match(text, /ironadamant\.com does not see keystrokes/, `${label} privacy copy`)
+  assert.match(text, /They go to remote Chrome and the site only/, `${label} keys stay off this page`)
+  assert.equal(text.includes("destination site logs its own login"), false, `${label} no legal essay on typing door`)
+  assert.equal(text.includes("do not host those credentials or session secrets"), false, `${label} credentials essay stays in docs`)
+  assert.equal(text.includes("off by default"), false, `${label} bullets default is the unchecked box`)
+  assert.match(text, /<input id="ime"[^>]*type="text"/, `${label} visible text by default`)
+  assert.equal(/<input id="bullets"[^>]*\schecked/.test(text), false, `${label} bullets default off`)
+  assert.match(text, /<form id="imeForm"/, `${label} autofill form`)
+  assert.match(text, /form-action 'none'/, `${label} form cannot post off-origin`)
+  assert.match(text, /autocomplete="current-password"/, `${label} password autocomplete`)
+  assert.match(text, /id="imeUser"/, `${label} username pairing field`)
+  assert.equal(text.includes('autocomplete="off"'), false, `${label} autocomplete stays discoverable`)
+  assert.equal(text.includes("sendBeacon"), false, `${label} no beacon`)
+  assert.equal(text.includes("XMLHttpRequest"), false, `${label} no XHR`)
+  assert.equal(/\bfetch\s*\(/.test(text), false, `${label} no fetch`)
+  assert.equal(/\blocalStorage\b/.test(text), false, `${label} no localStorage`)
+  assert.equal(/\bsessionStorage\s*[.\[]/.test(text), false, `${label} no sessionStorage API`)
+  assert.equal(text.includes("google-analytics"), false, `${label} no analytics`)
+  assert.equal(text.includes("gtag("), false, `${label} no gtag`)
   assert.deepEqual(
     [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((match) => match[1]),
-    ["./novnc-rfb.js", "./door-stream.js"],
-    `${label} local noVNC plus door-stream helpers`,
+    ["./novnc-rfb.js", "./door-stream.js", "./door-page.js"],
+    `${label} local noVNC, stream helpers, and shared door page`,
   )
-  assert.equal(html.includes(">Paste URL<"), false, `${label} no URL paste`)
-  assert.equal(html.includes('id="paste-url"'), false, `${label} no URL field`)
-  assert.equal(html.includes(">Paste username<"), false, `${label} no username paste`)
-  assert.equal(html.includes(">Paste password<"), false, `${label} no password paste`)
-  assert.equal(html.includes('id="paste-username"'), false)
-  assert.equal(html.includes('id="paste-password"'), false)
-  assert.equal(html.includes(PASSWORD), false)
-  assert.equal(html.includes(SOLARI_KEY), false)
-  assert.equal(html.includes("stay off the AI chat"), false, `${label} chat-line essay stays in docs`)
+  assert.equal(text.includes(">Paste URL<"), false, `${label} no URL paste`)
+  assert.equal(text.includes('id="paste-url"'), false, `${label} no URL field`)
+  assert.equal(text.includes(">Paste username<"), false, `${label} no username paste`)
+  assert.equal(text.includes(">Paste password<"), false, `${label} no password paste`)
+  assert.equal(text.includes('id="paste-username"'), false)
+  assert.equal(text.includes('id="paste-password"'), false)
+  assert.equal(text.includes(PASSWORD), false)
+  assert.equal(text.includes(SOLARI_KEY), false)
+  assert.equal(text.includes("stay off the AI chat"), false, `${label} chat-line essay stays in docs`)
   assert.equal(html.includes("next Auspex command after 30 minutes"), false, `${label} idle-wipe essay stays in docs`)
   assert.equal(html.includes("stay in these boxes on this device only"), false)
   assert.equal(html.includes("They stay on the page"), false)
@@ -186,10 +189,11 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(phone, /status stream-expired/)
   assert.match(desktop, /status stream-expired/)
   assert.match(chooser, /status stream-expired/)
-  assert.match(phone, /handshake-no-frames/)
-  assert.match(desktop, /handshake-no-frames/)
-  assert.match(phone, /securityfailure/)
-  assert.match(desktop, /securityfailure/)
+  const sharedDoor = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+  assert.match(sharedDoor, /handshake-no-frames/)
+  assert.match(sharedDoor, /securityfailure/)
+  assert.match(phone, /door-page\.js/)
+  assert.match(desktop, /door-page\.js/)
   assert.equal(phone.includes("If the window is still blank, wait a few seconds or remint"), false)
   assert.equal(desktop.includes("If the window is still blank, wait a few seconds or remint"), false)
   assert.match(watch, /door\.html/)
@@ -198,11 +202,9 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(watch, /ironadamant\.com does not see/)
   assert.match(watch, /type the login again/)
   assert.match(watch, /do not host those credentials or session secrets/)
-  for (const file of ["README.md", "examples/auspex-ts/README.md", "AGENTS.md", "examples/auspex-ts/AGENTS.md"]) {
-    const text = readFileSync(path.join(repo, file), "utf8")
-    assert.match(text, /Show as bullets is off by default/, file)
-    assert.match(text, /password manager can paste into the text field/, file)
-  }
+  const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  assert.match(rootAgents, /Show as bullets is off by default/)
+  assert.match(rootAgents, /password manager can paste into the text field/)
   assert.match(OPERATOR_PURGE_QUESTION, /clears on Enter, Save, or lock/)
   assert.match(OPERATOR_PURGE_QUESTION, /type the login again/)
   assert.match(OPERATOR_PURGE_QUESTION, /do not host those credentials or session secrets/)
@@ -218,14 +220,17 @@ test("phone and desktop doors mount Solari and one typing field", () => {
     assert.equal(text.includes(PASSWORD), false, label)
   }
   assert.equal(handoffNext.includes("Open editor"), false)
-  for (const file of ["AGENTS.md", "examples/auspex-ts/AGENTS.md", ".cursor/rules/auspex.mdc"]) {
-    const text = readFileSync(path.join(repo, file), "utf8")
-    assert.match(text, /ironadamant\.com does not see/, file)
-    assert.match(text, /no Paste button/, file)
-    assert.match(text, /before typing anything/, file)
-    assert.match(text, /type the login again/, file)
-    assert.match(text, /do not host those credentials or session secrets/, file)
-    assert.equal(text.includes("click the remote login field, then paste"), false, file)
+  const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
+  for (const [label, text] of [
+    ["AGENTS.md", rootAgents],
+    ["Cursor rule", cursorRule],
+  ] as const) {
+    assert.match(text, /ironadamant\.com does not see/, label)
+    assert.match(text, /no Paste button/, label)
+    assert.match(text, /before typing anything/, label)
+    assert.match(text, /type the login again/, label)
+    assert.match(text, /do not host those credentials or session secrets/, label)
+    assert.equal(text.includes("click the remote login field, then paste"), false, label)
   }
 })
 
@@ -441,6 +446,10 @@ function loadDoor(
   context.addEventListener = () => {}
   const streamJs = readFileSync(path.join(repo, "docs", "door-stream.js"), "utf8")
   vm.runInNewContext(streamJs, context, { filename: "door-stream.js" })
+  if (html.includes("./door-page.js")) {
+    const pageJs = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+    vm.runInNewContext(pageJs, context, { filename: "door-page.js" })
+  }
   const scripts = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
     (match) => match[1] ?? "",
   )
@@ -665,29 +674,38 @@ test("chooser door forwards the same hash to phone and desktop", () => {
   assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
 })
 
-function extractStripSecret(html: string, profileName = "app-example") {
-  const match = html.match(/function stripSecret\([^)]*\) \{[\s\S]*?\n      \}/)
-  assert.ok(match, "door must define stripSecret")
-  const fn = new Function(`var profileName = ${JSON.stringify(profileName)}; ${match[0]}; return stripSecret`) as () => (
-    line: string,
-    secret: string,
-    protectedSpans?: string[],
-  ) => string
-  return fn()
+function doorPageApi() {
+  const context: Record<string, unknown> = {
+    atob: (value: string) => Buffer.from(value, "base64").toString("binary"),
+  }
+  context.window = context
+  vm.runInNewContext(readFileSync(path.join(repo, "docs", "door-page.js"), "utf8"), context, {
+    filename: "door-page.js",
+  })
+  return context.AuspexDoorPage as {
+    stripSecret: (line: string, secret: string, spans: string[] | undefined, profileName: string) => string
+  }
+}
+
+function extractStripSecret(_html: string, profileName = "app-example") {
+  const api = doorPageApi()
+  return (line: string, secret: string, protectedSpans?: string[]) =>
+    api.stripSecret(line, secret, protectedSpans, profileName)
 }
 
 test("Save strips any non-empty typed secret without mangling Site URL or template", () => {
   const exp = Math.floor(Date.now() / 1000) + 600
   for (const name of ["phone.html", "desktop.html"] as const) {
     const html = readDoor(name)
-    assert.equal(html.includes("secret.length < 3"), false, `${name} no length floor`)
-    assert.match(html, /if \(!secret \|\| secret === profileName\) return line/, `${name} stripSecret guard`)
+    const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+    assert.equal(page.includes("secret.length < 3"), false, `${name} no length floor`)
+    assert.match(page, /if \(!secret \|\| secret === profileName\) return line/, `${name} stripSecret guard`)
     assert.match(
-      html,
-      /stripSecret\(template \+ siteClause, typed, \[template, siteClause\]\)/,
+      page,
+      /stripSecret\(template \+ siteClause, typed, \[template, siteClause\], profileName\)/,
       `${name} protects template + Site URL clause`,
     )
-    assert.equal(html.includes("return line.split(secret).join(\"\")"), false, `${name} no naive whole-line scrub`)
+    assert.equal(page.includes('return line.split(secret).join("")'), false, `${name} no naive whole-line scrub`)
 
     const stripSecret = extractStripSecret(html)
 
