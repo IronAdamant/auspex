@@ -41,34 +41,6 @@ export function shouldVerifyAfterCheck(reason: CheckReason | string | undefined)
 }
 
 /**
- * Hosts where anonymous fetch/OCR cannot see logged-in UI.
- * Public marketing (ironadamant.com, checkpointprojects.com) is not in this list.
- */
-const AUTH_GATED_ANONYMOUS_VERIFY_HOSTS = ["consistencyhub.io", "onedrive.live.com"] as const
-
-function hostnameOf(url?: string): string | undefined {
-  if (!url?.trim()) return undefined
-  try {
-    return new URL(url).hostname.toLowerCase()
-  } catch {
-    return undefined
-  }
-}
-
-function hostIs(hostname: string, domain: string): boolean {
-  const h = hostname.toLowerCase()
-  const d = domain.toLowerCase()
-  return h === d || h.endsWith(`.${d}`)
-}
-
-/** True when anonymous sandbox verify would see a login page, not the app. */
-export function isAuthGatedAnonymousVerifyHost(url?: string): boolean {
-  const host = hostnameOf(url)
-  if (!host) return false
-  return AUTH_GATED_ANONYMOUS_VERIFY_HOSTS.some((d) => hostIs(host, d))
-}
-
-/**
  * CLI and MCP share this policy. Default is verify (anonymous sandbox).
  *
  * Skip anonymous verify unless the caller passed explicit verify=true (`--verify`)
