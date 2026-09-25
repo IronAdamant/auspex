@@ -266,9 +266,11 @@ npx auspex mcp
 
 ## MCP hosts
 
+Published package (no clone): `npx -p auspex-solari auspex-mcp` with `SOLARI_API_KEY` in `env`. Paste cards: [README](README.md#mcp), [CLAUDE.md](CLAUDE.md), [docs/HOSTS.md](docs/HOSTS.md). Local stdio only. This repo does not publish a remote HTTP MCP server. A login wait can run about 30 minutes; a ~300s tool timeout ends first. Prefer `auspex_job`, then `auspex_job_status`.
+
 Primary door after `npm install` **and** `npm run build:mcp` at the repository root: `npx auspex-mcp`. `dist/` is gitignored (policy B). Missing `dist/mcp.mjs` fail-closes with `DistMissing` (not a silent empty server).
 
-- **stdio:** `npx auspex-mcp` from the repo root (needs `dist/mcp.mjs`). Equivalent without dist: `npx tsx src/mcp.ts` from `examples/auspex-ts`.
-- **Cursor** — `.cursor/mcp.json` in this repo. Also `examples/auspex-ts/mcp.cursor.example.json`. After clone: `npm install && npm run build:mcp`, then restart Cursor.
-- **Claude Desktop** — merge `examples/auspex-ts/mcp.claude.example.json` (same build).
-- **Grok** — `examples/auspex-ts/grok.mcp.example.toml` (same build; official Solari sibling is `dist/solari-mcp.mjs`). If PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs`.
+- **stdio:** `npx auspex-mcp` from the repo root (needs `dist/mcp.mjs`). Equivalent without dist: `npx tsx src/mcp.ts` from `examples/auspex-ts`. Published equivalent: `npx -p auspex-solari auspex-mcp`.
+- **Cursor** — published JSON on the root README. This clone: `.cursor/mcp.json` and `examples/auspex-ts/mcp.cursor.example.json`. After clone: `npm install && npm run build:mcp`, then restart Cursor.
+- **Claude Code / Desktop** — `examples/auspex-ts/mcp.claude.example.json` (published `npx -p auspex-solari auspex-mcp` plus `env`). [CLAUDE.md](CLAUDE.md) points at this file and [llms.txt](llms.txt).
+- **Grok** — `examples/auspex-ts/grok.mcp.example.toml` (same published command, `env`, `tool_timeout_sec` 1800). Official Solari sibling is still the clone `dist/solari-mcp.mjs`. If PATH lacks node, pin absolute `node` + `bin/auspex-mcp.mjs` after `npm run build:mcp`.

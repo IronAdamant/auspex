@@ -14,7 +14,9 @@ We do not claim Alice-vs-Bob wrong-account detection.
 
 **Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
 
-After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
+After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`. Put `SOLARI_API_KEY` in the MCP `env`. Host paste cards: [docs/HOSTS.md](docs/HOSTS.md). Claude Code: [CLAUDE.md](CLAUDE.md).
+
+A login wait can run about 30 minutes. A tool timeout near 300 seconds ends first. Use `npx auspex-solari job`, then `job-status` (`auspex_job`, then `auspex_job_status`).
 
 ## Frozen door sequence
 
@@ -68,3 +70,4 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - Receipts: [RECEIPTS.md](RECEIPTS.md)
 - Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
 - Install and commands: [examples/auspex-ts/README.md](examples/auspex-ts/README.md)
+- Host paste cards: [docs/HOSTS.md](docs/HOSTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md)
