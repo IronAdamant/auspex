@@ -131,9 +131,11 @@ test("await-login reads the mint site URL when --url is omitted", async () => {
       name: "consistencyhub",
       handoffToken: "hand",
       siteUrl: "https://app.socialaize.com/login",
+      sinceVersion: 4,
     },
     root,
   )
+  assert.equal((await loadEditorSave("consistencyhub", root))?.sinceVersion, 4)
   const stored = await resolveProfileHostUrl({ profile: "consistencyhub", root })
   assert.equal(stored, "https://app.socialaize.com/login")
   const explicit = await resolveProfileHostUrl({

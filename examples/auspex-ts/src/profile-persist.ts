@@ -27,6 +27,7 @@ import { isStreamExpired } from "./handoff-doors.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
 import {
   DEAD_FOLD_VERIFY_BAN,
+  foldLeadBlockedByDrain,
   foldMissFinalizeGuide,
   idpOnlySaveGuide,
   isIdpOnlySave,
@@ -541,7 +542,7 @@ export async function waitForProfileSave(
     pageUrl?: string
     /** VNC JWT stamp. When set, the poll stops at this time instead of the 30-minute default. */
     streamExpiresAt?: string
-    /** editorSave already wrote the jar. Read it now; do not wait for a second version bump when it is IdP-only. */
+    /** editorSave already wrote the jar. Read it now. Do not poll until the JWT dies when there is no pre-save version still to beat. */
     inspectExisting?: boolean
     deps: AwaitLoginDeps
   },
@@ -585,12 +586,17 @@ export async function waitForProfileSave(
           siteHost,
           sessionStorage: seed.sessionStorage,
           sessionStorageStale: seed.sessionStorageStale,
+          liveHost: seed.liveHost,
+          cookies: seed.cookies,
+          origins: seed.origins,
         })
       ) {
         status = "idp-only-save"
         break
       }
-      if (bumped) {
+      const saveAlreadyInJar = opts.inspectExisting === true && !isEmptySeed(seed)
+      const noBumpLeftToWaitFor = opts.sinceVersion === undefined
+      if (bumped || saveAlreadyInJar || (opts.inspectExisting === true && noBumpLeftToWaitFor)) {
         status = isEmptySeed(seed) ? "empty-save" : "completed"
         break
       }
@@ -760,7 +766,7 @@ export async function liveAwaitLogin(
       }
     }
     const waited = await waitForProfileSave(name, {
-      sinceVersion: opts.sinceVersion,
+      sinceVersion: opts.sinceVersion ?? handle?.sinceVersion,
       timeoutMs:
         streamExpired || editorHung
           ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
@@ -814,6 +820,9 @@ export async function liveAwaitLogin(
           siteHost,
           sessionStorage: seed.sessionStorage,
           sessionStorageStale: seed.sessionStorageStale,
+          liveHost: seed.liveHost,
+          cookies: seed.cookies,
+          origins: seed.origins,
         })
         const guide = idpOnly
           ? idpOnlySaveGuide(waited.name, { liveHost: seed.liveHost, siteHost })
@@ -841,8 +850,14 @@ export async function liveAwaitLogin(
     const steerSite = siteHostFromUrl(
       opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url,
     )
+    const drainedNonApp = foldLeadBlockedByDrain({
+      status: steered.status,
+      cookieHosts: steered.cookieHosts,
+      siteHost: steerSite,
+    })
     const foldLead =
       !patch &&
+      !drainedNonApp &&
       steered.status !== "idp-only-save" &&
       shouldSteerToFinalize({
         editorSave,
@@ -854,6 +869,7 @@ export async function liveAwaitLogin(
         siteHost: steerSite,
         sessionStorage: steered.sessionStorage,
         sessionStorageStale: steered.sessionStorageStale,
+        liveHost: steered.liveHost,
       })
         ? {
             status: "completed" as const,

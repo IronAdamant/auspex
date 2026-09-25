@@ -83,6 +83,8 @@ export type EditorSaveHandle = {
   /** Earliest VNC JWT / handoff expiry. ISO. The JWT itself is never stored. */
   streamExpiresAt?: string
   streamExpirySource?: PhoneExpirySource
+  /** Profile version at mint, before the human Save. Await uses this when --since-version is omitted. */
+  sinceVersion?: number
 }
 
 export function editorSavePath(name: string, root = packageRoot): string {
@@ -113,6 +115,8 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
       raw.streamExpirySource === "expiresAt" || raw.streamExpirySource === "jwt" || raw.streamExpirySource === "unknown"
         ? raw.streamExpirySource
         : undefined
+    const sinceVersion =
+      typeof raw.sinceVersion === "number" && Number.isFinite(raw.sinceVersion) ? raw.sinceVersion : undefined
     return {
       profileId,
       name: profileName,
@@ -124,6 +128,7 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
         : {}),
       ...(streamExpiresAt ? { streamExpiresAt } : {}),
       ...(streamExpirySource ? { streamExpirySource } : {}),
+      ...(sinceVersion !== undefined ? { sinceVersion } : {}),
     }
   } catch {
     return undefined
@@ -596,6 +601,7 @@ export async function loginProfile(
     )
     const handoffToken = handoff.handoffId || handoffTokenFromUrl(handoff.url)
     const siteUrl = urlHint && isHttpOrHttpsUrl(urlHint.trim()) ? urlHint.trim() : undefined
+    const sinceVersion = typeof handoff.version === "number" && Number.isFinite(handoff.version) ? handoff.version : undefined
     if (handoffToken) {
       await persistEditorSave({
         profileId: profile.id,
@@ -603,6 +609,7 @@ export async function loginProfile(
         handoffToken,
         expiresAt: handoff.expiresAt,
         ...(siteUrl ? { siteUrl } : {}),
+        ...(sinceVersion !== undefined ? { sinceVersion } : {}),
       }).catch(() => undefined)
     }
     const vncMint = await fetchEditorVncToken(profile.id, handoffToken)
@@ -622,6 +629,7 @@ export async function loginProfile(
         handoffToken,
         expiresAt: handoff.expiresAt,
         ...(siteUrl ? { siteUrl } : {}),
+        ...(sinceVersion !== undefined ? { sinceVersion } : {}),
         ...streamStamp,
       }).catch(() => undefined)
     }

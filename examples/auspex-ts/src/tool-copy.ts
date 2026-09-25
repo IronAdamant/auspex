@@ -42,7 +42,7 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone/desktop Save " +
   "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
   "If editorSave is 200 and editorFold is no-cdp and the profile has cookies, finalize-login NOW even when the VNC JWT is past. " +
-  "If those cookies are only Microsoft or Google sign-in hosts and the app host is missing, status is idp-only-save: do not finalize. " +
+  "If the app host is missing from the jar (Microsoft or Google sign-in hosts, including google.com and www.google.com, or any cookies while liveHost is already the app), status is idp-only-save: do not finalize. " +
   "idpOnlyKind sign-in-wall: the human is still on Microsoft or Google — finish sign-in, land on the app UI, then Save, and remint. " +
   "idpOnlyKind app-visible: liveHost is already the app. The dashboard on screen is not a saved login. " +
   "Solari handoff Save cannot read MSAL sessionStorage (no CDP). Do not remint to finish Microsoft. Do not finalize-login. " +

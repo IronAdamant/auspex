@@ -40,21 +40,48 @@ export function cookieJarOmitsSite(hosts: string[], siteHost?: string): boolean 
   return !hosts.some((h) => hostIs(h, site))
 }
 
+function sessionStorageUnusable(opts: { sessionStorage?: number; sessionStorageStale?: boolean }): boolean {
+  if (opts.sessionStorageStale === true) return true
+  return opts.sessionStorage === undefined || opts.sessionStorage === 0
+}
+
 /**
- * IdP wall Save: every cookie host is Microsoft/Google, the minted site is missing,
- * and sessionStorage is empty, uncounted, or stale. A jar that includes the site still finalizes.
+ * IdP-only Save: the minted site is missing from the jar, and sessionStorage is empty,
+ * uncounted, or stale. Either every cookie host is a Microsoft/Google sign-in host
+ * (including google.com and www.google.com apex cookies), or cookies are present and
+ * liveHost is already the app. A jar that includes the site still finalizes.
  */
 export function isIdpOnlySave(opts: {
   cookieHosts?: string[]
   siteHost?: string
   sessionStorage?: number
   sessionStorageStale?: boolean
+  liveHost?: string
+  cookies?: number
+  origins?: number
 }): boolean {
   const hosts = opts.cookieHosts ?? []
-  if (!cookieHostsAreIdpOnly(hosts)) return false
   if (!cookieJarOmitsSite(hosts, opts.siteHost)) return false
-  if (opts.sessionStorageStale === true) return true
-  return opts.sessionStorage === undefined || opts.sessionStorage === 0
+  if (!sessionStorageUnusable(opts)) return false
+  if (cookieHostsAreIdpOnly(hosts)) return true
+  const hasCookies = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0 || hosts.length > 0
+  if (!hasCookies) return false
+  return idpOnlyKind({ liveHost: opts.liveHost, siteHost: opts.siteHost }) === "app-visible"
+}
+
+/**
+ * A poll that already drained the JWT on a jar that omits the app host must stay
+ * stream-expired or timeout. Finalize steer must not rewrite that result.
+ */
+export function foldLeadBlockedByDrain(opts: {
+  status?: string
+  cookieHosts?: string[]
+  siteHost?: string
+}): boolean {
+  if (opts.status !== "stream-expired" && opts.status !== "timeout") return false
+  const hosts = opts.cookieHosts ?? []
+  if (hosts.length === 0) return false
+  return cookieJarOmitsSite(hosts, opts.siteHost)
 }
 
 /**
@@ -72,6 +99,7 @@ export function shouldSteerToFinalize(opts: {
   siteHost?: string
   sessionStorage?: number
   sessionStorageStale?: boolean
+  liveHost?: string
 }): boolean {
   if (opts.hostChanged) return false
   if (isIdpOnlySave(opts)) return false
