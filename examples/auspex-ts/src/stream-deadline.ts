@@ -47,9 +47,14 @@ export function awaitStreamPlan(opts: {
   const grace = opts.graceMs ?? STREAM_DEADLINE_GRACE_MS
   const untilDeadline = exp + grace - opts.nowMs
   const requested = opts.timeoutMs ?? opts.defaultTimeoutMs
+  const lowMs = opts.lowRemainingMs ?? STREAM_LOW_REMAINING_MS
+  const waitTimeoutMs = Math.min(requested, untilDeadline)
+  if (remain <= lowMs) {
+    return { preflight: "low", waitTimeoutMs, watchStreamExpiresAt: stamp }
+  }
   return {
     preflight: "proceed",
-    waitTimeoutMs: Math.min(requested, untilDeadline),
+    waitTimeoutMs,
     watchStreamExpiresAt: stamp,
   }
 }

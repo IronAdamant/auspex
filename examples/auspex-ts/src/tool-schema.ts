@@ -170,7 +170,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable. ok requires only integrity verify.ok when anonymous claim is skipped — read claimOkProfile separately; do not treat ok as the triad. Do not invent claimOkProfile=true. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true).",
+      "Dogfood path for auth-gated SaaS: enables the sandbox, skips anonymous claim (claimOk stays false + anonymousClaimSkipped), and runs a second Solari browser with the profile. Adds claimOkProfile / claimErrorsProfile. claimOkProfile is the profile-reuse gate — ok=true is not enough to treat the profile as reusable. Save is not sessionStorage. Refused on weakSeed, emptySave, and a dead fold (no claim session; vwpRefused on the receipt). ok requires only integrity verify.ok when anonymous claim is skipped — read claimOkProfile separately; do not treat ok as the triad. Do not invent claimOkProfile=true. Not the same as verify=true (anonymous). For name=consistencyhub this also enables the verify step (skipped by default without this flag or verify=true).",
     ),
   allowRecordProfile: z
     .boolean()
@@ -392,7 +392,7 @@ export const auspexJobInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "After check, run profile-seeded verify. claimOkProfile is the reuse gate — ok alone is not reusable. Do not invent claimOkProfile=true.",
+      "After check, run profile-seeded verify. claimOkProfile is the reuse gate — ok alone is not reusable. Refused on weakSeed, emptySave, and a dead fold. Save is not sessionStorage. Do not invent claimOkProfile=true.",
     ),
   wait: z
     .boolean()

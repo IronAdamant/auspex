@@ -6,6 +6,7 @@ import {
   type EditorFoldResult,
 } from "./editor-fold.ts"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
+import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { createClient } from "./solari.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import type { LiveHostChange } from "./live-host-change.ts"
@@ -462,13 +463,19 @@ export async function inspectProfileSeed(
   origin?: string,
 ): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
+  await rememberLive("browser", session.id).catch(() => undefined)
   try {
     const state = session.storageState ?? undefined
     const seed = { ...seedFromStorageState(state, origin), ...loginTraceSeedExtras(state, origin) }
     const live = (await import("./live-host-change.ts")).selectLiveHost({ state })
     return live ? { ...seed, liveHost: live.host } : seed
   } finally {
-    await solari.sessions.releaseAndWait(session.id).catch(() => undefined)
+    try {
+      await solari.sessions.releaseAndWait(session.id)
+      await forgetLive("browser", session.id).catch(() => undefined)
+    } catch {
+      // Keep the ledger id so auspex_reap can release a session that did not close.
+    }
   }
 }
 
@@ -698,6 +705,7 @@ export async function liveAwaitLogin(
       defaultTimeoutMs: AWAIT_LOGIN_DEFAULT_MS,
     })
     if (streamPlan.preflight === "past") streamExpired = true
+    // `low` keeps the capped waitTimeoutMs. Do not fall back to the 30-minute poll.
     if (opts.saveEditor) {
       if (streamPlan.preflight === "past") {
         editorSave = {
@@ -770,7 +778,9 @@ export async function liveAwaitLogin(
       timeoutMs:
         streamExpired || editorHung
           ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
-          : streamPlan.waitTimeoutMs,
+          : streamPlan.preflight === "low"
+            ? (streamPlan.waitTimeoutMs ?? STREAM_EXPIRED_WAIT_MS)
+            : streamPlan.waitTimeoutMs,
       url: opts.url,
       mintUrl,
       pageUrl,
@@ -810,9 +820,17 @@ export async function liveAwaitLogin(
       steered.cookies === 0 &&
       steered.origins === 0
     ) {
-      const seed = await inspectProfileSeed(solari, waited.profileId, inspectOriginForAwait({ name: waited.name, url: opts.url ?? mintUrl })).catch(
-        () => undefined,
+      const bounded = await boundEditorWork(
+        () =>
+          inspectProfileSeed(
+            solari,
+            waited.profileId,
+            inspectOriginForAwait({ name: waited.name, url: opts.url ?? mintUrl }),
+          ),
+        EDITOR_SAVE_BOUND_MS,
+        `inspectProfileSeed timed out after ${EDITOR_SAVE_BOUND_MS}ms`,
       )
+      const seed = bounded.ok ? bounded.value : undefined
       if (seed && (seed.cookies > 0 || seed.origins > 0)) {
         const siteHost = siteHostFromUrl(opts.url ?? mintUrl ?? savedCheckForProfile(waited.name)?.url)
         const idpOnly = isIdpOnlySave({

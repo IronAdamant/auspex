@@ -117,6 +117,10 @@ State lives in gitignored `.auspex/jobs/<id>.json`. Resume with `jobId`.
 
 First call with `url`+`expect` (or a saved-check `name`) mints and returns **waiting** plus `handoff`. Profile is derived from the URL host unless `--profile` is set. Pass `wait: true` to continue into await in the same call. After the human Saves, resume `--job-id`.
 
+### Remint encyclopedia
+
+Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen). Short form: JWT past and the jar has app cookies after editorSave 200 → `auspex_finalize_login`. JWT past and the jar is empty → `auspex_login`. Less than 90 seconds left → short await, not a 30-minute poll. Auspex does not extend the JWT.
+
 ### nextCall matrix (job)
 
 | Job `status` / `reason` | `nextCall.tool` | Notes |

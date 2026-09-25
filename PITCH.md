@@ -24,7 +24,7 @@ The agent thinks it's logged in. The human wastes hours debugging. The SaaS rema
 **SSO handoff**
 - Human signs into Microsoft/Google/etc in a Solari-hosted Chromium card
 - Agent never handles passwords or OTP
-- Phone `phone.html` is a seed/handoff door for off-site typing (IME + Save paste), **not** a same-session VNC takeover
+- Phone `phone.html` is a seed/handoff door for off-site typing (native text field + Save paste), **not** a same-session VNC takeover. Solari’s remote view will not open a phone keyboard ([cookbook #80](https://github.com/solari-sdk/solari-cookbook/issues/80)). The Auspex field is the workaround. The agent never sees the password.
 - Frozen agent door (not Handraise live-view takeover): mint `login --url` → human login in the door → human Save → `await-login --save-editor` → `finalize-login` (unique expect) → later `check` / optional `--verify-with-profile`. `ok` ≠ `claimOk` ≠ `claimOkProfile`. Fail-closed: `expectMatchedPublicLanding`, `hostChanged` remint, `stream-expired`. Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md). See [AGENTS.md](AGENTS.md#frozen-agent-door-sequence). Solari `402`/`429`/`502` are not `loggedOut`/`needsHuman`.
 - Cookies + sessionStorage saved to a named profile, reusable across checks
 
@@ -64,7 +64,7 @@ npx auspex-solari check --profile app-example --expect "Workspace ready" --verif
 - Launches a **second** Solari browser WITH the profile
 - Navigate to `finalUrl` and check if expect is in page text
 - Adds `claimOkProfile: true/false` to receipt (distinct from anonymous `claimOk`, which stays `false` + `anonymousClaimSkipped`)
-- `ok` requires only integrity `verify.ok` when anonymous claim is skipped — **`claimOkProfile` is the reuse gate**; `ok` alone is not enough to treat the profile as reusable
+- `ok` requires only integrity `verify.ok` when anonymous claim is skipped — **`claimOkProfile` is the reuse gate**; `ok` alone is not enough to treat the profile as reusable. Save is not sessionStorage. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold.
 - Use for auth-gated SaaS where anonymous fetch can't see the UI. `--verify` (anonymous) is **not** this path and will poison `ok`.
 
 **Never:** overwrite `claimOk` silently. Both fields stay honest.
