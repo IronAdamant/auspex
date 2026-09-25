@@ -258,7 +258,11 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
     record.status = "idp-only-save"
     record.reason = "idp-only-save"
     record.ok = false
-    record.nextCall = waited.nextCall ?? remintLoginNextCall(record.profile)
+    record.next = waited.next
+    record.idpOnlyKind = waited.idpOnlyKind
+    if (waited.idpOnlyKind !== "app-visible") {
+      record.nextCall = waited.nextCall ?? remintLoginNextCall(record.profile)
+    }
     return record
   }
   record.phase = "await"
