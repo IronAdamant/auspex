@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "dogfood-pack",
-  "note": "ConsistencyHub + OneDrive + hostChanged. Evidence, not the default recipe. Refresh live with SOLARI_API_KEY locally; do not commit secrets, live session ids, or a OneDrive PNG.",
+  "note": "ConsistencyHub + OneDrive + hostChanged are Truth A (finished seed, claimOkProfile). Evidence, not the default recipe. Truth B is separate: editorSave 200 with the app already on screen and an IdP-only jar (Microsoft or Google cookies, session storage 0) is idp-only-save / app-visible — do not finalize. Solari handoff Save stores cookies and local storage; it cannot read the in-tab session token. Not a remint to finish Microsoft. Refresh live with SOLARI_API_KEY locally; do not commit secrets, live session ids, or a OneDrive PNG.",
   "items": [
     {
       "id": "consistencyhub",
