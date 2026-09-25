@@ -96,8 +96,9 @@ export async function runLoginDoor(opts: {
     if (qr.qrPath) attachHandoffQr(result, qr.qrPath, opts.url)
   }
   const shown = stampLoginHost(result, opts.url)
-  if (!opts.wait) {
-    return stampSchema({ ok: true, ...shown, operator: book.agent })
+  const editorBusy = shown.status === "editor-busy"
+  if (!opts.wait || editorBusy) {
+    return stampSchema({ ok: !editorBusy, ...shown, operator: book.agent })
   }
   const rawWait = await liveAwaitLogin(opts.profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: opts.url }))
   const waited = preserveAwaitLiveHost(

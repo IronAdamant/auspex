@@ -208,8 +208,17 @@ export function doorStreamDisconnectAction(opts: {
 }): DoorStreamAction {
   if (opts.streamExpired) return "remint"
   if (opts.pageHidden) return "pause"
-  if (opts.reconnectAttempts >= (opts.maxReconnects ?? DOOR_STREAM_MAX_RECONNECT)) return "remint"
   return "reconnect"
+}
+
+/**
+ * Door countdown uses the minted hash `exp` (the same stamp as streamExpiresAt).
+ * A second JWT parse must not pull that stamp earlier.
+ */
+export function doorExpirySeconds(opts: { hashExp?: number; jwtExp?: number }): number | undefined {
+  if (opts.hashExp !== undefined && opts.hashExp > 0) return opts.hashExp
+  if (opts.jwtExp !== undefined && opts.jwtExp > 0) return opts.jwtExp
+  return undefined
 }
 
 /** Password-manager attributes for the one typing field. Never autocomplete=off. */

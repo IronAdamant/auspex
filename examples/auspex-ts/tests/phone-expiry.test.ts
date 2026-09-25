@@ -119,7 +119,7 @@ test("doorStreamDisconnectAction pauses a live JWT on background and remints onl
   )
   assert.equal(
     doorStreamDisconnectAction({ streamExpired: false, pageHidden: false, reconnectAttempts: 3 }),
-    "remint",
+    "reconnect",
   )
   assert.equal(
     doorStreamDisconnectAction({
@@ -128,7 +128,7 @@ test("doorStreamDisconnectAction pauses a live JWT on background and remints onl
       reconnectAttempts: 2,
       maxReconnects: 2,
     }),
-    "remint",
+    "reconnect",
   )
 })
 

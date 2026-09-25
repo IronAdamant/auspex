@@ -328,6 +328,9 @@ export type LoginResult = {
   remintCount?: number
   traceSummary?: string
   nextCall?: NextCall
+  /** Set when editor start is refused. `editor-busy` is Solari 409. */
+  status?: string
+  reason?: string
 }
 
 export type ProfileHttp = {
@@ -497,9 +500,27 @@ export type EditorVncMint = {
   tokenTries: number
 }
 
-/** 200/201 ready, 202 Accepted (starting — poll token), 409 already running. */
+/** 200/201 ready, 202 Accepted (starting — poll token). 409 is a live editor, not a new start. */
 export function editorStartOk(status: number): boolean {
-  return status === 200 || status === 201 || status === 202 || status === 409
+  return status === 200 || status === 201 || status === 202
+}
+
+export const EDITOR_BUSY_STATUS = "editor-busy"
+export const EDITOR_START_CONFLICT_REASON = "editor-start-409"
+
+/** Solari 409: prior editor still running. Do not treat the mint as ready or steer finalize. */
+export function editorStartConflictGuide(profile: string): { text: string; nextCall: NextCall } {
+  const name = profile.trim() || "<name>"
+  const who = name === "<name>" ? "" : name
+  return {
+    text:
+      `status ${EDITOR_BUSY_STATUS}: Solari editor start returned 409 (an editor is already running` +
+      `${who ? ` for --profile ${who}` : ""}). This mint did not start a new stream. Do not finalize-login. ` +
+      `Wait for that editor to close, or purge the profile after you agree` +
+      `${who ? ` (npx auspex profiles --purge ${who} --yes)` : ""}, then remint: npx auspex login` +
+      `${who ? ` --profile ${who}` : ""}.`,
+    nextCall: remintLoginNextCall(who),
+  }
 }
 
 /** Phone-door mint stage. Empty token / failed VNC is never "ready". */
@@ -525,7 +546,7 @@ export async function fetchEditorVncToken(
   const post = opts?.post ?? (await defaultEditorPost(token))
   const sleepMs = opts?.sleepMs ?? 1000
   const start = await post(`/api/profiles/${encodeURIComponent(id)}/editor`)
-  if (!editorStartOk(start.status)) {
+  if (start.status === 409 || !editorStartOk(start.status)) {
     return { editorStartStatus: start.status, tokenTries: 0 }
   }
   let tokenLastStatus: number | undefined
@@ -604,8 +625,19 @@ export async function loginProfile(
         ...streamStamp,
       }).catch(() => undefined)
     }
-    const result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
-    const vncMintOk = Boolean(vncMint.token)
+    let result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
+    if (vncMint.editorStartStatus === 409) {
+      const guide = editorStartConflictGuide(profile.name)
+      result = {
+        ...result,
+        status: EDITOR_BUSY_STATUS,
+        reason: EDITOR_START_CONFLICT_REASON,
+        next: guide.text,
+        nextCall: guide.nextCall,
+      }
+      delete result.handoff
+    }
+    const vncMintOk = Boolean(vncMint.token) && result.status !== EDITOR_BUSY_STATUS
     const phoneDoor = isPhoneImeUrl(result.handoff?.mobileUrl)
       ? "ime"
       : result.handoff?.mobileUrl

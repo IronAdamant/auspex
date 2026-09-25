@@ -10,6 +10,7 @@ import {
   attachHandoffQr,
   stampLoginStreamExpiry,
   fetchEditorVncToken,
+  editorStartConflictGuide,
   editorStartOk,
   mintStageAfterVnc,
   formatLogin,
@@ -175,7 +176,7 @@ test("phoneHandoffUrl puts the VNC token in the hash, not the query", () => {
   assert.equal(handoffTokenFromUrl("https://console.getsolari.com/handoff/WS2-abc"), "WS2-abc")
 })
 
-test("fetchEditorVncToken treats 409 as already running and returns the token", async () => {
+test("fetchEditorVncToken treats 409 as a live editor and does not mint a token", async () => {
   const calls: string[] = []
   const vnc = await fetchEditorVncToken("prof_1", "hand_1", {
     sleepMs: 0,
@@ -186,17 +187,25 @@ test("fetchEditorVncToken treats 409 as already running and returns the token", 
       return { status: 200, json: { token: "vnc.jwt", ready: true } }
     },
   })
-  assert.equal(vnc.token, "vnc.jwt")
+  assert.equal(vnc.token, undefined)
   assert.equal(vnc.editorStartStatus, 409)
+  assert.equal(vnc.tokenTries, 0)
+  assert.equal(calls.length, 1)
   assert.equal(calls[0]?.endsWith("/editor"), true)
-  assert.equal(calls[1]?.endsWith("/editor/token"), true)
+  assert.equal(mintStageAfterVnc(vnc), "editor-start")
+  const guide = editorStartConflictGuide("consistencyhub")
+  assert.equal(guide.nextCall.tool, "auspex_login")
+  assert.match(guide.text, /status editor-busy/)
+  assert.match(guide.text, /409/)
+  assert.match(guide.text, /Do not finalize-login/)
+  assert.match(guide.text, /purge/)
 })
 
 test("editorStartOk treats 202 Accepted as starting (poll token)", () => {
   assert.equal(editorStartOk(200), true)
   assert.equal(editorStartOk(201), true)
   assert.equal(editorStartOk(202), true)
-  assert.equal(editorStartOk(409), true)
+  assert.equal(editorStartOk(409), false)
   assert.equal(editorStartOk(401), false)
   assert.equal(editorStartOk(503), false)
 })
@@ -218,7 +227,7 @@ test("fetchEditorVncToken polls token after editor-start 202", async () => {
   assert.equal(calls[1]?.endsWith("/editor/token"), true)
 })
 
-test("fetchEditorVncToken keeps editor-start HTTP status when start is not 200/201/202/409", async () => {
+test("fetchEditorVncToken keeps editor-start HTTP status when start is not 200/201/202", async () => {
   const mint = await fetchEditorVncToken("prof_1", "hand_1", {
     sleepMs: 0,
     tries: 2,
@@ -292,7 +301,7 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /nextCall auspex_login/)
   assert.match(html, /jwtExpSeconds/)
   assert.match(html, /params\.get\("exp"\)/)
-  assert.match(html, /Math\.min\(fromHash, fromJwt\)/)
+  assert.match(html, /if \(fromHash\) return fromHash/)
   assert.match(html, /parts\.length < 2 \? parts\.length : 2/)
   assert.match(html, /VNC ~5 min/)
   assert.equal(html.includes("short-lived"), false)
