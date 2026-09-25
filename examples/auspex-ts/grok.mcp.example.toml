@@ -1,24 +1,28 @@
-# Auspex MCP (check → verify → reap → kill; plus auspex_job / auspex_job_status). Copy into ~/.grok/config.toml.
-# After clone: npm install && npm run build:mcp (dist/ is gitignored; do not commit it).
-# Primary door: npx auspex-mcp (needs dist/mcp.mjs). Missing dist fail-closes DistMissing.
-# Equivalent without dist: npx tsx src/mcp.ts from examples/auspex-ts.
-# Cursor/Claude reviewers: see mcp.cursor.example.json and mcp.claude.example.json.
-# Secret is env SOLARI_API_KEY only (optional gitignored .env). Restart Grok after changing MCP config.
+# Auspex MCP for Grok Build. Copy the auspex block into ~/.grok/config.toml
+# or a project .grok/config.toml. No clone.
+# Command is the published package: npx -p auspex-solari auspex-mcp.
+# ${SOLARI_API_KEY} expands from the environment. Restart Grok after editing.
+# Cold npx downloads on first launch. startup_timeout_sec 120 covers that.
+# Grok's own default tool timeout is 6000 seconds. This file used to set 300.
+# 300 seconds ends before await-login (default about 30 minutes / 1800 seconds).
+# tool_timeout_sec 1800 matches that wait. Prefer auspex_job, then
+# auspex_job_status, when the host will not hold one tool call that long.
+# A single check still fits in a few minutes.
+# Clone path after npm run build:mcp: args = ["auspex-mcp"] and cwd = the repo.
+# Missing dist/mcp.mjs fail-closes DistMissing.
 
 [mcp_servers.auspex]
 command = "npx"
-args = ["auspex-mcp"]
-cwd = "/path/to/auspex"
+args = ["-p", "auspex-solari", "auspex-mcp"]
+env = { SOLARI_API_KEY = "${SOLARI_API_KEY}" }
 enabled = true
-startup_timeout_sec = 30
-tool_timeout_sec = 300
-
-# If Grok PATH lacks node, pin command to an absolute node binary and
-# args to bin/auspex-mcp.mjs at the repo root (still requires npm run build:mcp).
+startup_timeout_sec = 120
+tool_timeout_sec = 1800
 
 # Official Solari MCP (browser / sandbox / desktop). Separate from Auspex.
+# Contributors only, after npm run build:mcp. Not the stranger paste above.
 # dist/solari-mcp.mjs starts @solarisdk/mcp only if SOLARI_API_KEY is in env or .env;
-# otherwise it exits 1 and Grok will not list solari_* tools. Same build: npm run build:mcp
+# otherwise it exits 1 and Grok will not list solari_* tools.
 [mcp_servers.solari]
 command = "/absolute/path/to/node"
 args = ["/absolute/path/to/auspex/examples/auspex-ts/dist/solari-mcp.mjs"]
