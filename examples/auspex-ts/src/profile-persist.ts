@@ -25,7 +25,14 @@ import {
 } from "./await-fail.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
-import { DEAD_FOLD_VERIFY_BAN, foldMissFinalizeGuide, shouldSteerToFinalize } from "./fold-steer.ts"
+import {
+  DEAD_FOLD_VERIFY_BAN,
+  foldMissFinalizeGuide,
+  idpOnlySaveGuide,
+  isIdpOnlySave,
+  shouldSteerToFinalize,
+  siteHostFromUrl,
+} from "./fold-steer.ts"
 
 export const EMPTY_PROFILE_SEED_ERROR =
   "profile has 0 cookies and 0 origins (empty Save). A version bump with no storage is not a login. Re-login, Save, then retry."
@@ -76,6 +83,7 @@ export type AwaitLoginStatus =
   | "completed"
   | "timeout"
   | "empty-save"
+  | "idp-only-save"
   | "waiting"
   | "host-changed"
   | "stream-expired"
@@ -504,6 +512,7 @@ function awaitGuide(
       text: `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`,
     }
   }
+  if (status === "idp-only-save") return idpOnlySaveGuide(profile.name)
   if (status === "waiting") {
     return {
       text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`,
@@ -528,6 +537,8 @@ export async function waitForProfileSave(
     pageUrl?: string
     /** VNC JWT stamp. When set, the poll stops at this time instead of the 30-minute default. */
     streamExpiresAt?: string
+    /** editorSave already wrote the jar. Read it now; do not wait for a second version bump when it is IdP-only. */
+    inspectExisting?: boolean
     deps: AwaitLoginDeps
   },
 ): Promise<AwaitLoginResult> {
@@ -544,7 +555,9 @@ export async function waitForProfileSave(
   let version = profile.version ?? since
   let seed: ProfileSeed = { cookies: 0, origins: 0 }
   let status: AwaitLoginStatus = "waiting"
-  const inspectOrigin = inspectOriginForAwait({ name: want, url: opts.url })
+  const inspectOrigin = inspectOriginForAwait({ name: want, url: opts.url ?? opts.mintUrl })
+  const siteHost = siteHostFromUrl(inspectOrigin)
+  let inspectedExisting = false
 
   if (streamIsPast(opts.streamExpiresAt, now())) status = "stream-expired"
 
@@ -557,10 +570,26 @@ export async function waitForProfileSave(
     profile = rows.find((p) => p.name.trim() === want)
     if (!profile) throw new Error(`profile ${want} no longer exists`)
     version = profile.version ?? since
-    if (version > since) {
+    const bumped = version > since
+    const readNow = bumped || (opts.inspectExisting === true && !inspectedExisting)
+    if (opts.inspectExisting) inspectedExisting = true
+    if (readNow) {
       seed = await opts.deps.inspect(profile.id, inspectOrigin)
-      status = isEmptySeed(seed) ? "empty-save" : "completed"
-      break
+      if (
+        isIdpOnlySave({
+          cookieHosts: seed.cookieHosts,
+          siteHost,
+          sessionStorage: seed.sessionStorage,
+          sessionStorageStale: seed.sessionStorageStale,
+        })
+      ) {
+        status = "idp-only-save"
+        break
+      }
+      if (bumped) {
+        status = isEmptySeed(seed) ? "empty-save" : "completed"
+        break
+      }
     }
     const remain = deadline - now()
     if (remain <= 0) {
@@ -590,7 +619,7 @@ export async function waitForProfileSave(
     sessionStorageStale: seed.sessionStorageStale,
     cookieHosts: seed.cookieHosts,
     foldedExpiresInSec: seed.foldedExpiresInSec,
-    idpCookies: seed.idpCookies,
+    idpCookies: status === "idp-only-save" ? true : seed.idpCookies,
     liveHost: seed.liveHost,
     ...(hostPatch ?? {}),
     next: hostPatch?.next ?? guided.text,
@@ -613,6 +642,9 @@ function postHandoffOutcome(result: AwaitLoginResult): { status: string; foldRea
   }
   if (result.editorSave && result.editorSave.ok === false && result.editorSave.status === 401) {
     return { status: "editor-save-failed", foldReason: "401" }
+  }
+  if (result.status === "idp-only-save") {
+    return { status: "idp-only-save", foldReason: result.editorFold?.reason ?? "idp-only-save" }
   }
   if (result.editorFold?.reason === "no-cdp") {
     return { status: "no-cdp", foldReason: "no-cdp" }
@@ -735,6 +767,7 @@ export async function liveAwaitLogin(
       mintUrl,
       pageUrl,
       streamExpiresAt: streamPlan.watchStreamExpiresAt,
+      inspectExisting: editorSave?.ok === true,
       deps: {
         list: async () =>
           (await solari.profiles.list()).map((p) => ({
@@ -773,17 +806,42 @@ export async function liveAwaitLogin(
         () => undefined,
       )
       if (seed && (seed.cookies > 0 || seed.origins > 0)) {
-        steered = { ...waited, cookies: seed.cookies, origins: seed.origins, sessionStorage: seed.sessionStorage, sessionStorageStale: seed.sessionStorageStale }
+        const siteHost = siteHostFromUrl(opts.url ?? mintUrl ?? savedCheckForProfile(waited.name)?.url)
+        const idpOnly = isIdpOnlySave({
+          cookieHosts: seed.cookieHosts,
+          siteHost,
+          sessionStorage: seed.sessionStorage,
+          sessionStorageStale: seed.sessionStorageStale,
+        })
+        const guide = idpOnly ? idpOnlySaveGuide(waited.name) : undefined
+        steered = {
+          ...waited,
+          cookies: seed.cookies,
+          origins: seed.origins,
+          sessionStorage: seed.sessionStorage,
+          sessionStorageStale: seed.sessionStorageStale,
+          cookieHosts: seed.cookieHosts,
+          idpCookies: idpOnly ? true : seed.idpCookies,
+          ...(idpOnly ? { status: "idp-only-save" as const, next: guide?.text, nextCall: guide?.nextCall } : {}),
+        }
       }
     }
+    const steerSite = siteHostFromUrl(
+      opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url,
+    )
     const foldLead =
       !patch &&
+      steered.status !== "idp-only-save" &&
       shouldSteerToFinalize({
         editorSave,
         editorFold,
         cookies: steered.cookies,
         origins: steered.origins,
         hostChanged: false,
+        cookieHosts: steered.cookieHosts,
+        siteHost: steerSite,
+        sessionStorage: steered.sessionStorage,
+        sessionStorageStale: steered.sessionStorageStale,
       })
         ? {
             status: "completed" as const,
@@ -798,7 +856,11 @@ export async function liveAwaitLogin(
           }
         : undefined
     const failClosed =
-      !patch && !foldLead && steered.status !== "completed" && steered.status !== "host-changed"
+      !patch &&
+      !foldLead &&
+      steered.status !== "completed" &&
+      steered.status !== "host-changed" &&
+      steered.status !== "idp-only-save"
         ? streamExpired
           ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
           : editorHung
@@ -813,7 +875,9 @@ export async function liveAwaitLogin(
         ? { text: foldLead.text, nextCall: foldLead.nextCall }
         : failClosed
           ? { text: failClosed.text, nextCall: failClosed.nextCall }
-          : editorSave || editorFold
+          : steered.status === "idp-only-save"
+            ? { text: steered.next, nextCall: steered.nextCall }
+            : editorSave || editorFold
             ? overlaySaveEditorGuidance({
                 next: steered.next,
                 nextCall: steered.nextCall,

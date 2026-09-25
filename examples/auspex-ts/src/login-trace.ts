@@ -100,10 +100,29 @@ export function cookieHostsFromState(state: StorageState | null | undefined): st
   return [...hosts].sort()
 }
 
-export function idpCookiesFromHosts(hosts: string[]): boolean {
-  return hosts.some(
-    (h) => hostIs(h, "login.microsoftonline.com") || hostIs(h, "login.live.com") || hostIs(h, "accounts.google.com"),
+/**
+ * Microsoft / Google sign-in cookie hosts. `live.com` is exact so `onedrive.live.com`
+ * is not treated as the IdP wall. `login.microsoft.com` is the account-picker host.
+ */
+export function cookieHostIsIdp(host: string): boolean {
+  const h = host.trim().toLowerCase().replace(/^\./, "")
+  if (!h) return false
+  if (h === "live.com") return true
+  return (
+    hostIs(h, "login.microsoftonline.com") ||
+    hostIs(h, "login.live.com") ||
+    hostIs(h, "login.microsoft.com") ||
+    hostIs(h, "accounts.google.com")
   )
+}
+
+export function idpCookiesFromHosts(hosts: string[]): boolean {
+  return hosts.some((h) => cookieHostIsIdp(h))
+}
+
+/** True when every cookie host is an IdP host. An empty list is not IdP-only. */
+export function cookieHostsAreIdpOnly(hosts: string[]): boolean {
+  return hosts.length > 0 && hosts.every((h) => cookieHostIsIdp(h))
 }
 
 export function foldedExpiresInSecFromState(
