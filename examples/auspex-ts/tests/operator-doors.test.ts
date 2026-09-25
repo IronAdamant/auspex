@@ -102,7 +102,7 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(chooser, /ironadamant\.com does not see/)
   assert.match(chooser, /type the login again/)
   assert.match(chooser, /do not host those credentials or session secrets/)
-  assert.match(chooser, /Console Save is cookies only/)
+  assert.match(chooser, /cannot read sessionStorage \(the handoff editor has no Playwright attach\)/)
   assert.equal(chooser.includes("Microsoft"), false)
   assert.match(chooser, /finalize-login/)
   assert.match(chooser, /hostChanged/)

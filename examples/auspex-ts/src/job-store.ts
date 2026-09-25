@@ -68,6 +68,8 @@ export type JobRecord = {
   updatedAt: string
   next?: string
   nextCall?: NextCall
+  /** Set on idp-only-save. app-visible must not default to a remint. */
+  idpOnlyKind?: "sign-in-wall" | "app-visible"
   handoff?: JobHandoff
   hostChanged?: boolean
   profileHostMatch?: boolean
