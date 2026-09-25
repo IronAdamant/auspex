@@ -175,6 +175,7 @@
       var streamPaused = false
       var ignoreDisconnect = false
       var reconnectAttempts = 0
+      var idpSession = { leftIdp: false, expired: false }
       var Door = (window.AuspexDoorStream) || {
         MAX_RECONNECT: 3,
         RECONNECT_GRACE_MS: 400,
@@ -195,12 +196,22 @@
         status.className = err ? "err" : ""
       }
 
-      function noteRemoteSurface(text) {
+      function applyIdpWall(show) {
         var wall = document.getElementById("idpWall")
         if (!wall) return
-        var show = typeof Door.idpWallVisible !== "function" || Door.idpWallVisible(text)
         if (show) wall.classList.remove("hidden")
         else wall.classList.add("hidden")
+      }
+
+      function noteRemoteSurface(text) {
+        if (locked || idpSession.expired) {
+          applyIdpWall(false)
+          return
+        }
+        var show = true
+        if (typeof Door.noteIdpSurface === "function") show = Door.noteIdpSurface(idpSession, text)
+        else if (typeof Door.idpWallVisible === "function") show = Door.idpWallVisible(text, idpSession)
+        applyIdpWall(show)
       }
 
       function setBoot(text, hide) {
@@ -295,6 +306,9 @@
         }
         rfb = null
         streamConnected = false
+        if (typeof Door.expireIdpWall === "function") Door.expireIdpWall(idpSession)
+        else idpSession.expired = true
+        applyIdpWall(false)
       }
 
       function savePasteLine(name) {

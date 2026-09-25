@@ -37,11 +37,52 @@
     return host.toLowerCase()
   }
 
-  /** Unknown text keeps the warning. A non-IdP https host hides it. */
-  function idpWallVisible(observedText) {
+  function wallSession(session) {
+    return session && typeof session === "object" ? session : null
+  }
+
+  function sessionExpired(session) {
+    var state = wallSession(session)
+    return Boolean(state && (state.expired || state.streamExpired))
+  }
+
+  /**
+   * Unknown text keeps the warning. A non-IdP https host hides it.
+   * stream-expired / remint UI hides it so expiry copy owns the screen.
+   * After a non-IdP https host was seen, later empty signals stay hidden.
+   * A later IdP host still shows the warning.
+   */
+  function idpWallVisible(observedText, session) {
+    if (sessionExpired(session)) return false
     var host = httpsHost(observedText)
-    if (!host) return true
+    if (!host) {
+      var state = wallSession(session)
+      if (state && state.leftIdp) return false
+      return true
+    }
     return pageHostIsIdp(host)
+  }
+
+  function createIdpWallSession() {
+    return { leftIdp: false, expired: false }
+  }
+
+  /** Remember a non-IdP https host for the rest of this door session. */
+  function noteIdpSurface(session, observedText) {
+    var state = wallSession(session) || createIdpWallSession()
+    if (!sessionExpired(state)) {
+      var host = httpsHost(observedText)
+      if (host && !pageHostIsIdp(host)) state.leftIdp = true
+    }
+    return idpWallVisible(observedText, state)
+  }
+
+  /** stream-expired / remint: hide the wall for the rest of this page. */
+  function expireIdpWall(session) {
+    var state = wallSession(session) || createIdpWallSession()
+    state.expired = true
+    state.streamExpired = true
+    return false
   }
 
   function imeAutocomplete(bulletsOn, otpOn) {
@@ -61,6 +102,9 @@
     pageHostIsIdp: pageHostIsIdp,
     httpsHost: httpsHost,
     idpWallVisible: idpWallVisible,
+    createIdpWallSession: createIdpWallSession,
+    noteIdpSurface: noteIdpSurface,
+    expireIdpWall: expireIdpWall,
     imeAutocomplete: imeAutocomplete,
     imeInputType: imeInputType,
   }

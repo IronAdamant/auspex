@@ -30,7 +30,10 @@ function loadDoorStream() {
       maxAttempts?: number,
     ) => string
     pageHostIsIdp: (host: string) => boolean
-    idpWallVisible: (text: string) => boolean
+    idpWallVisible: (text: string, session?: { leftIdp?: boolean; expired?: boolean; streamExpired?: boolean }) => boolean
+    createIdpWallSession: () => { leftIdp: boolean; expired: boolean }
+    noteIdpSurface: (session: { leftIdp?: boolean; expired?: boolean }, text: string) => boolean
+    expireIdpWall: (session: { leftIdp?: boolean; expired?: boolean; streamExpired?: boolean }) => boolean
     IDP_WALL_TEXT: string
     imeAutocomplete: (bulletsOn: boolean, otpOn?: boolean) => string
     imeInputType: (bulletsOn: boolean) => string
@@ -77,6 +80,20 @@ test("door IdP host list matches cookieHostIsIdp and hides only off the wall", (
   assert.equal(Door.idpWallVisible("https://accounts.google.com/o/oauth2/v2/auth"), true)
   assert.equal(Door.idpWallVisible("https://onedrive.live.com/"), false)
   assert.equal(Door.idpWallVisible("https://consistencyhub.io/app"), false)
+  assert.equal(Door.idpWallVisible("", { expired: true }), false)
+  assert.equal(Door.idpWallVisible("https://login.microsoftonline.com/common", { streamExpired: true }), false)
+  assert.equal(Door.idpWallVisible("https://accounts.google.com/o/oauth2/v2/auth", { expired: true }), false)
+  const session = Door.createIdpWallSession()
+  assert.equal(Door.noteIdpSurface(session, ""), true)
+  assert.equal(Door.noteIdpSurface(session, "https://consistencyhub.io/app"), false)
+  assert.equal(session.leftIdp, true)
+  assert.equal(Door.noteIdpSurface(session, ""), false)
+  assert.equal(Door.idpWallVisible("", session), false)
+  assert.equal(Door.noteIdpSurface(session, "https://login.microsoftonline.com/common"), true)
+  assert.equal(Door.expireIdpWall(session), false)
+  assert.equal(session.expired, true)
+  assert.equal(Door.noteIdpSurface(session, "https://login.microsoftonline.com/common"), false)
+  assert.equal(Door.idpWallVisible("https://consistencyhub.io/app", session), false)
   const phone = readFileSync(path.join(repo, "docs", "phone.html"), "utf8")
   const desktop = readFileSync(path.join(repo, "docs", "desktop.html"), "utf8")
   assert.match(phone, /id="idpWall"/)
@@ -85,4 +102,10 @@ test("door IdP host list matches cookieHostIsIdp and hides only off the wall", (
   assert.match(desktop, /noteRemoteSurface/)
   assert.match(phone, /if \(fromHash\) return fromHash/)
   assert.match(desktop, /if \(fromHash\) return fromHash/)
+  assert.match(phone, /expireIdpWall/)
+  assert.match(desktop, /expireIdpWall/)
+  assert.match(phone, /noteIdpSurface/)
+  assert.match(desktop, /noteIdpSurface/)
+  assert.match(phone, /applyIdpWall\(false\)/)
+  assert.match(desktop, /applyIdpWall\(false\)/)
 })
