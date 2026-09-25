@@ -10,8 +10,8 @@ Dogfood (2026-09-24): phone OTP and email codes often outlive the door. Socialai
 
 ## What Auspex does
 
-- While `exp` is in the future, `phone.html` / `desktop.html` pause on background and reconnect the **same** JWT (`doorStreamDisconnectAction`). That does not invent a live stream.
-- After `exp`, or when reconnect fails, the door reports `stream-expired` and the remint `nextCall` is `auspex_login`.
+- While `exp` is in the future, `phone.html` / `desktop.html` pause on background and reconnect the **same** JWT (`doorStreamDisconnectAction`). A dropped socket before `exp` is not `stream-expired`. That does not invent a live stream.
+- After `exp`, the door reports `stream-expired` and the remint `nextCall` is `auspex_login`.
 - If `editorSave` already returned 200 and the profile has cookies, `await-login` does **not** lead with remint. It leads with `finalize-login`. The dead JWT is a footnote.
 - `--verify-with-profile` does not use this JWT. It creates a new browser session from the saved profile.
 

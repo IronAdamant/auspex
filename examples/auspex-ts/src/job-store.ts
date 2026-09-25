@@ -34,6 +34,7 @@ export type JobStatus =
   | "host-changed"
   | "editor-save-hung"
   | "profile-busy"
+  | "editor-busy"
   | "empty-save"
   | "idp-only-save"
   | "timeout"

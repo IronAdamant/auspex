@@ -110,8 +110,7 @@
       }
 
       var fromHash = parseUnixSeconds(params.get("exp"))
-      var fromJwt = jwtExpSeconds(token)
-      var expSec = fromHash && fromJwt ? Math.min(fromHash, fromJwt) : (fromHash || fromJwt)
+      var expSec = fromHash || jwtExpSeconds(token)
       if (!expSec) {
         lock("Link expiry unknown — remint")
         return

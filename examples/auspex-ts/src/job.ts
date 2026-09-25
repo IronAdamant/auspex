@@ -398,6 +398,16 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
       record.sinceVersion = minted.sinceVersion
       record.profileHostMatch = minted.profileHostMatch
       record.suggestedProfile = minted.suggestedProfile
+      if (minted.status === "editor-busy") {
+        record.phase = "failed"
+        record.status = "editor-busy"
+        record.ok = false
+        record.reason = minted.reason ?? "editor-start-409"
+        record.next = minted.next
+        record.nextCall = minted.nextCall ?? remintLoginNextCall(record.profile)
+        await persist()
+        return publicJob(record, { wake: await wake("failed") })
+      }
       if (minted.handoff && (minted.handoff.url || minted.handoff.mobileUrl)) {
         record.handoff = {
           url: minted.handoff.url,
