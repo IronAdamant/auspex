@@ -85,6 +85,10 @@ const HOLDING = new Set(["starting", "running", "paused"])
 
 export type VmRow = { id: string; kind: string; state: string }
 
+/** Solari has no GET /sessions (cookbook #61). Ledger is this machine only. */
+export const REAP_LEDGER_NOTE =
+  "Solari has no GET /sessions (cookbook #61). auspex_reap lists this machine's Auspex ledger only. Measured Starter concurrency is 18 while the marketed cap is 20 (cookbook #57). A dead session can still look active for about 10 minutes (cookbook #25). accountWide stays off unless you pass it."
+
 export type ReapResult = {
   ok: boolean
   dryRun: boolean
@@ -96,6 +100,8 @@ export type ReapResult = {
   packed?: PackedReceipt[]
   packDir?: string
   accountWide?: boolean
+  ledgerCount?: number
+  note?: string
 }
 
 export type ReapOpts = {
@@ -203,6 +209,8 @@ export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promi
     killed,
     errors,
     accountWide,
+    ledgerCount: ledger.browser.length + ledger.sandbox.length + ledger.desktop.length,
+    note: REAP_LEDGER_NOTE,
   }
   if (opts.packReceipts) {
     try {

@@ -6,6 +6,7 @@ import {
   classifySolariError,
   CLOSE_KILL_RECOVERY,
   explainSolariError,
+  solariFailurePayload,
 } from "../src/errors.ts"
 import { ProfileBusyError } from "../src/profile-lock.ts"
 
@@ -85,6 +86,54 @@ test("AuspexError preserves receipt fields", () => {
   assert.equal(err.sessionId, "sess-1")
   assert.equal(err.screenshotPath, "shot.png")
   assert.equal(classifySolariError(err).message, "boom")
+})
+
+test("exhaustion without status is SolariSdkExhausted and not a login failure", () => {
+  const err = new SolariError("Solari POST /sessions: exhausted 2 attempts")
+  assert.equal(err.status, undefined)
+  const issue = classifySolariError(err)
+  assert.equal(issue.code, "SolariSdkExhausted")
+  assert.equal(issue.solariBlame, "unknown-exhausted")
+  assert.equal(issue.retryable, false)
+  assert.equal(issue.nextCall?.tool, "auspex_login")
+  assert.match(issue.recovery ?? "", /Wait once/)
+  assert.match(issue.recovery ?? "", /not loggedOut or needsHuman/)
+  assert.equal(issue.message.includes("loggedOut"), false)
+  assert.equal(issue.message.includes("needsHuman"), false)
+  const payload = solariFailurePayload(err)
+  assert.equal(payload.ok, false)
+  assert.equal(payload.code, "SolariSdkExhausted")
+  assert.equal(payload.solariBlame, "unknown-exhausted")
+  assert.equal(payload.nextCall?.tool, "auspex_login")
+  assert.equal(payload.status, undefined)
+})
+
+test("exhausted 503 cause is infra-5xx and stealth text is stealth-pool-empty", () => {
+  const cause = new SolariError("Solari POST /sessions: 503", 503)
+  const wrapped = new SolariError("Solari POST /sessions: exhausted 2 attempts", undefined, cause)
+  const infra = classifySolariError(wrapped)
+  assert.equal(infra.code, "SolariSdkExhausted")
+  assert.equal(infra.solariBlame, "infra-5xx")
+  assert.equal(infra.status, 503)
+  assert.equal(infra.retryable, false)
+  assert.equal(infra.nextCall, undefined)
+  assert.match(infra.recovery ?? "", /retry the same call once/)
+
+  const stealth = classifySolariError(
+    new SolariError('Solari POST /sessions: 503 No stealth pool available', 503),
+  )
+  assert.equal(stealth.code, "SolariSdkExhausted")
+  assert.equal(stealth.solariBlame, "stealth-pool-empty")
+  assert.equal(stealth.retryable, false)
+  assert.match(stealth.recovery ?? "", /Drop --stealth/)
+  assert.match(stealth.recovery ?? "", /Do not solve CAPTCHA/)
+  assert.equal(stealth.nextCall, undefined)
+
+  const still429 = classifySolariError(new SolariError("x", 429, undefined, "ConcurrencyLimitExceeded"))
+  assert.equal(still429.code, "ConcurrencyLimitExceeded")
+  assert.equal(still429.solariBlame, "concurrency")
+  assert.equal(still429.nextCall?.tool, "auspex_reap")
+  assert.equal(solariFailurePayload(still429 && new SolariError("x", 429)).nextCall?.tool, "auspex_reap")
 })
 
 test("explainSolariError redacts slr_live_ tokens", () => {
