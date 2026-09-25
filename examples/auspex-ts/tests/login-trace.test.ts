@@ -31,6 +31,9 @@ test("cookieHostsFromState lists unique hosts without values", () => {
   assert.deepEqual(hosts, ["consistencyhub.io", "login.microsoftonline.com"])
   assert.equal(idpCookiesFromHosts(hosts), true)
   assert.equal(idpCookiesFromHosts(["consistencyhub.io"]), false)
+  assert.equal(idpCookiesFromHosts(["login.microsoft.com"]), true)
+  assert.equal(idpCookiesFromHosts(["live.com"]), true)
+  assert.equal(idpCookiesFromHosts(["onedrive.live.com"]), false)
 })
 
 test("loginTraceSeedExtras reports stale folded expiresInSec and omits values", () => {

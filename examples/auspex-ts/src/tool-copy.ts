@@ -41,12 +41,14 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone/desktop Save " +
   "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
   "If editorSave is 200 and editorFold is no-cdp and the profile has cookies, finalize-login NOW even when the VNC JWT is past. " +
+  "If those cookies are only Microsoft or Google sign-in hosts and the app host is missing, status is idp-only-save: remint, do not finalize. " +
+  "Finish Microsoft or Google, land on the app UI, then Save. " +
   "If editorSave fails, remint. Cookies alone are not proof of login. " +
   "Leftover sessionStorage is not a fresh capture. " +
   "Do not remint for stream-expired after editorSave 200 when cookies exist. Do not verify-with-profile on that fold. " +
   "verify-with-profile after finalize uses a fresh session from the saved profile, not the editor JWT. " +
   "Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Stale/weak next: remint or finalize-now. " +
-  "Statuses: completed | timeout | empty-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
+  "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
   "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
   "Under ~90s left, or once the stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll. " +
   "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +

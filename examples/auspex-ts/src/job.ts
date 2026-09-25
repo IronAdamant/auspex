@@ -253,6 +253,14 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
     record.ok = false
     return record
   }
+  if (waited.status === "idp-only-save") {
+    record.phase = "failed"
+    record.status = "idp-only-save"
+    record.reason = "idp-only-save"
+    record.ok = false
+    record.nextCall = waited.nextCall ?? remintLoginNextCall(record.profile)
+    return record
+  }
   record.phase = "await"
   record.status = waited.status === "timeout" ? "timeout" : "waiting"
   record.reason = waited.status
