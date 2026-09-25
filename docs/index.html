@@ -149,6 +149,11 @@
         ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a>.
         OneDrive: receipt-only <a href="demo/onedrive-receipt.json">onedrive-receipt.json</a> (no public PNG, PII).
         Both: ok true, claimOk false (skipped), claimOkProfile true.
+        That pair is Truth A (a finished seed).
+        Truth B: Save can return 200 while the app is already on screen and the jar is still only Microsoft or Google cookies (session storage 0).
+        Status idp-only-save, kind app-visible. Do not finalize.
+        The picture is not a saved login. Solari handoff Save stores cookies and local storage; it cannot read the in-tab session token.
+        Not Auspex broken, and not a reason to mint again to finish Microsoft.
         Worked evidence, not the recipe — strangers still use <code>login --url</code> plus their URL and expect.
         <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#dual-pack-same-microsoft-seed">RECEIPTS.md Dual pack</a>.
       </p>

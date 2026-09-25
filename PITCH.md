@@ -102,7 +102,7 @@ Evidence that the generic `login --url` / `--profile <yours>` recipe works on a 
 
 ## One-liner wedge
 
-**Auspex = agent web-eyes that stay honest on auth-gated first-party SaaS.** Primitives are check / verify / desktop; login, finalize-login, profile-status, and reap are the auth + hygiene doors.
+**Auspex = agent web-eyes that stay honest on auth-gated first-party SaaS.** Auspex is the login-truth gate before reliable agent labor: it proves a claim about the logged-in state. It is not a demo of acting while logged in. Primitives are check / verify / desktop; login, finalize-login, profile-status, and reap are the auth + hygiene doors.
 
 - **Check:** live browser with profile → `matched`
 - **Verify:** anonymous sandbox fetch/OCR → `claimOk` (integrity + claim)

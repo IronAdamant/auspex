@@ -1,12 +1,19 @@
 # Auspex
 
-Agents often say a page loaded when it is still a login screen. Auspex opens the site in Solari cloud Chrome (a browser Solari runs in their cloud, not on your computer), checks the claim, then checks again on a second machine.
+Agents often say a page loaded when it is still a login screen. Auspex opens the site in Solari cloud Chrome (a browser Solari runs in their cloud, not on your computer), checks the claim, then checks again on a second machine. Auspex is the login-truth gate before reliable agent labor: it proves a claim about the logged-in state. It is not a demo of acting while logged in.
 
 ## For Reviewers
 
 The ironadamant one-liner is a **measured public check** (no login). It does **not** prove logged-in honesty. **Auth-gated evidence** is the redacted demo: a redacted auth-gated SaaS demo, receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json). Watch with no clone and no API key: https://ironadamant.com/auspex/ — the landing opens on the blurred redacted demo and the three results; the player lower on the page is the stripped Microsoft wall, not logged-in proof.
 
-Recipe: `login --url <https>` (override `--profile <yours>`). We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session. The Pages landing has a short Agent door card beside Phone and Desktop. The skim under the blur names the dual pack (ConsistencyHub blur + receipt; OneDrive receipt-only).
+Recipe: `login --url <https>` (override `--profile <yours>`). We do not claim Alice-vs-Bob wrong-account detection. Auspex never types passwords. Never `--record` a logged-in session. The Pages landing has a short Agent door card beside Phone and Desktop. The skim under the blur names the dual pack (ConsistencyHub blur + receipt; OneDrive receipt-only). Read that pack as two truths.
+
+| | What you see | What to do |
+| --- | --- | --- |
+| **Truth A** | A finished saved login. The dual pack shows `claimOkProfile` true on both hosts. | A later independent check can reuse that seed. Evidence, not the recipe. |
+| **Truth B** | Save returned 200. The app is already on the remote picture. The jar is still only Microsoft or Google sign-in cookies, and in-tab session storage is 0. Status `idp-only-save`, kind `app-visible`. | Do not finalize. The picture is not a saved login. Solari handoff Save stores cookies and local storage. It cannot read the in-tab session token. That is not Auspex broken, and it is not a reason to mint login again to finish Microsoft. |
+
+`sign-in-wall` is the other kind: you are still on the Microsoft or Google page. Finish that sign-in, land on the app, then Save. That one mints again. `app-visible` does not. If the jar already includes the app host and Save could not refresh in-tab session storage, run finalize-login now. That case is not Truth B.
 
 **Issues** is on. The weekly public job still skips if the secret is unset. Do not remove it. Repo `SOLARI_API_KEY` is **present** (masked). Observed: [Actions 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (2026-09-21) ironadamant + checkpoint `ok: true`.
 
@@ -87,7 +94,7 @@ Claude and Grok configs: [package README](examples/auspex-ts/README.md#mcp).
 
 - The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
 - The live site moved to a different host than the one minted into the door (`hostChanged`). Mint login again. Leave the old profile alone.
-- The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. If save returned 200 but could not refresh in-tab session storage, run finalize-login now.
+- The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. If save returned 200 but could not refresh in-tab session storage, and the jar already includes the app host, run finalize-login now. An IdP-only jar with the app already on screen is Truth B above: do not finalize.
 - Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - Stealth applies only when a check opens a session (`auspex check --stealth`). Login mint cannot request it. The cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 
@@ -97,7 +104,7 @@ Blurred dashboard from a real logged-in app. The blur hides personal data. The n
 
 ![Redacted auth-gated SaaS demo (blur protects PII)](examples/auspex-ts/demo/consistencyhub.png)
 
-On that receipt: `ok=true` (the live check passed), `claimOk=false` (the anonymous second machine was skipped), `claimOkProfile=true` (the saved login saw the claim). OneDrive is a receipt only (no raw screenshot).
+On that receipt: `ok=true` (the live check passed), `claimOk=false` (the anonymous second machine was skipped), `claimOkProfile=true` (the saved login saw the claim). OneDrive is a receipt only (no raw screenshot). That pair is Truth A. Truth B is in [For Reviewers](#for-reviewers): a dashboard already on screen with an IdP-only jar is `idp-only-save` / `app-visible`. Do not finalize that jar.
 
 ## Worked example (dogfood)
 

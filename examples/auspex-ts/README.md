@@ -82,4 +82,4 @@ npx auspex profile-status --name consistencyhub
 npx auspex check --name consistencyhub --verify-with-profile
 ```
 
-**Verified 2026-09-18:** `ok=true`, `claimOkProfile=true` on `demo/consistencyhub-receipt.json`. Do not fold `claimOkProfile` into `ok`. OneDrive is receipt-only (`demo/onedrive-receipt.json`) — no raw OneDrive PNG.
+**Verified 2026-09-18:** `ok=true`, `claimOkProfile=true` on `demo/consistencyhub-receipt.json`. Do not fold `claimOkProfile` into `ok`. OneDrive is receipt-only (`demo/onedrive-receipt.json`) — no raw OneDrive PNG. That pair is Truth A. Truth B: a dashboard already on screen with only Microsoft or Google cookies is `idp-only-save` / `app-visible`. Do not finalize. See [two truths](../../RECEIPTS.md#dual-pack-same-microsoft-seed).
