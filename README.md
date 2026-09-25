@@ -18,6 +18,8 @@ The recipe for a stranger’s own site is `login --url <https>` (Auspex names th
 
 Save is the button on the Phone or Desktop door. It asks Solari to store what the remote browser can see. A picture of a logged-in app and a saved login are two different things.
 
+**The app on the remote screen is not a saved login you can reuse.** A site that signs you in through Microsoft or Google — often MSAL, the in-tab Microsoft session — can show the logged-in app while Save still stores only those sign-in cookies. Auspex stops on that jar on purpose. The stop is honest. Login worked. A stranger’s site uses `login --url https://…` (Auspex names the saved login from the address). The human taps Save. The agent runs `await-login --save-editor`. Finalize only when that save holds the app’s own session. Status `idp-only-save`, kind `app-visible`: do not finalize, and do not open login again to finish Microsoft. ConsistencyHub and OneDrive in the table are worked receipts of a finished save, not those steps.
+
 | | What happened, in everyday words | What you should do |
 | --- | --- | --- |
 | **Truth A** | Someone finished signing in, and Auspex kept a complete saved login. Later, a separate check loaded that saved login and the expected words were on the page. The dual pack shows `claimOkProfile` true on both hosts (ConsistencyHub and OneDrive). | A later independent check can reuse that saved login. This pair is evidence, not the recipe a stranger should copy for a new site. |
@@ -70,7 +72,7 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 | **Public check** | `npx auspex-solari check --name ironadamant` — does **not** prove logged-in honesty |
 | **Any site** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Microsoft login — human** | 1. `npx auspex-solari login --url <https>` (override `--profile <yours>`). 2. Open `handoff.url`, the chooser link Auspex prints (Phone: `handoff.mobileUrl`, Desktop: `handoff.desktopUrl`). 3. You sign in on that door and tap Save. The human does this part. The agent does not type the password. |
-| **Microsoft login — agent** | After that Save, the agent runs `await-login --save-editor` (wait until Save has stored cookies), then `auspex_finalize_login` (open the app again and save the in-tab session). Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. [Frozen door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
+| **Microsoft login — agent** | After that Save, the agent runs `await-login --save-editor` (wait until Save has stored cookies). Finalize (`auspex_finalize_login`, open the app again and save the in-tab session) only when that save holds the app’s own session. Status `idp-only-save`, kind `app-visible`: do not finalize. Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. [Frozen door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` — Cursor config below |
 | **Hands-off job** | One command runs the whole path (open the door, wait for Save, finalize, then check): `npx auspex-solari job --url <https> --expect "<unique logged-in text>"`, then `job-status` |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY`, `.env`, or `.auspex/` |

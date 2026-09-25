@@ -23,6 +23,8 @@ A tool timeout of about 300 seconds ends before that wait.
 Save can return 200 while the screen shows the app and the cookie jar is still only Microsoft or Google (idp-only-save, app-visible). Do not finalize. Do not mint login again to finish Microsoft.
 ```
 
+Five-minute read of that last line: [Reviewer path](REVIEWER-5MIN.md) (app on screen is not a reusable saved login).
+
 ## Long waits
 
 `await-login` waits until a person taps Save. The default cap is 30 minutes. Hosts that kill a tool call in about 5–10 minutes, or at 60 seconds, will cut that off.
