@@ -3,6 +3,8 @@
  * First sentence is the mistake that fails the call (fail-closed lead).
  */
 
+import { awaitLoginDescription } from "./door-await-contract.ts"
+
 const DOOR = "Detail: docs/door-card-api.md and AGENTS.md."
 
 export const CHECK_DESCRIPTION =
@@ -38,27 +40,7 @@ export const LOGIN_DESCRIPTION =
   "Solari editor start 409 is status editor-busy (reason editor-start-409): a prior editor is still running. Do not finalize-login. Wait for it to close, or purge after the human agrees, then remint. " +
   DOOR
 
-export const AWAIT_LOGIN_DESCRIPTION =
-  "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. " +
-  "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone/desktop Save " +
-  "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
-  "If editorSave is 200 and editorFold is no-cdp and the profile has cookies, finalize-login NOW even when the VNC JWT is past. " +
-  "If the app host is missing from the jar (Microsoft or Google sign-in hosts, including google.com and www.google.com, or any cookies while liveHost is already the app), status is idp-only-save: do not finalize. " +
-  "idpOnlyKind sign-in-wall: the human is still on Microsoft or Google — finish sign-in, land on the app UI, then Save, and remint. " +
-  "idpOnlyKind app-visible: liveHost is already the app. The dashboard on screen is not a saved login. " +
-  "Solari handoff Save cannot read MSAL sessionStorage (no CDP). Do not remint to finish Microsoft. Do not finalize-login. " +
-  "If editorSave fails, remint. Cookies alone are not proof of login. " +
-  "Leftover sessionStorage is not a fresh capture. " +
-  "Do not remint for stream-expired after editorSave 200 when cookies exist. Do not verify-with-profile on that fold. " +
-  "verify-with-profile after finalize uses a fresh session from the saved profile, not the editor JWT. " +
-  "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). Save is not sessionStorage. " +
-  "Stale/weak next: remint or finalize-now. " +
-  "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
-  "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
-  "Once that stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll and not before the stamp. " +
-  "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +
-  "Live host divergence: hostChanged, remint auspex_login. " +
-  DOOR
+export const AWAIT_LOGIN_DESCRIPTION = awaitLoginDescription()
 
 export const FINALIZE_LOGIN_DESCRIPTION =
   "Calling finalize-login without url and expect on an unknown profile fails the call. " +

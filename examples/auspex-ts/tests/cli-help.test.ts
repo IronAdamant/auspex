@@ -26,7 +26,6 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /--verify/)
   assert.match(USAGE, /desktop/)
   assert.match(USAGE, /handoff|door\.html/)
-  assert.match(USAGE, /--verify/)
   assert.match(USAGE, /not retryable/)
   assert.match(USAGE, /auspex_reap/)
   assert.match(USAGE, /--wait-for/)

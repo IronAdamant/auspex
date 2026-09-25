@@ -260,7 +260,9 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
     record.ok = false
     record.next = waited.next
     record.idpOnlyKind = waited.idpOnlyKind
-    if (waited.idpOnlyKind !== "app-visible") {
+    if (waited.idpOnlyKind === "app-visible") {
+      delete record.nextCall
+    } else {
       record.nextCall = waited.nextCall ?? remintLoginNextCall(record.profile)
     }
     return record

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
+import vm from "node:vm"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -186,36 +187,35 @@ test("door site URL prefers a live https origin and ignores the password field",
 })
 
 test("door pages do not use the IME as a site picker", () => {
+  const page = readFileSync(path.join(repoRoot, "docs", "door-page.js"), "utf8")
+  assert.match(page, /cannot read the remote address bar/)
+  assert.match(page, /not a site picker/)
+  assert.match(page, /doorSiteUrl\(liveSiteUrl\(\), params\.get\("u"\)\)/)
+  assert.equal(page.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false)
+  const context: Record<string, unknown> = {}
+  context.window = context
+  vm.runInNewContext(page, context, { filename: "door-page.js" })
+  const api = context.AuspexDoorPage as {
+    liveSiteUrl: () => string
+    httpsSite: (value: string) => string
+    doorSiteUrl: (live?: string, minted?: string, typed?: string) => string
+  }
+  assert.equal(api.liveSiteUrl(), "")
+  assert.equal(api.httpsSite("https://app.socialaize.com/path?q=1"), "https://app.socialaize.com")
+  assert.equal(api.httpsSite("http://insecure.example"), "")
+  assert.equal(
+    api.doorSiteUrl("https://app.socialaize.com/a", "https://myapp.example/b", "https://evil.example"),
+    "https://app.socialaize.com",
+  )
+  assert.equal(
+    api.doorSiteUrl("", "https://myapp.example/dashboard", "https://typed.example/login"),
+    "https://myapp.example",
+  )
+  assert.equal(api.doorSiteUrl("http://insecure.example", "https://myapp.example", "https://typed.example"), "https://myapp.example")
   for (const file of ["phone.html", "desktop.html"]) {
     const html = readFileSync(path.join(repoRoot, "docs", file), "utf8")
-    assert.match(html, /cannot read the remote address bar/)
-    assert.match(html, /not a site picker/)
-    assert.match(html, /doorSiteUrl\(liveSiteUrl\(\), params\.get\("u"\)\)/)
-    assert.equal(html.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false)
-    const fns = ["liveSiteUrl", "httpsSite", "doorSiteUrl"]
-      .map((name) => {
-        const match = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n      \\}`))
-        assert.ok(match, `${file} ${name}`)
-        return match[0]
-      })
-      .join("\n")
-    const api = new Function(`${fns}\nreturn { liveSiteUrl, httpsSite, doorSiteUrl }`)() as {
-      liveSiteUrl: () => string
-      httpsSite: (value: string) => string
-      doorSiteUrl: (live?: string, minted?: string, typed?: string) => string
-    }
-    assert.equal(api.liveSiteUrl(), "")
-    assert.equal(api.httpsSite("https://app.socialaize.com/path?q=1"), "https://app.socialaize.com")
-    assert.equal(api.httpsSite("http://insecure.example"), "")
-    assert.equal(
-      api.doorSiteUrl("https://app.socialaize.com/a", "https://myapp.example/b", "https://evil.example"),
-      "https://app.socialaize.com",
-    )
-    assert.equal(
-      api.doorSiteUrl("", "https://myapp.example/dashboard", "https://typed.example/login"),
-      "https://myapp.example",
-    )
-    assert.equal(api.doorSiteUrl("http://insecure.example", "https://myapp.example", "https://typed.example"), "https://myapp.example")
+    assert.match(html, /door-page\.js/, `${file} loads the shared door script`)
+    assert.equal(html.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false, file)
   }
 })
 
