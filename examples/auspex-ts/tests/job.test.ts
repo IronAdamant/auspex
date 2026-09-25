@@ -240,6 +240,51 @@ test("stream-expired returns remint nextCall and does not continue", async () =>
   assert.equal(again.phase, "failed")
 })
 
+test("idp-only app-visible omits nextCall; sign-in-wall remints", async () => {
+  const dir = await tmpJobs()
+  const minted = await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({ jobsDir: dir }),
+  )
+  const visible = await runJob(
+    { jobId: minted.jobId },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () =>
+        awaitResult({
+          status: "idp-only-save",
+          idpOnlyKind: "app-visible",
+          next: "dashboard on screen is not a saved login",
+          nextCall: { tool: "auspex_login", profile: "app-example" },
+        }),
+    }),
+  )
+  assert.equal(visible.ok, false)
+  assert.equal(visible.status, "idp-only-save")
+  assert.equal(visible.idpOnlyKind, "app-visible")
+  assert.equal(visible.nextCall, undefined)
+  const wallDir = await tmpJobs()
+  const wallMint = await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({ jobsDir: wallDir }),
+  )
+  const wall = await runJob(
+    { jobId: wallMint.jobId },
+    deps({
+      jobsDir: wallDir,
+      awaitLogin: async () =>
+        awaitResult({
+          status: "idp-only-save",
+          idpOnlyKind: "sign-in-wall",
+          next: "Finish Microsoft or Google",
+          nextCall: { tool: "auspex_login", profile: "app-example" },
+        }),
+    }),
+  )
+  assert.equal(wall.idpOnlyKind, "sign-in-wall")
+  assert.equal(wall.nextCall?.tool, "auspex_login")
+})
+
 test("hostChanged fail-closed keeps remint nextCall", async () => {
   const dir = await tmpJobs()
   const minted = await runJob(

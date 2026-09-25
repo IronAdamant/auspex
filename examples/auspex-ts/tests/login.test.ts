@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { readFileSync } from "node:fs"
+import vm from "node:vm"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { doorSaveSiteUrl } from "../src/live-host-change.ts"
@@ -270,10 +271,8 @@ test("empty handoffToken does not report mintStage ready", async () => {
 })
 
 test("docs/phone.html has a real text field and loads the local noVNC client", () => {
-  const html = readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/phone.html"),
-    "utf8",
-  )
+  const docs = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs")
+  const html = `${readFileSync(path.join(docs, "phone.html"), "utf8")}\n${readFileSync(path.join(docs, "door-page.js"), "utf8")}`
   assert.match(html, /<input id="ime"/)
   assert.match(html, /novnc-rfb\.js/)
   assert.match(html, /phone keyboard/)
@@ -318,15 +317,20 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.equal(html.includes('autocomplete="off"'), false)
 })
 
-function phoneHtmlSavePaste(name?: string): string {
-  const html = readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/phone.html"),
-    "utf8",
+function doorSaveLine(surface: "phone" | "desktop", name?: string): string {
+  const context: Record<string, unknown> = {}
+  context.window = context
+  vm.runInNewContext(
+    readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/door-page.js"), "utf8"),
+    context,
+    { filename: "door-page.js" },
   )
-  const match = html.match(/function savePasteLine\(name\) \{[\s\S]*?\n      \}/)
-  assert.ok(match, "phone.html must define savePasteLine")
-  const fn = new Function(`${match[0]}\nreturn savePasteLine`) as () => (n?: string) => string
-  return fn()(name)
+  const api = context.AuspexDoorPage as { savePasteLine: (profile?: string, door?: string) => string }
+  return api.savePasteLine(name, surface)
+}
+
+function phoneHtmlSavePaste(name?: string): string {
+  return doorSaveLine("phone", name)
 }
 
 test("phoneSavePaste is a line any agent chat can run", () => {
@@ -352,14 +356,7 @@ test("phone.html clipboard equals phoneSavePaste", () => {
 })
 
 function desktopHtmlSavePaste(name?: string): string {
-  const html = readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../../docs/desktop.html"),
-    "utf8",
-  )
-  const match = html.match(/function savePasteLine\(name\) \{[\s\S]*?\n      \}/)
-  assert.ok(match, "desktop.html must define savePasteLine")
-  const fn = new Function(`${match[0]}\nreturn savePasteLine`) as () => (n?: string) => string
-  return fn()(name)
+  return doorSaveLine("desktop", name)
 }
 
 test("desktop.html clipboard equals desktopSavePaste and says desktop page", () => {

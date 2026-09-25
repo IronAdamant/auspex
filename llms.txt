@@ -44,8 +44,10 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
 - The live site moved to a different host than the one minted into the door (`hostChanged`). Mint `auspex_login` again for `suggestedProfile` and `suggestedUrl`. Leave the old profile alone.
 - The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. Skip a 30-minute wait.
+<!-- auspex-door-await:begin -->
 - Save returned 200 but could not refresh in-tab session storage, and the jar already includes the app host. Run finalize-login now. Skip `--verify-with-profile` on that fold.
 - Save returned 200, the app is already on screen, and the jar is still only Microsoft or Google cookies (in-tab session storage 0). Status `idp-only-save`, kind `app-visible`. Do not finalize. Do not mint again to finish Microsoft. The picture is not a saved login.
+<!-- auspex-door-await:end -->
 - Cookies exist but in-tab session storage is empty or stale, or there is no saved profile (`weakSeed`, `emptySave`). Mint again or finalize now. Skip `--verify-with-profile`.
 - Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
