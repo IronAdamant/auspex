@@ -25,14 +25,12 @@ import {
   streamExpiredGuide,
 } from "./await-fail.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
+import { steerAwaitLogin } from "./await-steer.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
 import {
   DEAD_FOLD_VERIFY_BAN,
-  foldLeadBlockedByDrain,
-  foldMissFinalizeGuide,
   idpOnlySaveGuide,
   isIdpOnlySave,
-  shouldSteerToFinalize,
   siteHostFromUrl,
 } from "./fold-steer.ts"
 
@@ -858,73 +856,21 @@ export async function liveAwaitLogin(
         }
       }
     }
-    const steerSite = siteHostFromUrl(
-      opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url,
-    )
-    const drainedNonApp = foldLeadBlockedByDrain({
-      status: steered.status,
-      cookieHosts: steered.cookieHosts,
-      siteHost: steerSite,
+    const guideUrl = opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url
+    const decision = steerAwaitLogin({
+      patch: patch ? { next: patch.next, nextCall: patch.nextCall } : undefined,
+      steered,
+      editorSave,
+      editorFold,
+      streamExpired,
+      editorHung,
+      profileBusy,
+      siteHost: siteHostFromUrl(guideUrl),
+      guideUrl,
+      guideExpect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
     })
-    const foldLead =
-      !patch &&
-      !drainedNonApp &&
-      steered.status !== "idp-only-save" &&
-      shouldSteerToFinalize({
-        editorSave,
-        editorFold,
-        cookies: steered.cookies,
-        origins: steered.origins,
-        hostChanged: false,
-        cookieHosts: steered.cookieHosts,
-        siteHost: steerSite,
-        sessionStorage: steered.sessionStorage,
-        sessionStorageStale: steered.sessionStorageStale,
-        liveHost: steered.liveHost,
-      })
-        ? {
-            status: "completed" as const,
-            ...foldMissFinalizeGuide({
-              profile: steered.name,
-              editorSave,
-              editorFold,
-              streamNoted: streamExpired,
-              url: opts.url ?? mintUrl ?? savedCheckForProfile(steered.name)?.url,
-              expect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
-            }),
-          }
-        : undefined
-    const failClosed =
-      !patch &&
-      !foldLead &&
-      steered.status !== "completed" &&
-      steered.status !== "host-changed" &&
-      steered.status !== "idp-only-save"
-        ? streamExpired
-          ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
-          : editorHung
-            ? { status: "editor-save-hung" as const, ...editorSaveHungGuide(steered.name) }
-            : profileBusy
-              ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(steered.name) }
-              : undefined
-        : undefined
-    let guided = patch
-      ? { text: patch.next, nextCall: patch.nextCall }
-      : foldLead
-        ? { text: foldLead.text, nextCall: foldLead.nextCall }
-        : failClosed
-          ? { text: failClosed.text, nextCall: failClosed.nextCall }
-          : steered.status === "idp-only-save"
-            ? { text: steered.next, nextCall: steered.nextCall }
-            : editorSave || editorFold
-            ? overlaySaveEditorGuidance({
-                next: steered.next,
-                nextCall: steered.nextCall,
-                profile: steered.name,
-                editorSave,
-                editorFold,
-              })
-            : { text: steered.next, nextCall: steered.nextCall }
+    const foldLead = decision.foldLead
+    let guided = decision.guided
     if (adopt && !patch) {
       guided = {
         ...guided,
@@ -939,7 +885,7 @@ export async function liveAwaitLogin(
       ...(editorFold ? { editorFold } : {}),
       ...(patch ?? {}),
       ...(foldLead ? { status: foldLead.status, foldMiss: true as const } : {}),
-      ...(failClosed ? { status: failClosed.status } : {}),
+      ...(decision.failClosed ? { status: decision.failClosed.status } : {}),
       next: guided.text,
       nextCall: guided.nextCall,
       ...(chain ? { chainFinalize: true as const } : {}),

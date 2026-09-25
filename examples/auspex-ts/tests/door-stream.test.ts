@@ -98,8 +98,9 @@ test("door IdP host list matches cookieHostIsIdp and hides only off the wall", (
   assert.equal(session.expired, true)
   assert.equal(Door.noteIdpSurface(session, "https://login.microsoftonline.com/common"), false)
   assert.equal(Door.idpWallVisible("https://consistencyhub.io/app", session), false)
-  const phone = readFileSync(path.join(repo, "docs", "phone.html"), "utf8")
-  const desktop = readFileSync(path.join(repo, "docs", "desktop.html"), "utf8")
+  const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+  const phone = `${readFileSync(path.join(repo, "docs", "phone.html"), "utf8")}\n${page}`
+  const desktop = `${readFileSync(path.join(repo, "docs", "desktop.html"), "utf8")}\n${page}`
   assert.match(phone, /id="idpWall"/)
   assert.match(desktop, /id="idpWall"/)
   assert.match(phone, /Finish sign-in, reach the app, then Save/)
