@@ -621,7 +621,7 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
   }
 })
 
-test("door remints after exhausted reconnects and on a truly expired stream", () => {
+test("door does not call stream-expired on a live timer, and does when the stamp is past", () => {
   for (const name of ["phone.html", "desktop.html"] as const) {
     const clients: Array<{ fire: (type: string) => void }> = []
     const live = loadDoor(
@@ -636,10 +636,19 @@ test("door remints after exhausted reconnects and on a truly expired stream", ()
       live.flushTimeouts()
     }
     const status = live.byId.get("status")?.textContent ?? ""
-    assert.match(status, /new login link is required/)
-    assert.match(status, /stream-expired/)
-    assert.equal(live.byId.get("ime")?.disabled, true)
-    assert.equal(live.byId.get("ime")?.value, "")
+    assert.match(status, /Reconnecting with the same VNC token/)
+    assert.equal(status.includes("new login link is required"), false)
+    assert.equal(live.byId.get("ime")?.disabled, false)
+
+    const dead = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) - 5}&n=app-example`,
+    )
+    const deadStatus = dead.byId.get("status")?.textContent ?? ""
+    assert.match(deadStatus, /status stream-expired/)
+    assert.match(deadStatus, /nextCall auspex_login/)
+    assert.equal(dead.byId.get("ime")?.disabled, true)
+    assert.equal(dead.byId.get("ime")?.value, "")
   }
 })
 

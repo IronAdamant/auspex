@@ -686,16 +686,13 @@ export async function liveAwaitLogin(
       nowMs: Date.now(),
       defaultTimeoutMs: AWAIT_LOGIN_DEFAULT_MS,
     })
-    if (streamPlan.preflight !== "proceed") streamExpired = true
+    if (streamPlan.preflight === "past") streamExpired = true
     if (opts.saveEditor) {
-      if (streamPlan.preflight === "low" || streamPlan.preflight === "past") {
+      if (streamPlan.preflight === "past") {
         editorSave = {
           ok: false,
           status: 401,
-          error:
-            streamPlan.preflight === "low"
-              ? "stream-expired: VNC JWT has under 90s left; remint auspex_login"
-              : "stream-expired: VNC/handoff expiry is past; remint auspex_login",
+          error: "stream-expired: VNC/handoff expiry is past; remint auspex_login",
         }
       } else if (!handle) {
         editorSave = { ok: false, status: 0, error: "no stored editor save handle; remint auspex_login" }

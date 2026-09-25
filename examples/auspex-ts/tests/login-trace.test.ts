@@ -220,6 +220,11 @@ test("summarizeLoginTrace says mint ready and names mint-stop why", () => {
     { ts: "t", event: "login", profile: "x", editorStartStatus: 401, mintStage: "editor-start", remintIndex: 1 },
   ])
   assert.match(start401, /editor-start HTTP 401/)
+  const start409 = summarizeLoginTrace([
+    { ts: "t", event: "login", profile: "x", editorStartStatus: 409, mintStage: "editor-start", remintIndex: 2 },
+  ])
+  assert.match(start409, /editor-start HTTP 409/)
+  assert.match(start409, /Do not finalize-login/)
   const cluster = summarizeLoginTrace([
     {
       ts: "t",

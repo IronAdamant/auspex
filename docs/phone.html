@@ -16,6 +16,11 @@
     #ttl.dead { color: #f88; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
     #status:empty { display: none; }
+    #idpWall {
+      margin: 6px 12px 0; padding: 8px 10px; border-radius: 8px;
+      background: #3a2a10; color: #fc6; font-size: 13px; line-height: 1.35;
+    }
+    #idpWall.hidden { display: none; }
     #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; }
     #screen { position: absolute; inset: 0; }
     #boot {
@@ -91,6 +96,7 @@
       <strong>Auspex phone login</strong>
       <div id="ttl">Checking how long this link is active…</div>
       <div id="status"></div>
+      <p id="idpWall" role="status">Still on Microsoft or Google? Finish sign-in, reach the app, then Save.</p>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">
@@ -172,10 +178,9 @@
       var Door = (window.AuspexDoorStream) || {
         MAX_RECONNECT: 3,
         RECONNECT_GRACE_MS: 400,
-        doorStreamDisconnectAction: function (expired, hidden, attempts, maxAttempts) {
+        doorStreamDisconnectAction: function (expired, hidden) {
           if (expired) return "remint"
           if (hidden) return "pause"
-          if (attempts >= (maxAttempts || 3)) return "remint"
           return "reconnect"
         },
         imeAutocomplete: function (bulletsOn, otpOn) {
@@ -188,6 +193,14 @@
       function setStatus(text, err) {
         status.textContent = text
         status.className = err ? "err" : ""
+      }
+
+      function noteRemoteSurface(text) {
+        var wall = document.getElementById("idpWall")
+        if (!wall) return
+        var show = typeof Door.idpWallVisible !== "function" || Door.idpWallVisible(text)
+        if (show) wall.classList.remove("hidden")
+        else wall.classList.add("hidden")
       }
 
       function setBoot(text, hide) {
@@ -234,9 +247,8 @@
 
       function resolveExpirySeconds() {
         var fromHash = parseUnixSeconds(params.get("exp"))
-        var fromJwt = jwtExpSeconds(token)
-        if (fromHash && fromJwt) return Math.min(fromHash, fromJwt)
-        return fromHash || fromJwt
+        if (fromHash) return fromHash
+        return jwtExpSeconds(token)
       }
 
       function formatRemain(sec) {
@@ -611,15 +623,11 @@
           remintClosed()
           return
         }
-        if (reconnectAttempts >= Door.MAX_RECONNECT) {
-          remintClosed()
-          return
-        }
         reconnectAttempts += 1
         streamPaused = false
         streamConnected = false
         setBoot("Reconnecting to remote Chrome…", false)
-        setStatus("Reconnecting with the same VNC token. Not a new login link. If this fails, status is stream-expired.")
+        setStatus("Reconnecting with the same VNC token. stream-expired only when the link timer is gone.")
         closeRfb()
         clearScreenMount()
         openRfb()
@@ -650,6 +658,14 @@
           rfb.scaleViewport = true
           rfb.resizeSession = true
           rfb.background = "#0b0f14"
+          rfb.addEventListener("clipboard", function (ev) {
+            noteRemoteSurface(ev && ev.detail && ev.detail.text)
+          })
+          rfb.addEventListener("desktopname", function (ev) {
+            var detail = ev && ev.detail
+            var name = detail && (detail.name || detail)
+            noteRemoteSurface(typeof name === "string" ? name : "")
+          })
           rfb.addEventListener("connect", function () {
             if (locked) {
               closeRfb()

@@ -41,12 +41,8 @@ export function awaitStreamPlan(opts: {
   }
   const stamp = opts.streamExpiresAt!.trim()
   const remain = exp - opts.nowMs
-  const low = opts.lowRemainingMs ?? STREAM_LOW_REMAINING_MS
   if (remain <= 0) {
     return { preflight: "past", watchStreamExpiresAt: stamp }
-  }
-  if (remain <= low) {
-    return { preflight: "low", watchStreamExpiresAt: stamp }
   }
   const grace = opts.graceMs ?? STREAM_DEADLINE_GRACE_MS
   const untilDeadline = exp + grace - opts.nowMs
