@@ -10,7 +10,7 @@
     return "reconnect"
   }
 
-  /** Same hosts as cookieHostIsIdp. live.com is exact so onedrive.live.com is not the wall. */
+  /** Sign-in wall hosts. live.com is exact so onedrive.live.com is not the wall. google.com apex cookies are IdP in the jar only; a page on google.com is not this wall. */
   function hostIs(hostname, domain) {
     var h = String(hostname || "").toLowerCase()
     var d = String(domain || "").toLowerCase()

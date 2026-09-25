@@ -75,6 +75,10 @@ test("door IdP host list matches cookieHostIsIdp and hides only off the wall", (
   for (const host of hosts) {
     assert.equal(Door.pageHostIsIdp(host), cookieHostIsIdp(host), host)
   }
+  assert.equal(cookieHostIsIdp("google.com"), true)
+  assert.equal(cookieHostIsIdp("www.google.com"), true)
+  assert.equal(Door.pageHostIsIdp("google.com"), false)
+  assert.equal(Door.pageHostIsIdp("www.google.com"), false)
   assert.equal(Door.idpWallVisible(""), true)
   assert.equal(Door.idpWallVisible("https://login.microsoftonline.com/common"), true)
   assert.equal(Door.idpWallVisible("https://accounts.google.com/o/oauth2/v2/auth"), true)
