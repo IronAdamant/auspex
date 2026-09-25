@@ -67,6 +67,8 @@ export type ProfileSeed = {
   idpCookies?: boolean
   /** App host seen in storage (hostname only). */
   liveHost?: string
+  /** sign-in-wall: human has not reached the app. app-visible: liveHost is the app and sessionStorage was not captured. */
+  idpOnlyKind?: "sign-in-wall" | "app-visible"
 }
 
 export type ProfileSaveResult = {
@@ -103,6 +105,7 @@ export type AwaitLoginResult = {
   foldedExpiresInSec?: number
   idpCookies?: boolean
   liveHost?: string
+  idpOnlyKind?: "sign-in-wall" | "app-visible"
   hostChanged?: boolean
   profileHostMatch?: boolean
   suggestedProfile?: string
@@ -481,7 +484,8 @@ function awaitGuide(
   profile: { id: string; name: string },
   version: number,
   seed: ProfileSeed,
-): { text: string; nextCall?: NextCall } {
+  siteHost?: string,
+): { text: string; nextCall?: NextCall; idpOnlyKind?: "sign-in-wall" | "app-visible" } {
   if (status === "completed") {
     const weak = isWeakSeed({
       profile: profile.name,
@@ -512,7 +516,7 @@ function awaitGuide(
       text: `Save bumped the profile to v${version} but stored no cookies or origins. Do not reuse --profile ${profile.name} until a non-empty Save.`,
     }
   }
-  if (status === "idp-only-save") return idpOnlySaveGuide(profile.name)
+  if (status === "idp-only-save") return idpOnlySaveGuide(profile.name, { liveHost: seed.liveHost, siteHost })
   if (status === "waiting") {
     return {
       text: `Still waiting for non-empty Save for ${profile.name}. Keep the handoff open, Save, then the wait continues.`,
@@ -607,7 +611,7 @@ export async function waitForProfileSave(
   const hostPatch = await import("./live-host-change.ts").then((m) =>
     m.completedAwaitHostPatch({ status, profile: profile.name, mintUrl: opts.mintUrl ?? opts.url, pageUrl: opts.pageUrl, liveHost: seed.liveHost }),
   )
-  const guided = awaitGuide(hostPatch ? "waiting" : status, profile, version, seed)
+  const guided = awaitGuide(hostPatch ? "waiting" : status, profile, version, seed, siteHost)
   return {
     status: hostPatch?.status ?? status,
     profileId: profile.id,
@@ -621,6 +625,7 @@ export async function waitForProfileSave(
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: status === "idp-only-save" ? true : seed.idpCookies,
     liveHost: seed.liveHost,
+    idpOnlyKind: status === "idp-only-save" ? guided.idpOnlyKind : undefined,
     ...(hostPatch ?? {}),
     next: hostPatch?.next ?? guided.text,
     nextCall: hostPatch?.nextCall ?? guided.nextCall,
@@ -810,7 +815,9 @@ export async function liveAwaitLogin(
           sessionStorage: seed.sessionStorage,
           sessionStorageStale: seed.sessionStorageStale,
         })
-        const guide = idpOnly ? idpOnlySaveGuide(waited.name) : undefined
+        const guide = idpOnly
+          ? idpOnlySaveGuide(waited.name, { liveHost: seed.liveHost, siteHost })
+          : undefined
         steered = {
           ...waited,
           cookies: seed.cookies,
@@ -818,8 +825,16 @@ export async function liveAwaitLogin(
           sessionStorage: seed.sessionStorage,
           sessionStorageStale: seed.sessionStorageStale,
           cookieHosts: seed.cookieHosts,
+          liveHost: seed.liveHost ?? waited.liveHost,
           idpCookies: idpOnly ? true : seed.idpCookies,
-          ...(idpOnly ? { status: "idp-only-save" as const, next: guide?.text, nextCall: guide?.nextCall } : {}),
+          ...(idpOnly
+            ? {
+                status: "idp-only-save" as const,
+                idpOnlyKind: guide?.idpOnlyKind,
+                next: guide?.text,
+                nextCall: guide?.nextCall,
+              }
+            : {}),
         }
       }
     }

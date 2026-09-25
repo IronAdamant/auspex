@@ -52,11 +52,24 @@ test("IdP-only jar for consistencyhub.io does not steer to finalize", () => {
   )
   assert.equal(shouldSteerToFinalize(seed), false)
   const guide = idpOnlySaveGuide("consistencyhub")
+  assert.equal(guide.idpOnlyKind, "sign-in-wall")
   assert.match(guide.text, /Finish Microsoft or Google/)
   assert.match(guide.text, /land on the app UI, then tap Save/)
   assert.match(guide.text, /Do not finalize-login/)
-  assert.equal(guide.nextCall.tool, "auspex_login")
-  assert.equal(guide.nextCall.profile, "consistencyhub")
+  assert.equal(guide.nextCall?.tool, "auspex_login")
+  assert.equal(guide.nextCall?.profile, "consistencyhub")
+  const visible = idpOnlySaveGuide("consistencyhub-io", {
+    liveHost: "consistencyhub.io",
+    siteHost: "consistencyhub.io",
+  })
+  assert.equal(visible.idpOnlyKind, "app-visible")
+  assert.equal(visible.nextCall, undefined)
+  assert.match(visible.text, /liveHost is already consistencyhub.io/)
+  assert.match(visible.text, /not a saved login/)
+  assert.match(visible.text, /MSAL sessionStorage/)
+  assert.match(visible.text, /Do not finalize-login/)
+  assert.match(visible.text, /Do not remint to finish Microsoft/)
+  assert.equal(/Finish Microsoft or Google/.test(visible.text), false)
 })
 
 test("a jar that includes the site host still steers to finalize", () => {

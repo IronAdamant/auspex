@@ -179,7 +179,7 @@ export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"
     `Never open Solari's editor on a phone (GET editor HTTP 401).`,
     `editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.`,
     `A different product is hostChanged → remint. A same-product rebrand is adopted (SkySQL and MariaDB).`,
-    `Console Save is cookies only. sessionStorage still needs finalize-login. Expect must be unique to the logged-in app surface, not marketing.`,
+    `Console Save stores cookies only. It cannot read sessionStorage (the handoff editor has no Playwright attach). An app already on screen is not saved by this button, and finalize-login cannot recover an IdP-only jar. Expect must be unique to the logged-in app surface, not marketing.`,
   ].join("\n")
 }
 
