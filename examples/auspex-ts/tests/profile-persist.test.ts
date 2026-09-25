@@ -15,6 +15,7 @@ import {
   seedFromStorageState,
   waitForProfileSave,
 } from "../src/profile-persist.ts"
+import { shouldSteerToFinalize } from "../src/fold-steer.ts"
 import { SESSION_STORAGE_PREFIX } from "../src/profile-storage.ts"
 import { PUBLIC_CHECKS, publicCheckExitCode, runPublicChecks } from "../scripts/public-check.ts"
 
@@ -424,17 +425,52 @@ test("waitForProfileSave fail-closes an IdP-only jar without a second version bu
         origins: 1,
         sessionStorage: 0,
         cookieHosts: hosts,
+        liveHost: "login.microsoftonline.com",
       }),
     },
   })
   assert.equal(idp.status, "idp-only-save")
   assert.equal(idp.idpCookies, true)
   assert.deepEqual(idp.cookieHosts, hosts)
+  assert.equal(idp.idpOnlyKind, "sign-in-wall")
   assert.equal(idp.nextCall?.tool, "auspex_login")
   assert.match(idp.next, /Finish Microsoft or Google/)
   assert.match(idp.next, /land on the app UI, then tap Save/)
   assert.equal(/finalize-login NOW/.test(idp.next), false)
   assert.equal(slept, 0)
+
+  const visible = await waitForProfileSave("consistencyhub-io", {
+    sinceVersion: 1,
+    timeoutMs: 60_000,
+    url: "https://consistencyhub.io",
+    inspectExisting: true,
+    deps: {
+      now: () => 0,
+      sleep: async () => undefined,
+      list: async () => [{ id: "p71", name: "consistencyhub-io", version: 2 }],
+      inspect: async () => ({
+        cookies: 30,
+        origins: 2,
+        sessionStorage: 0,
+        cookieHosts: hosts,
+        liveHost: "consistencyhub.io",
+      }),
+    },
+  })
+  assert.equal(visible.status, "idp-only-save")
+  assert.equal(visible.idpOnlyKind, "app-visible")
+  assert.equal(visible.nextCall, undefined)
+  assert.match(visible.next, /liveHost is already consistencyhub.io/)
+  assert.match(visible.next, /Do not remint to finish Microsoft/)
+  assert.equal(/Finish Microsoft or Google/.test(visible.next), false)
+  assert.equal(shouldSteerToFinalize({
+    editorSave: { ok: true, status: 200 },
+    editorFold: { ok: false, reason: "no-cdp" },
+    cookies: visible.cookies,
+    cookieHosts: visible.cookieHosts,
+    siteHost: "consistencyhub.io",
+    sessionStorage: visible.sessionStorage,
+  }), false)
 
   const site = await waitForProfileSave("consistencyhub", {
     sinceVersion: 20,

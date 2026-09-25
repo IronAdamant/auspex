@@ -81,13 +81,38 @@ export function shouldSteerToFinalize(opts: {
   return foldCannotRefresh(opts.editorFold)
 }
 
-export function idpOnlySaveGuide(profile: string): { text: string; nextCall: NextCall } {
+export type IdpOnlyKind = "sign-in-wall" | "app-visible"
+
+/** liveHost is the minted app. The picture can show the dashboard while the jar is still IdP cookies. */
+export function idpOnlyKind(opts: { liveHost?: string; siteHost?: string }): IdpOnlyKind {
+  const live = opts.liveHost?.trim().toLowerCase().replace(/^\./, "")
+  const site = opts.siteHost?.trim().toLowerCase().replace(/^\./, "")
+  if (live && site && hostIs(live, site)) return "app-visible"
+  return "sign-in-wall"
+}
+
+export function idpOnlySaveGuide(
+  profile: string,
+  opts: { liveHost?: string; siteHost?: string } = {},
+): { text: string; nextCall?: NextCall; idpOnlyKind: IdpOnlyKind } {
   const name = profile.trim() || "<name>"
+  const kind = idpOnlyKind(opts)
+  if (kind === "app-visible") {
+    const host = opts.liveHost?.trim() || opts.siteHost?.trim() || "the app"
+    const text =
+      `Save stored only Microsoft or Google sign-in cookies for --profile ${name}. ` +
+      `liveHost is already ${host}, so the remote page is the app, not the sign-in wall. ` +
+      `That screen is not a saved login. Solari handoff Save persists cookies and localStorage only ` +
+      `(editorFold no-cdp); MSAL sessionStorage in that tab was not captured. ` +
+      `Do not finalize-login on this seed: a new session has no app session and returns needsHuman. ` +
+      `Do not remint to finish Microsoft. Another Save on this editor cannot read that tab.`
+    return { text, idpOnlyKind: kind }
+  }
   const text =
     `Save stored only Microsoft or Google sign-in cookies for --profile ${name}. The app is not in this jar. ` +
     `Finish Microsoft or Google sign-in, land on the app UI, then tap Save. ` +
     `Remint now: npx auspex login --profile ${name} (MCP: auspex_login). Do not finalize-login on this seed.`
-  return { text, nextCall: remintLoginNextCall(name === "<name>" ? "" : name) }
+  return { text, nextCall: remintLoginNextCall(name === "<name>" ? "" : name), idpOnlyKind: kind }
 }
 
 export function foldMissFinalizeGuide(opts: {
