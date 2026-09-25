@@ -87,6 +87,19 @@ export function isHttpOrHttpsUrl(value: string): boolean {
   }
 }
 
+/** https origin with no userinfo. Empty when the value is not https. */
+export function httpsOriginOnly(value?: string): string {
+  const text = (value ?? "").trim()
+  if (!/^https:\/\//i.test(text)) return ""
+  try {
+    const url = new URL(text)
+    if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return ""
+    return url.origin
+  } catch {
+    return ""
+  }
+}
+
 export function isCheckUrl(value: string): boolean {
   if (!isHttpOrHttpsUrl(value)) return false
   return !isForbiddenCheckHost(new URL(value).hostname)

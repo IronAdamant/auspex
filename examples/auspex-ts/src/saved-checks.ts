@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { requireCheckUrl } from "./http-url.ts"
-import { requireProfileName } from "./profiles.ts"
+import { requireProfileName } from "./profile-slug.ts"
 import { hostIs } from "./sso.ts"
 import { requireExpect } from "./text.ts"
 

@@ -294,15 +294,3 @@ export function explainSolariError(err: unknown): string {
   const issue = classifySolariError(err)
   return issue.recovery ? `${issue.message} ${issue.recovery}` : issue.message
 }
-
-export function formatSolariIssue(issue: SolariIssue): string {
-  return JSON.stringify({
-    code: issue.code,
-    retryable: issue.retryable,
-    message: issue.message,
-    ...(issue.recovery ? { recovery: issue.recovery } : {}),
-    ...(issue.status !== undefined ? { status: issue.status } : {}),
-    ...(issue.solariBlame ? { solariBlame: issue.solariBlame } : {}),
-    ...(issue.nextCall ? { nextCall: issue.nextCall } : {}),
-  })
-}

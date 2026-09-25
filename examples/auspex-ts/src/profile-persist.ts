@@ -174,9 +174,6 @@ export function isWeakSeed(opts: {
   origins?: number
   sessionStorage?: number
   sessionStorageStale?: boolean
-  cookieHosts?: string[]
-  foldedExpiresInSec?: number
-  idpCookies?: boolean
 }): boolean {
   const missingSs = opts.sessionStorage === 0
   const staleSs = opts.sessionStorageStale === true
@@ -344,10 +341,6 @@ export function emptyProfileGuide(profile: string): { text: string; nextCall: Ne
   const name = profile.trim() || "<name>"
   const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
   return { text, nextCall: remintLoginNextCall(name) }
-}
-
-export function emptyProfileGuidance(profile: string): string {
-  return emptyProfileGuide(profile).text
 }
 
 /** login --wait / wait:true is the composed phone path: same as await-login --save-editor. */
