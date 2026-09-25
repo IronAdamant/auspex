@@ -81,6 +81,7 @@ export function toAgentReceipt(
     profileSeed: check.profileSeed,
     profileSaved: check.profileSaved,
     protocolOk: check.protocolOk,
+    vwpRefused: verify?.vwpRefused,
   }
   for (const [key, value] of Object.entries(optional)) {
     if (value !== undefined) receipt[key] = value

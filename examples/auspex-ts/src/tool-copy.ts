@@ -13,6 +13,7 @@ export const CHECK_DESCRIPTION =
   "profile=consistencyhub / attached profile on a non-public-marketing URL (defaults to verify=false). " +
   "verify=true is anonymous and poisons ok on auth-gated pages. verifyWithProfile adds claimOkProfile " +
   "(reuse gate — ok is not enough to treat the profile as reusable). They are not equivalent. " +
+  "Save is not sessionStorage. verifyWithProfile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
   "record+profile needs allowRecordProfile on a public marketing host; never record a dashboard landing. " +
   "allowRecordProfile is refused for consistencyhub. Saved checks: ironadamant|checkpoint|consistencyhub. " +
   "402 FeatureRequiresPlan is not retryable. 429 → auspex_reap (ledger, not accountWide). " +
@@ -50,7 +51,8 @@ export const AWAIT_LOGIN_DESCRIPTION =
   "Leftover sessionStorage is not a fresh capture. " +
   "Do not remint for stream-expired after editorSave 200 when cookies exist. Do not verify-with-profile on that fold. " +
   "verify-with-profile after finalize uses a fresh session from the saved profile, not the editor JWT. " +
-  "Do not run verify-with-profile on a dead fold (claimOkProfile will not pass). Stale/weak next: remint or finalize-now. " +
+  "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). Save is not sessionStorage. " +
+  "Stale/weak next: remint or finalize-now. " +
   "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
   "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
   "Once that stamp is past, status is stream-expired with a remint nextCall — not a 30-minute poll and not before the stamp. " +
@@ -81,6 +83,8 @@ export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. " +
   "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave. " +
   "weakSeed is cookies/origins with a counted sessionStorage of 0, or stale folded expiresOn. " +
+  "emptySave means the profile is missing. Save is not sessionStorage. " +
+  "check verifyWithProfile is refused on weakSeed, emptySave, and a dead fold. " +
   "Never type a password. Microsoft/Google password/OTP is needsHuman: auspex_login, handoff.url " +
   "(mobileUrl real text field; desktopUrl on the computer). Never type in Solari noVNC on a phone. " +
   "Path / is loggedOut unless expect matched. " +
@@ -95,8 +99,8 @@ export const DESKTOP_DESCRIPTION =
 
 export const REAP_DESCRIPTION =
   "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. " +
-  "Default kills Auspex live-ledger ids only. Use after 429. dryRun lists. packReceipts copies " +
-  "last receipts per URL into .auspex/pack. " +
+  "Default kills Auspex live-ledger ids only (accountWide stays false). Solari has no GET /sessions (cookbook #61). " +
+  "Use after 429. dryRun lists. packReceipts copies last receipts per URL into .auspex/pack. " +
   DOOR
 
 export const TRACE_DESCRIPTION =
