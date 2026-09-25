@@ -8,11 +8,11 @@ Quick card: [llms.txt](../../llms.txt). Human front door: [README.md](../../READ
 
 ## If stuck, read this
 
-- **Remint vs finalize-now** — [Frozen agent door sequence](#frozen-agent-door-sequence). Empty `stream-expired` remints. `editorSave` 200 plus a fold that cannot refresh sessionStorage, with cookies, is finalize-login now.
+- **Remint vs finalize-now** — [Frozen agent door sequence](#frozen-agent-door-sequence) and the [remint nextCall encyclopedia](../../docs/stream-jwt-solari.md#remint-nextcall-frozen). Empty `stream-expired` remints. `editorSave` 200 plus a fold that cannot refresh sessionStorage, with cookies, is finalize-login now. Auspex cannot extend the VNC JWT.
 - **429 / reap** — [Rules](#rules) and `auspex_reap`. Not retryable while the slot is held.
 - **`expectMatchedPublicLanding`** — [Frozen agent door sequence](#frozen-agent-door-sequence). Expect hit a public or landing URL during save.
 - **`hostChanged`** — [Frozen agent door sequence](#frozen-agent-door-sequence) and [Rules](#rules). Remint for the live https origin. Do not save into the old jar.
-- **`weakSeed` / `emptySave`** — [Tools](#tools) (`auspex_profile_status`). Do not `--verify-with-profile` on a dead fold.
+- **`weakSeed` / `emptySave`** — [Tools](#tools) (`auspex_profile_status`). Save is not sessionStorage. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold (no claim session).
 - **Schema v1** — [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen) in the root contract. Required keys stay frozen.
 - **Job compose** — [Autonomous agents](#autonomous-agents-job-compose). Prefer `auspex_job`; step tools stay for debugging.
 
@@ -131,7 +131,8 @@ If this session has **`solari__*`** / **`solari_*`** tools (official Solari MCP)
 | `402` FeatureRequiresPlan | Solari plan | No — drop stealth/proxy/captcha/desktop or upgrade. `check --stealth` only. Login mint does not send stealth: `POST /profiles/:id/login-handoff` and the profile editor ignore a stealth body |
 | `429` ConcurrencyLimitExceeded | Solari slot | No — `auspex_reap`, then retry |
 | `413` profile save too large | Solari limit | No — remint; leaner Save |
-| `502` / `503` / `504` | Solari infra | Yes, once (5–10s). Not `loggedOut` / `needsHuman` |
+| `502` / `503` / `504` | Solari infra | Yes, once (5–10s). Not `loggedOut` / `needsHuman`. Receipt `solariBlame` `infra-5xx` |
+| SDK `exhausted N attempts` with no status | Solari SDK (cookbook #56) | No storm. `solariBlame` `unknown-exhausted` remints `auspex_login`; cause status 502–504 is `infra-5xx` (wait once); stealth-pool text is `stealth-pool-empty` (drop `--stealth` or wait once). Never `loggedOut` / `needsHuman` |
 | `loggedOut` / `needsHuman` | Auspex page | No — human SSO / remint |
 | `expectMatchedPublicLanding` | Auspex expect | No — better URL/expect |
 | `hostChanged` / `stream-expired` | Auspex door | No — remint `auspex_login` (`editorSave` 200 + fold miss with cookies is finalize-login now, not this row) |
@@ -145,7 +146,7 @@ Detail is in [Rules](#rules) below. Do not conflate Solari HTTP with `loggedOut`
 - A **live host change** (the remote browser's https origin is a different site than the URL minted into the door, and the profile does not already own that host) fails closed on `await-login`, `finalize-login`, and `--save-profile`. `hostChanged` is true, `ok` is false, and `claimOkProfile` is not granted. `next` / `nextCall` remints `auspex_login --profile <suggestedProfile> --url <suggestedUrl>`. Do not write the live site into the old jar and do not rename jars. Door pages cannot read the address bar (noVNC). The password field is not a site picker. The same host still completes. A name that is not the host slug, while the browser stayed on the minted host, stays soft advise. An ordinary check without save and without a stored marker does not treat a second host as a change.
 - **402 FeatureRequiresPlan** (stealth, proxy, captcha, desktops on a plan that lacks them) is **not retryable**. Drop the gated option or upgrade. `proxy`/`captcha` imply stealth. Stealth is honored on `POST /sessions` (`auspex check --stealth`). Login mint does not send it: `POST /profiles/:id/login-handoff` and the profile editor ignore a stealth body (same cold handoff, no 402). Do not add `auspex login --stealth` until Solari applies it to that editor task.
 - **413 Payload Too Large** (profile save exceeds 1 MiB) is **not retryable** with the same payload. By default, Auspex omits indexedDB to keep saves lean while still capturing sessionStorage (required for apps like ConsistencyHub). If save still fails, remint `auspex_login` and use console Save for a leaner seed. Do not retry identical save.
-- **429 ConcurrencyLimitExceeded** is **not retryable**. Call `auspex_reap`, then retry. Do not only use the Solari console. Do not retry create while the slot is held.
+- **429 ConcurrencyLimitExceeded** is **not retryable**. Call `auspex_reap`, then retry. Do not only use the Solari console. Do not retry create while the slot is held. Default reap is the local ledger (`accountWide` stays false). Solari has no `GET /sessions` (cookbook #61). Measured Starter concurrency is 18; the marketed cap says 20 (#57). A dead session can still look active for about 10 minutes (#25).
 - **502/503/504 Solari infrastructure errors** are **transient and retryable**. These indicate Solari proxy, capacity, or upstream issues (not app login failures). Wait 5-10 seconds, call `auspex_reap` if concurrency is suspect, then retry once. If error occurred during login handoff, remint with `auspex_login` (handoff URLs are single-use). Do not conflate with `loggedOut` or `needsHuman`.
 - **Handoff Chromium hang**: If the login handoff Chromium card is blank/spinning for >2–3 minutes, refresh the page once; if still unresponsive, remint with `auspex_login` for a new handoff URL. Complete IdP consent in the handoff card before hitting Save. Do not open parallel agent checks mid-consent.
 - `record` + `profile` is forbidden unless `allowRecordProfile` on a public marketing host. `allowRecordProfile` is refused for consistencyhub. Never `--record` a logged-in session (`sso`, `saveProfile`, or a dashboard landing).

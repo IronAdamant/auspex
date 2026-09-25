@@ -18,7 +18,7 @@ Three results come back. They are separate.
 
 ## Login doors (Phone and Desktop)
 
-**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The phone page has a real text field because Solari’s remote view will not open the phone keyboard — you type or paste there (a password manager works).
+**Phone** — Auspex login, then the Phone door, then remote Chrome on a Google New Tab. The phone page has a real text field because Solari’s remote view will not open the phone keyboard ([Solari cookbook #80](https://github.com/solari-sdk/solari-cookbook/issues/80)). You type or paste there (a password manager works). That field is the Auspex seed door. It is not a same-session takeover and it does not type into the page for the agent.
 
 ![Phone login door: Auspex chooser to remote Chrome on Google New Tab](examples/auspex-ts/demo/door-phone.gif)
 
@@ -59,7 +59,7 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 
 Anonymous verify is skipped for any attached profile on a non-public-marketing URL. Login, finalize, profile-status, reap, and trace are the auth + hygiene doors. The named Solari sandbox Mousepad demo is not your computer (402 on Free).
 
-`weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold. `emptySave` means the profile is missing. Skip `--verify-with-profile` on that seed.
+Save is not sessionStorage. A Save that stored cookies did not store the app token. `weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold. `emptySave` means the profile is missing. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold (no second browser). `ok` ≠ `claimOk` ≠ `claimOkProfile`.
 
 Login trace writes one post-handoff row. Check rows are not written. Never tokens, passwords, or session ids. If mint is silent, read `npx auspex-solari trace` before minting again.
 

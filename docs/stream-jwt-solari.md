@@ -15,6 +15,21 @@ Dogfood (2026-09-24): phone OTP and email codes often outlive the door. Socialai
 - If `editorSave` already returned 200 and the profile has cookies, `await-login` does **not** lead with remint. It leads with `finalize-login`. The dead JWT is a footnote.
 - `--verify-with-profile` does not use this JWT. It creates a new browser session from the saved profile.
 
+## Remint nextCall (frozen)
+
+Auspex cannot extend the JWT. Pages do not call Solari. There is no client TTL.
+
+| VNC JWT | Handoff token (~30m) | editorSave | Profile jar | nextCall |
+| --- | --- | --- | --- | --- |
+| Past | Still live | 200, and cookies include the app host | Fold missed (`no-cdp`) | `auspex_finalize_login` |
+| Past | Still live | Not 200, or jar empty | No cookies | `auspex_login` (`stream-expired`) |
+| Past | Still live | 200, jar omits the app host | IdP-only or app-visible with no sessionStorage | Do not finalize. `sign-in-wall` remints `auspex_login`. `app-visible` has no nextCall |
+| Still ahead, 90s or less left | Live | Not saved yet | — | `preflight: low`. Await uses the short cap (stamp plus 5s). It does not start the 30-minute poll |
+| Still ahead | Live | Save or fold timed out | — | Retry `auspex_await_login` once. Do not finalize in parallel |
+| Past | Irrelevant | Finalize or check with no completed seed | Empty | Do not `POST /sessions`. `stream-expired`, remint `auspex_login` |
+
+A dropped socket while `exp` is still ahead reconnects the same JWT. That is not `stream-expired`.
+
 ## Ask for Solari
 
 Email and SMS codes need either a longer editor JWT (more than 5 minutes) or a reconnect API that issues a new VNC token for the same editor without a new login-handoff. Until that exists, operators remint when the code arrives after `exp` and the profile is still empty.

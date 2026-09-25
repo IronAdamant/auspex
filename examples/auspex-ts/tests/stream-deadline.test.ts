@@ -37,8 +37,9 @@ test("awaitStreamPlan keeps a short remaining JWT in the poll until the stamp", 
     defaultTimeoutMs: 1_800_000,
   })
   assert.ok(80_000 < STREAM_LOW_REMAINING_MS)
-  assert.equal(low.preflight, "proceed")
+  assert.equal(low.preflight, "low")
   assert.equal(low.waitTimeoutMs, 80_000 + STREAM_DEADLINE_GRACE_MS)
+  assert.ok((low.waitTimeoutMs ?? 0) < 1_800_000)
   const past = awaitStreamPlan({
     saveEditor: true,
     streamExpiresAt: new Date(NOW - 1_000).toISOString(),

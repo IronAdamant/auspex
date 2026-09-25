@@ -11,6 +11,7 @@ import {
 } from "@solarisdk/browser"
 import { chromium, type BrowserContextOptions } from "patchright-core"
 import { AuspexError } from "./errors.ts"
+import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { readOperatorKey } from "./operator-session.ts"
 import {
   boundPromise,
@@ -257,18 +258,32 @@ export async function launchBrowser(
     try {
       session = await observeAbort(createP, signal)
     } catch (err) {
-      void createP.then((s) => deps.releaseAndWait(s.id).catch(() => undefined))
+      void createP.then((s) => {
+        void rememberLive("browser", s.id).catch(() => undefined)
+        return deps.releaseAndWait(s.id).then(
+          () => forgetLive("browser", s.id).catch(() => undefined),
+          () => undefined,
+        )
+      })
       throw err
     }
   } else {
     session = await createP
   }
+  await rememberLive("browser", session.id).catch(() => undefined)
   const release = async () => {
-    await boundPromise(
-      deps.releaseAndWait(session.id),
-      closeMs,
-      `session release timed out after ${closeMs}ms`,
-    ).catch(() => undefined)
+    let released = false
+    try {
+      await boundPromise(
+        deps.releaseAndWait(session.id),
+        closeMs,
+        `session release timed out after ${closeMs}ms`,
+      )
+      released = true
+    } catch {
+      released = false
+    }
+    if (released) await forgetLive("browser", session.id).catch(() => undefined)
     if (deps.getStatus) {
       await waitUntilReleased(session.id, {
         getStatus: deps.getStatus,

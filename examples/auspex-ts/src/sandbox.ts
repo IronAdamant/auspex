@@ -11,6 +11,7 @@ import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBr
 import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
 import { haystackMatches } from "./text.ts"
+import { refuseVerifyWithProfile } from "./vwp-refuse.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
 export const VERIFY_OVERALL_MS = 90_000
@@ -50,6 +51,8 @@ export type VerifyResult = {
   sandboxId?: string
   skipped?: boolean
   skipReason?: string
+  /** Set when verify-with-profile was refused before a claim session. */
+  vwpRefused?: "weakSeed" | "emptySave" | "dead-fold"
 }
 
 export type SandboxHandle = {
@@ -445,6 +448,32 @@ export async function checkThenVerify(
     }
   }
   const verifyWithProfile = deps?.verifyWithProfile ?? opts.verifyWithProfile
+  if (verifyWithProfile && opts.profile && check.profileSeed) {
+    const ban = refuseVerifyWithProfile({
+      profile: opts.profile,
+      url: opts.url,
+      name: opts.profile,
+      seed: check.profileSeed,
+    })
+    if (ban) {
+      const verify: VerifyResult = {
+        ok: false,
+        errors: [],
+        claimOk: false,
+        claimErrors: [],
+        runDir: dir,
+        skipped: true,
+        skipReason: ban.kind,
+        anonymousClaimSkipped: true,
+        claimOkProfile: false,
+        claimErrorsProfile: [ban.next],
+        vwpRefused: ban.kind,
+      }
+      const refused = { ...check, ok: false, protocolOk: false, next: ban.next, nextCall: ban.nextCall }
+      await persistAgentManifest(refused, { verify }).catch(() => undefined)
+      return { check: refused, verify }
+    }
+  }
   try {
     let profileId: string | undefined
     if (verifyWithProfile && opts.profile) {
