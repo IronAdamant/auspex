@@ -7,22 +7,12 @@ export const STREAM_EXPIRED_STATUS = "stream-expired"
 export const EDITOR_SAVE_HUNG_STATUS = "editor-save-hung"
 export const PROFILE_BUSY_AWAIT_STATUS = "profile-busy"
 
-export const AWAIT_FAIL_CLOSED_STATUSES = [
-  STREAM_EXPIRED_STATUS,
-  EDITOR_SAVE_HUNG_STATUS,
-  PROFILE_BUSY_AWAIT_STATUS,
-] as const
-
-export type AwaitFailClosedStatus = (typeof AWAIT_FAIL_CLOSED_STATUSES)[number]
-
 /** Bound around Solari editor/save so await does not hang under a parallel finalize. */
 export const EDITOR_SAVE_BOUND_MS = 30_000
 /** Bound around editor CDP fold capture (connect already has a 15s timeout). */
 export const EDITOR_FOLD_BOUND_MS = 30_000
 /** After VNC/stream expiry, poll Save once or twice — do not sit the full 30 minutes. */
 export const STREAM_EXPIRED_WAIT_MS = 8_000
-
-export { remintLoginNextCall }
 
 export function streamExpiredGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
@@ -31,8 +21,7 @@ export function streamExpiredGuide(profile: string): { text: string; nextCall: N
       `status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. ` +
       `Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). ` +
       `This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. ` +
-      `If editorSave already returned 200, ignore this remint and run finalize-login instead. ` +
-      `Otherwise remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
+      `Remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
       `Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect.`,
     nextCall: remintLoginNextCall(name === "<name>" ? "" : name),
   }

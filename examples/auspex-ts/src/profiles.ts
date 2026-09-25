@@ -4,7 +4,7 @@ import { recordLoginTrace, type LoginMintStage } from "./login-trace.ts"
 import { awaitSaveEditorNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { AuspexError, classifySolariError } from "./errors.ts"
 import { asFiniteNumber } from "./profile-persist.ts"
-import { isHttpOrHttpsUrl } from "./http-url.ts"
+import { httpsOriginOnly, isHttpOrHttpsUrl } from "./http-url.ts"
 import { derivedProfileNext, requireProfileName } from "./profile-slug.ts"
 import {
   applyOperatorWipes,
@@ -106,7 +106,7 @@ export async function loadEditorSave(name: string, root = packageRoot): Promise<
     if (!profileId || !handoffToken) return undefined
     const siteRaw = typeof raw.siteUrl === "string" ? raw.siteUrl.trim() : ""
     const siteUrl = siteRaw && isHttpOrHttpsUrl(siteRaw) ? siteRaw : undefined
-    const suggestedUrl = raw.hostChanged === true ? httpsOriginFrom(typeof raw.suggestedUrl === "string" ? raw.suggestedUrl : "") : ""
+    const suggestedUrl = raw.hostChanged === true ? httpsOriginOnly(typeof raw.suggestedUrl === "string" ? raw.suggestedUrl : "") : ""
     const suggestedProfile =
       suggestedUrl && typeof raw.suggestedProfile === "string" ? raw.suggestedProfile.trim() : ""
     const streamExpiresAt =
@@ -194,24 +194,6 @@ export function phoneSavePaste(profileName?: string): string {
 
 export function desktopSavePaste(profileName?: string): string {
   return doorSavePaste(profileName, "desktop")
-}
-
-function httpsOriginFrom(value?: string): string {
-  const text = (value ?? "").trim()
-  if (!/^https:\/\//i.test(text)) return ""
-  try {
-    const url = new URL(text)
-    if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return ""
-    return url.origin
-  } catch {
-    return ""
-  }
-}
-
-/** https origin. `typed` is the password field and is never a site picker. A live https URL wins over the minted hash. */
-export function desktopSaveSiteUrl(minted?: string, typed?: string, live?: string): string {
-  void typed
-  return httpsOriginFrom(live) || httpsOriginFrom(minted)
 }
 
 /** Phone.html is IME + Save paste for an auth seed — not a live-session takeover. */

@@ -17,7 +17,7 @@ import {
   usageErrorReceipt,
   writeStdoutJson,
 } from "./cli-json.ts"
-import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job.ts"
+import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:

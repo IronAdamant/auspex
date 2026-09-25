@@ -3,7 +3,7 @@ import { open, mkdir, readFile, rename, stat, unlink } from "node:fs/promises"
 import type { FileHandle } from "node:fs/promises"
 import path from "node:path"
 import { packageRoot } from "./paths.ts"
-import { requireProfileName } from "./profiles.ts"
+import { requireProfileName } from "./profile-slug.ts"
 
 export const PROFILE_BUSY_CODE = "ProfileBusy"
 

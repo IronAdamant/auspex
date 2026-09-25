@@ -1,5 +1,6 @@
 /** Live remote host vs the minted door URL. Fail closed. Does not rename jars. */
 
+import { httpsOriginOnly } from "./http-url.ts"
 import { hostChangeNextCall, type NextCall } from "./next-call.ts"
 import { profileSlugFromHost } from "./profile-slug.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
@@ -123,19 +124,6 @@ export function profileOwnsHost(profile: string, hostname: string): boolean {
     return hostIs(hostname, new URL(saved.url).hostname)
   } catch {
     return false
-  }
-}
-
-/** https origin, no userinfo. Empty when the value is not https. */
-export function httpsOriginOnly(value?: string): string {
-  const text = (value ?? "").trim()
-  if (!/^https:\/\//i.test(text)) return ""
-  try {
-    const url = new URL(text)
-    if (url.protocol !== "https:" || url.username || url.password || !url.hostname) return ""
-    return url.origin
-  } catch {
-    return ""
   }
 }
 
