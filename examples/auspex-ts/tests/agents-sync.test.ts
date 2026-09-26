@@ -370,7 +370,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   const license = readFileSync(path.join(repo, "LICENSE"), "utf8")
   const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const deferred = readFileSync(path.join(pkg, "docs", "archive", "deferred-check-2026-09-19.md"), "utf8")
+  const changelog = readFileSync(path.join(repo, "CHANGELOG.md"), "utf8")
 
   assert.match(rootReadme, /named Solari sandbox Mousepad demo/)
   assert.match(rootReadme, /402 on Free/)
@@ -383,12 +383,21 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
 
   assert.match(rootReadme, /auth \+ hygiene doors/)
   assert.match(rootAgents, /auth \+ hygiene doors/)
-  assert.equal(existsSync(path.join(repo, "PLAN.md")), false, "PLAN.md stays off the public tip")
-  assert.equal(existsSync(path.join(repo, "PITCH.md")), false, "PITCH.md stays off the public tip")
+  for (const absent of [
+    "PLAN.md",
+    "PITCH.md",
+    "examples/auspex-ts/docs/archive/deferred-check-2026-09-19.md",
+    "examples/auspex-ts/docs/archive/editor-fold-refresh-nogo-2026-09-20.md",
+    "examples/auspex-ts/docs/archive/leave-nothing-2026-09-19.md",
+    "examples/auspex-ts/docs/archive/vwp-magic-sleeps-2026-09-19.md",
+  ]) {
+    assert.equal(existsSync(path.join(repo, absent)), false, `${absent} stays off the public tip`)
+  }
   assert.equal(rootReadme.includes("PLAN.md"), false, "README must not link PLAN.md")
   assert.equal(rootReadme.includes("PITCH.md"), false, "README must not link PITCH.md")
   assert.equal(receipts.includes("PLAN.md"), false, "RECEIPTS must not link PLAN.md")
   assert.equal(receipts.includes("PITCH.md"), false, "RECEIPTS must not link PITCH.md")
+  assert.equal(changelog.includes("docs/archive"), false, "CHANGELOG must not point at private memos")
 
   assert.match(rootAgents, /no raw OneDrive PNG/)
   assert.match(receipts, /no raw OneDrive PNG|No raw OneDrive PNG/)
@@ -402,10 +411,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.equal(rootReadme.includes("weekly live coverage is not running"), false)
   assert.match(rootAgents, /35605123361/)
   assert.match(rootAgents, /SOLARI_API_KEY` is \*\*present\*\*/)
-
-  assert.match(deferred, /fixed in #42/)
-  assert.match(deferred, /vwp-magic-sleeps-2026-09-19/)
-  assert.match(deferred, /Do not claim timeout still invents an anonymous miss/)
+  assert.match(rootAgents, /does not treat the miss as an anonymous `claimOk` failure/)
 })
 
 test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
