@@ -46,6 +46,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "saveProfile", flag: "--save-profile", kind: "boolean" },
       { json: "mobile", flag: "--mobile", kind: "boolean" },
       { json: "device", flag: "--device", kind: "string" },
+      { json: "authKeyNames", flag: "--auth-keys", kind: "string" },
     ],
   },
   {
@@ -66,6 +67,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "timeoutMs", flag: "--timeout-ms", kind: "number" },
       { json: "saveEditor", flag: "--save-editor", kind: "boolean" },
       { json: "url", flag: "--url", kind: "string" },
+      { json: "authKeyNames", flag: "--auth-keys", kind: "string" },
     ],
   },
   {
@@ -93,6 +95,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "profile", flag: "--profile", kind: "string" },
       { json: "name", flag: "--name", kind: "string" },
       { json: "url", flag: "--url", kind: "string" },
+      { json: "authKeyNames", flag: "--auth-keys", kind: "string" },
     ],
   },
   {

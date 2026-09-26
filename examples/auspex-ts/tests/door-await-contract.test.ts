@@ -65,6 +65,12 @@ test("door table keeps opposite rows adjacent and unmerged", () => {
   assert.equal(expired?.nextCall, "`auspex_login`")
   assert.match(expired?.doThis ?? "", /no cookies/)
 
+  const cookie = DOOR_AWAIT_ROWS[rowIndex("cookie-strong")]
+  assert.equal(rowIndex("cookie-strong"), rowIndex("stream-expired") + 1)
+  assert.equal(cookie?.nextCall, "`auspex_check`")
+  assert.match(cookie?.dont ?? "", /Do not call this weakSeed/)
+  assert.match(cookie?.dont ?? "", /solariSaveReady as claimOkProfile/)
+
   assert.ok(DOOR_AWAIT_ROWS.some((row) => row.status.includes("weakSeed")))
   assert.ok(DOOR_AWAIT_ROWS.some((row) => row.status.includes("emptySave")))
   const empty = DOOR_AWAIT_ROWS[rowIndex("emptySave")]
@@ -178,7 +184,7 @@ test("llms clock and If stuck do not fork mint-or-finalize next to app-visible",
 })
 
 test("ops stamps lock key refuse, profile map, and the runbook", () => {
-  assert.equal(DOOR_AWAIT_ROWS.length, 10)
+  assert.equal(DOOR_AWAIT_ROWS.length, 11)
   const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const card = readFileSync(path.join(repo, "llms.txt"), "utf8")
   const runbook = readFileSync(path.join(repo, "docs/ops-runbook.md"), "utf8")

@@ -6,6 +6,7 @@ export const NEXT_CALL_TOOLS = [
   "auspex_await_login",
   "auspex_finalize_login",
   "auspex_job",
+  "auspex_check",
 ] as const
 
 export type NextCallTool = (typeof NEXT_CALL_TOOLS)[number]
@@ -18,6 +19,8 @@ export type NextCall = {
   url?: string
   expect?: string
   jobId?: string
+  /** Set when tool is auspex_check for a Solari cookie or localStorage Save. */
+  verifyWithProfile?: boolean
 }
 
 export type NextCallKind =
@@ -28,6 +31,7 @@ export type NextCallKind =
   | "finalize"
   | "reap"
   | "job-resume"
+  | "check-verify"
 
 export type NextCallOpts = {
   profile?: string
@@ -82,6 +86,13 @@ export function nextCallFor(kind: NextCallKind, opts: NextCallOpts = {}): NextCa
       if (profile) nextCall.profile = profile
       return nextCall
     }
+    case "check-verify": {
+      const nextCall: NextCall = { tool: "auspex_check", verifyWithProfile: true }
+      if (profile) nextCall.profile = profile
+      if (url) nextCall.url = url
+      if (expect) nextCall.expect = expect
+      return nextCall
+    }
   }
 }
 
@@ -111,4 +122,8 @@ export function reapNextCall(): NextCall {
 
 export function resumeJobNextCall(jobId: string, profile?: string): NextCall {
   return nextCallFor("job-resume", { jobId, profile })
+}
+
+export function checkVerifyNextCall(profile?: string, opts: { url?: string; expect?: string } = {}): NextCall {
+  return nextCallFor("check-verify", { profile, url: opts.url, expect: opts.expect })
 }

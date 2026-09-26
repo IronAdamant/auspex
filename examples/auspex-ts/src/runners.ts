@@ -9,6 +9,7 @@ import { loginWaitPublicFields, preserveAwaitLiveHost } from "./live-host-change
 import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
+import { COOKIE_SAVE_CONTRACT } from "./cookie-save.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { generateQRCode } from "./qr-gen.ts"
@@ -98,7 +99,7 @@ export async function runLoginDoor(opts: {
   const shown = stampLoginHost(result, opts.url)
   const editorBusy = shown.status === "editor-busy"
   if (!opts.wait || editorBusy) {
-    return stampSchema({ ok: !editorBusy, ...shown, operator: book.agent })
+    return stampSchema({ ok: !editorBusy, ...shown, cookieSaveContract: COOKIE_SAVE_CONTRACT, operator: book.agent })
   }
   const rawWait = await liveAwaitLogin(opts.profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: opts.url }))
   const waited = preserveAwaitLiveHost(
@@ -111,6 +112,7 @@ export async function runLoginDoor(opts: {
   return stampSchema({
     ...shown,
     ...loginWaitPublicFields(waited),
+    cookieSaveContract: COOKIE_SAVE_CONTRACT,
     wait: waited,
     operator: finished.agent,
   })
@@ -124,6 +126,7 @@ export async function runAwaitLoginDoor(opts: {
   url?: string
   expect?: string
   chainFinalize?: boolean
+  authKeyNames?: string[]
   ssoProvider?: SsoProvider
 }) {
   await withOperatorSession({
@@ -136,6 +139,7 @@ export async function runAwaitLoginDoor(opts: {
     url: opts.url,
     expect: opts.expect,
     chainFinalize: opts.chainFinalize,
+    authKeyNames: opts.authKeyNames,
   })
   const result = preserveAwaitLiveHost(
     await stampAwaitLoginHost(rawWait, { profile: opts.profile, url: opts.url }),
@@ -191,7 +195,7 @@ export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boole
   return stampSchema({ ok: true, profiles, operator: book.agent, wiped: book.wiped })
 }
 
-export async function runProfileStatusDoor(opts: { profile?: string; name?: string; url?: string }) {
+export async function runProfileStatusDoor(opts: { profile?: string; name?: string; url?: string; authKeyNames?: string[] }) {
   const named = applySavedCheckName(opts)
   const book = await withOperatorSession({
     note: named.profile ? { profile: named.profile, site: named.url } : undefined,

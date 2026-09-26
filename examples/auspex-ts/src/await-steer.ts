@@ -6,6 +6,7 @@ import {
   streamExpiredGuide,
 } from "./await-fail.ts"
 import type { EditorFoldResult } from "./editor-fold.ts"
+import { classifySeedReadiness, cookieSaveGuide, type SeedReadiness } from "./cookie-save.ts"
 import {
   foldLeadBlockedByDrain,
   foldMissFinalizeGuide,
@@ -31,6 +32,10 @@ export type AwaitSteerSeed = {
   sessionStorage?: number
   sessionStorageStale?: boolean
   liveHost?: string
+  appOriginCookieCount?: number
+  localStorageCount?: number
+  localStorageAuthKeyNames?: string[]
+  seedReadiness?: SeedReadiness
 }
 
 export type AwaitSteerFoldLead = {
@@ -47,6 +52,7 @@ export type AwaitSteerFailClosed = {
 
 export type AwaitSteerResult = {
   guided: { text: string; nextCall?: NextCall }
+  cookieLead?: AwaitSteerFoldLead
   foldLead?: AwaitSteerFoldLead
   failClosed?: AwaitSteerFailClosed
 }
@@ -54,10 +60,11 @@ export type AwaitSteerResult = {
 /**
  * Order is frozen:
  * 1. host patch
- * 2. finalize steer
- * 3. stream-expired, then editor-save-hung, then profile-busy
- * 4. IdP-only (keeps the seed nextCall; app-visible has none)
- * 5. save-editor overlay
+ * 2. cookie or localStorage Save (check --verify-with-profile)
+ * 3. finalize steer
+ * 4. stream-expired, then editor-save-hung, then profile-busy
+ * 5. IdP-only (keeps the seed nextCall; app-visible has none)
+ * 6. save-editor overlay
  */
 export function steerAwaitLogin(input: {
   patch?: AwaitSteerPatch
@@ -78,7 +85,43 @@ export function steerAwaitLogin(input: {
     cookieHosts: steered.cookieHosts,
     siteHost: input.siteHost,
   })
+  const readiness =
+    steered.seedReadiness ??
+    classifySeedReadiness({
+      profile: steered.name,
+      url: input.guideUrl,
+      siteHost: input.siteHost,
+      cookies: steered.cookies,
+      origins: steered.origins,
+      sessionStorage: steered.sessionStorage,
+      sessionStorageStale: steered.sessionStorageStale,
+      cookieHosts: steered.cookieHosts,
+      liveHost: steered.liveHost,
+      appOriginCookieCount: steered.appOriginCookieCount,
+      localStorageCount: steered.localStorageCount,
+      localStorageAuthKeyNames: steered.localStorageAuthKeyNames,
+    })
+  const saveFailed = Boolean(input.editorSave && !input.editorSave.ok)
+  const cookieLead =
+    !patch &&
+    !drainedNonApp &&
+    !saveFailed &&
+    steered.status !== "idp-only-save" &&
+    steered.status !== "host-changed" &&
+    steered.status !== "empty-save" &&
+    readiness.solariSaveReady
+      ? {
+          status: "completed" as const,
+          ...cookieSaveGuide({
+            profile: steered.name,
+            readiness,
+            url: input.guideUrl,
+            expect: input.guideExpect,
+          }),
+        }
+      : undefined
   const foldLead =
+    !cookieLead &&
     !patch &&
     !drainedNonApp &&
     steered.status !== "idp-only-save" &&
@@ -93,6 +136,9 @@ export function steerAwaitLogin(input: {
       sessionStorage: steered.sessionStorage,
       sessionStorageStale: steered.sessionStorageStale,
       liveHost: steered.liveHost,
+      appOriginCookieCount: steered.appOriginCookieCount,
+      localStorageAuthKeyNames: steered.localStorageAuthKeyNames,
+      solariSaveReady: readiness.solariSaveReady,
     })
       ? {
           status: "completed" as const,
@@ -108,6 +154,7 @@ export function steerAwaitLogin(input: {
       : undefined
   const failClosed =
     !patch &&
+    !cookieLead &&
     !foldLead &&
     steered.status !== "completed" &&
     steered.status !== "host-changed" &&
@@ -122,8 +169,10 @@ export function steerAwaitLogin(input: {
       : undefined
   const guided = patch
     ? { text: patch.next ?? "", nextCall: patch.nextCall }
-    : foldLead
-      ? { text: foldLead.text, nextCall: foldLead.nextCall }
+    : cookieLead
+      ? { text: cookieLead.text, nextCall: cookieLead.nextCall }
+      : foldLead
+        ? { text: foldLead.text, nextCall: foldLead.nextCall }
       : failClosed
         ? { text: failClosed.text, nextCall: failClosed.nextCall }
         : steered.status === "idp-only-save"
@@ -139,6 +188,7 @@ export function steerAwaitLogin(input: {
             : { text: steered.next, nextCall: steered.nextCall }
   return {
     guided,
+    ...(cookieLead ? { cookieLead } : {}),
     ...(foldLead ? { foldLead } : {}),
     ...(failClosed ? { failClosed } : {}),
   }

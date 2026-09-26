@@ -18,16 +18,17 @@ import {
   writeStdoutJson,
 } from "./cli-json.ts"
 import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
+import { parseAuthKeyNames } from "./cookie-save.ts"
 import { KEY_ENV_REFUSE, LONG_RUN_CLI_LINE, PROFILES_MAP_LINE } from "./door-await-contract.ts"
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
   npx auspex login --url <https> [--profile <name>] [--wait]
-  npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
-  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
+  npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
+  npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
   npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex profiles [--purge <name>] [--yes]
-  npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+  npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--auth-keys <names>]
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
@@ -64,9 +65,9 @@ export type CliCommand =
   | { cmd: "check"; opts: CheckOptions; verifyAfter?: boolean; verify?: boolean }
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
-  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean }
+  | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean; authKeyNames?: string[] }
   | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
-  | { cmd: "profile-status"; profile?: string; name?: string; url?: string }
+  | { cmd: "profile-status"; profile?: string; name?: string; url?: string; authKeyNames?: string[] }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
@@ -151,6 +152,15 @@ export function parseArgv(argv: string[]): ParseResult {
     const verifyFlag = takeFlag(args, "--verify")
     const mobile = takeFlag(args, "--mobile")
     const device = takeOption(args, "--device", { rejectHttp: true })
+    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
+    let authKeyNames: string[] | undefined
+    if (authRaw !== undefined) {
+      try {
+        authKeyNames = parseAuthKeyNames(authRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
     if (noVerify && verifyFlag) {
       return { status: "error", message: "pass only one of --verify or --no-verify" }
     }
@@ -248,6 +258,7 @@ export function parseArgv(argv: string[]): ParseResult {
           verifyWithProfile,
           mobile,
           device,
+          authKeyNames,
         },
         verifyAfter,
         verify: noVerify ? false : verifyFlag ? true : undefined,
@@ -312,6 +323,15 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = takeOption(args, "--url")
     const expect = takeOption(args, "--expect")
     const chainFinalize = takeFlag(args, "--no-chain-finalize") ? false : undefined
+    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
+    let authKeyNames: string[] | undefined
+    if (authRaw !== undefined) {
+      try {
+        authKeyNames = parseAuthKeyNames(authRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
@@ -335,7 +355,7 @@ export function parseArgv(argv: string[]): ParseResult {
       if (!Number.isFinite(n)) return { status: "error", message: "--timeout-ms must be a number" }
       timeoutMs = n
     }
-    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize } }
+    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize, authKeyNames } }
   }
   if (cmd === "verify") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -373,6 +393,15 @@ export function parseArgv(argv: string[]): ParseResult {
     const profileRaw = takeOption(args, "--profile")
     const name = takeOption(args, "--name")
     const url = takeOption(args, "--url")
+    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
+    let authKeyNames: string[] | undefined
+    if (authRaw !== undefined) {
+      try {
+        authKeyNames = parseAuthKeyNames(authRaw)
+      } catch (err) {
+        return { status: "error", message: err instanceof Error ? err.message : String(err) }
+      }
+    }
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (!profileRaw && !name) {
       return { status: "error", message: "profile-status requires --profile <name> or --name <saved>" }
@@ -388,7 +417,7 @@ export function parseArgv(argv: string[]): ParseResult {
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
     }
-    return { status: "ok", command: { cmd: "profile-status", profile, name, url } }
+    return { status: "ok", command: { cmd: "profile-status", profile, name, url, authKeyNames } }
   }
   if (cmd === "reap") {
     if (args.includes("--help") || args.includes("-h")) {

@@ -41,6 +41,7 @@ export function refuseVerifyWithProfile(opts: {
       liveHost: opts.seed.liveHost,
       cookies: opts.seed.cookies,
       origins: opts.seed.origins,
+      localStorageAuthKeyNames: opts.seed.localStorageAuthKeyNames,
     })
   ) {
     const guide = idpOnlySaveGuide(profile, { liveHost: opts.seed.liveHost, siteHost })
@@ -55,10 +56,14 @@ export function refuseVerifyWithProfile(opts: {
       name: opts.name,
       profile,
       url: opts.url,
+      siteHost,
       cookies: opts.seed.cookies,
       origins: opts.seed.origins,
       sessionStorage: opts.seed.sessionStorage,
       sessionStorageStale: opts.seed.sessionStorageStale,
+      cookieHosts: opts.seed.cookieHosts,
+      appOriginCookieCount: opts.seed.appOriginCookieCount,
+      localStorageAuthKeyNames: opts.seed.localStorageAuthKeyNames,
     })
   ) {
     const guide = weakSeedGuide(profile, opts.seed)

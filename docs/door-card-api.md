@@ -69,7 +69,7 @@ Chrome on the phone is the dogfood browser. Operator copy lives in AGENTS.md; `p
 
 - Autofill: the typing field uses `autocomplete="current-password"` (and optional `one-time-code`). Check Show as bullets for a real password box. The form cannot POST (`form-action 'none'`). Keys stream only into Solari remote Chrome.
 - Brief background (password manager / Mail / authenticator): mobile Chrome drops the WebSocket. The door **pauses** and **reconnects the same VNC JWT** on visibility return. That is not `stream-expired`.
-- Solari JWT is ~305s. In-repo `POST /editor/token` has no TTL. Pages cannot refresh the token (hash keys `v,n,exp,u` only). The door timer is the minted hash `exp`. A dropped socket before that stamp reconnects and is not `stream-expired`. After `exp`, the door remints with `status stream-expired` (`nextCall auspex_login`) when the profile has no cookies. If `editorSave` already returned 200 and cookies exist, `await-login` leads with `finalize-login` instead. Do not fake a live stream. Design note: [stream-jwt-solari.md](stream-jwt-solari.md). Login typing limits: [login-handoff-input.md](login-handoff-input.md).
+- Solari JWT is ~305s. In-repo `POST /editor/token` has no TTL. Pages cannot refresh the token (hash keys `v,n,exp,u` only). The door timer is the minted hash `exp`. A dropped socket before that stamp reconnects and is not `stream-expired`. After `exp`, the door remints with `status stream-expired` (`nextCall auspex_login`) when the profile has no cookies. If `editorSave` already returned 200 and the jar is cookie-strong or local-storage-auth, `await-login` leads with `auspex_check` and `verifyWithProfile`. Other app-host jars with a missed fold still lead with `finalize-login`. Do not fake a live stream. Design note: [stream-jwt-solari.md](stream-jwt-solari.md). Login typing limits: [login-handoff-input.md](login-handoff-input.md).
 
 ### `handshake-no-frames` (door UI)
 
@@ -119,7 +119,7 @@ First call with `url`+`expect` (or a saved-check `name`) mints and returns **wai
 
 ### Remint encyclopedia
 
-Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen). Short form: JWT past and the jar has app cookies after editorSave 200 → `auspex_finalize_login`. JWT past and the jar is empty → `auspex_login`. Less than 90 seconds left → short await, not a 30-minute poll. Auspex does not extend the JWT.
+Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen). Short form: JWT past and the jar is cookie-strong or local-storage-auth → `auspex_check` with `verifyWithProfile`. JWT past and the jar includes the app host but is not that shape → `auspex_finalize_login`. JWT past and the jar is empty → `auspex_login`. Less than 90 seconds left → short await, not a 30-minute poll. Auspex does not extend the JWT.
 
 ### nextCall matrix (job)
 
@@ -135,7 +135,8 @@ Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen
 | seed health before a long loop | (none) | Read `profile-status` and `claimOkProfile`. `loggedIn` and `ok` are not overnight-safe. Not a keepalive. |
 | re-gate (`needsHuman`, bare `stream-expired`, stale `weakSeed`, `emptySave`) | `auspex_login` once | Stop. Do not auto-fill. Do not claim a challenge is solved. |
 | `idp-only-save` / `app-visible` | (none) | The app on screen is not a saved login. Do not remint to finish Microsoft. |
-| `editorFold` `no-cdp` + app host in the jar | `auspex_finalize_login` | Finalize now. This row is not re-gate. |
+| `editorFold` `no-cdp` + app host in the jar, not cookie-strong | `auspex_finalize_login` | Finalize now. This row is not re-gate. |
+| `cookie-strong` / `local-storage-auth` | `auspex_check` + `verifyWithProfile` | Read `claimOkProfile`. `solariSaveReady` is not reuse. Do not invent sessionStorage. |
 
 How long a saved login lasts is the Solari profile and the site session. Auspex does not extend it. Seed health and re-gate are door-table rows, not a new tool. `app-visible` stays separate from bare `stream-expired` and from finalize-now. Operator page: [ops-runbook.md](ops-runbook.md).
 
