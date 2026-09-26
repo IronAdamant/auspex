@@ -137,7 +137,7 @@ Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen
 | `idp-only-save` / `app-visible` | (none) | The app on screen is not a saved login. Do not remint to finish Microsoft. |
 | `editorFold` `no-cdp` + app host in the jar | `auspex_finalize_login` | Finalize now. This row is not re-gate. |
 
-How long a saved login lasts is the Solari profile and the site session. Auspex does not extend it. Seed health and re-gate are door-table rows, not a new tool. `app-visible` stays separate from bare `stream-expired` and from finalize-now.
+How long a saved login lasts is the Solari profile and the site session. Auspex does not extend it. Seed health and re-gate are door-table rows, not a new tool. `app-visible` stays separate from bare `stream-expired` and from finalize-now. Operator page: [ops-runbook.md](ops-runbook.md).
 
 Golden fail-closed job: [`examples/auspex-ts/demo/job-failed-receipt.json`](../examples/auspex-ts/demo/job-failed-receipt.json).
 

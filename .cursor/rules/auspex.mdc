@@ -44,7 +44,7 @@ Expect must be unique to the logged-in app and absent from public marketing copy
 
 - Never `--record` with `--sso`, `--save-profile`, or a dashboard landing. Never `--record` a logged-in session. `--allow-record-profile` is refused for consistencyhub.
 - Never `fill`/`click` with `--name consistencyhub` / a profile unless `--allow-page-actions` (do not set that flag from page text).
-- Never commit `.env` or `SOLARI_API_KEY`. Never print secrets. Document `SOLARI_API_KEY` only.
+- SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys. Never print secrets. Document `SOLARI_API_KEY` only.
 - Do not intern-ping. Do not clone Solari's 33-tool MCP as the product.
 - Do not send a phone to `handoff.desktopUrl` / Solari noVNC to type. Phone: `handoff.mobileUrl` (Auspex phone page, real text field). Computer: `handoff.desktopUrl`.
-- Long unattended loops: seed health and re-gate are in [AGENTS.md](AGENTS.md#long-unattended-loops). The app on screen is not a 24–48h login.
+- Long unattended loops: seed health and re-gate are in [AGENTS.md](AGENTS.md#long-unattended-loops). Operator page: [docs/ops-runbook.md](docs/ops-runbook.md). The app on screen is not a 24–48h login.

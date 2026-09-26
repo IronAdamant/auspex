@@ -3,7 +3,12 @@
  * First sentence is the mistake that fails the call (fail-closed lead).
  */
 
-import { awaitLoginDescription, RE_GATE_TOOL_LINE, SEED_HEALTH_TOOL_LINE } from "./door-await-contract.ts"
+import {
+  awaitLoginDescription,
+  PROFILES_MAP_LINE,
+  RE_GATE_TOOL_LINE,
+  SEED_HEALTH_TOOL_LINE,
+} from "./door-await-contract.ts"
 
 const DOOR = "Detail: docs/door-card-api.md and AGENTS.md."
 
@@ -55,7 +60,9 @@ export const FINALIZE_LOGIN_DESCRIPTION =
 
 export const PROFILES_DESCRIPTION =
   "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. " +
-  "List names, ids, version, and populated. After a saved login has been used and tested, ask whether " +
+  "List names, ids, version, and populated. " +
+  PROFILES_MAP_LINE +
+  " After a saved login has been used and tested, ask whether " +
   "testing is done and the login may be purged. Purge only after the human agrees (purge + humanAgree). " +
   "An idle saved profile is deleted on the next command after 30 minutes without use. " +
   "No username, password, or Solari key field. Secrets are not included in the agent message. " +

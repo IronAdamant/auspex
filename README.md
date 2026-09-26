@@ -173,6 +173,7 @@ Full fence: [package README](examples/auspex-ts/README.md#worked-example-dogfood
 Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial. Deep contract: [AGENTS.md](AGENTS.md).
 
 - Reviewer skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
+- Ops runbook: [docs/ops-runbook.md](docs/ops-runbook.md)
 - Agent contract: [AGENTS.md](AGENTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md) · quick card: [llms.txt](llms.txt)
 - Host paste cards: [docs/HOSTS.md](docs/HOSTS.md)
 - Receipts: [RECEIPTS.md](RECEIPTS.md) · thesis: [PITCH.md](PITCH.md)
