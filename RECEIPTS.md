@@ -47,6 +47,8 @@ Published redacted receipts — evidence, not the default recipe. Strangers stil
 
 The artifact table is **Truth A** only. It does not mean Save always yields a reusable login. `ok` ≠ `claimOk` ≠ `claimOkProfile`.
 
+**Skim:** the app on the remote screen is not a reusable saved login. An IdP sign-in, especially MSAL, can show the app while Save stores only Microsoft or Google cookies (`idp-only-save`, kind `app-visible`). Do not finalize. That stop is honest. Login worked. Strangers: `login --url https://…` (profile from the host), Save, `await-login --save-editor`, and finalize only when the jar is the app session. ConsistencyHub and OneDrive below are receipts, not that path.
+
 | | What you see | What to do |
 | --- | --- | --- |
 | **Truth A — finished seed** | Finalize captured the app session. The ConsistencyHub blur + receipt and the OneDrive receipt-only pack both show `claimOkProfile` true. | A later `--verify-with-profile` can reuse that seed. Evidence, not the default recipe. |

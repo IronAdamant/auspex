@@ -62,6 +62,8 @@ Operators and agents: this is the **one** door-card sequence. It is a seed/hando
 4. **`await-login --save-editor`**, then **`finalize-login`** with `--url` and an expect unique to the logged-in app (absent from public marketing).
 5. Later **`check`**. Optional `--verify-with-profile`. Triad stays honest: **`ok` ≠ `claimOk` ≠ `claimOkProfile`**. After VWP, `claimOkProfile` is the reuse gate.
 
+The remote screen is not the seed. An IdP app, especially MSAL, can already show the logged-in app while Save stored only Microsoft or Google cookies (`idp-only-save`, kind `app-visible`). Do not finalize that jar, and do not remint to finish Microsoft. That stop is fail-closed honesty. Finalize only when the jar is the app session. ConsistencyHub and OneDrive are evidence, not the recipe. Strangers use `login --url <https>` (profile from the host), then Save, then `await-login --save-editor`.
+
 Fail-closed already on tip:
 - `expectMatchedPublicLanding` (#61) — expect hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during save (`ok` false, `matched` false, profile not saved). Use a real app URL and a better expect.
 - `hostChanged` (#62) — live https host diverged from the minted door URL. Remint `auspex_login --profile <suggestedProfile> --url <suggestedUrl>`. Do not save into the old jar.
