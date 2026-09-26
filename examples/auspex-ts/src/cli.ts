@@ -18,7 +18,7 @@ import {
   writeStdoutJson,
 } from "./cli-json.ts"
 import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
-import { LONG_RUN_CLI_LINE } from "./door-await-contract.ts"
+import { KEY_ENV_REFUSE, LONG_RUN_CLI_LINE, PROFILES_MAP_LINE } from "./door-await-contract.ts"
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
@@ -52,9 +52,10 @@ ${LONG_RUN_CLI_LINE}
 429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Keys are not included in the agent message.
+${PROFILES_MAP_LINE}
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
 login --wait then blocks until Save and runs --save-editor. handoff.url is the chooser (door.html).
-Requires SOLARI_API_KEY. Detail: AGENTS.md and docs/door-card-api.md.
+Requires SOLARI_API_KEY. ${KEY_ENV_REFUSE} Detail: AGENTS.md, docs/ops-runbook.md, and docs/door-card-api.md.
 `
 
 export type CliCommand =

@@ -30,6 +30,8 @@ Seed/handoff door for off-site typing. Not a same-session VNC takeover.
 
 New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
 
+Many profiles: One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes).
+
 ## Clock
 
 The typing window dies in about five minutes. A saved profile does not die with it. Detail: [docs/stream-jwt-solari.md](docs/stream-jwt-solari.md).
@@ -44,7 +46,9 @@ The typing window dies in about five minutes. A saved profile does not die with 
 <!-- auspex-long-run:begin -->
 A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive.
 
-Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe.
+Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.
+
+Operator note: budget an occasional human door. Site expiry is the re-gate row. Longevity is the Solari profile and the site session, not an Auspex TTL. Operator page: docs/ops-runbook.md.
 
 If you hit a sign-in wall, a fresh challenge, a dead typing window with no cookies, or a seed you cannot reuse: stop. One human door when the door table says `auspex_login`. Do not type a secret. Do not claim a CAPTCHA is solved. Do not keep checking for hours.
 
@@ -75,7 +79,7 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - `weakSeed` (counted in-tab session storage is 0): finalize-login while the token is live. This is not `app-visible`. Skip `--verify-with-profile`.
 - `weakSeed` (stale folded session storage): mint again. This is not `app-visible`. Skip `--verify-with-profile`.
 - `emptySave` (no saved profile): mint again. Do not finalize.
-- Long unattended loop: [Long run](#long-run). Check the seed before you leave it. On a re-gate, stop.
+- Long unattended loop: [Long run](#long-run) and [docs/ops-runbook.md](docs/ops-runbook.md). Check the seed before you leave it. On a re-gate, stop.
 - Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
 
@@ -88,7 +92,7 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - Call an Auspex remote HTTP server. Local stdio only.
 - Turn on CAPTCHA, stealth, or a proxy. Leave them alone.
 - Install npm `auspex` or run `npm publish`. The package is `auspex-solari`.
-- Commit `SOLARI_API_KEY`, `.env`, or `.auspex/`.
+- SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys.
 - `--record` a logged-in session, or run `auspex_verify` after a default check.
 - Treat `ok` as `claimOk` or `claimOkProfile`. Do not fold `claimOkProfile` into `ok`.
 - Treat `loggedIn`, `weakSeed`, or `app-visible` as safe for an unattended 24–48h loop, or invent a keepalive. Longevity is the Solari profile and the site session.
@@ -99,5 +103,6 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - Contract: [AGENTS.md](AGENTS.md)
 - Receipts: [RECEIPTS.md](RECEIPTS.md)
 - Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
+- Ops runbook: [docs/ops-runbook.md](docs/ops-runbook.md)
 - Install and commands: [examples/auspex-ts/README.md](examples/auspex-ts/README.md)
 - Host paste cards: [docs/HOSTS.md](docs/HOSTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md)

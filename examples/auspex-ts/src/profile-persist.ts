@@ -10,7 +10,7 @@ import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { createClient } from "./solari.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import type { LiveHostChange } from "./live-host-change.ts"
-import { CLAIM_FALSE_STOP, NOT_A_LEASE, NOT_OVERNIGHT_SAFE } from "./door-await-contract.ts"
+import { CLAIM_FALSE_STOP, NOT_A_LEASE, NOT_OVERNIGHT_SAFE, OPS_GUIDE } from "./door-await-contract.ts"
 import { awaitRetryNextCall, finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
@@ -316,14 +316,14 @@ export function weakSeedGuide(
         `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
         `--save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remint.text} ` +
         `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ` +
-        `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE}`,
+        `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE} ${OPS_GUIDE}`,
       nextCall: remint.nextCall,
     }
   }
   return {
     text:
       `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ` +
-      `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE}`,
+      `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE} ${OPS_GUIDE}`,
     nextCall: finalizeLoginGuide(profile).nextCall,
   }
 }
