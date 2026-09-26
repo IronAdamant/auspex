@@ -7,6 +7,8 @@
     return "I tapped Save on the Auspex phone page for profile " + name + ".\n" +
       "Run: npx auspex await-login --profile " + name + " --save-editor\n" +
       "(MCP: auspex_await_login with saveEditor true).\n" +
+      "Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.\n" +
+      "Save before the phone countdown hits zero. A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. Auspex cannot lengthen the Solari token.\n" +
       "Then: npx auspex finalize-login --profile " + name + " --url <the URL the logged-in app lands on> --expect \"<unique logged-in text>\".\n" +
       "Never open Solari's editor on a phone (GET editor HTTP 401).\n" +
       "editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.\n" +
@@ -128,6 +130,8 @@
     var locked = false
     var streamConnected = false
     var streamPaused = false
+    var sawConnect = false
+    var reconnecting = false
     var ignoreDisconnect = false
     var reconnectAttempts = 0
     var idpSession = { leftIdp: false, expired: false }
@@ -219,6 +223,7 @@
       expiredTitle.textContent = title
       expiredText.textContent = message
       expired.classList.add("show")
+      reconnecting = false
       ttl.textContent = title
       ttl.className = "dead"
       setStatus(message, true)
@@ -286,8 +291,13 @@
         lockUi("This login link has expired", remintLine())
         return
       }
-      ttl.textContent = "Link active for " + formatRemain(left) + " · VNC ~5 min"
-      ttl.className = left <= 120 ? "warn" : ""
+      if (left <= 90) {
+        ttl.textContent = "Save now. This link dies in " + formatRemain(left) + " · VNC ~5 min"
+        ttl.className = "warn"
+      } else {
+        ttl.textContent = "Save before this dies · " + formatRemain(left) + " left · VNC ~5 min"
+        ttl.className = ""
+      }
     }
     tick()
     tickTimer = setInterval(tick, 1000)
@@ -485,11 +495,12 @@
     }
 
     function reconnectStream() {
-      if (locked) return
+      if (locked || reconnecting) return
       if (!streamStillLive()) {
         remintClosed()
         return
       }
+      reconnecting = true
       reconnectAttempts += 1
       streamPaused = false
       streamConnected = false
@@ -508,12 +519,21 @@
       }, Door.RECONNECT_GRACE_MS)
     }
 
+    function onPageHidden() {
+      if (locked || !streamStillLive() || !sawConnect || streamPaused) return
+      pauseStream()
+      closeRfb()
+    }
+
     function onPageVisible() {
-      if (locked || !streamPaused) return
+      if (locked) return
       if (!streamStillLive()) {
-        remintClosed()
+        if (sawConnect || streamPaused) remintClosed()
         return
       }
+      if (!sawConnect && !streamPaused) return
+      if (streamConnected && !streamPaused) return
+      if (reconnecting) return
       reconnectAttempts = 0
       streamPaused = false
       reconnectStream()
@@ -540,6 +560,8 @@
           }
           streamConnected = true
           streamPaused = false
+          sawConnect = true
+          reconnecting = false
           reconnectAttempts = 0
           setBoot("Opening Chromium…")
           hideBootWhenReady()
@@ -560,8 +582,11 @@
     }
 
     document.addEventListener("visibilitychange", function () {
-      if (pageHidden()) return
-      onPageVisible()
+      if (pageHidden()) onPageHidden()
+      else onPageVisible()
+    })
+    document.addEventListener("pagehide", function () {
+      onPageHidden()
     })
     root.addEventListener("pageshow", function () {
       if (pageHidden()) return

@@ -66,8 +66,8 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 | **Watch** (no clone, no API key) | [Landing](https://ironadamant.com/auspex/) · [replay player](https://ironadamant.com/auspex/demo/replay.html) (Microsoft login wall; emails and passwords stripped) |
 | **Public check** | `npx auspex-solari check --name ironadamant` — does **not** prove logged-in honesty |
 | **Any page** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
-| **Your site — human** | 1. `npx auspex-solari login --url <https>` (override `--profile <yours>`). 2. Open `handoff.url` (`phone.html`). 3. Sign in and tap Save. The agent does not type the password. |
-| **Your site — agent** | After that Save, `await-login --save-editor`. Then `auspex_finalize_login` only when that save holds the app’s own session. Status `idp-only-save`, kind `app-visible`: do not finalize. Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. [Frozen door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
+| **Your site — human** | 1. `npx auspex-solari login --url <https>` (override `--profile <yours>`). 2. Open `handoff.url` (`phone.html`). 3. Sign in and tap Save before the countdown hits zero. The agent does not type the password. |
+| **Your site — agent** | After that Save, `await-login --save-editor`. The clipboard line is not the jar. If an await is already running, the paste signals it; do not kill it. Then `auspex_finalize_login` only when that save holds the app’s own session. Status `idp-only-save`, kind `app-visible`: do not finalize. Saved-check names supply URL and expect; unknown profiles require `--url` and `--expect`. [Frozen door sequence](AGENTS.md#frozen-agent-door-sequence). Never `--record`. |
 | **MCP** | `npx -p auspex-solari auspex-mcp` — Cursor config below |
 | **Hands-off job** | `npx auspex-solari job --url <https> --expect "<unique logged-in text>"`, then `job-status` |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY`, `.env`, or `.auspex/` |

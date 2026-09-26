@@ -49,7 +49,7 @@ A saved login can outlast the five-minute window. That span is the Solari profil
 
 Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.
 
-Operator note: budget an occasional human door. Site expiry is the re-gate row. Longevity is the Solari profile and the site session, not an Auspex TTL. Operator page: docs/ops-runbook.md.
+Operator note: budget an occasional human door. Site expiry is the re-gate row. Longevity is the Solari profile and the site session, not an Auspex TTL. A sign-in longer than about five minutes needs a fresh login for the final Save window. Save before the phone countdown hits zero. Do not restart await mid-window. Auspex cannot lengthen the Solari token. Operator page: docs/ops-runbook.md.
 
 If you hit a sign-in wall, a fresh challenge, a dead typing window with no cookies, or a seed you cannot reuse: stop. One human door when the door table says `auspex_login`. Do not type a secret. Do not claim a CAPTCHA is solved. Do not keep checking for hours.
 

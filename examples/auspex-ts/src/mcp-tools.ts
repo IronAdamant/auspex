@@ -84,8 +84,10 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_login",
     { description: LOGIN_DESCRIPTION, inputSchema: auspexLoginInputObject },
-    async ({ profile, url, wait }) => {
+    async ({ profile, url, wait }, extra) => {
       try {
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_login")
         const { resolveLoginProfile } = await import("./profile-slug.ts")
         const { runLoginDoor } = await import("./runners.ts")
         const resolved = resolveLoginProfile({ profile, url })
@@ -94,6 +96,7 @@ export function registerAuspexTools(server: McpServer): void {
           url,
           wait,
           profileDerived: resolved.derived,
+          onProgress,
         })
         return buildReceiptToolContent(payload, (payload as { handoff?: { qrPath?: string } }).handoff?.qrPath)
       } catch (err) {
@@ -105,10 +108,20 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_await_login",
     { description: AWAIT_LOGIN_DESCRIPTION, inputSchema: auspexAwaitLoginInputSchema },
-    async ({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames }) => {
+    async ({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames }, extra) => {
       try {
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_await_login")
         const { runAwaitLoginDoor } = await import("./runners.ts")
-        const payload = await runAwaitLoginDoor({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames })
+        const payload = await runAwaitLoginDoor({
+          profile,
+          sinceVersion,
+          timeoutMs,
+          saveEditor,
+          url,
+          authKeyNames,
+          onProgress,
+        })
         return { content: [{ type: "text" as const, text: toolJson(payload) }] }
       } catch (err) {
         return packToolFailure(err)
