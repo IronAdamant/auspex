@@ -14,7 +14,7 @@ async function withDocument<T>(doc: unknown, fn: () => Promise<T> | T): Promise<
   }
 }
 
-test("paintFillTarget replaces through a nested ProseMirror view", async () => {
+test("paintFillTarget appends through a nested ProseMirror view", async () => {
   const calls: Array<{ text: string; from: number; to?: number }> = []
   let exec = false
   const surface = {
@@ -74,13 +74,13 @@ test("paintFillTarget replaces through a nested ProseMirror view", async () => {
   assert.equal(exec, false)
   assert.deepEqual(
     calls.filter((row) => row.from >= 0),
-    [{ text: MARK, from: 1, to: 13 }],
+    [{ text: MARK, from: 13, to: undefined }],
   )
   assert.equal(root.innerText, MARK)
   assert.equal(root.textContent, "old sentence")
 })
 
-test("paintFillTarget appends when a cross-block replace is rejected", async () => {
+test("paintFillTarget appends at the end and does not replace the chapter", async () => {
   const calls: Array<{ text: string; from: number; to?: number }> = []
   const root = {
     tagName: "DIV",
@@ -99,7 +99,7 @@ test("paintFillTarget appends when a cross-block replace is rejected", async () 
     pmViewDesc: {
       view: {
         dispatch(tr: { text: string; to?: number }) {
-          if (tr.to !== undefined) throw new Error("crosses blocks")
+          if (tr.to !== undefined) throw new Error("replace range")
           root.innerText = `old sentence${tr.text}`
         },
         state: {
@@ -117,10 +117,7 @@ test("paintFillTarget appends when a cross-block replace is rejected", async () 
   await withDocument({ querySelector: () => root }, () => {
     assert.equal(paintFillTarget({ selector: "#editor-content", value: MARK }), true)
   })
-  assert.deepEqual(calls, [
-    { text: MARK, from: 1, to: 13 },
-    { text: MARK, from: 13, to: undefined },
-  ])
+  assert.deepEqual(calls, [{ text: MARK, from: 13, to: undefined }])
   assert.equal(root.innerText, "old sentenceMARK")
 })
 
@@ -285,7 +282,7 @@ test("runPageActions sets filled when the editor view paints and key events do n
   assert.equal(out.filled, "#editor-content")
   assert.equal(root.innerText, MARK)
   assert.match(root.textContent, /old sentence/)
-  assert.deepEqual(calls, [{ text: MARK, from: 1, to: 13 }])
+  assert.deepEqual(calls, [{ text: MARK, from: 13, to: undefined }])
 })
 
 test("filled stays unset when the editor view paint reverts before settle", async () => {

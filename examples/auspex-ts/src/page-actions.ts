@@ -8,6 +8,8 @@ export type ActionPage = {
   locator: (selector: string) => {
     fill: (value: string, opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
     click: (opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
+    /** Playwright focuses the node, then types. Absent on older drivers and on test doubles. */
+    pressSequentially?: (text: string, opts?: { delay?: number; timeout?: number }) => Promise<unknown>
   }
   evaluate: <R, Arg>(pageFunction: (arg: Arg) => R, arg?: Arg) => Promise<R>
   keyboard?: {
@@ -39,6 +41,11 @@ export const FILL_NOT_LANDED_ERROR =
 const CE_TYPE_DELAY_MS = 15
 /** Long enough for an editor to revert a DOM write that never entered the document the user sees. */
 const CE_VISIBLE_SETTLE_MS = 120
+/** Quiet window after the last mutation on the fill target. A chapter rewrite is a childList mutation. */
+const SURFACE_QUIET_MS = 400
+/** Bound for a lazy editor that mounts, then replaces its HTML. Past this, the fill proceeds. */
+const SURFACE_QUIET_TIMEOUT_MS = 8_000
+const CE_LAND_PASSES = 2
 
 type FieldProbe = {
   password: boolean
@@ -197,9 +204,86 @@ type EditorModel = {
 type ViewHost = FillEl & { pmViewDesc?: { view?: EditorModel } }
 
 /**
+ * Wait until `selector` is in the document and its subtree stops mutating.
+ * Self-contained so page.evaluate can ship this function alone.
+ * Without MutationObserver the promise resolves false immediately (unit tests).
+ * The observer watches that node only, so a sibling word-count update does not keep it busy.
+ * Replacing the node's HTML is a childList mutation and restarts the quiet window.
+ * A new node for the same selector (a remount) restarts it too.
+ */
+export function waitForSurfaceQuiet(arg: {
+  selector: string
+  quietMs: number
+  timeoutMs: number
+}): Promise<boolean> {
+  type QuietObs = {
+    observe: (node: object, options: { subtree: boolean; childList: boolean; characterData: boolean }) => void
+    disconnect: () => void
+  }
+  const Ctor = (globalThis as { MutationObserver?: new (cb: () => void) => QuietObs }).MutationObserver
+  if (typeof Ctor !== "function") return Promise.resolve(false)
+  const doc = (globalThis as unknown as { document?: { querySelector: (sel: string) => object | null } }).document
+  const quietMs = arg.quietMs
+  const timeoutMs = arg.timeoutMs
+  const selector = arg.selector
+  return new Promise((resolve) => {
+    let done = false
+    let target: object | null = null
+    let observer: QuietObs | null = null
+    let quietTimer: ReturnType<typeof setTimeout> | undefined
+    let pollTimer: ReturnType<typeof setInterval> | undefined
+    const finish = (ok: boolean) => {
+      if (done) return
+      done = true
+      if (quietTimer) clearTimeout(quietTimer)
+      if (pollTimer) clearInterval(pollTimer)
+      observer?.disconnect()
+      resolve(ok)
+    }
+    const arm = () => {
+      if (done) return
+      if (quietTimer) clearTimeout(quietTimer)
+      quietTimer = setTimeout(() => finish(true), quietMs)
+    }
+    const attach = (node: object) => {
+      if (done || node === target) return
+      observer?.disconnect()
+      target = node
+      observer = new Ctor(() => arm())
+      try {
+        observer.observe(node, { subtree: true, childList: true, characterData: true })
+      } catch {
+        finish(false)
+        return
+      }
+      arm()
+    }
+    const started = Date.now()
+    const tick = () => {
+      if (done) return
+      if (Date.now() - started >= timeoutMs) {
+        finish(false)
+        return
+      }
+      let node: object | null = null
+      try {
+        node = doc?.querySelector(selector) ?? null
+      } catch {
+        node = null
+      }
+      if (node) attach(node)
+    }
+    tick()
+    pollTimer = setInterval(tick, 50)
+  })
+}
+
+/**
  * Same-turn paint after keyboard events miss the document.
  * Self-contained so page.evaluate can ship this function alone.
  * ProseMirror/TipTap keep the document on the view stored as pmViewDesc.
+ * The transaction appends at the end of the document. A full-range replace
+ * drops the chapter when the editor rejects a cross-block span.
  * Other contenteditables get a selection plus execCommand('insertText'), which is
  * what Playwright uses when CDP insertText is not the path. No host-specific ids.
  */
@@ -240,17 +324,11 @@ export function paintFillTarget(arg: { selector: string; value: string }): boole
       /* the transaction is what paints */
     }
     const size = Number(view.state.doc.content?.size ?? 0)
-    const from = size > 1 ? 1 : 0
-    const to = size > 1 ? size - 1 : size
+    const at = size > 0 ? size - 1 : 0
     try {
-      view.dispatch(view.state.tr.insertText(arg.value, from, to))
+      view.dispatch(view.state.tr.insertText(arg.value, at))
     } catch {
-      try {
-        const at = size > 0 ? size - 1 : 0
-        view.dispatch(view.state.tr.insertText(arg.value, at))
-      } catch {
-        /* range rejected; execCommand below is the general contenteditable path */
-      }
+      /* range rejected; execCommand below is the general contenteditable path */
     }
     if (visible().includes(arg.value)) return true
   }
@@ -333,6 +411,14 @@ export async function assertVisibleFillLanded(
   }
 }
 
+async function surfaceQuiet(page: ActionPage, selector: string): Promise<void> {
+  await page.evaluate(waitForSurfaceQuiet, {
+    selector,
+    quietMs: SURFACE_QUIET_MS,
+    timeoutMs: SURFACE_QUIET_TIMEOUT_MS,
+  })
+}
+
 async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
   const keyboard = page.keyboard
   if (!keyboard || typeof keyboard.type !== "function") return
@@ -341,7 +427,7 @@ async function typeInto(page: ActionPage, selector: string, value: string, timeo
   await keyboard.type(value)
 }
 
-async function landContentEditable(
+async function landOnce(
   page: ActionPage,
   selector: string,
   value: string,
@@ -349,11 +435,18 @@ async function landContentEditable(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const keyboard = page.keyboard
-  await page.locator(selector).click({ timeout, signal })
-  // Type before any further focus(). A click can leave a caret; element.focus() drops it,
-  // and a contenteditable with no selection ignores both key events and insertText.
+  const box = page.locator(selector)
+  await box.click({ timeout, signal })
+  // Focus the editable surface with no synthetic range, then type.
+  // A click can leave the caret on a wrapper. The loaded-editor probe that paints
+  // is click, then focus, then keyboard.type. A range is added only when that misses.
+  await page.evaluate(prepareFillTarget, { selector, select: "none" })
   if (keyboard && typeof keyboard.type === "function") {
     await keyboard.type(value, { delay: CE_TYPE_DELAY_MS })
+    if (await visibleLanded(page, selector, value, true)) return true
+  }
+  if (typeof box.pressSequentially === "function") {
+    await box.pressSequentially(value, { delay: CE_TYPE_DELAY_MS, timeout })
     if (await visibleLanded(page, selector, value, true)) return true
   }
   await page.evaluate(prepareFillTarget, { selector, select: "end" })
@@ -367,9 +460,28 @@ async function landContentEditable(
     await keyboard.insertText(value)
     if (await visibleLanded(page, selector, value, true)) return true
   }
-  // Same turn: ProseMirror transaction when the node has a view, otherwise execCommand.
+  // Same turn: append through a ProseMirror view when the node has one, otherwise execCommand.
   await page.evaluate(paintFillTarget, { selector, value })
   return visibleLanded(page, selector, value, true)
+}
+
+async function landContentEditable(
+  page: ActionPage,
+  selector: string,
+  value: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  for (let pass = 0; pass < CE_LAND_PASSES; pass++) {
+    // Pass 0 already waited in runPageActions, before the contenteditable read.
+    // A later rewrite can still drop the value; pass 1 waits out that rewrite, then types again.
+    if (pass > 0) await surfaceQuiet(page, selector)
+    const painted = await landOnce(page, selector, value, timeout, signal)
+    if (!painted) continue
+    await surfaceQuiet(page, selector)
+    if (await controlContainsValue(page, selector, value)) return true
+  }
+  return false
 }
 
 export type PageActionResult = {
@@ -435,6 +547,10 @@ export async function runPageActions(
   if (opts.fill && opts.value !== undefined) {
     const fillSelector = opts.fill
     const value = opts.value
+    // Classify after the node exists and its HTML has stopped changing. A lazy editor
+    // mounts the control, then replaces its contents; a fill before that rewrite never
+    // reaches the visible document, and a missing node is not contenteditable yet.
+    await surfaceQuiet(page, fillSelector)
     const first = await readField(page, fillSelector)
     if (first.password) throw new Error(PASSWORD_FILL_ERROR)
     const box = page.locator(fillSelector)
