@@ -5,12 +5,10 @@ import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { USAGE } from "../src/cli.ts"
 import {
-  APP_VISIBLE_REFUSE,
   AWAIT_LOGIN_BEGIN,
   AWAIT_LOGIN_END,
   DOOR_AWAIT_BEGIN,
   DOOR_AWAIT_END,
-  SIGN_IN_WALL_REMIN,
   agentsAwaitLoginBullet,
   agentsDoorAwaitBlock,
   awaitLoginDescription,
@@ -569,12 +567,14 @@ test("frozen agent door sequence is documented for operators and not a takeover"
 
 test("door/await contract is generated from one source", () => {
   assert.equal(AWAIT_LOGIN_DESCRIPTION, awaitLoginDescription())
-  assert.match(AWAIT_LOGIN_DESCRIPTION, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.match(AWAIT_LOGIN_DESCRIPTION, new RegExp(SIGN_IN_WALL_REMIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not finalize-login/)
-  assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not remint to finish Microsoft/)
-  assert.match(AWAIT_LOGIN_DESCRIPTION, /None of these is app-visible/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /status \| do \| don't \| nextCall/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /Follow that row/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not merge an IdP row with a fold row/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /stay separate rows/)
   assert.match(AWAIT_LOGIN_DESCRIPTION, /dead fold/)
+  assert.equal(AWAIT_LOGIN_DESCRIPTION.includes("finalize-login NOW"), false)
+  assert.equal(AWAIT_LOGIN_DESCRIPTION.includes("idpOnlyKind"), false)
+  assert.equal(AWAIT_LOGIN_DESCRIPTION.includes("Do not remint to finish Microsoft"), false)
   assert.equal(/remint or finalize-now/.test(AWAIT_LOGIN_DESCRIPTION), false)
   const fold = agentsDoorAwaitBlock()
   const awaitBullet = agentsAwaitLoginBullet()
@@ -582,7 +582,8 @@ test("door/await contract is generated from one source", () => {
   assert.match(fold, /Do not finalize\. Do not remint to finish Microsoft/)
   assert.match(fold, /There is no `nextCall`/)
   assert.match(fold, /needsHuman/)
-  assert.equal(awaitBullet.includes(APP_VISIBLE_REFUSE), false, "await bullet must not restate the app-visible paragraph")
+  assert.equal(awaitBullet.includes("Do not remint to finish Microsoft"), false, "await bullet must not restate the app-visible row")
+  assert.equal(awaitBullet.includes("idpOnlyKind"), false)
   const llms = llmsDoorAwaitBlock()
   assert.match(llms, /`app-visible`/)
   assert.match(llms, /do not finalize/)

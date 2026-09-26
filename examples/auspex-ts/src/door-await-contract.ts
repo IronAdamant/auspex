@@ -1,7 +1,7 @@
 /**
  * One door/await contract. Root AGENTS.md and llms.txt are stamped from these
  * strings. The package AGENTS.md is a pointer and is not stamped.
- * The app-visible refuse stays in the tool description.
+ * MCP await-login points at the table columns. It does not restate IdP or fold rows.
  * Opposite table rows stay adjacent. Do not merge an IdP row with a fold row.
  */
 
@@ -51,15 +51,6 @@ export const LONG_RUN_CLI_LINE =
   "On re-gate, stop and take that row's nextCall once. No Auspex TTL or keepalive."
 
 export const DOOR_DETAIL = "Detail: docs/door-card-api.md and AGENTS.md."
-
-/** Loud refuse. Tool copy includes this sentence. */
-export const SIGN_IN_WALL_REMIN =
-  "idpOnlyKind sign-in-wall: the human is still on Microsoft or Google — finish sign-in, land on the app UI, then Save, and remint."
-
-/** Loud refuse. No nextCall and no finalize when the app is already on screen. */
-export const APP_VISIBLE_REFUSE =
-  "idpOnlyKind app-visible: liveHost is already the app. The dashboard on screen is not a saved login. " +
-  "Solari handoff Save cannot read MSAL sessionStorage (no CDP). Do not remint to finish Microsoft. Do not finalize-login."
 
 export type DoorDecisionRow = {
   status: string
@@ -198,21 +189,16 @@ export function awaitLoginDescription(): string {
     "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. " +
     "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone/desktop Save " +
     "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
-    "If editorSave is 200 and editorFold is no-cdp and the jar includes the app host, finalize-login NOW even when the VNC JWT is past. " +
-    "If the app host is missing from the jar (Microsoft or Google sign-in hosts, including google.com and www.google.com, or any cookies while liveHost is already the app), status is idp-only-save: do not finalize. " +
-    `${SIGN_IN_WALL_REMIN} ${APP_VISIBLE_REFUSE} ` +
-    "If editorSave fails, remint. Cookies alone are not proof of login. " +
-    "Leftover sessionStorage is not a fresh capture. " +
-    "Do not remint for stream-expired after editorSave 200 when the jar includes the app host. Do not verify-with-profile on that fold. " +
-    "verify-with-profile after finalize uses a fresh session from the saved profile, not the editor JWT. " +
-    "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). Save is not sessionStorage. " +
-    "weakSeed with counted sessionStorage 0: finalize-login while the token is live. " +
-    "emptySave: remint and do not finalize. " +
-    "Stale folded expiresOn: remint. " +
-    "None of these is app-visible. " +
+    "IdP, fold, bare stream-expired, weakSeed, emptySave, seed health, and re-gate are one door decision table: status | do | don't | nextCall. " +
+    "Follow that row. Do not restate it. Do not merge an IdP row with a fold row. " +
+    "app-visible, sign-in-wall, editorFold no-cdp finalize-now, and bare stream-expired stay separate rows. " +
+    "If editorSave fails (for example 401), cookies are not proof of login. Follow the table. " +
+    "Leftover sessionStorage is not a fresh capture. Save is not sessionStorage. " +
+    "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
+    "That refuse is the table don't column. It does not add a nextCall. " +
     "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
     "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
-    "Once that stamp is past and the profile has no cookies, status is stream-expired with a remint nextCall — not a 30-minute poll and not before the stamp. " +
+    "Once that stamp is past and the profile has no cookies, status is stream-expired. Follow that row's nextCall. Do not poll for 30 minutes. " +
     "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +
     "Live host divergence: hostChanged, remint auspex_login. " +
     DOOR_DETAIL
