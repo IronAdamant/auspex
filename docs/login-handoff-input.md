@@ -2,7 +2,7 @@
 
 ## Check and finalize (Playwright attached)
 
-`auspex check --fill` types into the control, then reads visible text (`value` or `innerText`). It sets `filled` only when that text contains `--value`. Hidden `textContent` does not count. A contenteditable target is clicked and focused, then `keyboard.type`; if the visible text does not stick, `insertText` is tried once. The check re-reads that text after settle, against the excerpt haystack, before `filled` is kept. Prefer a stable selector such as `#save-document`; `text=Save` can match Unsaved chrome. Password selectors stay refused. Agents never type passwords.
+`auspex check --fill` types into the control, then reads visible text (`value` or `innerText`). It sets `filled` only when that text contains `--value`. Hidden `textContent` does not count. A contenteditable target is clicked and `keyboard.type` runs before another focus call. When visible text still lacks `--value`, the surface gets a caret and another `keyboard.type`, then a selection and `insertText`. That same turn writes a ProseMirror/TipTap transaction when the node stores `pmViewDesc`, and uses `execCommand('insertText')` for other editors. The check re-reads that text after settle, against the excerpt haystack, before `filled` is kept. Prefer a stable selector such as `#save-document`; `text=Save` can match Unsaved chrome. Password selectors stay refused. Agents never type passwords.
 
 ## Login handoff (noVNC owns the browser)
 

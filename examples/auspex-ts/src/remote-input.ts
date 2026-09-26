@@ -1,8 +1,12 @@
 /**
  * Agent typing on a Playwright-attached Solari session may use CDP insertText.
- * Contenteditable targets are focused and typed first. If visible innerText does not
- * keep the value, page-actions tries insertText once. `filled` requires that visible
- * text, not hidden textContent. The login-handoff editor is noVNC and does not expose
+ * Contenteditable targets are clicked and typed first, before another focus call.
+ * When visible innerText still lacks the value, the surface gets a caret and another
+ * type, then a selection and insertText (Playwright's fill for contenteditable).
+ * That same turn writes a ProseMirror view transaction when the node stores pmViewDesc,
+ * and uses execCommand('insertText') for other editors. `filled` requires that visible
+ * text, not hidden textContent.
+ * The login-handoff editor is noVNC and does not expose
  * that socket (editorFold no-cdp). Auspex does not add login --stealth. Solari ignores
  * stealth on login-handoff.
  */

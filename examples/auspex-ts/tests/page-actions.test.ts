@@ -47,9 +47,12 @@ function fieldPage(opts: {
         calls.push(`click:${sel}`)
       },
     }),
-    evaluate: async <R, Arg>(fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => {
+    evaluate: async <R, Arg>(fn: (arg: Arg) => R, arg?: Arg): Promise<R> => {
       const src = typeof fn === "function" ? fn.toString() : ""
-      if (src.includes("function focusFillTarget")) calls.push("focus")
+      if (src.includes("function prepareFillTarget")) {
+        const mode = arg && typeof arg === "object" && "select" in arg ? String((arg as { select?: string }).select) : ""
+        calls.push(mode === "all" || mode === "end" ? `select:${mode}` : "focus")
+      }
       return {
         password: opts.password === true,
         contentEditable: opts.contentEditable === true,
@@ -151,8 +154,8 @@ test("runPageActions types into contenteditable and does not claim insertText", 
   const out = await runPageActions(page, { fill: "#editor-content", value: "hello world" })
   assert.equal(out.filled, "#editor-content")
   assert.equal(calls.includes("insert:hello world"), false)
-  assert.ok(calls.indexOf("click:#editor-content") < calls.indexOf("focus"))
-  assert.ok(calls.indexOf("focus") < calls.indexOf("type:hello world"))
+  assert.ok(calls.indexOf("click:#editor-content") < calls.indexOf("type:hello world"))
+  assert.equal(calls.includes("select:all"), false)
   assert.ok(calls.includes("delay:15"))
   assert.ok(calls.includes("type:hello world"))
 })
@@ -234,8 +237,8 @@ test("runPageActions uses insertText when keyboard.type does not stick in visibl
   })
   const out = await runPageActions(page, { fill: "#editor-content", value: "hello" })
   assert.equal(out.filled, "#editor-content")
-  assert.ok(calls.includes("type:hello"))
-  assert.ok(calls.includes("insert:hello"))
+  assert.ok(calls.indexOf("type:hello") < calls.indexOf("select:all"))
+  assert.ok(calls.indexOf("select:all") < calls.indexOf("insert:hello"))
   assert.equal(text, "hello")
 })
 
@@ -349,8 +352,7 @@ test("filled is refused when textContent contains --value but visible innerText 
     )
     assert.match(el.textContent, /MARK/)
     assert.equal(el.innerText.includes("MARK"), false)
-    assert.ok(log.indexOf("click") < log.indexOf("focus"))
-    assert.ok(log.indexOf("focus") < log.indexOf("type:MARK"))
+    assert.ok(log.indexOf("click") < log.indexOf("type:MARK"))
   } finally {
     ;(globalThis as { document?: unknown }).document = prev
   }
@@ -397,6 +399,7 @@ test("filled is set when type lands in innerText of a nested contenteditable", a
       if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
       log.push(`type:${text}`)
       if (typeof typeOpts?.delay === "number") log.push(`delay:${typeOpts.delay}`)
+      if (!log.includes("inner-focus")) return
       wrap.innerText += text
       wrap.textContent += text
     },
@@ -420,7 +423,7 @@ test("filled is set when type lands in innerText of a nested contenteditable", a
     assert.equal(log.includes("wrap-focus"), false)
     assert.ok(log.includes("inner-focus"))
     assert.ok(log.indexOf("click") < log.indexOf("inner-focus"))
-    assert.ok(log.indexOf("inner-focus") < log.indexOf("type:MARK"))
+    assert.ok(log.indexOf("inner-focus") < log.lastIndexOf("type:MARK"))
     assert.ok(log.includes("delay:15"))
     assert.equal(log.includes("insert:MARK"), false)
     assert.match(wrap.innerText, /MARK/)
@@ -428,3 +431,4 @@ test("filled is set when type lands in innerText of a nested contenteditable", a
     ;(globalThis as { document?: unknown }).document = prev
   }
 })
+

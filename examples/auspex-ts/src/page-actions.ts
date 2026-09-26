@@ -55,7 +55,29 @@ type FillEl = {
   focus?: () => void
   getAttribute?: (name: string) => string | null
   querySelector?: (sel: string) => FillEl | null
+  querySelectorAll?: (sel: string) => Iterable<FillEl>
 }
+
+type FillRange = {
+  selectNodeContents: (node: FillEl) => void
+  collapse: (toStart: boolean) => void
+}
+
+type FillSelection = {
+  removeAllRanges: () => void
+  addRange: (range: FillRange) => void
+}
+
+type FillDoc = {
+  querySelector: (sel: string) => FillEl | null
+  createRange?: () => FillRange
+  getSelection?: () => FillSelection | null
+  defaultView?: { getSelection?: () => FillSelection | null }
+  execCommand?: (command: string, showUi: boolean, value: string) => boolean
+}
+
+/** none = focus only. all = replace the control. end = caret after the current text. */
+export type FillSelectMode = "none" | "all" | "end"
 
 /** Test doubles may return `true` for a password input. A string is the control text. */
 export function normalizeFieldProbe(raw: unknown): FieldProbe {
@@ -108,21 +130,159 @@ export function probeVisibleControl(selector: string): FieldProbe {
 }
 
 /**
- * Focus the control or the contenteditable inside it.
- * A synthetic DOM range is not set: ProseMirror-style editors revert a selection they do not own.
- * The caret comes from the click plus this focus, which is the sequence that has landed markers.
+ * Focus the editable surface, then optionally select it.
+ * Self-contained so page.evaluate can ship this function alone.
+ * Picks the contenteditable with the most visible text so a wrapper is not focused
+ * instead of the document. Equal length prefers the descendant.
+ * `all` is Playwright's contenteditable fill (select, then insert).
+ * `end` places a caret so the next keyboard.type has a selection inside the editor.
  */
-export function focusFillTarget(selector: string): void {
-  const doc = (globalThis as { document?: { querySelector(sel: string): FillEl | null } }).document
-  const el = doc?.querySelector(selector)
-  if (!el) return
-  let target = el
-  if (el.isContentEditable !== true && typeof el.querySelector === "function") {
-    const nested = el.querySelector("[contenteditable]")
-    const attr = nested?.getAttribute?.("contenteditable")
-    if (nested && !(typeof attr === "string" && attr.toLowerCase() === "false")) target = nested
+export function prepareFillTarget(arg: { selector: string; select: FillSelectMode }): boolean {
+  const doc = (globalThis as unknown as { document?: FillDoc }).document
+  const el = doc?.querySelector(arg.selector)
+  if (!el) return false
+  const nodes: FillEl[] = []
+  if (el.isContentEditable === true) nodes.push(el)
+  const nested = typeof el.querySelectorAll === "function" ? el.querySelectorAll("[contenteditable]") : undefined
+  const listed = nested && typeof nested[Symbol.iterator] === "function" ? nested : []
+  for (const node of listed) {
+    const attr = node?.getAttribute?.("contenteditable")
+    if (typeof attr === "string" && attr.toLowerCase() === "false") continue
+    if (node) nodes.push(node)
   }
-  if (typeof target.focus === "function") target.focus()
+  if (nodes.length === 0 && typeof el.querySelector === "function") {
+    const one = el.querySelector("[contenteditable]")
+    const attr = one?.getAttribute?.("contenteditable")
+    if (one && !(typeof attr === "string" && attr.toLowerCase() === "false")) nodes.push(one)
+  }
+  let target = el
+  let bestLen = -1
+  for (const node of nodes) {
+    const len = (node.innerText ?? "").length
+    const deeper = node !== el
+    if (len > bestLen || (deeper && len === bestLen && len >= 0)) {
+      target = node
+      bestLen = len
+    }
+  }
+  try {
+    if (typeof target.focus === "function") target.focus()
+  } catch {
+    /* focus can throw on a detached node; the selection step still runs */
+  }
+  if (arg.select === "none") return true
+  try {
+    const range = doc?.createRange?.()
+    const selection = doc?.getSelection?.() ?? doc?.defaultView?.getSelection?.()
+    if (!range || !selection) return false
+    range.selectNodeContents(target)
+    if (arg.select === "end") range.collapse(false)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return true
+  } catch {
+    return false
+  }
+}
+
+type EditorModel = {
+  focus?: () => void
+  dispatch: (tr: unknown) => void
+  state: {
+    doc: { content?: { size?: number } }
+    tr: { insertText: (text: string, from: number, to?: number) => unknown }
+  }
+}
+
+type ViewHost = FillEl & { pmViewDesc?: { view?: EditorModel } }
+
+/**
+ * Same-turn paint after keyboard events miss the document.
+ * Self-contained so page.evaluate can ship this function alone.
+ * ProseMirror/TipTap keep the document on the view stored as pmViewDesc.
+ * Other contenteditables get a selection plus execCommand('insertText'), which is
+ * what Playwright uses when CDP insertText is not the path. No host-specific ids.
+ */
+export function paintFillTarget(arg: { selector: string; value: string }): boolean {
+  const doc = (globalThis as unknown as { document?: FillDoc }).document
+  const root = doc?.querySelector(arg.selector) as ViewHost | null
+  if (!doc || !root) return false
+  const hosts: ViewHost[] = [root]
+  const marked = root.querySelector?.(".ProseMirror") as ViewHost | null | undefined
+  if (marked) hosts.push(marked)
+  const nested = typeof root.querySelectorAll === "function" ? root.querySelectorAll("[contenteditable]") : undefined
+  const listed = nested && typeof nested[Symbol.iterator] === "function" ? nested : []
+  for (const node of listed) {
+    if (node) hosts.push(node as ViewHost)
+  }
+  let view: EditorModel | undefined
+  for (const host of hosts) {
+    const candidate = host.pmViewDesc?.view
+    if (
+      candidate?.state?.doc &&
+      typeof candidate.state.tr?.insertText === "function" &&
+      typeof candidate.dispatch === "function"
+    ) {
+      view = candidate
+      break
+    }
+  }
+  const visible = (): string => {
+    const parts = [String(root.innerText ?? "")]
+    const inner = root.querySelector?.(".ProseMirror") as ViewHost | null | undefined
+    if (inner) parts.push(String(inner.innerText ?? ""))
+    return parts.join("\n")
+  }
+  if (view) {
+    try {
+      if (typeof view.focus === "function") view.focus()
+    } catch {
+      /* the transaction is what paints */
+    }
+    const size = Number(view.state.doc.content?.size ?? 0)
+    const from = size > 1 ? 1 : 0
+    const to = size > 1 ? size - 1 : size
+    try {
+      view.dispatch(view.state.tr.insertText(arg.value, from, to))
+    } catch {
+      try {
+        const at = size > 0 ? size - 1 : 0
+        view.dispatch(view.state.tr.insertText(arg.value, at))
+      } catch {
+        /* range rejected; execCommand below is the general contenteditable path */
+      }
+    }
+    if (visible().includes(arg.value)) return true
+  }
+  let target: ViewHost = root
+  let bestLen = -1
+  for (const host of hosts) {
+    if (host.pmViewDesc?.view) {
+      target = host
+      break
+    }
+    if (host === root && host.isContentEditable !== true && hosts.length > 1) continue
+    const len = (host.innerText ?? "").length
+    const deeper = host !== root
+    if (len > bestLen || (deeper && len === bestLen && len >= 0)) {
+      target = host
+      bestLen = len
+    }
+  }
+  try {
+    if (typeof target.focus === "function") target.focus()
+    const range = doc.createRange?.()
+    const selection = doc.getSelection?.() ?? doc.defaultView?.getSelection?.()
+    if (range && selection) {
+      range.selectNodeContents(target)
+      selection.removeAllRanges()
+      selection.addRange(range)
+    }
+    doc.execCommand?.("insertText", false, arg.value)
+  } catch {
+    /* a miss stays FILL_NOT_LANDED */
+  }
+  return visible().includes(arg.value)
 }
 
 async function readField(page: Pick<ActionPage, "evaluate">, selector: string): Promise<FieldProbe> {
@@ -190,18 +350,26 @@ async function landContentEditable(
 ): Promise<boolean> {
   const keyboard = page.keyboard
   await page.locator(selector).click({ timeout, signal })
+  // Type before any further focus(). A click can leave a caret; element.focus() drops it,
+  // and a contenteditable with no selection ignores both key events and insertText.
   if (keyboard && typeof keyboard.type === "function") {
-    await page.evaluate(focusFillTarget, selector)
     await keyboard.type(value, { delay: CE_TYPE_DELAY_MS })
     if (await visibleLanded(page, selector, value, true)) return true
   }
-  if (keyboard && typeof keyboard.insertText === "function") {
-    await page.evaluate(focusFillTarget, selector)
-    // Method call. insertText is the beforeinput path when key events dirty the editor and do not stick.
+  await page.evaluate(prepareFillTarget, { selector, select: "end" })
+  if (keyboard && typeof keyboard.type === "function") {
+    await keyboard.type(value, { delay: CE_TYPE_DELAY_MS })
+    if (await visibleLanded(page, selector, value, true)) return true
+  }
+  // Playwright fill for contenteditable: select the control, then CDP insertText.
+  const selected = Boolean(await page.evaluate(prepareFillTarget, { selector, select: "all" }))
+  if (selected && keyboard && typeof keyboard.insertText === "function") {
     await keyboard.insertText(value)
     if (await visibleLanded(page, selector, value, true)) return true
   }
-  return false
+  // Same turn: ProseMirror transaction when the node has a view, otherwise execCommand.
+  await page.evaluate(paintFillTarget, { selector, value })
+  return visibleLanded(page, selector, value, true)
 }
 
 export type PageActionResult = {
