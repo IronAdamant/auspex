@@ -15,6 +15,27 @@ function runCli(args: string[]) {
   })
 }
 
+test("USAGE leads with login --url and buries gated flags", () => {
+  const commands = USAGE.split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("npx auspex "))
+  assert.match(commands[0] ?? "", /^npx auspex login --url <https>/)
+  assert.match(commands[1] ?? "", /^npx auspex check <url> --expect/)
+  const check = commands[1] ?? ""
+  for (const flag of ["--name", "--stealth", "--captcha", "--record", "--fill", "--click"]) {
+    assert.equal(check.includes(flag), false, `first check line must not lead with ${flag}`)
+  }
+  const dogfood = USAGE.indexOf("Optional dogfood saved checks")
+  const leave = USAGE.indexOf("Leave alone")
+  assert.ok(dogfood > 0)
+  assert.ok(leave > dogfood)
+  assert.match(USAGE.slice(dogfood, leave), /--name <ironadamant\|checkpoint\|consistencyhub>/)
+  const buried = USAGE.slice(leave)
+  for (const flag of ["--stealth", "--captcha", "--record", "--fill", "--click"]) {
+    assert.match(buried, new RegExp(flag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  }
+})
+
 test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /check/)
   assert.match(USAGE, /login/)
