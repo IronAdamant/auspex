@@ -432,11 +432,11 @@
           setStatus("Connected.")
           if (ime) ime.focus()
         } else if (tries === 16) {
-          setBoot("Still opening remote Chrome…")
+          setBoot("Still opening Solari's remote Chrome…")
         } else if (tries > 60) {
           clearInterval(bootTimer)
           bootTimer = null
-          lockUi("Remote Chrome opened with no frames", remintLine("handshake-no-frames"))
+          lockUi("Solari's remote Chrome opened with no frames", remintLine("handshake-no-frames"))
         }
       }, 500)
     }
@@ -454,15 +454,15 @@
 
     function remintClosed() {
       lockUi(
-        "The remote Chrome closed. A new login link is required.",
-        "The remote Chrome closed. A new login link is required. " + remintLine()
+        "Solari's remote Chrome closed. A new login link is required.",
+        "Solari's remote Chrome closed. A new login link is required. " + remintLine()
       )
     }
 
     function pauseStream() {
       streamPaused = true
       streamConnected = false
-      setBoot("Remote Chrome paused. Return to this tab to reconnect.", false)
+      setBoot("Solari's remote Chrome paused. Return to this tab to reconnect.", false)
       setStatus("Paused. Come back before the link timer ends to reconnect.")
       ttl.className = "warn"
     }
@@ -504,7 +504,7 @@
       reconnectAttempts += 1
       streamPaused = false
       streamConnected = false
-      setBoot("Reconnecting to remote Chrome…", false)
+      setBoot("Reconnecting to Solari's remote Chrome…", false)
       setStatus("Reconnecting with the same VNC token. stream-expired only when the link timer is gone.")
       closeRfb()
       clearScreenMount()
@@ -563,7 +563,7 @@
           sawConnect = true
           reconnecting = false
           reconnectAttempts = 0
-          setBoot("Opening Chromium…")
+          setBoot("Opening Solari's Chrome…")
           hideBootWhenReady()
         })
         rfb.addEventListener("securityfailure", function () {
@@ -576,8 +576,8 @@
           scheduleDisconnectFollowup()
         })
       } catch (err) {
-        setBoot("Could not open the remote Chrome. Remint auspex login.", false)
-        setStatus("Could not open the remote Chrome. Remint auspex login.", true)
+        setBoot("Could not open Solari's remote Chrome. Remint auspex login.", false)
+        setStatus("Could not open Solari's remote Chrome. Remint auspex login.", true)
       }
     }
 
@@ -596,8 +596,8 @@
     try {
       openRfb()
     } catch (err) {
-      setBoot("Could not open the remote Chrome. Remint auspex login.", false)
-      setStatus("Could not open the remote Chrome. Remint auspex login.", true)
+      setBoot("Could not open Solari's remote Chrome. Remint auspex login.", false)
+      setStatus("Could not open Solari's remote Chrome. Remint auspex login.", true)
     }
   }
 
