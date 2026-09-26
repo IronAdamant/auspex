@@ -12,7 +12,7 @@ We do not claim Alice-vs-Bob wrong-account detection.
 
 `npx auspex-solari check --name ironadamant` is a public page with no login. It does **not** prove logged-in honesty.
 
-**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
+**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** `auspex-solari` **0.1.4 is published** (latest). Agents do not `npm publish`.
 
 After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`. Put `SOLARI_API_KEY` in the MCP `env`. Host paste cards: [docs/HOSTS.md](docs/HOSTS.md). Claude Code: [CLAUDE.md](CLAUDE.md).
 

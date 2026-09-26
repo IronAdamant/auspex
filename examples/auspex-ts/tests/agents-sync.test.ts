@@ -414,7 +414,7 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.match(header, /not a same-session VNC takeover/)
   assert.match(header, /Agents never type a password/)
   assert.match(header, /frozen-agent-door-sequence/)
-  assert.match(header, /npm auspex-solari@0\.1\.3/)
+  assert.match(header, /npm auspex-solari@0\.1\.4/)
   assert.match(header, /https:\/\/www\.npmjs\.com\/package\/auspex-solari/)
   assert.match(header, /not npm <code>auspex<\/code>/)
   assert.match(header, /IronAdamant\/auspex/)

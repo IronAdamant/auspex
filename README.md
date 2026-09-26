@@ -59,7 +59,7 @@ npx -p auspex-solari auspex-mcp
 
 **Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.**
 
-npm `auspex` is a different scraper. `auspex-solari` **0.1.3 is published** (latest). Agents do not `npm publish`.
+npm `auspex` is a different scraper. `auspex-solari` **0.1.4 is published** (latest). Agents do not `npm publish`.
 
 After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP (the agent connection) fail-closes with reason `DistMissing` (the server files were not built; not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
 
