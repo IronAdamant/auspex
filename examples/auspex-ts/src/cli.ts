@@ -44,7 +44,7 @@ Optional dogfood saved checks (not the stranger path):
 Leave alone (not first-line tools):
   --stealth --proxy <cc|smart> --proxy-sticky <id> --captcha — 402 FeatureRequiresPlan is not retryable.
   --record --allow-record-profile — never --record a logged-in session.
-  --fill <css> --value <text> --click <css> --allow-page-actions — never type a password. filled is set only when the control contains --value. Prefer #save-document; text=Save can match Unsaved chrome. fill/click with a profile needs --allow-page-actions.
+  --fill <css> --value <text> --click <css> --allow-page-actions — never type a password. filled is set only when visible text contains --value. Prefer #save-document; text=Save can match Unsaved chrome. fill/click with a profile needs --allow-page-actions.
 
 CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
 Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged | stream-expired. Await also: editor-save-hung | profile-busy.

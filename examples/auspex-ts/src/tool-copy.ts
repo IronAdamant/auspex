@@ -22,7 +22,7 @@ export const CHECK_DESCRIPTION =
   "(reuse gate — ok is not enough to treat the profile as reusable). They are not equivalent. " +
   "Save is not sessionStorage. verifyWithProfile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
   "record+profile needs allowRecordProfile on a public marketing host; never record a dashboard landing. " +
-  "check --fill sets filled only when value or textContent contains --value. Contenteditable uses keyboard.type. Prefer #save-document; text=Save can match Unsaved chrome. " +
+  "check --fill sets filled only when visible value or innerText contains --value. Hidden textContent does not count. Contenteditable focuses and types, then insertText if that text does not stick. Prefer #save-document; text=Save can match Unsaved chrome. " +
   "allowRecordProfile is refused for consistencyhub. Saved checks: ironadamant|checkpoint|consistencyhub. " +
   "402 FeatureRequiresPlan is not retryable. 429 → auspex_reap (ledger, not accountWide). " +
   DOOR

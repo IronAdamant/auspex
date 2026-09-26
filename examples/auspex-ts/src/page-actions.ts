@@ -12,7 +12,7 @@ export type ActionPage = {
   evaluate: <R, Arg>(pageFunction: (arg: Arg) => R, arg?: Arg) => Promise<R>
   keyboard?: {
     insertText?: (text: string) => Promise<unknown>
-    type?: (text: string) => Promise<unknown>
+    type?: (text: string, opts?: { delay?: number }) => Promise<unknown>
   }
 }
 
@@ -33,12 +33,28 @@ export const PASSWORD_FILL_ERROR =
   "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman."
 
 export const FILL_NOT_LANDED_ERROR =
-  "check --fill did not land: the control textContent/value does not contain --value. filled was not set."
+  "check --fill did not land: the visible document text does not contain --value. filled was not set."
+
+/** Per-key delay so a contenteditable can commit each character. Zero-delay bursts are easy to revert. */
+const CE_TYPE_DELAY_MS = 15
+/** Long enough for an editor to revert a DOM write that never entered the document the user sees. */
+const CE_VISIBLE_SETTLE_MS = 120
 
 type FieldProbe = {
   password: boolean
   contentEditable: boolean
   text: string
+}
+
+type FillEl = {
+  tagName?: string
+  type?: string
+  value?: string
+  innerText?: string
+  isContentEditable?: boolean
+  focus?: () => void
+  getAttribute?: (name: string) => string | null
+  querySelector?: (sel: string) => FillEl | null
 }
 
 /** Test doubles may return `true` for a password input. A string is the control text. */
@@ -59,28 +75,102 @@ function textHasValue(text: string, value: string): boolean {
   return text.includes(value)
 }
 
-async function readField(page: ActionPage, selector: string): Promise<FieldProbe> {
-  const raw = await page.evaluate((sel: string) => {
-    const blank = { password: false, contentEditable: false, text: "" }
-    try {
-      const el = document.querySelector(sel)
-      if (!el || !(el instanceof HTMLElement)) return blank
-      const password = el instanceof HTMLInputElement && el.type === "password"
-      const contentEditable = el.isContentEditable
-      const text =
-        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : (el.textContent ?? "")
-      return { password, contentEditable, text }
-    } catch {
-      return blank
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Visible text only. Self-contained so page.evaluate can ship this function alone.
+ * innerText matches excerpt and the painted document. textContent also counts hidden nodes,
+ * which is how a contenteditable can look filled while the screenshot still shows the old body.
+ */
+export function probeVisibleControl(selector: string): FieldProbe {
+  const blank = { password: false, contentEditable: false, text: "" }
+  const doc = (globalThis as { document?: { querySelector(sel: string): FillEl | null } }).document
+  if (!doc) return blank
+  try {
+    const el = doc.querySelector(selector)
+    if (!el || typeof el.tagName !== "string") return blank
+    const tag = el.tagName.toUpperCase()
+    const password = tag === "INPUT" && String(el.type ?? "").toLowerCase() === "password"
+    let contentEditable = el.isContentEditable === true
+    if (!contentEditable && typeof el.querySelector === "function") {
+      const nested = el.querySelector("[contenteditable]")
+      const attr = nested?.getAttribute?.("contenteditable")
+      if (nested && !(typeof attr === "string" && attr.toLowerCase() === "false")) contentEditable = true
     }
-  }, selector)
+    if (password) return { password: true, contentEditable, text: "" }
+    const text = tag === "INPUT" || tag === "TEXTAREA" ? String(el.value ?? "") : String(el.innerText ?? "")
+    return { password: false, contentEditable, text }
+  } catch {
+    return blank
+  }
+}
+
+/**
+ * Focus the control or the contenteditable inside it.
+ * A synthetic DOM range is not set: ProseMirror-style editors revert a selection they do not own.
+ * The caret comes from the click plus this focus, which is the sequence that has landed markers.
+ */
+export function focusFillTarget(selector: string): void {
+  const doc = (globalThis as { document?: { querySelector(sel: string): FillEl | null } }).document
+  const el = doc?.querySelector(selector)
+  if (!el) return
+  let target = el
+  if (el.isContentEditable !== true && typeof el.querySelector === "function") {
+    const nested = el.querySelector("[contenteditable]")
+    const attr = nested?.getAttribute?.("contenteditable")
+    if (nested && !(typeof attr === "string" && attr.toLowerCase() === "false")) target = nested
+  }
+  if (typeof target.focus === "function") target.focus()
+}
+
+async function readField(page: Pick<ActionPage, "evaluate">, selector: string): Promise<FieldProbe> {
+  const raw = await page.evaluate(probeVisibleControl, selector)
   return normalizeFieldProbe(raw)
 }
 
-async function controlContainsValue(page: ActionPage, selector: string, value: string): Promise<boolean> {
+async function controlContainsValue(page: Pick<ActionPage, "evaluate">, selector: string, value: string): Promise<boolean> {
   const probe = await readField(page, selector)
   if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
   return textHasValue(probe.text, value)
+}
+
+async function visibleLanded(
+  page: Pick<ActionPage, "evaluate">,
+  selector: string,
+  value: string,
+  settle: boolean,
+): Promise<boolean> {
+  const appearMs = settle ? 80 : 0
+  const deadline = Date.now() + appearMs
+  let saw = await controlContainsValue(page, selector, value)
+  while (!saw && Date.now() < deadline) {
+    await wait(20)
+    saw = await controlContainsValue(page, selector, value)
+  }
+  if (!saw) return false
+  if (!settle) return true
+  await wait(CE_VISIBLE_SETTLE_MS)
+  return controlContainsValue(page, selector, value)
+}
+
+/**
+ * After networkidle and excerpt extraction, refuse filled when the painted control
+ * (and, for a contenteditable, the excerpt haystack) no longer contains --value.
+ */
+export async function assertVisibleFillLanded(
+  page: Pick<ActionPage, "evaluate">,
+  selector: string,
+  value: string,
+  excerptText?: string,
+): Promise<void> {
+  const probe = await readField(page, selector)
+  if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
+  if (!textHasValue(probe.text, value)) throw new Error(FILL_NOT_LANDED_ERROR)
+  if (probe.contentEditable && excerptText !== undefined && !textHasValue(excerptText, value)) {
+    throw new Error(FILL_NOT_LANDED_ERROR)
+  }
 }
 
 async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
@@ -89,6 +179,29 @@ async function typeInto(page: ActionPage, selector: string, value: string, timeo
   await page.locator(selector).click({ timeout, signal })
   // Method call. Extracting keyboard.type drops this and Playwright throws reading _page.
   await keyboard.type(value)
+}
+
+async function landContentEditable(
+  page: ActionPage,
+  selector: string,
+  value: string,
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const keyboard = page.keyboard
+  await page.locator(selector).click({ timeout, signal })
+  if (keyboard && typeof keyboard.type === "function") {
+    await page.evaluate(focusFillTarget, selector)
+    await keyboard.type(value, { delay: CE_TYPE_DELAY_MS })
+    if (await visibleLanded(page, selector, value, true)) return true
+  }
+  if (keyboard && typeof keyboard.insertText === "function") {
+    await page.evaluate(focusFillTarget, selector)
+    // Method call. insertText is the beforeinput path when key events dirty the editor and do not stick.
+    await keyboard.insertText(value)
+    if (await visibleLanded(page, selector, value, true)) return true
+  }
+  return false
 }
 
 export type PageActionResult = {
@@ -138,7 +251,7 @@ export function assertPageActionsAllowed(opts: PageActionOpts): void {
   throw new Error(PAGE_ACTIONS_PROFILE_ERROR)
 }
 
-/** wait-for-visible, then fill, then click. `filled` is set only after the control contains --value. */
+/** wait-for-visible, then fill, then click. `filled` is set only after visible text contains --value. */
 export async function runPageActions(
   page: ActionPage,
   opts: PageActionOpts,
@@ -158,8 +271,9 @@ export async function runPageActions(
     if (first.password) throw new Error(PASSWORD_FILL_ERROR)
     const box = page.locator(fillSelector)
     const canType = typeof page.keyboard?.type === "function"
-    if (first.contentEditable && canType) {
-      await typeInto(page, fillSelector, value, timeout, signal)
+    let landed = false
+    if (first.contentEditable && (canType || pageHasInsertText(page))) {
+      landed = await landContentEditable(page, fillSelector, value, timeout, signal)
     } else if (pageHasInsertText(page)) {
       const keyboard = page.keyboard
       await insertTextAt(
@@ -173,15 +287,15 @@ export async function runPageActions(
       if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
         await typeInto(page, fillSelector, value, timeout, signal)
       }
+      landed = await controlContainsValue(page, fillSelector, value)
     } else {
       await box.fill(value, { timeout, signal })
       if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
         await typeInto(page, fillSelector, value, timeout, signal)
       }
+      landed = await controlContainsValue(page, fillSelector, value)
     }
-    if (!(await controlContainsValue(page, fillSelector, value))) {
-      throw new Error(FILL_NOT_LANDED_ERROR)
-    }
+    if (!landed) throw new Error(FILL_NOT_LANDED_ERROR)
     out.filled = fillSelector
   }
   if (opts.click) {

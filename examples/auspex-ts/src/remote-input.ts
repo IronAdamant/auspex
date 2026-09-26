@@ -1,9 +1,10 @@
 /**
  * Agent typing on a Playwright-attached Solari session may use CDP insertText.
- * Contenteditable controls ignore insertText; page-actions falls back to keyboard.type
- * and sets `filled` only after value/textContent contains the typed text.
- * The login-handoff editor is noVNC and does not expose that socket (editorFold no-cdp).
- * Auspex does not add login --stealth. Solari ignores stealth on login-handoff.
+ * Contenteditable targets are focused and typed first. If visible innerText does not
+ * keep the value, page-actions tries insertText once. `filled` requires that visible
+ * text, not hidden textContent. The login-handoff editor is noVNC and does not expose
+ * that socket (editorFold no-cdp). Auspex does not add login --stealth. Solari ignores
+ * stealth on login-handoff.
  */
 
 export type InsertTextTarget = {
