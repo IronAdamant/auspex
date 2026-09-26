@@ -105,10 +105,10 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_await_login",
     { description: AWAIT_LOGIN_DESCRIPTION, inputSchema: auspexAwaitLoginInputSchema },
-    async ({ profile, sinceVersion, timeoutMs, saveEditor, url }) => {
+    async ({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames }) => {
       try {
         const { runAwaitLoginDoor } = await import("./runners.ts")
-        const payload = await runAwaitLoginDoor({ profile, sinceVersion, timeoutMs, saveEditor, url })
+        const payload = await runAwaitLoginDoor({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames })
         return { content: [{ type: "text" as const, text: toolJson(payload) }] }
       } catch (err) {
         return packToolFailure(err)

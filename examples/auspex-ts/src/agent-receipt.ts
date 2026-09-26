@@ -6,6 +6,7 @@ import { parseReceiptV1, type ReceiptV1 } from "./receipt-schema.ts"
 import type { CheckResult } from "./check.ts"
 import { agentReceiptOk, overlayVerifyReason, type CheckReason } from "./check-reason.ts"
 import { packageRoot } from "./paths.ts"
+import { classifySeedReadiness } from "./cookie-save.ts"
 import { claimOkProfileReuseNext } from "./profile-persist.ts"
 import type { VerifyResult } from "./sandbox.ts"
 
@@ -49,6 +50,22 @@ export function toAgentReceipt(
   }
   if (!hostChanged) next = claimOkProfileReuseNext(verify, next)
   const nextCall = check.nextCall
+  const seedReadiness =
+    check.seedReadiness ??
+    (check.profileSeed
+      ? classifySeedReadiness({
+          url: check.url,
+          cookies: check.profileSeed.cookies,
+          origins: check.profileSeed.origins,
+          sessionStorage: check.profileSeed.sessionStorage,
+          sessionStorageStale: check.profileSeed.sessionStorageStale,
+          cookieHosts: check.profileSeed.cookieHosts,
+          liveHost: check.profileSeed.liveHost,
+          appOriginCookieCount: check.profileSeed.appOriginCookieCount,
+          localStorageCount: check.profileSeed.localStorageCount,
+          localStorageAuthKeyNames: check.profileSeed.localStorageAuthKeyNames,
+        })
+      : undefined)
 
   const receipt: Record<string, unknown> = {
     schemaVersion: SCHEMA_VERSION,
@@ -79,6 +96,7 @@ export function toAgentReceipt(
     diff: check.diff,
     verify,
     profileSeed: check.profileSeed,
+    seedReadiness,
     profileSaved: check.profileSaved,
     protocolOk: check.protocolOk,
     vwpRefused: verify?.vwpRefused,

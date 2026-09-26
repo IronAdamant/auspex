@@ -6,6 +6,7 @@ import path from "node:path"
 import type { AgentReceipt } from "./agent-receipt.ts"
 import { scrubJobValue } from "./scrub.ts"
 import type { JobWakeResult } from "./job-wake.ts"
+import type { SeedReadiness } from "./cookie-save.ts"
 import { resumeJobNextCall, type NextCall } from "./next-call.ts"
 import { packageRoot } from "./paths.ts"
 import { stampSchema } from "./schema-version.ts"
@@ -76,6 +77,8 @@ export type JobRecord = {
   suggestedProfile?: string
   suggestedUrl?: string
   claimOkProfile?: boolean
+  /** Post-save cookie/localStorage shape. Not claimOkProfile. */
+  seedReadiness?: SeedReadiness
   reaped?: boolean
   receipt?: Record<string, unknown>
 }

@@ -55,7 +55,7 @@ Leave alone (not first-line tools): `--stealth`, `--proxy`, `--proxy-sticky`, `-
 Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../AGENTS.md). Short facts that belong next to the commands:
 
 - `auspex_finalize_login` is `finalize-login`. Unknown profiles need `--url` and `--expect`. Saved-check names may omit them.
-- Save is not sessionStorage. `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or a stale fold. `emptySave` means the profile is missing or empty. `--verify-with-profile` is refused on those seeds (no claim session). `ok` ≠ `claimOk` ≠ `claimOkProfile`.
+- Save is not sessionStorage. `weakSeed` is cookies/origins with a counted `sessionStorage === 0`, or a stale fold, when the jar is not a cookie or localStorage Save. App-origin cookies or allowlisted localStorage auth key names (`--auth-keys` adds names only) are `cookie-strong` or `local-storage-auth`: `check --verify-with-profile`, then read `claimOkProfile`. `solariSaveReady` is not that gate. `emptySave` means the profile is missing or empty. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and an IdP-only jar (no claim session). `ok` ≠ `claimOk` ≠ `claimOkProfile`.
 - Show as bullets is off by default so a password manager can paste into the text field.
 - `desktop` is a named Solari sandbox demo (default Mousepad). Not the user's Mac. 402 on Free.
 - `--stealth` is on `check` only (`POST /sessions`). `login` has no `--stealth`: the cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.

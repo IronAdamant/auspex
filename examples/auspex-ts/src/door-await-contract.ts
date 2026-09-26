@@ -58,7 +58,7 @@ export const SEED_HEALTH_TOOL_LINE =
 export const RE_GATE_TOOL_LINE =
   "A finished job is not a 24–48h lease. " +
   "On a sign-in wall, a fresh challenge, bare stream-expired, or a non-reusable seed, stop and follow that row's nextCall once. " +
-  "app-visible has no remint. editorFold no-cdp with the app host stays finalize-now. There is no Auspex keepalive."
+  "app-visible has no remint. editorFold no-cdp with the app host stays finalize-now when the jar is not cookie-strong. There is no Auspex keepalive."
 
 export const LONG_RUN_CLI_LINE =
   "Long unattended loop: profile-status, then claimOkProfile on an auth-gated host. " +
@@ -93,7 +93,8 @@ export const DOOR_AWAIT_ROWS: readonly DoorDecisionRow[] = [
   },
   {
     status: "`editorFold` `no-cdp` + app-host jar",
-    doThis: "Finalize **now**, even if the JWT is already past.",
+    doThis:
+      "Finalize **now**, even if the JWT is already past, when the jar is not cookie-strong or local-storage-auth.",
     dont: "Do not remint because of stream-expired alone. Do not `--verify-with-profile` on this fold.",
     nextCall: "`auspex_finalize_login`",
   },
@@ -102,6 +103,14 @@ export const DOOR_AWAIT_ROWS: readonly DoorDecisionRow[] = [
     doThis: "Remint. The profile has no cookies.",
     dont: "Do not poll await-login for 30 minutes. A dropped socket before `exp` is not this row. Do not `POST /sessions` when this JWT is past and there is no completed seed.",
     nextCall: "`auspex_login`",
+  },
+  {
+    status: "`cookie-strong` / `local-storage-auth`",
+    doThis:
+      "Solari Save already holds app-origin cookies and/or allowlisted localStorage auth key names. sessionStorage 0 is expected. Run check --verify-with-profile and read claimOkProfile.",
+    dont:
+      "Do not call this weakSeed. Do not finalize to invent sessionStorage. Do not treat solariSaveReady as claimOkProfile. IdP hosts alone stay the IdP rows.",
+    nextCall: "`auspex_check`",
   },
   {
     status: "`weakSeed` (counted sessionStorage 0)",
@@ -131,7 +140,7 @@ export const DOOR_AWAIT_ROWS: readonly DoorDecisionRow[] = [
     status: "seed health (before and during a job)",
     doThis:
       "Run `profile-status`, then `--verify-with-profile` on an auth-gated host. Reuse the seed only when `claimOkProfile` is true.",
-    dont: "Do not treat `ok`, `loggedIn`, `weakSeed`, IdP-only, or `app-visible` as overnight-safe. No Auspex keepalive or TTL.",
+    dont: "Do not treat `ok`, `loggedIn`, `weakSeed`, `solariSaveReady`, IdP-only, or `app-visible` as overnight-safe. No Auspex keepalive or TTL.",
     nextCall: "(none)",
   },
   {
@@ -156,12 +165,13 @@ export function agentsDoorAwaitBlock(): string {
     "Finalize on an `app-visible` jar opens a new session and returns `needsHuman`. There is no `nextCall`. " +
     "The fold-miss row sets `status` to `completed` and `foldMiss` true. " +
     "After finalize writes the profile store, `--verify-with-profile` boots a fresh `POST /sessions` from that store (no editor JWT, no fold CDP). " +
-    "Default `--save-editor` chains finalize when url and expect are known (`--no-chain-finalize` opts out)."
+    "Default `--save-editor` chains finalize when url and expect are known (`--no-chain-finalize` opts out). " +
+    "A `cookie-strong` or `local-storage-auth` jar already has app-origin cookies or allowlisted localStorage auth key names. Counted sessionStorage 0 is expected on editor Save. `nextCall` is `auspex_check`. `solariSaveReady` is not `claimOkProfile`. Do not finalize to invent sessionStorage."
   const longRunNote =
     "Seed health and re-gate are their own rows at the end of this table. They do not replace the rows above. " +
     "`loggedIn` is a live probe, not `claimOkProfile`, and not overnight-safe. " +
     "A long loop has no Auspex TTL and no keepalive. On re-gate, stop and take the matching row once. " +
-    "`app-visible` stays (none). `editorFold` `no-cdp` with the app host in the jar stays finalize now."
+    "`app-visible` stays (none). `editorFold` `no-cdp` with the app host in the jar stays finalize now when the jar is not cookie-strong or local-storage-auth. A cookie-strong or local-storage-auth Save runs check --verify-with-profile. solariSaveReady is not claimOkProfile."
   return [
     "Decision table. Opposite rows stay adjacent. Do not merge an IdP row with a fold row.",
     "",
@@ -181,7 +191,7 @@ export function agentsAwaitLoginBullet(): string {
     "Returns status: **`completed`**, **`timeout`**, **`empty-save`** (a version bump with no cookies or origins is not success), " +
     "**`idp-only-save`**, **`waiting`**, **`host-changed`** (remint; do not save into the old profile), " +
     "**`stream-expired`**, **`editor-save-hung`** (do not finalize in parallel), **`profile-busy`** (retry await after that save ends). " +
-    "IdP, fold-miss, bare `stream-expired`, `weakSeed`, `emptySave`, seed health, and re-gate actions are the decision table in the frozen door-await block. Do not merge those rows and do not restate them here. " +
+    "IdP, fold-miss, bare `stream-expired`, `cookie-strong`, `local-storage-auth`, `weakSeed`, `emptySave`, seed health, and re-gate actions are the decision table in the frozen door-await block. Do not merge those rows and do not restate them here. " +
     "Do not merge seed health or re-gate into `app-visible` or into finalize-now. " +
     "**`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok` (Solari editor is noVNC today; leftover count is not a fresh capture). " +
     "If `editorSave` fails (e.g. 401), remint — cookies are not proof of login. Remint if finalize-login returns `needsHuman`. " +
@@ -209,6 +219,7 @@ export function awaitLoginDescription(): string {
     "app-visible, sign-in-wall, editorFold no-cdp finalize-now, and bare stream-expired stay separate rows. " +
     "If editorSave fails (for example 401), cookies are not proof of login. Follow the table. " +
     "Leftover sessionStorage is not a fresh capture. Save is not sessionStorage. " +
+    "cookie-strong and local-storage-auth are their own door row. Counted sessionStorage 0 is expected on that Save. solariSaveReady is not claimOkProfile. " +
     "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
     "That refuse is the table don't column. It does not add a nextCall. " +
     "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy. " +
@@ -238,7 +249,7 @@ export function agentsLongRunBlock(): string {
     "",
     "If the loop hits a sign-in wall, a fresh challenge (a new password, code, or challenge page), a dead typing window with no cookies (bare `stream-expired`), or a seed you cannot reuse: stop. The clear status is the matching row in the door table. Take that row's `nextCall` once. The human door is `auspex_login` only when that nextCall is `auspex_login`. Do not type a password, OTP, or CAPTCHA answer. Do not claim the challenge is solved. Do not keep the loop running for hours.",
     "",
-    "`app-visible` still has no `nextCall`. Do not mint again to finish Microsoft. `editorFold` `no-cdp` with the app host in the jar is still finalize now, even if the window already died. A counted `sessionStorage === 0` while the token is live is still finalize-login, not a remint. Those rows stay separate from each other.",
+    "`app-visible` still has no `nextCall`. Do not mint again to finish Microsoft. `editorFold` `no-cdp` with the app host in the jar is still finalize now, even if the window already died, when that jar is not cookie-strong or local-storage-auth. A cookie-strong or local-storage-auth Save is check --verify-with-profile. solariSaveReady is not claimOkProfile. A counted `sessionStorage === 0` with no app-origin cookies and no allowlisted localStorage auth key names, while the token is live, is still finalize-login, not a remint. Those rows stay separate from each other.",
   ].join("\n")
 }
 
@@ -253,7 +264,7 @@ export function llmsLongRunBlock(): string {
     "",
     "If you hit a sign-in wall, a fresh challenge, a dead typing window with no cookies, or a seed you cannot reuse: stop. One human door when the door table says `auspex_login`. Do not type a secret. Do not claim a CAPTCHA is solved. Do not keep checking for hours.",
     "",
-    "`app-visible` still means stop with no mint. `editorFold` `no-cdp` with the app host in the jar still means finalize now.",
+    "`app-visible` still means stop with no mint. `editorFold` `no-cdp` with the app host in the jar still means finalize now when that jar is not cookie-strong. A cookie-strong Save is check --verify-with-profile. solariSaveReady is not claimOkProfile.",
   ].join("\n")
 }
 

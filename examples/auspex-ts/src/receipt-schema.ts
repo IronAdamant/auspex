@@ -45,6 +45,7 @@ export const RECEIPT_V1_OPTIONAL_OBJECT_KEYS = [
   "profileSeed",
   "profileSaved",
   "nextCall",
+  "seedReadiness",
 ] as const
 
 export const RECEIPT_V1_OPTIONAL_KEYS = [
@@ -89,6 +90,8 @@ export type ReceiptV1 = {
   verify?: VerifyResult
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
+  /** Cookie/localStorage Save shape. Counts and allowlisted key names only. */
+  seedReadiness?: import("./cookie-save.ts").SeedReadiness
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -5,6 +5,20 @@ import { cookieHostsAreIdpOnly } from "./login-trace.ts"
 import { finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { hostIs } from "./sso.ts"
 
+export function hasAppOriginCookies(opts: {
+  cookieHosts?: string[]
+  siteHost?: string
+  appOriginCookieCount?: number
+}): boolean {
+  if (typeof opts.appOriginCookieCount === "number") return opts.appOriginCookieCount > 0
+  const site = opts.siteHost?.trim().toLowerCase().replace(/^\./, "")
+  if (!site) return false
+  return (opts.cookieHosts ?? []).some((host) => {
+    const h = host.trim().toLowerCase().replace(/^\./, "")
+    return h.length > 0 && (hostIs(h, site) || hostIs(site, h))
+  })
+}
+
 export const DEAD_FOLD_VERIFY_BAN =
   "Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. " +
   "That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP)."
@@ -33,11 +47,14 @@ export function siteHostFromUrl(url?: string): string | undefined {
   }
 }
 
-/** Site host is absent when no cookie host is that host or a subdomain of it. */
+/**
+ * Site host is absent when no cookie host is that host, a subdomain, or a parent domain.
+ * Parent-domain cookies (example.com for app.example.com) count as the app.
+ */
 export function cookieJarOmitsSite(hosts: string[], siteHost?: string): boolean {
   const site = siteHost?.trim().toLowerCase().replace(/^\./, "")
   if (!site) return false
-  return !hosts.some((h) => hostIs(h, site))
+  return !hasAppOriginCookies({ cookieHosts: hosts, siteHost: site })
 }
 
 function sessionStorageUnusable(opts: { sessionStorage?: number; sessionStorageStale?: boolean }): boolean {
@@ -49,7 +66,8 @@ function sessionStorageUnusable(opts: { sessionStorage?: number; sessionStorageS
  * IdP-only Save: the minted site is missing from the jar, and sessionStorage is empty,
  * uncounted, or stale. Either every cookie host is a Microsoft/Google sign-in host
  * (including google.com and www.google.com apex cookies), or cookies are present and
- * liveHost is already the app. A jar that includes the site still finalizes.
+ * liveHost is already the app. App-origin cookies or allowlisted localStorage
+ * auth key names are a Solari cookie Save, not this refuse.
  */
 export function isIdpOnlySave(opts: {
   cookieHosts?: string[]
@@ -59,7 +77,12 @@ export function isIdpOnlySave(opts: {
   liveHost?: string
   cookies?: number
   origins?: number
+  appOriginCookieCount?: number
+  /** Allowlisted localStorage auth key names on the app origin. Names only. */
+  localStorageAuthKeyNames?: string[]
 }): boolean {
+  if ((opts.localStorageAuthKeyNames ?? []).length > 0) return false
+  if (hasAppOriginCookies(opts)) return false
   const hosts = opts.cookieHosts ?? []
   if (!cookieJarOmitsSite(hosts, opts.siteHost)) return false
   if (!sessionStorageUnusable(opts)) return false
@@ -100,8 +123,14 @@ export function shouldSteerToFinalize(opts: {
   sessionStorage?: number
   sessionStorageStale?: boolean
   liveHost?: string
+  appOriginCookieCount?: number
+  localStorageAuthKeyNames?: string[]
+  /** Cookie or localStorage Save. Do not finalize to invent sessionStorage. */
+  solariSaveReady?: boolean
 }): boolean {
   if (opts.hostChanged) return false
+  if (opts.solariSaveReady) return false
+  if (hasAppOriginCookies(opts) || (opts.localStorageAuthKeyNames ?? []).length > 0) return false
   if (isIdpOnlySave(opts)) return false
   if (!opts.editorSave?.ok) return false
   if (!seedHasCookies(opts)) return false

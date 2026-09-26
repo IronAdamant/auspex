@@ -71,7 +71,8 @@ export const PROFILES_DESCRIPTION =
 export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. " +
   "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave. " +
-  "weakSeed is cookies/origins with a counted sessionStorage of 0, or stale folded expiresOn. " +
+  "weakSeed is cookies/origins with a counted sessionStorage of 0, or stale folded expiresOn, when the jar is not cookie-strong or local-storage-auth. " +
+  "App-origin cookies or allowlisted localStorage auth key names are a Solari Save. seedReadiness reports counts and names only. solariSaveReady is not claimOkProfile. " +
   "emptySave means the profile is missing. Save is not sessionStorage. " +
   "check verifyWithProfile is refused on weakSeed, emptySave, and a dead fold. " +
   "Never type a password. Microsoft/Google password/OTP is needsHuman: auspex_login, handoff.url " +
