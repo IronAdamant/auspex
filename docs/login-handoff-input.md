@@ -2,7 +2,7 @@
 
 ## Check and finalize (Playwright attached)
 
-`auspex check --fill` on a session Auspex launched uses CDP `Input.insertText` after a click when the page exposes `keyboard.insertText`. That path does not walk the noVNC keystream. Password selectors stay refused. Agents never type passwords.
+`auspex check --fill` types into the control, then reads visible text (`value` or `innerText`). It sets `filled` only when that text contains `--value`. Hidden `textContent` does not count. The fill waits until the control is present and its visible text is not the document loading placeholder (`Loading document…`), then until that node stops changing, so a later rewrite does not erase the typed text. A value glued only to that placeholder does not count. A contenteditable target is then clicked, focused, and `keyboard.type` runs. Visible innerText is re-read on a short backoff, and a hit has to still be there after a brief settle. When those reads still lack `--value`, `pressSequentially` runs when the driver has it, then a caret and another `keyboard.type`, then a selection and `insertText`. That same turn appends through a ProseMirror/TipTap view when the node stores `pmViewDesc`, and uses `execCommand('insertText')` for other editors. If a rewrite drops `--value` after it appeared, the fill waits for the node to settle and tries once more. The check re-reads that text after settle, against the excerpt haystack, before `filled` is kept.  Prefer a stable selector such as `#save-document`; `text=Save` can match Unsaved chrome. Password selectors stay refused. Agents never type passwords.
 
 ## Login handoff (noVNC owns the browser)
 

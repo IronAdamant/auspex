@@ -106,14 +106,17 @@ test("P0: password-fill ban — selector and runtime detection", async () => {
     },
   )
   
-  // Runtime detection: mock page that returns false (not a password input) - should succeed
+  // Runtime detection: mock page that returns the filled text (not a password input) - should succeed
+  let landed = ""
   const mockTextPage = {
     waitForSelector: async () => undefined,
     locator: () => ({
-      fill: async () => undefined,
+      fill: async (value: string) => {
+        landed = value
+      },
       click: async () => undefined,
     }),
-    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => false as R, // returns false = not password input
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> => landed as R,
   }
   
   await assert.doesNotReject(async () => runPageActions(mockTextPage, { fill: '#username', value: 'alice' }))

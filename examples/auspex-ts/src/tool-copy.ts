@@ -22,6 +22,7 @@ export const CHECK_DESCRIPTION =
   "(reuse gate — ok is not enough to treat the profile as reusable). They are not equivalent. " +
   "Save is not sessionStorage. verifyWithProfile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
   "record+profile needs allowRecordProfile on a public marketing host; never record a dashboard landing. " +
+  "check --fill sets filled only when visible value or innerText contains --value. Hidden textContent does not count. The fill waits until the control is present and visible text is not the document loading placeholder (Loading document…), then until the target stops changing, then clicks, focuses, and types a contenteditable. A value glued only to that placeholder does not count. Visible innerText is re-read on a short backoff before the fill refuses, and a hit has to still be there after a brief settle. pressSequentially runs when the driver has it. A ProseMirror view is appended to in that same turn; other editors use execCommand('insertText'). If a rewrite drops --value, the fill waits and tries once more. Prefer #save-document; text=Save can match Unsaved chrome. " +
   "allowRecordProfile is refused for consistencyhub. Saved checks: ironadamant|checkpoint|consistencyhub. " +
   "402 FeatureRequiresPlan is not retryable. 429 → auspex_reap (ledger, not accountWide). " +
   DOOR
@@ -42,7 +43,7 @@ export const LOGIN_DESCRIPTION =
   "auspex_await_login with saveEditor true (GET editor HTTP 401 if you open Solari on a phone). " +
   "wait:true / --wait is that same saveEditor path. If profile is not the host slug: profileHostMatch false, " +
   "suggestedProfile, remint nextCall. " +
-  "Solari editor start 409 is status editor-busy (reason editor-start-409): a prior editor is still running. Do not finalize-login. Wait for it to close, or purge after the human agrees, then remint. " +
+  "Solari editor start HTTP 409 reuses the live editor by polling /editor/token (no DELETE on that remint). status editor-busy (reason editor-start-409) means reuse failed. Do not finalize-login. Do not purge and remint while that editor is still running; stop the editor first, then remint. " +
   DOOR
 
 export const AWAIT_LOGIN_DESCRIPTION = awaitLoginDescription()
@@ -65,6 +66,7 @@ export const PROFILES_DESCRIPTION =
   " After a saved login has been used and tested, ask whether " +
   "testing is done and the login may be purged. Purge only after the human agrees (purge + humanAgree). " +
   "An idle saved profile is deleted on the next command after 30 minutes without use. " +
+  "Voluntary purge stops the editor before delete. If the named profile is not wiped, ok is false and wipeFailed lists it. " +
   "No username, password, or Solari key field. Secrets are not included in the agent message. " +
   DOOR
 

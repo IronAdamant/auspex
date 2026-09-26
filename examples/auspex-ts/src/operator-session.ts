@@ -84,9 +84,34 @@ export type OperatorNote = {
   clearBusy?: boolean
 }
 
+export type WipeFailure = {
+  name: string
+  error: string
+}
+
+export type OperatorWipeReport = {
+  wiped: string[]
+  wipeFailed: WipeFailure[]
+}
+
+export type OperatorWipeTarget = {
+  id: string
+  name: string
+}
+
 export type OperatorWipeDeps = {
   list: () => Promise<Array<{ id: string; name: string }>>
   deleteProfile: (id: string) => Promise<void>
+  /** Stop a live editor before profiles.delete. Failures are kept; delete still runs. */
+  stopEditor?: (row: OperatorWipeTarget) => Promise<void>
+}
+
+/** Redacted delete error. Never returns a key, bearer token, or handoff secret. */
+export function wipeErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  const trimmed = raw.replace(/\s+/g, " ").trim()
+  if (!trimmed || /slr_|bearer\s+|x-handoff-token|api[_-]?key/i.test(trimmed)) return "profile delete failed"
+  return trimmed.slice(0, 240)
 }
 
 function cleanProfile(name: string): string {
@@ -235,11 +260,11 @@ export function forgetOperatorProfiles(state: OperatorState, names: readonly str
   return { profiles }
 }
 
-/** Deletes by Solari profile id. The password is not an argument. */
+/** Deletes by Solari profile id. The password is not an argument. A delete error is wipeFailed, not an empty success. */
 export async function applyOperatorWipes(
   names: readonly string[],
   deps: OperatorWipeDeps,
-): Promise<string[]> {
+): Promise<OperatorWipeReport> {
   const wanted: string[] = []
   const seen = new Set<string>()
   for (const name of names) {
@@ -248,16 +273,65 @@ export async function applyOperatorWipes(
     seen.add(profile)
     wanted.push(profile)
   }
-  if (wanted.length === 0) return []
+  if (wanted.length === 0) return { wiped: [], wipeFailed: [] }
   const rows = await deps.list()
-  const deleted: string[] = []
+  const wiped: string[] = []
+  const wipeFailed: WipeFailure[] = []
   for (const name of wanted) {
     const row = rows.find((item) => item.name.trim() === name)
     if (!row) continue
-    await deps.deleteProfile(row.id)
-    deleted.push(name)
+    let stopError = ""
+    if (deps.stopEditor) {
+      try {
+        await deps.stopEditor({ id: row.id, name: row.name })
+      } catch (err) {
+        stopError = wipeErrorMessage(err)
+      }
+    }
+    try {
+      await deps.deleteProfile(row.id)
+      wiped.push(name)
+    } catch (err) {
+      const error = wipeErrorMessage(err)
+      wipeFailed.push({
+        name,
+        error: stopError ? `${error} (editor stop: ${stopError})` : error,
+      })
+    }
   }
-  return deleted
+  return { wiped, wipeFailed }
+}
+
+function isWipeReport(report: readonly string[] | OperatorWipeReport): report is OperatorWipeReport {
+  return !Array.isArray(report)
+}
+
+function asWipeReport(report: readonly string[] | OperatorWipeReport): OperatorWipeReport {
+  if (!isWipeReport(report)) return { wiped: [...report], wipeFailed: [] }
+  return {
+    wiped: [...report.wiped],
+    wipeFailed: report.wipeFailed.map((row) => ({ name: row.name, error: row.error })),
+  }
+}
+
+/**
+ * Voluntary `--purge` + human agree is ok only when that name was actually wiped.
+ * A list with no purge stays ok. wipeFailed is omitted when empty.
+ */
+export function voluntaryPurgeHonesty(opts: {
+  purge?: string
+  humanAgree?: boolean
+  wiped: readonly string[]
+  wipeFailed?: readonly WipeFailure[]
+}): { ok: boolean; wipeFailed?: WipeFailure[] } {
+  const name = (opts.purge ?? "").trim()
+  const requested = opts.humanAgree === true && name.length > 0
+  const failed = (opts.wipeFailed ?? []).map((row) => ({ name: row.name, error: row.error }))
+  if (requested && !opts.wiped.includes(name) && !failed.some((row) => row.name === name)) {
+    failed.push({ name, error: "profile was not wiped" })
+  }
+  const ok = !requested || opts.wiped.includes(name)
+  return failed.length > 0 ? { ok, wipeFailed: failed } : { ok }
 }
 
 export async function commitOperatorSession(opts: {
@@ -266,8 +340,8 @@ export async function commitOperatorSession(opts: {
   note?: OperatorNote
   humanAgree?: boolean
   voluntary?: readonly string[]
-  applyWipes?: (names: readonly string[]) => Promise<readonly string[]>
-}): Promise<{ agent: OperatorAgentNotice; wiped: string[] }> {
+  applyWipes?: (names: readonly string[]) => Promise<readonly string[] | OperatorWipeReport>
+}): Promise<{ agent: OperatorAgentNotice; wiped: string[]; wipeFailed: WipeFailure[] }> {
   let state = readOperatorState(opts.root)
   if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs)
   const known = profilesFromState(state, opts.nowMs)
@@ -284,12 +358,15 @@ export async function commitOperatorSession(opts: {
     voluntary: opts.voluntary,
   })
   let wiped: string[] = []
+  let wipeFailed: WipeFailure[] = []
   if (decision.wipe.length > 0 && opts.applyWipes) {
-    wiped = [...(await opts.applyWipes(decision.wipe))]
+    const report = asWipeReport(await opts.applyWipes(decision.wipe))
+    wiped = report.wiped
+    wipeFailed = report.wipeFailed
     state = forgetOperatorProfiles(state, wiped)
   }
   writeOperatorState(opts.root, state)
-  return { agent: decision.agent, wiped }
+  return { agent: decision.agent, wiped, wipeFailed }
 }
 
 export function operatorKeyPath(root: string): string {

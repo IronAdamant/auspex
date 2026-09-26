@@ -14,7 +14,7 @@ import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
-import { runPageActions } from "./page-actions.ts"
+import { assertVisibleFillLanded, runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import {
   emptyProfileSeedError,
@@ -384,12 +384,14 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       onProgress("extract")
       let raw = ""
       let hasPassword = false
+      let sawPageText = false
       try {
         const extracted = await extractPage(page, opts.selector, signal)
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
         hasPassword = extracted.hasPassword
+        sawPageText = true
         const haystack = normalizeHaystack(raw)
         excerpt = excerptOf(haystack)
         matched = haystackMatches(raw, opts.expect)
@@ -403,6 +405,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         } else {
           throw extractErr
         }
+      }
+      if (sawPageText && filled && opts.fill && opts.value !== undefined) {
+        await assertVisibleFillLanded(page, opts.fill, opts.value, raw)
       }
       if (finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts)) {
         matched = false

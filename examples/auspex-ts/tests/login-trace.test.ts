@@ -225,6 +225,23 @@ test("summarizeLoginTrace says mint ready and names mint-stop why", () => {
   ])
   assert.match(start409, /editor-start HTTP 409/)
   assert.match(start409, /Do not finalize-login/)
+  assert.match(start409, /Stop the editor/)
+  assert.equal(/purge the profile after the human agrees, then remint/.test(start409), false)
+  const reused409 = summarizeLoginTrace([
+    {
+      ts: "t",
+      event: "login",
+      profile: "x",
+      editorStartStatus: 409,
+      mintStage: "ready",
+      vncMintOk: true,
+      phoneDoor: "ime",
+      computerDoor: "desktop-page",
+      remintIndex: 1,
+    },
+  ])
+  assert.match(reused409, /Mint ready/)
+  assert.equal(/Mint stopped at editor-start HTTP 409/.test(reused409), false)
   const cluster = summarizeLoginTrace([
     {
       ts: "t",

@@ -44,7 +44,7 @@ Optional dogfood saved checks (not the stranger path):
 Leave alone (not first-line tools):
   --stealth --proxy <cc|smart> --proxy-sticky <id> --captcha — 402 FeatureRequiresPlan is not retryable.
   --record --allow-record-profile — never --record a logged-in session.
-  --fill <css> --value <text> --click <css> --allow-page-actions — never type a password. fill/click with a profile needs --allow-page-actions.
+  --fill <css> --value <text> --click <css> --allow-page-actions — never type a password. filled is set only when visible text contains --value. Prefer #save-document; text=Save can match Unsaved chrome. fill/click with a profile needs --allow-page-actions.
 
 CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
 Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged | stream-expired. Await also: editor-save-hung | profile-busy.
@@ -52,7 +52,7 @@ ok is not claimOk and not claimOkProfile. claimOkProfile only after --verify-wit
 ${LONG_RUN_CLI_LINE}
 429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
-Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Keys are not included in the agent message.
+Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Voluntary --purge <name> --yes stops the editor first; if that name is not wiped, ok is false and wipeFailed lists it. Keys are not included in the agent message.
 ${PROFILES_MAP_LINE}
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
 login --wait then blocks until Save and runs --save-editor. handoff.url is the chooser (door.html).
