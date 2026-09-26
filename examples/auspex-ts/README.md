@@ -31,20 +31,26 @@ npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no k
 
 ### Commands
 
+Stranger path first. Same order as `npx auspex --help`.
+
 ```
-npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
-npx auspex verify [runDir]
-npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
-npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
-npx auspex login [--profile <name>] [--url <https>] [--wait]
+npx auspex login --url <https> [--profile <name>] [--wait]
+npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
 npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
+npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
-npx auspex trace [--profile <name>] [--limit <n>] [--all]
 npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
 npx auspex job-status --job-id <id> [--wait-ms <n>]
+npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
+npx auspex trace [--profile <name>] [--limit <n>] [--all]
+npx auspex verify [runDir]
+npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
 ```
+
+Optional dogfood saved checks (not the stranger path): `npx auspex check --name <ironadamant|checkpoint|consistencyhub>`.
+
+Leave alone (not first-line tools): `--stealth`, `--proxy`, `--proxy-sticky`, `--captcha` (402 is not retryable), `--record`, `--allow-record-profile`, `--fill`, `--value`, `--click`, `--allow-page-actions`. Never type a password.
 
 Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../AGENTS.md). Short facts that belong next to the commands:
 
@@ -55,6 +61,7 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 - `--stealth` is on `check` only (`POST /sessions`). `login` has no `--stealth`: the cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 - Login trace: one post-handoff row after the handoff is ready. Check rows are not written. Never tokens, passwords, or session ids.
 - **429** is not retryable. Call `auspex_reap`, then retry.
+- Before a long unattended loop, check seed health (`profile-status`, then `claimOkProfile`). `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. On a re-gate, stop. There is no Auspex TTL. See [Long unattended loops](../../AGENTS.md#long-unattended-loops).
 
 ## MCP
 

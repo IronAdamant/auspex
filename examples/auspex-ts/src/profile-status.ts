@@ -1,3 +1,4 @@
+import { LOGGED_IN_SEED_HEALTH, RE_GATE_STOP } from "./door-await-contract.ts"
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
 import { remintLoginNextCall, type NextCall } from "./next-call.ts"
@@ -25,6 +26,8 @@ export type ProfileStatusResult = {
   live: boolean
   skippedLive?: boolean
   skipReason?: string
+  /** Set on loggedIn. Live probe hint. Not a nextCall and not a lease. */
+  next?: string
   nextCall?: NextCall
   finalUrl?: string
   excerpt?: string
@@ -219,7 +222,7 @@ export async function profileStatus(
       skipReason:
         "password/OTP wall. Skip live. Call auspex_login and show handoff.url (chooser). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor). " +
         HANDOFF_PHONE_DOOR_BAN +
-        " Agent never types a password.",
+        ` Agent never types a password. ${RE_GATE_STOP}`,
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
@@ -289,6 +292,7 @@ export async function profileStatus(
     url,
     populated: true,
     live: true,
+    next: LOGGED_IN_SEED_HEALTH,
     finalUrl: landed,
     excerpt: result.excerpt,
     screenshotPath: result.screenshotPath,

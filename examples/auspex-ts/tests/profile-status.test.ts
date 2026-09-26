@@ -300,6 +300,9 @@ test("profileStatus with a URL skips production inspect (one live session)", asy
     },
   )
   assert.equal(result.reason, "loggedIn")
+  assert.match(result.next ?? "", /not claimOkProfile and not overnight-safe/)
+  assert.match(result.next ?? "", /no keepalive/)
+  assert.equal(result.nextCall, undefined)
   assert.equal(live, 1)
   assert.equal(result.cookies, 5)
   assert.equal(result.sessionStorage, 2)
