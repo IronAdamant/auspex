@@ -484,6 +484,7 @@ export function loginWaitPublicFields(waited: {
   next?: string
   nextCall?: NextCall
 } {
+  if (waited.status === "sibling-saved") return { ok: false, next: waited.next }
   if (!waited.hostChanged) return { ok: waited.status === "completed" }
   return {
     ok: false,

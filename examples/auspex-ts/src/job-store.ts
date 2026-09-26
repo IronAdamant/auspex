@@ -38,6 +38,7 @@ export type JobStatus =
   | "editor-busy"
   | "empty-save"
   | "idp-only-save"
+  | "sibling-saved"
   | "timeout"
   | "expectMatchedPublicLanding"
   | "needsHuman"

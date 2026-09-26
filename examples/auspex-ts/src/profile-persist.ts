@@ -39,8 +39,8 @@ import {
 } from "./await-fail.ts"
 import { editorTokenStillLive } from "./editor-vnc.ts"
 import { enableLiveLineBuffer, writeLiveLine } from "./line-buffer.ts"
-import { saveSignaledNext } from "./save-drain.ts"
 import { postEditorSaveWhenSignaled } from "./signaled-editor-save.ts"
+import { saveSignaledNext, siblingOwnsSave, siblingSavedNext } from "./save-drain.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
 import { steerAwaitLogin } from "./await-steer.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
@@ -115,6 +115,7 @@ export type AwaitLoginStatus =
   | "editor-save-hung"
   | "profile-busy"
   | "save-signaled"
+  | "sibling-saved"
 
 export type AwaitLoginResult = {
   status: AwaitLoginStatus
@@ -752,6 +753,8 @@ export async function liveAwaitLogin(
     let notSavableExhausted = false
     let editorSaveAttempted = false
     let signaledWaiter = false
+    let siblingSaved = false
+    let siblingNext: string | undefined
     let mintUrl = opts.url?.trim() || undefined, pageUrl: string | undefined, foldChange: LiveHostChange | undefined
     const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
     const handle = await loadEditorSave(name).catch(() => undefined)
@@ -766,7 +769,10 @@ export async function liveAwaitLogin(
     if (streamPlan.preflight === "past") streamExpired = true
     // `low` keeps the capped waitTimeoutMs. Do not fall back to the 30-minute poll.
     if (opts.saveEditor) {
-      if (streamPlan.preflight === "past") {
+      if (await siblingOwnsSave(name)) {
+        siblingSaved = true
+        siblingNext = siblingSavedNext(name)
+      } else if (streamPlan.preflight === "past") {
         editorSave = {
           ok: false,
           status: 401,
@@ -809,6 +815,9 @@ export async function liveAwaitLogin(
         })
         if (outcome.mode === "signaled-waiter") {
           signaledWaiter = true
+        } else if (outcome.mode === "sibling-saved") {
+          siblingSaved = true
+          siblingNext = outcome.next
         } else if (outcome.mode === "expired-before-save") {
           streamExpired = true
           editorSave = {
@@ -876,6 +885,17 @@ export async function liveAwaitLogin(
         origins: 0,
         drained: true,
         next: saveSignaledNext(handle.name),
+      }
+    }
+    if (siblingSaved && handle) {
+      return {
+        status: "sibling-saved",
+        profileId: handle.profileId,
+        name: handle.name,
+        version: handle.sinceVersion ?? 0,
+        cookies: 0,
+        origins: 0,
+        next: siblingNext ?? siblingSavedNext(handle.name),
       }
     }
     const waited = await waitForProfileSave(name, {

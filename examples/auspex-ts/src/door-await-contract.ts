@@ -192,13 +192,14 @@ export function agentsAwaitLoginBullet(): string {
     "**`idp-only-save`**, **`waiting`**, **`host-changed`** (remint; do not save into the old profile), " +
     "**`stream-expired`**, **`editor-save-hung`** (do not finalize in parallel), **`profile-busy`** (retry await after that save ends), " +
     "**`save-signaled`** (told a running await to POST editor/save; do not kill that process). " +
+    "**`sibling-saved`** (another path already owns editor/save, posted or in flight; do not POST again, do not read the jar, do not report `stream-expired`, do not remint). " +
     "IdP, fold-miss, bare `stream-expired`, `cookie-strong`, `local-storage-auth`, `weakSeed`, `emptySave`, seed health, and re-gate actions are the decision table in the frozen door-await block. Do not merge those rows and do not restate them here. " +
     "Do not merge seed health or re-gate into `app-visible` or into finalize-now. " +
     "**`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok` (Solari editor is noVNC today; leftover count is not a fresh capture). " +
     "If `editorSave` fails (e.g. 401), remint — cookies are not proof of login. Remint if finalize-login returns `needsHuman`. " +
     "SPAs that keep tokens in sessionStorage still need `finalize-login` while the token is valid. Live inspect **forwards origin** so that sessionStorage warning can fire. " +
     "Clipboard Save is not the jar. `--save-editor` POSTs Solari editor/save when Save is signaled. A second call signals a running await; do not kill it. Progress is live on stderr. " +
-    "A 409 not in a savable state gets one live editor/token check and one more save, then `stream-expired`. A failed save does not claim cookies. POST /editor/token has no TTL. " +
+    "A 409 not in a savable state gets one live editor/token check and one more save, then `stream-expired`, unless another path already owns that Save (`sibling-saved`). A failed save does not claim cookies. POST /editor/token has no TTL. " +
     "A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window."
   )
 }
@@ -226,11 +227,11 @@ export function awaitLoginDescription(): string {
     "cookie-strong and local-storage-auth are their own door row. Counted sessionStorage 0 is expected on that Save. solariSaveReady is not claimOkProfile. " +
     "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
     "That refuse is the table don't column. It does not add a nextCall. " +
-    "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy | save-signaled. " +
+    "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy | save-signaled | sibling-saved. " +
     "Clipboard Save is not the jar. saveEditor POSTs Solari editor/save when Save is signaled (a version bump or the paste). " +
     "If an await is already running, a second call signals that process. Do not kill it. Progress lines are live on stderr. " +
-    "A 409 not in a savable state gets one live editor/token check and one more save, then stream-expired. " +
-    "A failed save does not claim cookies. POST /editor/token has no TTL. " +
+    "A 409 not in a savable state gets one live editor/token check and one more save, then stream-expired, unless another path already owns that Save (sibling-saved). " +
+    "The loser does not report stream-expired and does not claim cookies. A failed save does not claim cookies. POST /editor/token has no TTL. " +
     "A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. " +
     "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
     "Once that stamp is past and the profile has no cookies, status is stream-expired. Follow that row's nextCall. Do not poll for 30 minutes. " +

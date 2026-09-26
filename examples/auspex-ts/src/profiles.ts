@@ -23,6 +23,7 @@ import {
   type PhoneExpirySource,
 } from "./handoff-doors.ts"
 import { packageRoot } from "./paths.ts"
+import { clearSaveOwner } from "./save-drain.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 import {
   EDITOR_BUSY_STATUS,
@@ -471,6 +472,7 @@ export async function loginProfile(
   try {
     mintStage = "profile-ensure"
     const profile = await ensureProfile(name)
+    await clearSaveOwner(profile.name).catch(() => undefined)
     mintStage = "handoff-post"
     const client = http ?? (await defaultProfileHttp())
     const handoff = await requestLoginHandoff(

@@ -126,6 +126,7 @@ Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen
 | --- | --- | --- |
 | `waiting` / `awaiting-save` | `auspex_job` + `jobId` | Resume after Save. Debug: `auspex_await_login` + `saveEditor`. |
 | `stream-expired` | `auspex_login` | Remint. Do not poll 30 minutes. |
+| `sibling-saved` | (none) | Another path owns editor/save. Do not remint. Do not report `stream-expired`. This path did not read the jar. |
 | `host-changed` / `hostChanged` | `auspex_login` + suggested profile/url | Do not save into the old jar. |
 | `editor-save-hung` / `profile-busy` | `auspex_await_login` + `saveEditor` | Do not finalize in parallel. |
 | `expectMatchedPublicLanding` | `auspex_finalize_login` | Better persistable URL + unique expect. |
