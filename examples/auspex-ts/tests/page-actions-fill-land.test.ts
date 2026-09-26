@@ -365,3 +365,72 @@ test("filled stays unset when the editor view paint reverts before settle", asyn
   assert.equal(saved, false)
   assert.equal(root.innerText, "old sentence")
 })
+
+test("filled is set when innerText gains --value after keyboard.type returns", async () => {
+  let text = "Loading document..."
+  let types = 0
+  let inserts = 0
+  const keyboard = {
+    _page: { session: "solari" },
+    async insertText(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      inserts += 1
+      void value
+    },
+    async type(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      types += 1
+      setTimeout(() => {
+        text = `${value} honestyLoading document...`
+      }, 700)
+    },
+  }
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({ fill: async () => undefined, click: async () => undefined }),
+    evaluate: async <R,>(): Promise<R> =>
+      ({ password: false, contentEditable: true, text }) as R,
+    keyboard,
+  }
+  const out = await runPageActions(page, { fill: "#editor-content", value: MARK })
+  assert.equal(out.filled, "#editor-content")
+  assert.match(text, /MARK/)
+  assert.equal(types, 1)
+  assert.equal(inserts, 0)
+})
+
+test("filled stays unset when a late innerText hit drops before the confirm read", async () => {
+  let text = "Loading document..."
+  const keyboard = {
+    _page: { session: "solari" },
+    async insertText(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      void value
+    },
+    async type(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      const painted = `${value} honestyLoading document...`
+      setTimeout(() => {
+        text = painted
+      }, 450)
+      setTimeout(() => {
+        text = "Loading document..."
+      }, 520)
+    },
+  }
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => undefined,
+    }),
+    evaluate: async <R,>(): Promise<R> =>
+      ({ password: false, contentEditable: true, text }) as R,
+    keyboard,
+  }
+  await assert.rejects(
+    () => runPageActions(page, { fill: "#editor-content", value: MARK, click: "#save-document" }),
+    new RegExp(FILL_NOT_LANDED_ERROR.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  )
+  assert.equal(text.includes(MARK), false)
+})

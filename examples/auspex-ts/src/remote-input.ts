@@ -1,7 +1,8 @@
 /**
  * Agent typing on a Playwright-attached Solari session may use CDP insertText.
  * The fill waits until the targeted node stops changing, then clicks, focuses, and types.
- * When visible innerText still lacks the value, pressSequentially runs when the driver
+ * Visible innerText is re-read on a short backoff, and a hit has to still be there
+ * after a brief settle. When those reads still lack the value, pressSequentially runs when the driver
  * has it, then a caret and another type, then a selection and insertText (Playwright's
  * fill for contenteditable). That same turn appends through a ProseMirror view when the
  * node stores pmViewDesc, and uses execCommand('insertText') for other editors. If a

@@ -44,6 +44,10 @@ export const FILL_NOT_LANDED_ERROR =
 const CE_TYPE_DELAY_MS = 15
 /** Long enough for an editor to revert a DOM write that never entered the document the user sees. */
 const CE_VISIBLE_SETTLE_MS = 120
+/** Gap between visible-text reads while a contenteditable commits --value. */
+const CE_VISIBLE_POLL_MS = 400
+/** Bounded reads before FILL_NOT_LANDED. The first read is immediate. */
+const CE_VISIBLE_POLL_TRIES = 8
 /** Quiet window after the last mutation on the fill target. A chapter rewrite is a childList mutation. */
 const SURFACE_QUIET_MS = 400
 /** Bound for a lazy editor that mounts, then replaces its HTML. Past this, the fill proceeds. */
@@ -112,6 +116,24 @@ async function visibleLanded(
 }
 
 /**
+ * A contenteditable can paint --value after keyboard.type has already returned.
+ * Read innerText on a short backoff. filled stays unset when every read misses.
+ */
+async function awaitVisibleText(
+  page: Pick<ActionPage, "evaluate">,
+  selector: string,
+  value: string,
+): Promise<boolean> {
+  for (let attempt = 0; attempt < CE_VISIBLE_POLL_TRIES; attempt++) {
+    if (attempt > 0) await wait(CE_VISIBLE_POLL_MS)
+    if (!(await controlContainsValue(page, selector, value))) continue
+    await wait(CE_VISIBLE_SETTLE_MS)
+    if (await controlContainsValue(page, selector, value)) return true
+  }
+  return false
+}
+
+/**
  * After networkidle and excerpt extraction, refuse filled when the painted control
  * (and, for a contenteditable, the excerpt haystack) no longer contains --value.
  */
@@ -162,6 +184,8 @@ async function landOnce(
   if (keyboard && typeof keyboard.type === "function") {
     await keyboard.type(value, { delay: CE_TYPE_DELAY_MS })
     if (await visibleLanded(page, selector, value, true)) return true
+    // Key events can commit after type() returns. Read innerText before select-all or execCommand.
+    if (await awaitVisibleText(page, selector, value)) return true
   }
   if (typeof box.pressSequentially === "function") {
     await box.pressSequentially(value, { delay: CE_TYPE_DELAY_MS, timeout })
@@ -198,6 +222,8 @@ async function landContentEditable(
     if (!painted) continue
     await surfaceQuiet(page, selector)
     if (await controlContainsValue(page, selector, value)) return true
+    // The quiet window can end before a late commit. One more bounded read.
+    if (await awaitVisibleText(page, selector, value)) return true
   }
   return false
 }
