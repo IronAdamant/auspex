@@ -30,6 +30,15 @@ Seed/handoff door for off-site typing. Not a same-session VNC takeover.
 
 New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
 
+## Clock
+
+The typing window dies in about five minutes. A saved profile does not die with it. Detail: [docs/stream-jwt-solari.md](docs/stream-jwt-solari.md).
+- While that window is still open, a dropped connection reconnects the same token. That is not `stream-expired`.
+- After the window dies and the profile has no cookies, mint again.
+- Human Save, then `await-login --save-editor`, then `finalize-login` only when the jar is the app session.
+- `editorSave` 200 and the jar includes the app host: finalize now, even if the window already died.
+- The app is on screen and the jar is only Microsoft or Google cookies: do not finalize. Do not mint again to finish Microsoft.
+
 ## Schema v1 required keys
 
 Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required keys. Exit 0 only when `ok` is true.
@@ -45,23 +54,30 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 
 - The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
 - The live site moved to a different host than the one minted into the door (`hostChanged`). Mint `auspex_login` again for `suggestedProfile` and `suggestedUrl`. Leave the old profile alone.
-- The remote typing window expired and the profile has no cookies (`stream-expired`). Mint again. Skip a 30-minute wait.
 <!-- auspex-door-await:begin -->
-- Save returned 200 but could not refresh in-tab session storage, and the jar already includes the app host. Run finalize-login now. Skip `--verify-with-profile` on that fold.
-- Save returned 200, the app is already on screen, and the jar is still only Microsoft or Google cookies (in-tab session storage 0). Status `idp-only-save`, kind `app-visible`. Do not finalize. Do not mint again to finish Microsoft. The picture is not a saved login.
+- `idp-only-save` / `app-visible`: do not finalize. Do not mint again to finish Microsoft. The picture is not a saved login.
+- `idp-only-save` / `sign-in-wall`: finish sign-in, land on the app UI, then Save, and mint again.
+- `editorFold` `no-cdp` and the jar includes the app host: finalize-login now, even if the window already died. Skip `--verify-with-profile` on that fold.
+- Bare `stream-expired` (no cookies): mint again. Skip a 30-minute wait. Do not treat this as finalize-now.
 <!-- auspex-door-await:end -->
-- Cookies exist but in-tab session storage is empty or stale, or there is no saved profile (`weakSeed`, `emptySave`). Mint again or finalize now. Skip `--verify-with-profile`.
+- `weakSeed` (counted in-tab session storage is 0): finalize-login while the token is live. This is not `app-visible`. Skip `--verify-with-profile`.
+- `weakSeed` (stale folded session storage): mint again. This is not `app-visible`. Skip `--verify-with-profile`.
+- `emptySave` (no saved profile): mint again. Do not finalize.
 - Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
 
 ## Do not
 
-- Type passwords or OTP. Never copy a password into chat.
-- `--record` a logged-in session.
-- Run `auspex_verify` after a default check.
-- Treat `ok` as `claimOk` or `claimOkProfile`.
+- Type a password or OTP, copy one into chat, or fill one from a vault or an agent.
+- Build a Handraise-style same-session takeover. The door is off-site typing.
+- Open Solari noVNC to fix the phone keyboard. Phone typing uses `handoff.mobileUrl`.
+- Finalize because the dashboard is on screen (`idp-only-save` / `app-visible`).
+- Call an Auspex remote HTTP server. Local stdio only.
+- Turn on CAPTCHA, stealth, or a proxy. Leave them alone.
+- Install npm `auspex` or run `npm publish`. The package is `auspex-solari`.
 - Commit `SOLARI_API_KEY`, `.env`, or `.auspex/`.
-- Install npm `auspex` (a different scraper) or run `npm publish`.
+- `--record` a logged-in session, or run `auspex_verify` after a default check.
+- Treat `ok` as `claimOk` or `claimOkProfile`. Do not fold `claimOkProfile` into `ok`.
 
 ## Links
 

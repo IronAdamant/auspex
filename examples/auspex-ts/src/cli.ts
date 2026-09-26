@@ -21,20 +21,28 @@ import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cl
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
-  npx auspex check [--name <ironadamant|checkpoint|consistencyhub>] [<url>] [--expect <string>] [--selector <css>] [--profile <name>] [--stealth] [--proxy <cc|smart>] [--proxy-sticky <id>] [--captcha] [--record] [--allow-record-profile] [--allow-page-actions] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--fill <css> --value <text>] [--click <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
-  npx auspex verify [runDir]
-  npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
-  npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
-  npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
-  npx auspex login [--profile <name>] [--url <https>] [--wait]
+  npx auspex login --url <https> [--profile <name>] [--wait]
+  npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
+  npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex profiles [--purge <name>] [--yes]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
-  npx auspex trace [--profile <name>] [--limit <n>] [--all]
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
+  npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
+  npx auspex trace [--profile <name>] [--limit <n>] [--all]
+  npx auspex verify [runDir]
+  npx auspex desktop [--open <app>] [--type <text>] [--click <x,y>] [--expect <string>]
   npx auspex mcp
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
+
+Optional dogfood saved checks (not the stranger path):
+  npx auspex check --name <ironadamant|checkpoint|consistencyhub>
+
+Leave alone (not first-line tools):
+  --stealth --proxy <cc|smart> --proxy-sticky <id> --captcha — 402 FeatureRequiresPlan is not retryable.
+  --record --allow-record-profile — never --record a logged-in session.
+  --fill <css> --value <text> --click <css> --allow-page-actions — never type a password. fill/click with a profile needs --allow-page-actions.
 
 CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
 Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged | stream-expired. Await also: editor-save-hung | profile-busy.
