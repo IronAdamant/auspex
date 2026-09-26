@@ -11,6 +11,7 @@
     #wrap { display: flex; flex-direction: column; height: 100%; }
     header { padding: 8px 12px 4px; font-size: 14px; }
     header strong { display: block; font-size: 16px; }
+    #howTo { margin: 2px 0 0; font-size: 13px; color: #cde; line-height: 1.3; }
     #ttl { margin-top: 4px; font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; }
     #ttl.warn { color: #fc6; }
     #ttl.dead { color: #f88; }
@@ -94,6 +95,7 @@
   <div id="wrap">
     <header>
       <strong>Auspex phone login</strong>
+      <p id="howTo">You're controlling Solari's remote Chrome. Sign in on the site there.</p>
       <div id="ttl">Save before this dies.</div>
       <div id="status"></div>
       <p id="idpWall" role="status">Still on Microsoft or Google? Finish sign-in, reach the app, then Save.</p>
@@ -101,7 +103,7 @@
     <div id="stage">
       <div id="boot" aria-live="polite">
         <div class="spin" aria-hidden="true"></div>
-        <p id="bootText">Opening remote Chrome…</p>
+        <p id="bootText">Opening Solari's remote Chrome…</p>
       </div>
       <div id="screen" data-solari-remote="vnc"></div>
       <div id="expired" role="alertdialog" aria-modal="true" aria-labelledby="expiredTitle">
@@ -118,7 +120,7 @@
           <input id="imeUser" class="sr-only" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" tabindex="-1" />
           <input id="ime" name="password" type="text" autocapitalize="none" autocomplete="current-password" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" aria-describedby="imeHint" />
         </form>
-        <p id="imeHint">Tap the remote field you want, then type here. Enter clears this box. Show as bullets for password autofill. SMS / email code for a one-time code.</p>
+        <p id="imeHint">Tap a field in Solari's Chrome, then type here. Enter clears this box. Show as bullets for password autofill. SMS / email code for a one-time code.</p>
         <div id="checks">
           <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
           <label id="otpLabel"><input id="otpMode" type="checkbox" /> SMS / email code</label>
@@ -132,7 +134,7 @@
         <button type="button" id="enter">Enter</button>
         <button type="button" id="save" class="ghost">Save</button>
       </div>
-      <p id="secretNote">ironadamant.com does not see keystrokes. They go to remote Chrome and the site only.</p>
+      <p id="secretNote">Saved login data stays on Solari — not on this phone or in Auspex.</p>
     </div>
   </div>
   <script src="./novnc-rfb.js"></script>

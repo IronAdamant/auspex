@@ -186,6 +186,8 @@
       <strong>Phone door.</strong>
       <code>npx auspex-solari login</code> prints one link (<code>phone.html</code>).
       That page is the only login door, on a phone or a computer.
+      You're controlling Solari's remote Chrome. Sign in on the site there.
+      Saved login data stays on Solari — not on this phone or in Auspex.
       Open it in the phone's own Safari or Chrome, or on a computer.
       <code>phone.html</code> has a real text field, so the software keyboard opens.
       Chrome on the phone is the dogfood browser.
@@ -199,8 +201,7 @@
       The countdown is about five minutes (the Solari token). Save before it hits zero.
       Pasting the Save line signals a running await; do not restart that await.
       ironadamant.com does not see the password or any keystrokes.
-      Keys go into Solari remote Chrome and the destination site only.
-      The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site.
+      If cookies or cache are cleared, or the saved Solari profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets.
       They stay off the AI chat, MCP, and receipts.
       Tap Save (it copies a line that does not include what you typed). Paste that line, then
       <code>await-login --save-editor</code>.
