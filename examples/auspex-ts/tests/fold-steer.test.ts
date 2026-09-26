@@ -139,7 +139,7 @@ test("google.com apex cookies do not bypass IdP-only when the app host is missin
   )
 })
 
-test("a jar that includes the site host still steers to finalize", () => {
+test("a jar that includes the site host is a cookie Save, not a fold", () => {
   const seed = {
     editorSave: { ok: true, status: 200 },
     editorFold: { ok: false, reason: "no-cdp" as const },
@@ -149,7 +149,33 @@ test("a jar that includes the site host still steers to finalize", () => {
     sessionStorage: 0,
   }
   assert.equal(isIdpOnlySave(seed), false)
+  assert.equal(shouldSteerToFinalize(seed), false)
+})
+
+test("non-app cookies still steer to finalize", () => {
+  const seed = {
+    editorSave: { ok: true, status: 200 },
+    editorFold: { ok: false, reason: "no-cdp" as const },
+    cookies: 5,
+    cookieHosts: ["cdn.tracker.test"],
+    siteHost: "consistencyhub.io",
+    sessionStorage: 0,
+  }
+  assert.equal(isIdpOnlySave(seed), false)
   assert.equal(shouldSteerToFinalize(seed), true)
+})
+
+test("allowlisted localStorage auth key names are not IdP-only", () => {
+  assert.equal(
+    isIdpOnlySave({
+      cookieHosts: TODAY_IDP_HOSTS,
+      siteHost: "consistencyhub.io",
+      sessionStorage: 0,
+      cookies: 4,
+      localStorageAuthKeyNames: ["accessToken"],
+    }),
+    false,
+  )
 })
 
 test("editorSave 401 with cookies does not steer to finalize", () => {

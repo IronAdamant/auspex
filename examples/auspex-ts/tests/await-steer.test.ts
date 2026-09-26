@@ -18,7 +18,7 @@ function seed(over: Partial<AwaitSteerSeed> = {}): AwaitSteerSeed {
 const foldSave = { ok: true, status: 200 }
 const foldMiss = { ok: false, reason: "no-cdp" as const }
 
-test("steer order is host patch, then finalize, then fail-closed, then IdP-only, then overlay", () => {
+test("steer order is host patch, cookie Save, finalize, fail-closed, IdP-only, then overlay", () => {
   const patched = steerAwaitLogin({
     patch: { next: "remint the live host", nextCall: { tool: "auspex_login", profile: "app-socialaize-com" } },
     steered: seed({ status: "host-changed" }),
@@ -36,7 +36,39 @@ test("steer order is host patch, then finalize, then fail-closed, then IdP-only,
   assert.equal(patched.guided.nextCall?.tool, "auspex_login")
   assert.match(patched.guided.text, /remint the live host/)
 
+  const drainedTracker = steerAwaitLogin({
+    steered: seed({ status: "timeout", cookieHosts: ["cdn.tracker.test"] }),
+    editorSave: foldSave,
+    editorFold: foldMiss,
+    streamExpired: true,
+    editorHung: true,
+    profileBusy: true,
+    siteHost: "app.example",
+    guideUrl: "https://app.example/app",
+    guideExpect: "Workspace ready",
+  })
+  assert.equal(drainedTracker.cookieLead, undefined)
+  assert.equal(drainedTracker.foldLead, undefined)
+  assert.equal(drainedTracker.failClosed?.status, "stream-expired")
+
   const finalize = steerAwaitLogin({
+    steered: seed({ status: "waiting", cookieHosts: ["cdn.tracker.test"] }),
+    editorSave: foldSave,
+    editorFold: foldMiss,
+    streamExpired: false,
+    editorHung: false,
+    profileBusy: false,
+    siteHost: "app.example",
+    guideUrl: "https://app.example/app",
+    guideExpect: "Workspace ready",
+  })
+  assert.equal(finalize.cookieLead, undefined)
+  assert.equal(finalize.foldLead?.status, "completed")
+  assert.equal(finalize.failClosed, undefined)
+  assert.equal(finalize.guided.nextCall?.tool, "auspex_finalize_login")
+  assert.match(finalize.guided.text, /Finalize-login NOW/)
+
+  const cookie = steerAwaitLogin({
     steered: seed({ status: "timeout" }),
     editorSave: foldSave,
     editorFold: foldMiss,
@@ -47,10 +79,12 @@ test("steer order is host patch, then finalize, then fail-closed, then IdP-only,
     guideUrl: "https://app.example/app",
     guideExpect: "Workspace ready",
   })
-  assert.equal(finalize.foldLead?.status, "completed")
-  assert.equal(finalize.failClosed, undefined)
-  assert.equal(finalize.guided.nextCall?.tool, "auspex_finalize_login")
-  assert.match(finalize.guided.text, /Finalize-login NOW/)
+  assert.equal(cookie.cookieLead?.status, "completed")
+  assert.equal(cookie.foldLead, undefined)
+  assert.equal(cookie.guided.nextCall?.tool, "auspex_check")
+  assert.equal(cookie.guided.nextCall?.verifyWithProfile, true)
+  assert.match(cookie.guided.text, /solariSaveReady is not claimOkProfile/)
+  assert.equal(cookie.guided.text.includes("Run auspex check"), false)
 
   const expired = steerAwaitLogin({
     steered: seed({ status: "waiting", cookies: 0, origins: 0, cookieHosts: [] }),
@@ -145,6 +179,7 @@ test("steer order is host patch, then finalize, then fail-closed, then IdP-only,
     profileBusy: false,
     siteHost: "app.example",
   })
+  assert.equal(missed.cookieLead, undefined)
   assert.equal(missed.foldLead, undefined)
   assert.equal(missed.guided.nextCall?.tool, "auspex_login")
   assert.match(missed.guided.text, /Do not finalize-login/)

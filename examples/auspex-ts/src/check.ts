@@ -94,6 +94,8 @@ export type CheckOptions = {
   verifyWithProfile?: boolean
   mobile?: boolean
   device?: string
+  /** Extra localStorage auth key names. Merged with the default allowlist. Names only. */
+  authKeyNames?: string[]
   onProgress?: ProgressFn
 }
 
@@ -128,6 +130,7 @@ export type CheckResult = {
   diff?: ReceiptDiff
   profileSeed?: ProfileSeed
   profileSaved?: ProfileSaveResult
+  seedReadiness?: import("./cookie-save.ts").SeedReadiness
 }
 
 export { packageRoot } from "./paths.ts"
@@ -335,7 +338,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       await rememberLive("browser", sessionId).catch(() => undefined)
       if (isCancelled()) return
       profileSeed = {
-        ...seedFromStorageState(browser.session.storageState, originOf(opts.url)),
+        ...seedFromStorageState(browser.session.storageState, originOf(opts.url), opts.authKeyNames),
         ...loginTraceSeedExtras(browser.session.storageState, originOf(opts.url)),
       }
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {

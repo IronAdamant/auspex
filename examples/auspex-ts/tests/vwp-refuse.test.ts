@@ -74,6 +74,107 @@ test("verify-with-profile refuses an empty seed", async () => {
   assert.equal(both.check.nextCall?.tool, "auspex_login")
 })
 
+test("verify-with-profile runs for app-origin cookies and allowlisted localStorage names", async () => {
+  let claims = 0
+  const cookies = await checkThenVerify(
+    {
+      url: "https://app.example",
+      expect: "Workspace ready",
+      profile: "app-example",
+      verifyWithProfile: true,
+    },
+    {
+      check: async () =>
+        matchedCheck({
+          cookies: 4,
+          origins: 1,
+          sessionStorage: 0,
+          cookieHosts: ["app.example"],
+          appOriginCookieCount: 2,
+        }),
+      verify: async () => {
+        claims += 1
+        return {
+          ok: true,
+          errors: [],
+          claimOk: false,
+          claimErrors: [],
+          anonymousClaimSkipped: true,
+          claimOkProfile: true,
+          claimErrorsProfile: [],
+          runDir: ".auspex/runs/stamp",
+        }
+      },
+    },
+  )
+  assert.equal(claims, 1)
+  assert.equal(cookies.verify.vwpRefused, undefined)
+  assert.equal(cookies.verify.claimOkProfile, true)
+
+  const named = await checkThenVerify(
+    {
+      url: "https://app.example",
+      expect: "Workspace ready",
+      profile: "app-example",
+      verifyWithProfile: true,
+    },
+    {
+      check: async () =>
+        matchedCheck({
+          cookies: 4,
+          origins: 1,
+          sessionStorage: 0,
+          cookieHosts: ["login.microsoftonline.com"],
+          localStorageAuthKeyNames: ["accessToken"],
+        }),
+      verify: async () => {
+        claims += 1
+        return {
+          ok: true,
+          errors: [],
+          claimOk: false,
+          claimErrors: [],
+          anonymousClaimSkipped: true,
+          claimOkProfile: false,
+          claimErrorsProfile: ["miss"],
+          runDir: ".auspex/runs/stamp",
+        }
+      },
+    },
+  )
+  assert.equal(claims, 2)
+  assert.equal(named.verify.vwpRefused, undefined)
+  assert.equal(named.verify.claimOkProfile, false)
+})
+
+test("verify-with-profile still refuses IdP hosts alone", async () => {
+  let claims = 0
+  const both = await checkThenVerify(
+    {
+      url: "https://consistencyhub.io",
+      expect: "Document Editor",
+      profile: "consistencyhub",
+      verifyWithProfile: true,
+    },
+    {
+      check: async () =>
+        matchedCheck({
+          cookies: 4,
+          origins: 1,
+          sessionStorage: 0,
+          cookieHosts: ["login.microsoftonline.com", "login.live.com"],
+        }),
+      verify: async () => {
+        claims += 1
+        throw new Error("claim session must not start")
+      },
+    },
+  )
+  assert.equal(claims, 0)
+  assert.equal(both.verify.vwpRefused, "dead-fold")
+  assert.equal(both.verify.claimOkProfile, false)
+})
+
 test("verify-with-profile still runs when sessionStorage was counted", async () => {
   let claims = 0
   const both = await checkThenVerify(

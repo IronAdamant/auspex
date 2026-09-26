@@ -13,8 +13,19 @@ import type { LiveHostChange } from "./live-host-change.ts"
 import { CLAIM_FALSE_STOP, NOT_A_LEASE, NOT_OVERNIGHT_SAFE, OPS_GUIDE } from "./door-await-contract.ts"
 import { awaitRetryNextCall, finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
+
+export { isConsistencyHubTarget, isWeakSeed, COOKIE_SAVE_CONTRACT }
+export type { SeedReadiness } from "./cookie-save.ts"
+import {
+  COOKIE_SAVE_CONTRACT,
+  classifySeedReadiness,
+  cookieSaveGuide,
+  isConsistencyHubTarget,
+  isWeakSeed,
+  localStorageAuthKeyNames,
+  mergeAuthKeyNames,
+} from "./cookie-save.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
-import { hostIs } from "./sso.ts"
 import {
   boundEditorWork,
   EDITOR_FOLD_BOUND_MS,
@@ -70,6 +81,12 @@ export type ProfileSeed = {
   liveHost?: string
   /** sign-in-wall: human has not reached the app. app-visible: liveHost is the app and sessionStorage was not captured. */
   idpOnlyKind?: "sign-in-wall" | "app-visible"
+  /** Cookies whose domain is the app origin. Count only. */
+  appOriginCookieCount?: number
+  /** localStorage entries on the app origin, excluding folded sessionStorage. */
+  localStorageCount?: number
+  /** Allowlisted key names present on the app origin. Never values. */
+  localStorageAuthKeyNames?: string[]
 }
 
 export type ProfileSaveResult = {
@@ -106,6 +123,12 @@ export type AwaitLoginResult = {
   foldedExpiresInSec?: number
   idpCookies?: boolean
   liveHost?: string
+  /** Cookies whose domain is the app origin. Count only. */
+  appOriginCookieCount?: number
+  /** localStorage entries on the app origin, excluding folded sessionStorage. */
+  localStorageCount?: number
+  /** Allowlisted key names present on the app origin. Never values. */
+  localStorageAuthKeyNames?: string[]
   idpOnlyKind?: "sign-in-wall" | "app-visible"
   hostChanged?: boolean
   profileHostMatch?: boolean
@@ -120,6 +143,10 @@ export type AwaitLoginResult = {
   chainFinalize?: boolean
   /** editorSave/fold could not refresh sessionStorage. Primary next is finalize, not remint. */
   foldMiss?: boolean
+  /** Post-save cookie/localStorage shape. Counts and key names only. */
+  seedReadiness?: import("./cookie-save.ts").SeedReadiness
+  /** Pre-save contract. Same object on login mint. */
+  cookieSaveContract?: typeof COOKIE_SAVE_CONTRACT
 }
 
 export type AwaitLoginDeps = {
@@ -129,13 +156,21 @@ export type AwaitLoginDeps = {
   now?: () => number
 }
 
-export function seedFromStorageState(state: StorageState | null | undefined, origin?: string): ProfileSeed {
+export function seedFromStorageState(
+  state: StorageState | null | undefined,
+  origin?: string,
+  authKeyNames?: string[],
+): ProfileSeed {
   const seed: ProfileSeed = {
     cookies: (state?.cookies ?? []).filter((c) => Boolean(c?.name)).length,
     origins: (state?.origins ?? []).filter((o) => Boolean(o?.origin)).length,
   }
   if (origin && state) {
-    seed.sessionStorage = originStoreCounts(state, origin).sessionStorage
+    const counts = originStoreCounts(state, origin)
+    seed.sessionStorage = counts.sessionStorage
+    seed.appOriginCookieCount = counts.cookies
+    seed.localStorageCount = counts.localStorage
+    seed.localStorageAuthKeyNames = localStorageAuthKeyNames(state, origin, mergeAuthKeyNames(authKeyNames))
     if (isFoldedExpiresOnStale(state, origin)) seed.sessionStorageStale = true
   }
   return seed
@@ -143,56 +178,6 @@ export function seedFromStorageState(state: StorageState | null | undefined, ori
 
 export function isEmptySeed(seed: ProfileSeed): boolean {
   return seed.cookies === 0 && seed.origins === 0
-}
-
-/** ConsistencyHub by saved name, profile name, or host. Not a kebab/slug heuristic. */
-export function isConsistencyHubTarget(opts: { name?: string; profile?: string; url?: string }): boolean {
-  const name = (opts.name ?? "").trim().toLowerCase()
-  const profile = (opts.profile ?? "").trim().toLowerCase()
-  if (name === "consistencyhub" || profile === "consistencyhub") return true
-  const raw = opts.url?.trim()
-  if (!raw) return false
-  try {
-    return hostIs(new URL(raw).hostname, "consistencyhub.io")
-  } catch {
-    return false
-  }
-}
-
-/**
- * weakSeed when cookies/origins exist and sessionStorage is counted 0,
- * or folded `__auspex_ss__:expiresOn` is past / within ~5m (leftover count is not fresh).
- * Public marketing saved checks (ironadamant, checkpoint) stay loggedOut.
- * Unknown sessionStorage (no origin, and not stale) is not weakSeed.
- */
-export function isWeakSeed(opts: {
-  name?: string
-  profile?: string
-  url?: string
-  cookies?: number
-  origins?: number
-  sessionStorage?: number
-  sessionStorageStale?: boolean
-}): boolean {
-  const missingSs = opts.sessionStorage === 0
-  const staleSs = opts.sessionStorageStale === true
-  if (!missingSs && !staleSs) return false
-  const hasStore = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0
-  if (!hasStore) return false
-  if (isConsistencyHubTarget(opts)) return true
-  const raw = opts.url?.trim()
-  if (raw && isPublicMarketingUrl(raw)) return false
-  const name = (opts.name ?? "").trim().toLowerCase()
-  const profile = (opts.profile ?? "").trim().toLowerCase()
-  if (
-    name === "ironadamant" ||
-    name === "checkpoint" ||
-    profile === "ironadamant" ||
-    profile === "checkpoint"
-  ) {
-    return false
-  }
-  return true
 }
 
 export function emptyProfileSeedError(name: string): string {
@@ -266,6 +251,13 @@ export function overlaySaveEditorGuidance(opts: {
   editorSave?: { ok: boolean; status: number; error?: string }
   editorFold?: EditorFoldResult
 }): { text: string; nextCall?: NextCall } {
+  if (opts.nextCall?.tool === "auspex_check") {
+    const missed = saveEditorMissedFold(opts)
+    const text = missed
+      ? `${opts.next} editorFold did not refresh sessionStorage. That miss is expected on a cookie or localStorage Save. Do not finalize to invent sessionStorage.`
+      : opts.next
+    return { text, nextCall: opts.nextCall }
+  }
   const failedSave = opts.editorSave && !opts.editorSave.ok
   const nextCall =
     failedSave && opts.nextCall?.tool === "auspex_finalize_login"
@@ -453,12 +445,13 @@ export async function inspectProfileSeed(
   solari: Solari,
   profileId: string,
   origin?: string,
+  authKeyNames?: string[],
 ): Promise<ProfileSeed> {
   const session = await solari.sessions.create({ profileId })
   await rememberLive("browser", session.id).catch(() => undefined)
   try {
     const state = session.storageState ?? undefined
-    const seed = { ...seedFromStorageState(state, origin), ...loginTraceSeedExtras(state, origin) }
+    const seed = { ...seedFromStorageState(state, origin, authKeyNames), ...loginTraceSeedExtras(state, origin) }
     const live = (await import("./live-host-change.ts")).selectLiveHost({ state })
     return live ? { ...seed, liveHost: live.host } : seed
   } finally {
@@ -473,10 +466,11 @@ export async function inspectProfileSeed(
 
 /** Production await-login adapter: must forward origin so sessionStorage can be counted. */
 export function bindInspectProfileSeed(
-  inspect: (solari: Solari, profileId: string, origin?: string) => Promise<ProfileSeed>,
+  inspect: (solari: Solari, profileId: string, origin?: string, authKeyNames?: string[]) => Promise<ProfileSeed>,
   solari: Solari,
+  authKeyNames?: string[],
 ): AwaitLoginDeps["inspect"] {
-  return (id, origin) => inspect(solari, id, origin)
+  return (id, origin) => inspect(solari, id, origin, authKeyNames)
 }
 
 function awaitGuide(
@@ -485,14 +479,33 @@ function awaitGuide(
   version: number,
   seed: ProfileSeed,
   siteHost?: string,
+  readiness?: import("./cookie-save.ts").SeedReadiness,
+  targets?: { url?: string; expect?: string },
 ): { text: string; nextCall?: NextCall; idpOnlyKind?: "sign-in-wall" | "app-visible" } {
+  if (status === "completed" && readiness?.solariSaveReady) {
+    const guide = cookieSaveGuide({
+      profile: profile.name,
+      readiness,
+      url: targets?.url,
+      expect: targets?.expect,
+    })
+    return {
+      text: `Saved v${version} with ${seed.cookies} cookies and ${seed.origins} origins. ${guide.text}`,
+      nextCall: guide.nextCall,
+    }
+  }
   if (status === "completed") {
     const weak = isWeakSeed({
       profile: profile.name,
+      url: targets?.url,
+      siteHost,
       cookies: seed.cookies,
       origins: seed.origins,
       sessionStorage: seed.sessionStorage,
       sessionStorageStale: seed.sessionStorageStale,
+      cookieHosts: seed.cookieHosts,
+      appOriginCookieCount: seed.appOriginCookieCount,
+      localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
     })
     if (weak) {
       const warn = weakSeedGuide(profile.name, seed)
@@ -537,8 +550,10 @@ export async function waitForProfileSave(
     sinceVersion?: number
     timeoutMs?: number
     url?: string
+    expect?: string
     mintUrl?: string
     pageUrl?: string
+    authKeyNames?: string[]
     /** VNC JWT stamp. When set, the poll stops at this time instead of the 30-minute default. */
     streamExpiresAt?: string
     /** editorSave already wrote the jar. Read it now. Do not poll until the JWT dies when there is no pre-save version still to beat. */
@@ -588,6 +603,7 @@ export async function waitForProfileSave(
           liveHost: seed.liveHost,
           cookies: seed.cookies,
           origins: seed.origins,
+          localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
         })
       ) {
         status = "idp-only-save"
@@ -616,7 +632,29 @@ export async function waitForProfileSave(
   const hostPatch = await import("./live-host-change.ts").then((m) =>
     m.completedAwaitHostPatch({ status, profile: profile.name, mintUrl: opts.mintUrl ?? opts.url, pageUrl: opts.pageUrl, liveHost: seed.liveHost }),
   )
-  const guided = awaitGuide(hostPatch ? "waiting" : status, profile, version, seed, siteHost)
+  const seedReadiness = classifySeedReadiness({
+    profile: profile.name,
+    url: opts.url ?? opts.mintUrl,
+    siteHost,
+    cookies: seed.cookies,
+    origins: seed.origins,
+    sessionStorage: seed.sessionStorage,
+    sessionStorageStale: seed.sessionStorageStale,
+    cookieHosts: seed.cookieHosts,
+    liveHost: seed.liveHost,
+    appOriginCookieCount: seed.appOriginCookieCount,
+    localStorageCount: seed.localStorageCount,
+    localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
+  })
+  const guided = awaitGuide(
+    hostPatch ? "waiting" : status,
+    profile,
+    version,
+    seed,
+    siteHost,
+    seedReadiness,
+    { url: opts.url ?? opts.mintUrl, expect: opts.expect },
+  )
   return {
     status: hostPatch?.status ?? status,
     profileId: profile.id,
@@ -630,7 +668,12 @@ export async function waitForProfileSave(
     foldedExpiresInSec: seed.foldedExpiresInSec,
     idpCookies: status === "idp-only-save" ? true : seed.idpCookies,
     liveHost: seed.liveHost,
+    appOriginCookieCount: seed.appOriginCookieCount,
+    localStorageCount: seed.localStorageCount,
+    localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
     idpOnlyKind: status === "idp-only-save" ? guided.idpOnlyKind : undefined,
+    seedReadiness,
+    cookieSaveContract: COOKIE_SAVE_CONTRACT,
     ...(hostPatch ?? {}),
     next: hostPatch?.next ?? guided.text,
     nextCall: hostPatch?.nextCall ?? guided.nextCall,
@@ -675,6 +718,7 @@ export async function liveAwaitLogin(
     expect?: string
     /** Default true: door may chain finalize when this returns status completed from a fold miss. */
     chainFinalize?: boolean
+    authKeyNames?: string[]
     foldCapture?: CaptureEditorFoldOpts
   } = {},
 ): Promise<AwaitLoginResult> {
@@ -774,6 +818,8 @@ export async function liveAwaitLogin(
             ? (streamPlan.waitTimeoutMs ?? STREAM_EXPIRED_WAIT_MS)
             : streamPlan.waitTimeoutMs,
       url: opts.url,
+      expect: opts.expect,
+      authKeyNames: opts.authKeyNames,
       mintUrl,
       pageUrl,
       streamExpiresAt: streamPlan.watchStreamExpiresAt,
@@ -785,7 +831,7 @@ export async function liveAwaitLogin(
             name: p.name,
             version: asFiniteNumber((p as { version?: unknown }).version),
           })),
-        inspect: bindInspectProfileSeed(inspectProfileSeed, solari),
+        inspect: bindInspectProfileSeed(inspectProfileSeed, solari, opts.authKeyNames),
       },
     })
     if (waited.status === "stream-expired") streamExpired = true
@@ -833,6 +879,7 @@ export async function liveAwaitLogin(
           liveHost: seed.liveHost,
           cookies: seed.cookies,
           origins: seed.origins,
+          localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
         })
         const guide = idpOnly
           ? idpOnlySaveGuide(waited.name, { liveHost: seed.liveHost, siteHost })
@@ -871,6 +918,7 @@ export async function liveAwaitLogin(
       guideExpect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
     })
     const foldLead = decision.foldLead
+    const cookieLead = decision.cookieLead
     let guided = decision.guided
     if (adopt && !patch) {
       guided = {
@@ -885,6 +933,7 @@ export async function liveAwaitLogin(
       ...(editorSave ? { editorSave } : {}),
       ...(editorFold ? { editorFold } : {}),
       ...(patch ?? {}),
+      ...(cookieLead ? { status: cookieLead.status } : {}),
       ...(foldLead ? { status: foldLead.status, foldMiss: true as const } : {}),
       ...(decision.failClosed ? { status: decision.failClosed.status } : {}),
       next: guided.text,

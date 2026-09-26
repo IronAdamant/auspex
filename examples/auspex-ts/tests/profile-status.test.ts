@@ -241,6 +241,38 @@ test("isWeakSeed is counted sessionStorage 0 except public marketing saved check
     }),
     false,
   )
+  assert.equal(
+    isWeakSeed({
+      profile: "consistencyhub",
+      url: "https://consistencyhub.io",
+      cookies: 5,
+      origins: 1,
+      sessionStorage: 0,
+      cookieHosts: ["consistencyhub.io"],
+    }),
+    false,
+  )
+  assert.equal(
+    isWeakSeed({
+      profile: "consistencyhub",
+      cookies: 5,
+      origins: 1,
+      sessionStorage: 0,
+      localStorageAuthKeyNames: ["accessToken"],
+    }),
+    false,
+  )
+  assert.equal(
+    isWeakSeed({
+      profile: "other-profile",
+      url: "https://app.example",
+      cookies: 10,
+      origins: 2,
+      sessionStorage: 0,
+      appOriginCookieCount: 3,
+    }),
+    false,
+  )
   const kebab = "/^[a-z0-9]+(-[a-z0-9]+)*$/"
   assert.equal(readFileSync(path.join(srcRoot, "profile-status.ts"), "utf8").includes(kebab), false)
   assert.equal(readFileSync(path.join(srcRoot, "profile-persist.ts"), "utf8").includes(kebab), false)

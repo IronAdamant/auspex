@@ -1,3 +1,4 @@
+import { classifySeedReadiness, type SeedReadiness } from "./cookie-save.ts"
 import { LOGGED_IN_SEED_HEALTH, RE_GATE_STOP } from "./door-await-contract.ts"
 import { isLoggedOutLanding } from "./profile-storage.ts"
 import { HANDOFF_PHONE_DOOR_BAN, listProfiles, requireProfileName, type ProfileInfo } from "./profiles.ts"
@@ -36,12 +37,14 @@ export type ProfileStatusResult = {
   origins?: number
   sessionStorage?: number
   sessionStorageStale?: boolean
+  seedReadiness?: SeedReadiness
 }
 
 export type ProfileStatusOpts = {
   profile?: string
   name?: string
   url?: string
+  authKeyNames?: string[]
 }
 
 export type ProfileStatusDeps = {
@@ -52,17 +55,35 @@ export type ProfileStatusDeps = {
   inspectSeed?: (profileId: string, origin?: string) => Promise<ProfileSeed>
 }
 
-function seedCounts(seed?: ProfileSeed): {
+function seedCounts(seed?: ProfileSeed, url?: string, profile?: string, name?: string): {
   cookies?: number
   origins?: number
   sessionStorage?: number
   sessionStorageStale?: boolean
+  seedReadiness?: SeedReadiness
 } {
+  const seedReadiness = seed
+    ? classifySeedReadiness({
+        name,
+        profile,
+        url,
+        cookies: seed.cookies,
+        origins: seed.origins,
+        sessionStorage: seed.sessionStorage,
+        sessionStorageStale: seed.sessionStorageStale,
+        cookieHosts: seed.cookieHosts,
+        liveHost: seed.liveHost,
+        appOriginCookieCount: seed.appOriginCookieCount,
+        localStorageCount: seed.localStorageCount,
+        localStorageAuthKeyNames: seed.localStorageAuthKeyNames,
+      })
+    : undefined
   return {
     cookies: seed?.cookies,
     origins: seed?.origins,
     sessionStorage: seed?.sessionStorage,
     ...(seed?.sessionStorageStale ? { sessionStorageStale: true } : {}),
+    ...(seedReadiness ? { seedReadiness } : {}),
   }
 }
 
@@ -131,7 +152,7 @@ export async function profileStatus(
   } else if (!willLive) {
     const solari = createClient()
     try {
-      seed = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined)
+      seed = await inspectProfileSeed(solari, row.id, url ? new URL(url).origin : undefined, opts.authKeyNames)
     } catch {
       seed = undefined
     } finally {
@@ -150,6 +171,10 @@ export async function profileStatus(
     origins: seed?.origins,
     sessionStorage: seed?.sessionStorage,
     sessionStorageStale: seed?.sessionStorageStale,
+    cookieHosts: seed?.cookieHosts,
+    liveHost: seed?.liveHost,
+    appOriginCookieCount: seed?.appOriginCookieCount,
+    localStorageAuthKeyNames: seed?.localStorageAuthKeyNames,
   }
   if (isWeakSeed(weakOpts)) {
     const weak = weakSeedGuide(profile, seed)
@@ -163,7 +188,7 @@ export async function profileStatus(
       skippedLive: true,
       skipReason: weak.text,
       nextCall: weak.nextCall,
-      ...seedCounts(seed),
+      ...seedCounts(seed, url, profile, opts.name),
     }
   }
   
@@ -176,7 +201,7 @@ export async function profileStatus(
       live: false,
       skippedLive: true,
       skipReason: "no url to probe; pass --url or --name. Not pinging the user.",
-      ...seedCounts(seed),
+      ...seedCounts(seed, url, profile, opts.name),
     }
   }
   const check = deps?.runCheck ?? runCheck
@@ -187,6 +212,7 @@ export async function profileStatus(
       url,
       expect: claim || "AuspexLiveProbe",
       profile,
+      authKeyNames: opts.authKeyNames,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -202,7 +228,7 @@ export async function profileStatus(
         skippedLive: true,
         skipReason: `${msg} ${emptyGuide.text}`,
         nextCall: emptyGuide.nextCall,
-        ...seedCounts(seed),
+        ...seedCounts(seed, url, profile, opts.name),
       }
     }
     throw err
@@ -226,7 +252,7 @@ export async function profileStatus(
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      ...seedCounts(seed),
+      ...seedCounts(seed, url, profile, opts.name),
     }
   }
   const landed = result.finalUrl || ""
@@ -249,6 +275,10 @@ export async function profileStatus(
       origins: seed?.origins,
       sessionStorage: seed?.sessionStorage,
       sessionStorageStale: seed?.sessionStorageStale,
+      cookieHosts: seed?.cookieHosts,
+      liveHost: seed?.liveHost,
+      appOriginCookieCount: seed?.appOriginCookieCount,
+      localStorageAuthKeyNames: seed?.localStorageAuthKeyNames,
     })
   ) {
     const weak = weakSeedGuide(profile, seed)
@@ -264,7 +294,7 @@ export async function profileStatus(
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      ...seedCounts(seed),
+      ...seedCounts(seed, url, profile, opts.name),
     }
   }
   if (loggedOutLive) {
@@ -282,7 +312,7 @@ export async function profileStatus(
       finalUrl: landed,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,
-      ...seedCounts(seed),
+      ...seedCounts(seed, url, profile, opts.name),
     }
   }
   return {
@@ -296,6 +326,6 @@ export async function profileStatus(
     finalUrl: landed,
     excerpt: result.excerpt,
     screenshotPath: result.screenshotPath,
-    ...seedCounts(seed),
+    ...seedCounts(seed, url, profile, opts.name),
   }
 }
