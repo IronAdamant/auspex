@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import test from "node:test"
+import vm from "node:vm"
+import { browserEvaluatePayloads } from "../src/page-action-browser.ts"
 import { runPageActions, waitForSurfaceQuiet } from "../src/page-actions.ts"
+
+const KEEP_NAMES_HELPER = "__" + "name"
 
 const MARK = "MARK"
 
@@ -362,4 +367,73 @@ test("pressSequentially lands when keyboard.type only touches textContent", asyn
       g.document = prevDoc
     }
   })
+})
+
+test("fill page.evaluate payloads run without the tsx keepNames helper", async () => {
+  const pageActions = readFileSync(new URL("../src/page-actions.ts", import.meta.url), "utf8")
+  assert.equal(pageActions.includes("$eval("), false)
+  const calls = [...pageActions.matchAll(/page\.evaluate\(\s*([A-Za-z0-9_]+)/g)].map((match) => match[1]).sort()
+  assert.deepEqual(calls, [
+    "paintFillTarget",
+    "prepareFillTarget",
+    "prepareFillTarget",
+    "prepareFillTarget",
+    "probeVisibleControl",
+    "waitForSurfaceQuiet",
+  ])
+  const editor = {
+    innerText: "old",
+    isContentEditable: true,
+    focus() {},
+    querySelector() {
+      return null
+    },
+    querySelectorAll() {
+      return []
+    },
+  }
+  for (const payload of browserEvaluatePayloads) {
+    assert.equal(payload.source.includes(KEEP_NAMES_HELPER), false, payload.name)
+    const shipped = String(payload.fn)
+    assert.equal(shipped.includes(KEEP_NAMES_HELPER), false, payload.name)
+    assert.match(shipped, new RegExp(`^function ${payload.name}\\b`))
+    const sandbox: Record<string, unknown> = {
+      Promise,
+      Date,
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      document:
+        payload.name === "paintFillTarget"
+          ? {
+              querySelector: () => editor,
+              createRange: () => ({ selectNodeContents() {} }),
+              getSelection: () => ({ removeAllRanges() {}, addRange() {} }),
+              execCommand() {
+                return false
+              },
+            }
+          : { querySelector: () => null },
+      MutationObserver: class {
+        observe() {}
+        disconnect() {}
+      },
+    }
+    sandbox.globalThis = sandbox
+    const fn = vm.runInContext(`(${shipped})`, vm.createContext(sandbox)) as (arg: unknown) => unknown
+    if (payload.name === "probeVisibleControl") {
+      const probe = fn("#editor-content") as { password: boolean; contentEditable: boolean; text: string }
+      assert.equal(probe.password, false)
+      assert.equal(probe.contentEditable, false)
+      assert.equal(probe.text, "")
+    } else if (payload.name === "prepareFillTarget") {
+      assert.equal(fn({ selector: "#editor-content", select: "all" }), false)
+    } else if (payload.name === "paintFillTarget") {
+      assert.equal(fn({ selector: "#editor-content", value: "MARK" }), false)
+    } else {
+      const quiet = await (fn({ selector: "#missing", quietMs: 20, timeoutMs: 70 }) as Promise<boolean>)
+      assert.equal(quiet, false)
+    }
+  }
 })
