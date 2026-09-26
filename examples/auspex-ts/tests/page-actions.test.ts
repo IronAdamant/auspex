@@ -13,11 +13,14 @@ function fieldPage(opts: {
 }) {
   const calls: string[] = []
   const keyboard = opts.keyboard === false ? undefined : {
-    insertText: async (text: string) => {
+    _page: { session: "solari" },
+    async insertText(text: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
       calls.push(`insert:${text}`)
       opts.onInsert?.(text)
     },
-    type: async (text: string) => {
+    async type(text: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
       calls.push(`type:${text}`)
       opts.onType?.(text)
     },
@@ -93,6 +96,34 @@ test("runPageActions is a no-op when no actions are set", async () => {
     {},
   )
   assert.equal(waited, false)
+})
+
+test("runPageActions calls keyboard.type on the keyboard so this stays bound", async () => {
+  let text = ""
+  const keyboard = {
+    _page: { session: "solari" },
+    async insertText(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      void value
+    },
+    async type(value: string) {
+      if (!this._page) throw new TypeError("Cannot read properties of undefined (reading '_page')")
+      text = value
+    },
+  }
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => undefined,
+    }),
+    evaluate: async <R, Arg>(_fn: (arg: Arg) => R, _arg?: Arg): Promise<R> =>
+      ({ password: false, contentEditable: true, text }) as R,
+    keyboard,
+  }
+  const out = await runPageActions(page, { fill: "#editor-content", value: "hello world" })
+  assert.equal(out.filled, "#editor-content")
+  assert.equal(text, "hello world")
 })
 
 test("runPageActions types into contenteditable and does not claim insertText", async () => {

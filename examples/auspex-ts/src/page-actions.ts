@@ -84,10 +84,11 @@ async function controlContainsValue(page: ActionPage, selector: string, value: s
 }
 
 async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
-  const typeText = page.keyboard?.type
-  if (typeof typeText !== "function") return
+  const keyboard = page.keyboard
+  if (!keyboard || typeof keyboard.type !== "function") return
   await page.locator(selector).click({ timeout, signal })
-  await typeText(value)
+  // Method call. Extracting keyboard.type drops this and Playwright throws reading _page.
+  await keyboard.type(value)
 }
 
 export type PageActionResult = {
@@ -160,11 +161,11 @@ export async function runPageActions(
     if (first.contentEditable && canType) {
       await typeInto(page, fillSelector, value, timeout, signal)
     } else if (pageHasInsertText(page)) {
-      const insert = page.keyboard.insertText
+      const keyboard = page.keyboard
       await insertTextAt(
         {
           click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),
-          insertText: (text) => insert(text).then(() => undefined),
+          insertText: (text) => keyboard.insertText(text).then(() => undefined),
         },
         value,
         timeout,
