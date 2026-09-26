@@ -6,7 +6,7 @@
 **Watch / Discord truth:** [`docs/showcase/DISCORD.md`](docs/showcase/DISCORD.md) + Pages (`https://ironadamant.com/auspex/`). Do **not** hero jsDelivr `replay.html` (served as `text/plain`). Do not execute §6 as originally written.  
 **Human-only step:** Discord `#showcase` post (Aron posts; agent prepares the packet).
 
-This was the runbook for making Auspex easy to watch, easy to run, and complete against leftovers from the intern review, competitor pass, and deferred-items memos. The inventory below is historical; shipped truth is `main`.
+This was the runbook for packaging Auspex so it is easy to watch and easy to run, and for closing leftovers from the intern review and deferred-items memos. The inventory below is historical packaging work; shipped truth is `main`.
 
 ---
 
@@ -88,7 +88,7 @@ IDs are stable. Do not drop an ID.
 
 | ID | Item | Why it is broken today | Fix |
 |---|---|---|---|
-| U1 | GitHub Pages off (`has_pages: false`) | Competitors have a click URL. Homepage is a tree path. | Enable Pages from `docs/showcase/` (or `examples/auspex-ts/demo/` wrapped by a small `index.html`). Set repo `homepage` to that URL. |
+| U1 | GitHub Pages off (`has_pages: false`) | Homepage is a tree path; a click URL was missing. | Enable Pages from `docs/showcase/` (or `examples/auspex-ts/demo/` wrapped by a small `index.html`). Set repo `homepage` to that URL. |
 | U2 | jsDelivr replay buried | Replay **already works** on Pages (`https://ironadamant.com/auspex/demo/replay.html`, `text/html`). jsDelivr `replay.html` is `text/plain` and is not the hero. | Hero link: Watch (Pages) · CH receipt. Do not hero jsDelivr. |
 | U3 | No “For Reviewers” box | Harry at fork 200 will not read AGENTS.md. | 8-line table at top of root `README.md`: watch, triad, clone command, MCP, what not to do. |
 | U4 | Discord `#showcase` unused | Team queue + public proof of need. | Packet in `docs/showcase/DISCORD.md`. Aron posts. |
@@ -364,7 +364,7 @@ Parent does: fetch/pull, PR merge order, live 429/402 handling, tell Aron when `
 - Filing a cookbook GitHub issue.
 - Live ConsistencyHub login from an agent.
 - Spending stealth/proxy/captcha/desktop if the plan 402s — document skip, do not fake success.
-- Rewriting Auspex as a consumer web app (Fare Board clone). This stays agent infra.
+- Rewriting Auspex as a consumer web app. This stays agent infra.
 - Treating `Grok research/` (gitignored, 2026-09-01) as current.
 
 ---
