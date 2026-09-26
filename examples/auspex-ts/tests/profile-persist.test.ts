@@ -633,12 +633,13 @@ test("inspectOriginForAwait forwards saved-check and login --url, not public mar
   assert.equal(inspectOriginForAwait({ name: "myapp", url: "https://ironadamant.com" }), undefined)
 })
 
-test("loginWaitAwaitOpts always passes saveEditor", () => {
-  assert.deepEqual(loginWaitAwaitOpts(), { saveEditor: true })
+test("loginWaitAwaitOpts waits for Save before POST editor/save", () => {
+  assert.deepEqual(loginWaitAwaitOpts(), { saveEditor: true, waitForSaveSignal: true })
   assert.deepEqual(loginWaitAwaitOpts({ sinceVersion: 4, url: "https://app.example" }), {
     sinceVersion: 4,
     url: "https://app.example",
     saveEditor: true,
+    waitForSaveSignal: true,
   })
 })
 

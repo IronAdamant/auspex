@@ -61,7 +61,14 @@ export type JobDeps = {
   login?: (name: string, url?: string, opts?: { profileDerived?: boolean }) => Promise<LoginResult>
   awaitLogin?: (
     name: string,
-    opts: { sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string },
+    opts: {
+      sinceVersion?: number
+      timeoutMs?: number
+      saveEditor?: boolean
+      url?: string
+      waitForSaveSignal?: boolean
+      onProgress?: (phase: string) => void
+    },
   ) => Promise<AwaitLoginResult>
   finalize?: (opts: { profile: string; url?: string; expect?: string }) => Promise<CheckResult>
   check?: (opts: {
@@ -451,6 +458,8 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         timeoutMs: record.timeoutMs,
         saveEditor: true,
         url: record.url,
+        waitForSaveSignal: record.wait === true,
+        onProgress: (phase) => progress(phase),
       })
       const waited = preserveAwaitLiveHost(
         await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }),

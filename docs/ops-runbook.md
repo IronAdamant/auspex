@@ -100,6 +100,18 @@ A `claimOkProfile` true pass is evidence you can run another check. It is not a 
 
 The five-minute typing window is only the door. A saved profile can outlast it. Detail: [stream-jwt-solari.md](stream-jwt-solari.md).
 
+## The five-minute Save window
+
+Solari's editor VNC token lasts about five minutes. `POST /editor/token` has no TTL. Auspex cannot lengthen it.
+
+The phone page shows a countdown. Tap Save before it hits zero. That tap copies a clipboard line. The jar is written when `await-login --save-editor` POSTs Solari `editor/save`.
+
+Start that await once (`login --wait`, `job --wait`, or the paste command if nothing is waiting). If an await is already running, pasting the line signals it. Do not kill it and start another. Restarting mid-window burns the token.
+
+A sign-in that takes longer than about five minutes needs a fresh `auspex login` after the app is ready, then Save inside the new countdown. That is a new Solari token, not a longer one.
+
+If Solari says the editor is not in a savable state, Auspex asks once whether the editor is still live and saves once more. If that fails, the status is `stream-expired`. A failed save does not claim cookies.
+
 ## Keys
 
 SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys.

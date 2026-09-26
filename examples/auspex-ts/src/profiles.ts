@@ -190,6 +190,8 @@ export function phoneSavePaste(profileName?: string): string {
     `I tapped Save on the Auspex phone page for profile ${name}.`,
     `Run: npx auspex await-login --profile ${name} --save-editor`,
     `(MCP: auspex_await_login with saveEditor true).`,
+    `Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.`,
+    `Save before the phone countdown hits zero. A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. Auspex cannot lengthen the Solari token.`,
     `Then: npx auspex finalize-login --profile ${name} --url <the URL the logged-in app lands on> --expect "<unique logged-in text>".`,
     `Never open Solari's editor on a phone (GET editor HTTP 401).`,
     `editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.`,
@@ -449,7 +451,12 @@ export async function saveProfileEditor(
 ): Promise<{ ok: boolean; status: number; error?: string; json?: Record<string, unknown> }> {
   const post = opts?.post ?? (await editorHandoffCall(handle.handoffToken, "POST"))
   const got = await post(`/api/profiles/${encodeURIComponent(handle.profileId)}/editor/save`)
-  const error = typeof got.json.error === "string" ? got.json.error : undefined
+  const error =
+    typeof got.json.error === "string"
+      ? got.json.error
+      : typeof got.json.message === "string"
+        ? got.json.message
+        : undefined
   return { ok: got.status === 200 || got.status === 201, status: got.status, error, json: got.json }
 }
 

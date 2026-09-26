@@ -31,11 +31,16 @@ import {
   EDITOR_FOLD_BOUND_MS,
   EDITOR_SAVE_BOUND_MS,
   editorSaveHungGuide,
+  isBoundTimeoutMessage,
   isProfileBusyMessage,
   profileBusyAwaitGuide,
   STREAM_EXPIRED_WAIT_MS,
   streamExpiredGuide,
 } from "./await-fail.ts"
+import { editorTokenStillLive } from "./editor-vnc.ts"
+import { enableLiveLineBuffer, writeLiveLine } from "./line-buffer.ts"
+import { saveSignaledNext } from "./save-drain.ts"
+import { postEditorSaveWhenSignaled } from "./signaled-editor-save.ts"
 import { isStreamExpired } from "./handoff-doors.ts"
 import { steerAwaitLogin } from "./await-steer.ts"
 import { awaitStreamPlan, streamIsPast, streamWatchDeadlineMs } from "./stream-deadline.ts"
@@ -109,6 +114,7 @@ export type AwaitLoginStatus =
   | "stream-expired"
   | "editor-save-hung"
   | "profile-busy"
+  | "save-signaled"
 
 export type AwaitLoginResult = {
   status: AwaitLoginStatus
@@ -141,6 +147,8 @@ export type AwaitLoginResult = {
   editorFold?: EditorFoldResult
   /** Door should call finalize-login now. Set only when url and expect are known. */
   chainFinalize?: boolean
+  /** This call only signaled a running await. It did not POST editor/save. */
+  drained?: boolean
   /** editorSave/fold could not refresh sessionStorage. Primary next is finalize, not remint. */
   foldMiss?: boolean
   /** Post-save cookie/localStorage shape. Counts and key names only. */
@@ -339,11 +347,14 @@ export function loginWaitAwaitOpts(opts: { sinceVersion?: number; url?: string }
   sinceVersion?: number
   url?: string
   saveEditor: true
+  /** Started before the human taps Save. Wait for the paste signal. Do not POST yet. */
+  waitForSaveSignal: true
 } {
   return {
     ...(opts.sinceVersion !== undefined ? { sinceVersion: opts.sinceVersion } : {}),
     ...(opts.url !== undefined ? { url: opts.url } : {}),
     saveEditor: true,
+    waitForSaveSignal: true,
   }
 }
 
@@ -720,15 +731,27 @@ export async function liveAwaitLogin(
     chainFinalize?: boolean
     authKeyNames?: string[]
     foldCapture?: CaptureEditorFoldOpts
+    /** login --wait and job --wait. Do not POST until the paste or a version bump. */
+    waitForSaveSignal?: boolean
+    onProgress?: (phase: string) => void
   } = {},
 ): Promise<AwaitLoginResult> {
   const solari = createClient()
+  const onProgress =
+    opts.onProgress ??
+    ((phase: string) => {
+      enableLiveLineBuffer(process.stderr)
+      writeLiveLine(process.stderr, `:: ${phase}`)
+    })
   try {
     let editorSave: AwaitLoginResult["editorSave"]
     let editorFold: EditorFoldResult | undefined
     let streamExpired = false
     let editorHung = false
     let profileBusy = false
+    let notSavableExhausted = false
+    let editorSaveAttempted = false
+    let signaledWaiter = false
     let mintUrl = opts.url?.trim() || undefined, pageUrl: string | undefined, foldChange: LiveHostChange | undefined
     const { loadEditorSave, saveProfileEditor } = await import("./profiles.ts")
     const handle = await loadEditorSave(name).catch(() => undefined)
@@ -759,54 +782,100 @@ export async function liveAwaitLogin(
           error: "stream-expired: VNC/handoff expiry is past; remint auspex_login",
         }
       } else {
-        const savedBound = await boundEditorWork(
-          () => saveProfileEditor(handle),
-          EDITOR_SAVE_BOUND_MS,
-          `editorSave timed out after ${EDITOR_SAVE_BOUND_MS}ms`,
-        )
-        if (!savedBound.ok) {
-          editorHung = true
-          editorSave = { ok: false, status: 0, error: savedBound.error }
-        } else {
-          const saved = savedBound.value
-          editorSave = { ok: saved.ok, status: saved.status, error: saved.error }
-          if (saved.ok) {
-            const capturedBound = await boundEditorWork(
-              () =>
-                captureEditorFoldState({
-                  saveJson: saved.json,
-                  ...opts.foldCapture,
-                }),
-              EDITOR_FOLD_BOUND_MS,
-              `editorFold timed out after ${EDITOR_FOLD_BOUND_MS}ms`,
+        const sinceVersion = opts.sinceVersion ?? handle.sinceVersion ?? 0
+        const outcome = await postEditorSaveWhenSignaled({
+          profile: name,
+          sinceVersion,
+          waitForSaveSignal: opts.waitForSaveSignal === true,
+          streamExpiresAt: handle.streamExpiresAt,
+          deadlineMs: Date.now() + (streamPlan.waitTimeoutMs ?? AWAIT_LOGIN_DEFAULT_MS),
+          pollMs: HANDOFF_POLL_MS,
+          onProgress,
+          readVersion: async () => {
+            const rows = await solari.profiles.list()
+            const row = rows.find((p) => p.name.trim() === name.trim())
+            return asFiniteNumber((row as { version?: unknown } | undefined)?.version) ?? sinceVersion
+          },
+          editorStillLive: () => editorTokenStillLive(handle.profileId, handle.handoffToken),
+          save: async () => {
+            const savedBound = await boundEditorWork(
+              () => saveProfileEditor(handle),
+              EDITOR_SAVE_BOUND_MS,
+              `editorSave timed out after ${EDITOR_SAVE_BOUND_MS}ms`,
             )
-            if (!capturedBound.ok) {
-              editorHung = true
-              editorFold = { ok: false, reason: "connect-failed", error: capturedBound.error }
-            } else {
-              const captured = capturedBound.value
-              const host = await import("./live-host-change.ts")
-              pageUrl = host.httpsPageUrlFromRecord(saved.json)
-              foldChange = host.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state })
-              editorFold = foldChange
-                ? { ok: false, reason: "persist-blocked", error: host.LIVE_HOST_CHANGED_SAVE_ERROR }
-                : await persistCapturedEditorFold({
-                    handle,
-                    captured,
-                    persist: (state) =>
-                      persistLiveProfile({
-                        solari,
-                        profileId: handle.profileId,
-                        state,
-                        lockName: handle.name,
-                      }),
-                  })
-              if (isProfileBusyMessage(editorFold.error)) profileBusy = true
+            if (!savedBound.ok) return { ok: false, status: 0, error: savedBound.error, hung: true }
+            return savedBound.value
+          },
+        })
+        if (outcome.mode === "signaled-waiter") {
+          signaledWaiter = true
+        } else if (outcome.mode === "expired-before-save") {
+          streamExpired = true
+          editorSave = {
+            ok: false,
+            status: 0,
+            error: "stream-expired before Solari editor/save. Clipboard Save is not the jar.",
+          }
+        } else if (outcome.editorSave) {
+          const saved = outcome.editorSave
+          editorSaveAttempted = true
+          notSavableExhausted = saved.notSavableExhausted === true
+          if (notSavableExhausted) streamExpired = true
+          if (saved.hung || isBoundTimeoutMessage(saved.error ?? "")) {
+            editorHung = true
+            editorSave = { ok: false, status: saved.status, error: saved.error }
+          } else {
+            editorSave = { ok: saved.ok, status: saved.status, error: saved.error }
+            if (saved.ok) {
+              const capturedBound = await boundEditorWork(
+                () =>
+                  captureEditorFoldState({
+                    saveJson: saved.json,
+                    ...opts.foldCapture,
+                  }),
+                EDITOR_FOLD_BOUND_MS,
+                `editorFold timed out after ${EDITOR_FOLD_BOUND_MS}ms`,
+              )
+              if (!capturedBound.ok) {
+                editorHung = true
+                editorFold = { ok: false, reason: "connect-failed", error: capturedBound.error }
+              } else {
+                const captured = capturedBound.value
+                const host = await import("./live-host-change.ts")
+                pageUrl = host.httpsPageUrlFromRecord(saved.json)
+                foldChange = host.adviseLiveHostChange({ profile: name, mintUrl, pageUrl, state: captured.state })
+                editorFold = foldChange
+                  ? { ok: false, reason: "persist-blocked", error: host.LIVE_HOST_CHANGED_SAVE_ERROR }
+                  : await persistCapturedEditorFold({
+                      handle,
+                      captured,
+                      persist: (state) =>
+                        persistLiveProfile({
+                          solari,
+                          profileId: handle.profileId,
+                          state,
+                          lockName: handle.name,
+                        }),
+                    })
+                if (isProfileBusyMessage(editorFold.error)) profileBusy = true
+              }
+            } else if (saved.status === 401 && isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
+              streamExpired = true
             }
-          } else if (saved.status === 401 && isStreamExpired({ expiresAt: handle.streamExpiresAt ?? handle.expiresAt })) {
-            streamExpired = true
           }
         }
+      }
+    }
+    if (signaledWaiter && handle) {
+      return {
+        status: "save-signaled",
+        profileId: handle.profileId,
+        name: handle.name,
+        version: handle.sinceVersion ?? 0,
+        cookies: 0,
+        origins: 0,
+        drained: true,
+        next: saveSignaledNext(handle.name),
       }
     }
     const waited = await waitForProfileSave(name, {
@@ -851,12 +920,15 @@ export async function liveAwaitLogin(
       adopt ? { ...steered, hostChanged: false } : steered,
       adopt ? undefined : foldChange,
     )
+    const failedPost = editorSaveAttempted && editorSave?.ok !== true
     if (
       !patch &&
       opts.saveEditor &&
       streamExpired &&
       steered.cookies === 0 &&
-      steered.origins === 0
+      steered.origins === 0 &&
+      !failedPost &&
+      !notSavableExhausted
     ) {
       const bounded = await boundEditorWork(
         () =>
@@ -913,6 +985,7 @@ export async function liveAwaitLogin(
       streamExpired,
       editorHung,
       profileBusy,
+      notSavableExhausted,
       siteHost: siteHostFromUrl(guideUrl),
       guideUrl,
       guideExpect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
@@ -939,6 +1012,17 @@ export async function liveAwaitLogin(
       next: guided.text,
       nextCall: guided.nextCall,
       ...(chain ? { chainFinalize: true as const } : {}),
+    }
+    if (notSavableExhausted) {
+      result.status = "stream-expired"
+      result.cookies = 0
+      result.origins = 0
+      delete result.seedReadiness
+      delete result.appOriginCookieCount
+      delete result.localStorageCount
+      delete result.localStorageAuthKeyNames
+      delete result.sessionStorage
+      delete result.foldMiss
     }
     const outcome = postHandoffOutcome(result)
     if (outcome) {

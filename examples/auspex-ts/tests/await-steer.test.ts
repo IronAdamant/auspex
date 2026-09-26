@@ -183,4 +183,28 @@ test("steer order is host patch, cookie Save, finalize, fail-closed, IdP-only, t
   assert.equal(missed.foldLead, undefined)
   assert.equal(missed.guided.nextCall?.tool, "auspex_login")
   assert.match(missed.guided.text, /Do not finalize-login/)
+  assert.equal(missed.failClosed, undefined)
+})
+
+test("not-savable exhaustion is stream-expired and does not claim a cookie Save", () => {
+  const exhausted = steerAwaitLogin({
+    steered: seed({
+      status: "completed",
+      cookies: 4,
+      origins: 1,
+      next: "saved",
+      nextCall: { tool: "auspex_check", profile: "app-example", verifyWithProfile: true },
+    }),
+    editorSave: { ok: false, status: 409, error: "not in a savable state" },
+    streamExpired: true,
+    editorHung: false,
+    profileBusy: false,
+    notSavableExhausted: true,
+    siteHost: "app.example",
+  })
+  assert.equal(exhausted.cookieLead, undefined)
+  assert.equal(exhausted.foldLead, undefined)
+  assert.equal(exhausted.failClosed?.status, "stream-expired")
+  assert.equal(exhausted.guided.nextCall?.tool, "auspex_login")
+  assert.match(exhausted.guided.text, /POST \/editor\/token has no TTL/)
 })
