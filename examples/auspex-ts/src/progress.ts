@@ -1,3 +1,5 @@
+import { enableLiveLineBuffer } from "./line-buffer.ts"
+
 export type ProgressFn = (phase: string) => void
 
 export type ProgressExtra = {
@@ -13,6 +15,7 @@ export function createProgress(opts: {
   stream?: NodeJS.WritableStream
 } = {}): ProgressFn {
   const stream = opts.stream ?? process.stderr
+  enableLiveLineBuffer(stream)
   return (phase: string) => {
     stream.write(`:: ${phase}\n`)
     const send = opts.extra?.sendNotification

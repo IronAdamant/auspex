@@ -560,7 +560,8 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       { intervals, timeouts, clients },
     )
     live.byId.get("ime")!.value = PASSWORD
-    assert.match(live.byId.get("ttl")?.textContent ?? "", /Link active/)
+    assert.match(live.byId.get("ttl")?.textContent ?? "", /Save before this dies/)
+    assert.match(live.byId.get("ttl")?.textContent ?? "", /VNC ~5 min/)
     assert.ok(clients[0])
     clients[0].fire("disconnect")
     live.flushTimeouts()
@@ -618,6 +619,32 @@ test("door does not call stream-expired on a live timer, and does when the stamp
     assert.match(deadStatus, /nextCall auspex_login/)
     assert.equal(dead.byId.get("ime")?.disabled, true)
     assert.equal(dead.byId.get("ime")?.value, "")
+
+    const soon = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 30}&n=app-example`,
+    )
+    assert.match(soon.byId.get("ttl")?.textContent ?? "", /Save now\. This link dies in/)
+    assert.match(soon.byId.get("ttl")?.className ?? "", /warn/)
+
+    const otpClients: Array<{ fire: (type: string) => void }> = []
+    const otp = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+      { clients: otpClients },
+    )
+    assert.ok(otpClients[0])
+    otpClients[0].fire("connect")
+    otp.byId.get("ime")!.value = PASSWORD
+    otp.fireVisibility(true)
+    assert.match(otp.byId.get("status")?.textContent ?? "", /Paused/)
+    assert.equal((otp.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+    assert.equal(otp.byId.get("ime")?.disabled, false)
+    assert.equal(otp.byId.get("ime")?.value, PASSWORD)
+    otp.fireVisibility(false)
+    assert.match(otp.byId.get("status")?.textContent ?? "", /Reconnecting with the same VNC token/)
+    assert.equal((otp.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+    assert.equal(otp.byId.get("ime")?.disabled, false)
   }
 })
 

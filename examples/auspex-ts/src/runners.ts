@@ -84,6 +84,7 @@ export async function runLoginDoor(opts: {
   url?: string
   wait?: boolean
   profileDerived?: boolean
+  onProgress?: ProgressFn
 }) {
   const book = await withOperatorSession({
     note: { profile: opts.profile, site: opts.url, busyMs: SIGNUP_BUSY_MS },
@@ -101,7 +102,10 @@ export async function runLoginDoor(opts: {
   if (!opts.wait || editorBusy) {
     return stampSchema({ ok: !editorBusy, ...shown, cookieSaveContract: COOKIE_SAVE_CONTRACT, operator: book.agent })
   }
-  const rawWait = await liveAwaitLogin(opts.profile, loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: opts.url }))
+  const rawWait = await liveAwaitLogin(opts.profile, {
+    ...loginWaitAwaitOpts({ sinceVersion: result.sinceVersion, url: opts.url }),
+    onProgress: opts.onProgress,
+  })
   const waited = preserveAwaitLiveHost(
     stampProfileHostAdvice(rawWait, { profile: opts.profile, url: opts.url }),
     rawWait,
@@ -128,6 +132,7 @@ export async function runAwaitLoginDoor(opts: {
   chainFinalize?: boolean
   authKeyNames?: string[]
   ssoProvider?: SsoProvider
+  onProgress?: ProgressFn
 }) {
   await withOperatorSession({
     note: { profile: opts.profile, site: opts.url, busyMs: Math.max(SIGNUP_BUSY_MS, opts.timeoutMs ?? 0) },
@@ -140,6 +145,7 @@ export async function runAwaitLoginDoor(opts: {
     expect: opts.expect,
     chainFinalize: opts.chainFinalize,
     authKeyNames: opts.authKeyNames,
+    onProgress: opts.onProgress,
   })
   const result = preserveAwaitLiveHost(
     await stampAwaitLoginHost(rawWait, { profile: opts.profile, url: opts.url }),

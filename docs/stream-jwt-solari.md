@@ -10,7 +10,10 @@ Dogfood (2026-09-24): phone OTP and email codes often outlive the door. Socialai
 
 ## What Auspex does
 
-- While `exp` is in the future, `phone.html` pauses on background and reconnects the **same** JWT (`doorStreamDisconnectAction`). A dropped socket before `exp` is not `stream-expired`. That does not invent a live stream.
+- While `exp` is in the future, `phone.html` pauses on background and reconnects the **same** JWT (`doorStreamDisconnectAction`). A dropped socket before `exp` is not `stream-expired`. That does not invent a live stream. Leaving the tab for a code pauses after the first connect and reconnects that same token on return.
+- The phone page counts down to hash `exp` and says to Save before it hits zero. The remint screen appears only after that stamp is past.
+- Clipboard Save is not the jar. `await-login --save-editor` POSTs `editor/save` when Save is signaled. A second call signals a running await and does not kill it. Progress lines are live on stderr.
+- `editor/save` 409 "not in a savable state" gets one live `POST /editor/token` (no TTL, token not kept) and one more save. If the editor is gone or the second save fails, status is `stream-expired`. A failed save does not claim cookies.
 - After `exp`, the door reports `stream-expired` and the remint `nextCall` is `auspex_login`.
 - If `editorSave` already returned 200 and the jar is cookie-strong or local-storage-auth (app-origin cookies or allowlisted localStorage auth key names), `await-login` leads with `auspex_check` and `verifyWithProfile`. `solariSaveReady` is not `claimOkProfile`. It does not lead with remint.
 - If `editorSave` already returned 200 and the profile has cookies that are not that shape, `await-login` does **not** lead with remint. It leads with `finalize-login`. The dead JWT is a footnote.
@@ -34,4 +37,4 @@ A dropped socket while `exp` is still ahead reconnects the same JWT. That is not
 
 ## Ask for Solari
 
-Email and SMS codes need either a longer editor JWT (more than 5 minutes) or a reconnect API that issues a new VNC token for the same editor without a new login-handoff. Until that exists, operators remint when the code arrives after `exp` and the profile is still empty.
+Email and SMS codes need either a longer editor JWT (more than 5 minutes) or a reconnect API that issues a new VNC token for the same editor without a new login-handoff. Until that exists, a sign-in longer than about five minutes needs a fresh `auspex login` for the final Save window after the app is ready. That mint is a new Solari token. It is not a longer token and not an Auspex TTL. Save before the phone countdown hits zero. Do not restart await in the middle of that window.

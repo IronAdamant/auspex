@@ -60,11 +60,12 @@ export type AwaitSteerResult = {
 /**
  * Order is frozen:
  * 1. host patch
- * 2. cookie or localStorage Save (check --verify-with-profile)
- * 3. finalize steer
- * 4. stream-expired, then editor-save-hung, then profile-busy
- * 5. IdP-only (keeps the seed nextCall; app-visible has none)
- * 6. save-editor overlay
+ * 2. 409 not-savable exhaustion (stream-expired; a failed save does not claim cookies)
+ * 3. cookie or localStorage Save (check --verify-with-profile)
+ * 4. finalize steer
+ * 5. stream-expired, then editor-save-hung, then profile-busy
+ * 6. IdP-only (keeps the seed nextCall; app-visible has none)
+ * 7. save-editor overlay
  */
 export function steerAwaitLogin(input: {
   patch?: AwaitSteerPatch
@@ -74,6 +75,8 @@ export function steerAwaitLogin(input: {
   streamExpired: boolean
   editorHung: boolean
   profileBusy: boolean
+  /** 409 not-savable, and the one live token check did not end in a successful save. */
+  notSavableExhausted?: boolean
   siteHost?: string
   guideUrl?: string
   guideExpect?: string
@@ -102,7 +105,12 @@ export function steerAwaitLogin(input: {
       localStorageAuthKeyNames: steered.localStorageAuthKeyNames,
     })
   const saveFailed = Boolean(input.editorSave && !input.editorSave.ok)
+  const exhaustedLead =
+    input.notSavableExhausted === true && !patch
+      ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
+      : undefined
   const cookieLead =
+    !exhaustedLead &&
     !patch &&
     !drainedNonApp &&
     !saveFailed &&
@@ -121,6 +129,7 @@ export function steerAwaitLogin(input: {
         }
       : undefined
   const foldLead =
+    !exhaustedLead &&
     !cookieLead &&
     !patch &&
     !drainedNonApp &&
@@ -153,7 +162,8 @@ export function steerAwaitLogin(input: {
         }
       : undefined
   const failClosed =
-    !patch &&
+    exhaustedLead ??
+    (!patch &&
     !cookieLead &&
     !foldLead &&
     steered.status !== "completed" &&
@@ -166,10 +176,12 @@ export function steerAwaitLogin(input: {
           : input.profileBusy
             ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(steered.name) }
             : undefined
-      : undefined
+      : undefined)
   const guided = patch
     ? { text: patch.next ?? "", nextCall: patch.nextCall }
-    : cookieLead
+    : exhaustedLead
+      ? { text: exhaustedLead.text, nextCall: exhaustedLead.nextCall }
+      : cookieLead
       ? { text: cookieLead.text, nextCall: cookieLead.nextCall }
       : foldLead
         ? { text: foldLead.text, nextCall: foldLead.nextCall }
