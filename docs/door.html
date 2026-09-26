@@ -2,132 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
   <title>Auspex login</title>
-  <style>
-    html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.45 -apple-system, system-ui, sans-serif; }
-    #wrap { max-width: 28rem; margin: 0 auto; padding: 28px 20px calc(24px + env(safe-area-inset-bottom)); }
-    h1 { font-size: 1.45rem; margin: 0 0 0.5rem; }
-    p { color: #9ab; margin: 0 0 1rem; }
-    #ttl { font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; margin-bottom: 1rem; }
-    #ttl.warn { color: #fc6; }
-    #ttl.dead { color: #f88; }
-    #picks { display: flex; flex-direction: column; gap: 12px; }
-    a.pick {
-      display: block; text-align: center; text-decoration: none;
-      color: #0b0f14; background: #e8eef4; border-radius: 12px;
-      padding: 18px 16px; font-size: 1.2rem; font-weight: 700;
-    }
-    a.pick span { display: block; margin-top: 4px; font-size: 0.85rem; font-weight: 500; color: #243044; }
-    a.pick.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
-    a.pick.ghost span { color: #9ab; }
-    #locked { display: none; padding: 16px; border: 1px solid #f88; border-radius: 12px; color: #f88; }
-    #locked.show { display: block; }
-    .err { color: #f88; }
-  </style>
+  <script>
+    location.replace("./phone.html" + (location.hash || ""))
+  </script>
 </head>
 <body>
-  <div id="wrap">
-    <h1>Auspex login</h1>
-    <div id="ttl">Checking how long this link is active…</div>
-    <p>Seed/handoff door for typing — not a live-session takeover. One mint, one link. Pick how you type. Same remote Chrome and the same hash either way.</p>
-    <p>On the next page, click the remote address bar (or the remote field you mean to fill) before typing anything. One typing field. Keys stream as you type. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only. The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off the AI chat, MCP, and receipts. Phone: stay on the tab when you can; Chrome-on-phone is the dogfood browser. Password managers can autofill the field. A brief background pauses and reconnects the same VNC token — remint only when stream-expired.</p>
-    <p id="card">Console Save stores cookies only. It cannot read sessionStorage (the handoff editor has no Playwright attach). An app already on screen is not saved by this button, and finalize-login cannot recover an IdP-only jar. Expect must be unique to the logged-in app surface, not marketing. Prefer the URL the logged-in app lands on. A public-URL hit is expectMatchedPublicLanding. This typing field is not a site picker. A different product is hostChanged and remints. A same-product rebrand (SkySQL and MariaDB) is adopted. An idle saved profile is purged on the next Auspex command after 30 minutes unused (not a timer on this page; purge only after the human agrees).</p>
-    <div id="locked" role="alert">status stream-expired. This page needs a live link from auspex login. Ask your AI agent to remint (nextCall auspex_login).</div>
-    <div id="picks">
-      <a class="pick" id="phone" href="./phone.html">Phone<span>Software keyboard. Chrome on phone is the dogfood browser (Safari also works).</span></a>
-      <a class="pick ghost" id="desktop" href="./desktop.html">Desktop<span>Hardware keyboard. Open on this computer.</span></a>
-    </div>
-  </div>
+  <p><a id="phone" href="./phone.html">Auspex login</a></p>
   <script>
-    (function () {
-      var hash = location.hash || ""
-      var params = new URLSearchParams(hash.replace(/^#/, ""))
-      var token = params.get("v") || ""
-      var ttl = document.getElementById("ttl")
-      var locked = document.getElementById("locked")
-      var phone = document.getElementById("phone")
-      var desktop = document.getElementById("desktop")
-      phone.href = "./phone.html" + hash
-      desktop.href = "./desktop.html" + hash
-
-      function parseUnixSeconds(value) {
-        if (value == null || value === "") return null
-        var raw = String(value).trim()
-        if (/^\d+(\.\d+)?$/.test(raw)) {
-          var n = Number(raw)
-          if (!isFinite(n) || n <= 0) return null
-          return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n)
-        }
-        var parsed = Date.parse(raw)
-        return isFinite(parsed) ? Math.floor(parsed / 1000) : null
-      }
-
-      function jwtExpSeconds(rawToken) {
-        var parts = String(rawToken || "").split(".")
-        var earliest = null
-        var limit = parts.length < 2 ? parts.length : 2
-        for (var i = 0; i < limit; i++) {
-          if (!parts[i]) continue
-          try {
-            var b64 = parts[i].replace(/-/g, "+").replace(/_/g, "/")
-            while (b64.length % 4) b64 += "="
-            var payload = JSON.parse(atob(b64))
-            var exp = parseUnixSeconds(payload && payload.exp)
-            if (exp) earliest = earliest == null ? exp : Math.min(earliest, exp)
-          } catch (e) {}
-        }
-        return earliest
-      }
-
-      function formatRemain(sec) {
-        if (sec < 0) sec = 0
-        var m = Math.floor(sec / 60)
-        var s = sec % 60
-        return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
-      }
-
-      function remintLine() {
-        var n = String(params.get("n") || "").trim()
-        var flag = n ? " --profile " + n : ""
-        return "status stream-expired. Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
-      }
-
-      function lock(title) {
-        ttl.textContent = title
-        ttl.className = "dead"
-        locked.textContent = remintLine()
-        locked.classList.add("show")
-        phone.removeAttribute("href")
-        desktop.removeAttribute("href")
-      }
-
-      if (!token) {
-        lock("This page needs a live link from auspex login")
-        return
-      }
-
-      var fromHash = parseUnixSeconds(params.get("exp"))
-      var expSec = fromHash || jwtExpSeconds(token)
-      if (!expSec) {
-        lock("Link expiry unknown — remint")
-        return
-      }
-
-      function tick() {
-        var left = expSec - Math.floor(Date.now() / 1000)
-        if (left <= 0) {
-          lock("This login link has expired")
-          return
-        }
-        ttl.textContent = "Link active for " + formatRemain(left) + " · VNC ~5 min"
-        ttl.className = left <= 120 ? "warn" : ""
-      }
-      tick()
-      setInterval(tick, 1000)
-    })()
+    var link = document.getElementById("phone")
+    if (link) link.href = "./phone.html" + (location.hash || "")
   </script>
 </body>
 </html>

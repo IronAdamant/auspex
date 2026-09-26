@@ -42,11 +42,9 @@ test("root AGENTS holds P0/P1 contract facts; package AGENTS is a pointer", () =
     "phone's own Safari or Chrome",
     "noVNC",
     "mobileUrl",
-    "desktopUrl",
     "real text field",
     "phone.html",
-    "door.html",
-    "desktop.html",
+    "Clear empties the whole field",
     "saveEditor",
     "GET editor HTTP 401",
     "expectMatchedPublicLanding",
@@ -68,7 +66,13 @@ test("root AGENTS holds P0/P1 contract facts; package AGENTS is a pointer", () =
   assert.match(USAGE, /AGENTS\.md/)
   assert.match(copy, /expectMatchedPublicLanding/)
   assert.match(copy, /real text field/)
-  assert.match(copy, /door\.html/)
+  assert.match(copy, /phone\.html/)
+  assert.match(copy, /Clear empties the whole field/)
+  assert.equal(copy.includes("desktopUrl"), false)
+  assert.equal(copy.includes("door.html"), false)
+  assert.equal(root.includes("desktopUrl"), false)
+  assert.equal(root.includes("door.html"), false)
+  assert.equal(root.includes("desktop.html"), false)
   assert.match(copy, /defaults to verify=false/)
   assert.match(copy, /host slug/)
   for (const [label, text] of [
@@ -118,7 +122,10 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(cursorRule, /auspex_login/)
   assert.match(cursorRule, /phone's own Safari or Chrome/)
   assert.match(cursorRule, /mobileUrl/)
-  assert.match(cursorRule, /desktopUrl/)
+  assert.match(cursorRule, /Clear empties the whole field/)
+  assert.equal(cursorRule.includes("desktopUrl"), false)
+  assert.equal(cursorRule.includes("door.html"), false)
+  assert.equal(cursorRule.includes("desktop.html"), false)
   assert.match(cursorRule, /noVNC|remote Chromium live view/)
   assert.match(cursorRule, /real text field/)
   assert.match(cursorRule, /phone.html/)

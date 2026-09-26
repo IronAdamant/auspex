@@ -184,48 +184,37 @@
     </p>
     <div class="card">
       <strong>Phone door.</strong>
-      <code>npx auspex-solari login</code> prints one chooser link (<code>door.html</code>).
-      Open it in the phone's own Safari or Chrome and tap Phone.
+      <code>npx auspex-solari login</code> prints one link (<code>phone.html</code>).
+      That page is the only login door, on a phone or a computer.
+      Open it in the phone's own Safari or Chrome, or on a computer.
       <code>phone.html</code> has a real text field, so the software keyboard opens.
       Chrome on the phone is the dogfood browser.
       Click the remote address bar (or the remote field you mean to fill) before typing anything.
       Keys stream into Solari remote Chrome as you type. There is no Paste button.
       Press Enter to send Enter and clear the field.
+      Clear empties the whole field.
       Show as bullets is off by default so a password manager can paste into the text field.
       Check Show as bullets for in-tab autofill (1Password / iOS Passwords / Android / Chrome).
       If you swipe out, the page pauses and reconnects the same VNC token; remint only when stream-expired.
       ironadamant.com does not see the password or any keystrokes.
       Keys go into Solari remote Chrome and the destination site only.
       The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site.
-      They stay off the AI chat line.
+      They stay off the AI chat, MCP, and receipts.
       Tap Save (it copies a line that does not include what you typed). Paste that line, then
       <code>await-login --save-editor</code>.
       This is a seed/handoff door for off-site typing (IME + Save paste),
       not a same-session HITL takeover of the live check.
       Solari's picture of Chrome will not open the phone keyboard.
-      <!-- Live phone still: insert the tested screenshot here. Do not add it before that test. -->
-    </div>
-    <div class="card">
-      <strong>Desktop door.</strong>
-      Same mint, same hash. Open the chooser on a computer and tap Desktop, or use
-      <code>desktop.html</code> directly. Hardware keyboard. One typing field:
-      click the remote address bar (or the remote field you mean to fill) before typing anything.
-      Keys stream as you type (no Paste button). Enter clears the local field.
-      Show as bullets is off by default so a password manager can paste into the text field.
-      ironadamant.com does not see the password or any keystrokes.
-      Keys go into Solari remote Chrome and the destination site only.
-      The destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site.
-      They stay off the AI chat, MCP, and receipts.
-      Seed/handoff door, not a live-session takeover.
       This is not the Mousepad sandbox demo (<code>auspex desktop</code>); that is a separate named Solari desktop primitive.
       An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
       not a live timer on this field. Purge a used login only after the human agrees.
       Door pages do not collect the Solari API key.
+      <!-- Live phone still: insert the tested screenshot here. Do not add it before that test. -->
     </div>
     <div class="card">
       <strong>Agent door.</strong>
       Mint <code>login --url</code> (the profile comes from the host; <code>https://app.example</code> becomes <code>app-example</code>)
-      → the human opens the handoff and logs in
+      → the human opens the phone door and logs in
       → the human taps Save and pastes the copied line
       → <code>await-login --save-editor</code>
       → <code>finalize-login</code>, then later <code>check</code> (optional <code>--verify-with-profile</code>).

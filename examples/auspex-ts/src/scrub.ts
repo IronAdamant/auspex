@@ -38,7 +38,7 @@ export function scrubUrlString(value: string): string {
 }
 
 export type ScrubOpts = {
-  /** Webhook POSTs redact URL hashes; mint stdout keeps door.html hashes so the human can open the chooser. */
+  /** Webhook POSTs redact URL hashes; mint stdout keeps phone.html hashes so the human can open the door. */
   redactUrlHashes?: boolean
 }
 

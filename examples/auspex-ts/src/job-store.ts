@@ -46,7 +46,7 @@ export type JobStatus =
   | "mismatch"
   | "network"
 
-export type JobHandoff = { url?: string; mobileUrl?: string; desktopUrl?: string }
+export type JobHandoff = { url?: string; mobileUrl?: string }
 
 export type JobRecord = {
   schemaVersion: 1

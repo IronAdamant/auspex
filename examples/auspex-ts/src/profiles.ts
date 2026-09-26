@@ -17,9 +17,6 @@ import {
   type WipeFailure,
 } from "./operator-session.ts"
 import {
-  desktopHandoffUrlFromPhone,
-  doorHandoffUrlFromPhone,
-  isDoorUrl,
   isPhoneImeUrl,
   phoneHandoffUrl,
   streamExpiryStamp,
@@ -53,17 +50,9 @@ export {
 export type { EditorPost, EditorVncMint, FetchEditorVncOpts } from "./editor-vnc.ts"
 
 export {
-  DESKTOP_HANDOFF_PAGE,
-  DOOR_HANDOFF_PAGE,
   PHONE_HANDOFF_PAGE,
-  desktopHandoffUrl,
-  desktopHandoffUrlFromPhone,
-  doorHandoffUrl,
-  doorHandoffUrlFromPhone,
   HANDOFF_HASH_KEYS,
   handoffHash,
-  isDesktopDoorUrl,
-  isDoorUrl,
   isPhoneImeUrl,
   phoneHandoffUrl,
 } from "./handoff-doors.ts"
@@ -180,18 +169,14 @@ export type LoginHandoff = {
 }
 
 export type HandoffPacket = {
-  /** Chooser (door.html) when VNC minted; else Solari handoff. */
+  /** Phone door (phone.html) when VNC minted; else Solari handoff. Same page on a computer. */
   url: string
-  /** Phone: Auspex phone.html (real text field) when a VNC token was minted; else Solari handoff. */
+  /** Same phone.html URL when a VNC token was minted; else Solari handoff. */
   mobileUrl?: string
-  /** Computer: desktop.html (same hash) when VNC minted; else Solari console. Do not open this on a phone. */
-  desktopUrl?: string
   openOnPhone?: string
-  openOnDesktop?: string
-  /** Human SMS / one link: chooser when minted. */
+  /** Human SMS / one link: the phone door when minted. */
   oneLiner?: string
-  desktopOneLiner?: string
-  /** Copied on phone Save; paste into any agent chat. Desktop page writes its own desktop line. */
+  /** Copied on Save; paste into any agent chat. */
   savePaste?: string
   qrPath?: string
   /** Earliest VNC/handoff expiry as ISO. Optional extra key. Never the JWT. */
@@ -199,13 +184,10 @@ export type HandoffPacket = {
   streamExpirySource?: PhoneExpirySource
 }
 
-export type DoorSaveKind = "phone" | "desktop"
-
-export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"): string {
+export function phoneSavePaste(profileName?: string): string {
   const name = (profileName ?? "").trim() || "<yours>"
-  const doorLabel = door === "desktop" ? "chooser/desktop door" : "chooser/phone door"
   return [
-    `I tapped Save on the Auspex ${door === "desktop" ? "desktop page" : "phone page"} (${doorLabel}, Phone or Desktop, same hash) for profile ${name}.`,
+    `I tapped Save on the Auspex phone page for profile ${name}.`,
     `Run: npx auspex await-login --profile ${name} --save-editor`,
     `(MCP: auspex_await_login with saveEditor true).`,
     `Then: npx auspex finalize-login --profile ${name} --url <the URL the logged-in app lands on> --expect "<unique logged-in text>".`,
@@ -216,39 +198,24 @@ export function doorSavePaste(profileName?: string, door: DoorSaveKind = "phone"
   ].join("\n")
 }
 
-export function phoneSavePaste(profileName?: string): string {
-  return doorSavePaste(profileName, "phone")
-}
-
-export function desktopSavePaste(profileName?: string): string {
-  return doorSavePaste(profileName, "desktop")
-}
-
 /** Phone.html is IME + Save paste for an auth seed — not a live-session takeover. */
 export const PHONE_HANDOFF_NOT_TAKEOVER =
   "Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check."
 
 /** Solari's handoff/editor is noVNC. iOS will not raise the software keyboard there. */
 export const HANDOFF_PHONE_DOOR_BAN =
-  "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Never open handoff.desktopUrl on a phone. " +
+  "Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. " +
   PHONE_HANDOFF_NOT_TAKEOVER
 
 export const HANDOFF_OPEN_ON_PHONE =
-  "Phone: open handoff.url (chooser) or handoff.mobileUrl in the phone's own Safari or Chrome. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on the phone page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " +
+  "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. " +
   HANDOFF_PHONE_DOOR_BAN +
   " Never paste the password into chat."
 
 export const HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK =
-  "Phone: Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Use a computer (handoff.desktopUrl, hardware keyboard) or remint auspex_login for the Auspex phone page. " +
+  "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. " +
   HANDOFF_PHONE_DOOR_BAN +
   " Never paste the password into chat."
-
-export function handoffOpenOnDesktop(profileName: string): string {
-  return `Computer: open handoff.desktopUrl, then Profiles → ${profileName} → Open editor. Type with the hardware keyboard, then Save. Do not send this URL to a phone.`
-}
-
-export const HANDOFF_OPEN_ON_DESKTOP_PAGE =
-  "Computer: open handoff.url (chooser) or handoff.desktopUrl in the computer's browser. That is the Auspex desktop page (desktop.html), the same remote Chrome and the same link hash as the phone. Hardware keyboard. One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They stay off agent chat, MCP, and receipts. Do not send this URL to a phone."
 
 const HANDOFF_HANG_GUIDANCE =
   " If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent."
@@ -259,26 +226,22 @@ export function formatHandoffNext(opts: {
   profileName?: string
   hasPhoneIme?: boolean
   profileDerived?: boolean
-  hasDesktopPage?: boolean
 }): string {
   const where = opts.urlHint ? ` Sign in at ${opts.urlHint}.` : " Sign in."
   const qrBit = opts.qrPath
-    ? " Phone QR is handoff.qrPath (encodes handoff.mobileUrl)."
+    ? " Phone QR is handoff.qrPath (encodes handoff.url)."
     : ""
   const profile = opts.profileName?.trim() || "<yours>"
   const derived = opts.profileDerived ? `${derivedProfileNext(profile)} ` : ""
   const phone = opts.hasPhoneIme
-    ? "Show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover) and handoff.desktopUrl (desktop.html). Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
-    : "Show BOTH URLs, labeled. Phone: Solari handoff is noVNC (a picture of Chrome); the phone software keyboard will not open there. Prefer a computer."
-  const computer = opts.hasDesktopPage
-    ? "Computer: handoff.desktopUrl is the Auspex desktop page (desktop.html, same remote Chrome and the same link hash as the phone, hardware keyboard). One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. They stay off agent chat, MCP, and receipts."
-    : `Computer: handoff.desktopUrl, then Profiles → ${profile} → Open editor (hardware keyboard), then Save.`
+    ? "Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401)."
+    : "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page."
   return (
-    `${derived}${phone} ${computer} If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
+    `${derived}${phone} If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. ${HANDOFF_PHONE_DOOR_BAN}${where} ` +
     `Then auspex_await_login --profile ${profile} with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile ${profile} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile}. Do not skip finalize-login after Save. ` +
     (opts.hasPhoneIme
-      ? `Off-site: paste handoff.oneLiner (chooser). Phone deep link: handoff.mobileUrl. Computer deep link: handoff.desktopOneLiner.`
-      : `Off-site phone: paste handoff.oneLiner. Off-site computer: paste handoff.desktopOneLiner.`) +
+      ? `Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html).`
+      : `Off-site: remint auspex_login for the phone page.`) +
     `${qrBit}${HANDOFF_HANG_GUIDANCE}`
   )
 }
@@ -316,14 +279,13 @@ export function attachHandoffQr(result: LoginResult, qrPath: string, urlHint?: s
     profileName: result.name,
     hasPhoneIme: isPhoneImeUrl(result.handoff.mobileUrl),
     profileDerived: result.profileDerived,
-    hasDesktopPage: Boolean(desktopHandoffUrlFromPhone(result.handoff.mobileUrl)),
   })
   result.nextCall = awaitSaveEditorNextCall(result.name)
   return result
 }
 
 export function qrPayloadForHandoff(handoff: HandoffPacket): string {
-  if (isDoorUrl(handoff.url)) return handoff.url
+  if (isPhoneImeUrl(handoff.url)) return handoff.url
   return handoff.mobileUrl || handoff.url
 }
 
@@ -365,20 +327,12 @@ export function loginInstructions(
   if (handoff?.url) {
     const phone = mobileUrl?.trim() || handoff.url
     const hasPhoneIme = isPhoneImeUrl(phone)
-    const thinDesktop = desktopHandoffUrlFromPhone(phone)
-    const chooser = doorHandoffUrlFromPhone(phone)
-    const desktopUrl = thinDesktop ?? CONSOLE_PROFILES_URL
-    const packetUrl = chooser || handoff.url
+    const packetUrl = hasPhoneIme ? phone : handoff.url
     const handoffPacket: HandoffPacket = {
       url: packetUrl,
       mobileUrl: phone,
-      desktopUrl,
       openOnPhone: hasPhoneIme ? HANDOFF_OPEN_ON_PHONE : HANDOFF_OPEN_ON_PHONE_NOVNC_FALLBACK,
-      openOnDesktop: thinDesktop ? HANDOFF_OPEN_ON_DESKTOP_PAGE : handoffOpenOnDesktop(profile.name),
-      oneLiner: chooser ? `Auspex login: ${chooser}` : `Auspex login (phone): ${phone}`,
-      desktopOneLiner: thinDesktop
-        ? `Auspex login (computer): ${thinDesktop}`
-        : `Auspex login (computer): ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor`,
+      oneLiner: hasPhoneIme ? `Auspex login: ${phone}` : `Auspex login (phone): ${phone}`,
       savePaste: hasPhoneIme ? phoneSavePaste(profile.name) : undefined,
       qrPath,
     }
@@ -398,7 +352,6 @@ export function loginInstructions(
         profileName: profile.name,
         hasPhoneIme,
         profileDerived,
-        hasDesktopPage: Boolean(thinDesktop),
       }),
     }
     minted.nextCall = awaitSaveEditorNextCall(profile.name)
@@ -411,7 +364,7 @@ export function loginInstructions(
     consoleUrl: CONSOLE_PROFILES_URL,
     sinceVersion: handoff?.version,
     profileDerived: profileDerived || undefined,
-    next: `${derived}Handoff mint returned no url. Remint with auspex_login. ${HANDOFF_PHONE_DOOR_BAN} Laptop-only fallback if a handoff URL cannot be minted: ${CONSOLE_PROFILES_URL} → Profiles → ${profile.name} → Open editor.${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
+    next: `${derived}Handoff mint returned no url. Remint with auspex_login for the phone door. ${HANDOFF_PHONE_DOOR_BAN}${where} Hit Save (must store cookies or origins), then auspex_await_login --profile ${profile.name}, then auspex_finalize_login --profile ${profile.name} (pass --url and --expect unless a saved check), then auspex_check --profile ${profile.name}. Do not skip finalize-login after Save.${HANDOFF_HANG_GUIDANCE}`,
   }
   missed.nextCall = remintLoginNextCall(profile.name)
   return missed
@@ -579,7 +532,6 @@ export async function loginProfile(
       event: "login",
       profile: result.name,
       phoneDoor,
-      computerDoor: desktopHandoffUrlFromPhone(result.handoff?.mobileUrl) ? "desktop-page" : "console-editor",
       vncMintOk,
       mintStage,
       urlPresent: true,

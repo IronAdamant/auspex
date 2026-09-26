@@ -212,7 +212,7 @@ test("door pages do not use the IME as a site picker", () => {
     "https://myapp.example",
   )
   assert.equal(api.doorSiteUrl("http://insecure.example", "https://myapp.example", "https://typed.example"), "https://myapp.example")
-  for (const file of ["phone.html", "desktop.html"]) {
+  for (const file of ["phone.html"]) {
     const html = readFileSync(path.join(repoRoot, "docs", file), "utf8")
     assert.match(html, /door-page\.js/, `${file} loads the shared door script`)
     assert.equal(html.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false, file)

@@ -35,9 +35,9 @@ export const VERIFY_DESCRIPTION =
 
 export const LOGIN_DESCRIPTION =
   "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. " +
-  "Mint once. handoff.url / oneLiner is the chooser (door.html). Labeled deep links: handoff.mobileUrl " +
-  "(phone.html, real text field; Chrome-on-phone dogfood; autofill / reconnect same VNC JWT; remint only when stream-expired) and handoff.desktopUrl (desktop.html). Packet also has openOnPhone, " +
-  "openOnDesktop, qrPath. url without profile derives a safe host slug; explicit profile wins. " +
+  "Mint once. handoff.url / oneLiner is the phone door (phone.html), on a phone or a computer. handoff.mobileUrl " +
+  "is that same page (real text field; Chrome-on-phone dogfood; autofill / reconnect same VNC JWT; remint only when stream-expired). Clear empties the whole field. Packet also has openOnPhone, " +
+  "qrPath. url without profile derives a safe host slug; explicit profile wins. " +
   "That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Never type in Solari noVNC on a phone " +
   "(software keyboard will not open). The agent never copies the password. After Save: " +
   "auspex_await_login with saveEditor true (GET editor HTTP 401 if you open Solari on a phone). " +
@@ -78,7 +78,7 @@ export const PROFILE_STATUS_DESCRIPTION =
   "emptySave means the profile is missing. Save is not sessionStorage. " +
   "check verifyWithProfile is refused on weakSeed, emptySave, and a dead fold. " +
   "Never type a password. Microsoft/Google password/OTP is needsHuman: auspex_login, handoff.url " +
-  "(mobileUrl real text field; desktopUrl on the computer). Never type in Solari noVNC on a phone. " +
+  "(handoff.url is phone.html, real text field, on a phone or a computer). Never type in Solari noVNC on a phone. " +
   "Path / is loggedOut unless expect matched. " +
   `${SEED_HEALTH_TOOL_LINE} ` +
   DOOR

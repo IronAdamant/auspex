@@ -12,4 +12,4 @@ Auspex does not release that view, does not paste through VNC, and does not add 
 
 Paste-hostile and hard anti-bot logins on the handoff door stay unsupported until Solari either exposes CDP on the editor without killing noVNC, or accepts stealth on the profile-editor launch and returns `402 FeatureRequiresPlan` on plans that lack it.
 
-Human typing stays on `phone.html` / `desktop.html`. Keys go to Solari remote Chrome. They are not stored in receipts.
+Human typing stays on `phone.html`. Keys go to Solari remote Chrome. They are not stored in receipts.

@@ -421,7 +421,6 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         record.handoff = {
           url: minted.handoff.url,
           mobileUrl: minted.handoff.mobileUrl,
-          desktopUrl: minted.handoff.desktopUrl,
         }
         record.phase = "await"
         record.status = "waiting"

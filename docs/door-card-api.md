@@ -9,9 +9,8 @@ The login packet is the door-card. Agents parse JSON, not the VNC picture. Extra
   "name": "app-example",
   "nextCall": { "tool": "auspex_await_login", "profile": "app-example", "saveEditor": true },
   "handoff": {
-    "url": "https://ironadamant.com/auspex/door.html#v=…&n=app-example&exp=…",
+    "url": "https://ironadamant.com/auspex/phone.html#v=…&n=app-example&exp=…",
     "mobileUrl": "https://ironadamant.com/auspex/phone.html#…",
-    "desktopUrl": "https://ironadamant.com/auspex/desktop.html#…",
     "streamExpiresAt": "2026-09-23T19:10:00.000Z",
     "streamExpirySource": "jwt"
   }
@@ -73,7 +72,7 @@ Chrome on the phone is the dogfood browser. Operator copy lives in AGENTS.md; `p
 
 ### `handshake-no-frames` (door UI)
 
-Phone/desktop lock after RFB `securityfailure` or ~30s with no canvas frames. Not a “Connected” lie.
+The phone door locks after RFB `securityfailure` or ~30s with no canvas frames. Not a “Connected” lie.
 
 ```
 status handshake-no-frames. Remint: npx auspex login --profile app-example (nextCall auspex_login).
@@ -163,4 +162,4 @@ Optional operator-local POST. Set `AUSPEX_WAKE_WEBHOOK` or per-job `wakeWebhookU
 
 Events: `awaiting-save`, `stream-expired`, `hostChanged`, `editor-save-hung`, `profile-busy`, `profile-saved`, `profile-claimable`, `completed`, `failed`. There is no Solari inbound webhook. Without an operator URL, use `auspex_job_status` (`waitMs` max 60s) — it watches the local job file, not Solari. Phase changes only when a job/resume process writes the file. After Save, resume `auspex_job --job-id`. Do not blind-poll `await-login` for 30 minutes.
 
-Mint/status stdout keeps door.html hashes so the human can open the chooser. Webhook POSTs redact URL hashes, drop `sessionId`/`excerpt`/password keys, and run `redactSecrets` + email redact. The wake body does not include `handoff`.
+Mint/status stdout keeps phone.html hashes so the human can open the door. Webhook POSTs redact URL hashes, drop `sessionId`/`excerpt`/password keys, and run `redactSecrets` + email redact. The wake body does not include `handoff`.

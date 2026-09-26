@@ -36,7 +36,7 @@ These rows stay on their own:
 
 ## Who opens the human door
 
-The human. The agent mints once and shows `handoff.url`. Phone: `handoff.mobileUrl`. Computer: `handoff.desktopUrl`. The human logs in and taps Save.
+The human. The agent mints once and shows `handoff.url` (`phone.html`). `handoff.mobileUrl` is that same page, on a phone or a computer. The human logs in and taps Save.
 
 The agent never types a password, a one-time code, or a CAPTCHA answer, and never pastes one into chat.
 

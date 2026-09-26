@@ -8,7 +8,7 @@ import vm from "node:vm"
 import { USAGE } from "../src/cli.ts"
 import { PROFILES_DESCRIPTION } from "../src/tool-copy.ts"
 import { OPERATOR_PURGE_QUESTION } from "../src/operator-session.ts"
-import { formatHandoffNext, HANDOFF_OPEN_ON_DESKTOP_PAGE, HANDOFF_OPEN_ON_PHONE } from "../src/profiles.ts"
+import { formatHandoffNext, HANDOFF_OPEN_ON_PHONE } from "../src/profiles.ts"
 import {
   auspexAwaitLoginInputSchema,
   auspexCheckInputObject,
@@ -88,83 +88,57 @@ function assertTypingDoor(html: string, label: string) {
   assert.equal(html.includes("They stay on the page"), false)
 }
 
-test("phone and desktop doors mount Solari and one typing field", () => {
+test("phone door is the only login door; old URLs redirect", () => {
   const phone = readDoor("phone.html")
   const desktop = readDoor("desktop.html")
-  const chooser = readDoor("door.html")
+  const oldDoor = readDoor("door.html")
   assertTypingDoor(phone, "phone")
-  assertTypingDoor(desktop, "desktop")
-  assert.match(chooser, /id="phone"/)
-  assert.match(chooser, /id="desktop"/)
-  assert.match(chooser, /\.\/phone\.html/)
-  assert.match(chooser, /\.\/desktop\.html/)
-  assert.match(chooser, /location\.hash/)
-  assert.match(chooser, /Seed\/handoff door for typing/)
-  assert.match(chooser, /not a live-session takeover/)
-  assert.match(chooser, /before typing anything/)
-  assert.match(chooser, /ironadamant\.com does not see/)
-  assert.match(chooser, /type the login again/)
-  assert.match(chooser, /do not host those credentials or session secrets/)
-  assert.match(chooser, /cannot read sessionStorage \(the handoff editor has no Playwright attach\)/)
-  assert.equal(chooser.includes("Microsoft"), false)
-  assert.match(chooser, /finalize-login/)
-  assert.match(chooser, /hostChanged/)
-  assert.match(chooser, /expectMatchedPublicLanding|Dashboard does not match One Dashboard/)
-  assert.match(chooser, /id="card"/)
-  assert.equal(chooser.includes('id="ime"'), false)
-  assert.equal(chooser.includes('id="paste-btn"'), false)
-  assert.equal(chooser.includes('id="paste-username"'), false)
-  assert.equal(desktop.includes('id="backspace"'), false)
-  assert.equal(desktop.includes('id="enter"'), false)
-  assert.equal(desktop.includes(">Delete<"), false)
-  assert.equal(desktop.includes(">Enter<"), false)
-  assert.match(desktop, /id="save"/)
-  assert.equal(desktop.includes("keybox"), false)
-  const desktopOrder = ["screen", "ime", "bullets", "save"]
-    .map((id) => desktop.indexOf(`id="${id}"`))
-  assert.deepEqual(desktopOrder, [...desktopOrder].sort((a, b) => a - b))
-  assert.ok(desktopOrder.every((index) => index > 0))
-  assert.match(phone, /id="backspace"/)
+  assert.match(phone, /id="clear"/)
+  assert.match(phone, />Clear</)
+  assert.equal(phone.includes('id="backspace"'), false)
+  assert.equal(phone.includes(">Delete<"), false)
   assert.match(phone, />Enter</)
-  assert.match(desktop, /clamp\(28rem, 72vh, 56rem\)/)
-  assert.match(desktop, /min-height: 100vh/)
-  assert.match(desktop, /Auspex desktop login/)
-  assert.equal(desktop.includes("phone keyboard"), false)
   assert.match(phone, /phone keyboard/)
   assert.equal(phone.includes("Chrome on this phone is the dogfood browser"), false)
   assert.equal(phone.includes('id="banner"'), false)
   assert.match(phone, /id="otpMode"/)
   assert.match(phone, /SMS \/ email code for a one-time code/)
-  assert.equal(desktop.includes('id="otpMode"'), false)
-  assert.match(desktop, /id="banner"/)
-  assert.match(chooser, /Chrome on phone is the dogfood browser/)
-  assert.equal(desktop.includes('id="solari-key"'), false)
-  assert.equal(desktop.includes("Save Solari key"), false)
-  assert.equal(desktop.includes("auspex.solariKey"), false)
+  assert.equal(phone.includes('id="solari-key"'), false)
+  assert.equal(phone.includes("Save Solari key"), false)
   assert.equal(phone.includes("auspex.solariKey"), false)
-  assert.equal(chooser.includes("auspex.solariKey"), false)
-  assert.equal(desktop.includes("127.0.0.1:17321"), false)
-  assert.equal(desktop.includes("auspex-operator-key"), false)
-  for (const [label, html] of [
-    ["door", chooser],
-    ["phone", phone],
-    ["desktop", desktop],
-  ] as const) {
-    assert.match(html, /Content-Security-Policy/, `${label} CSP`)
-    assert.match(html, /frame-ancestors 'none'/, `${label} frame-ancestors`)
-  }
+  assert.equal(phone.includes("127.0.0.1:17321"), false)
+  assert.equal(phone.includes("auspex-operator-key"), false)
+  assert.match(phone, /Content-Security-Policy/)
+  assert.match(phone, /frame-ancestors 'none'/)
   assert.match(phone, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
-  assert.match(desktop, /connect-src 'self' wss:\/\/api\.getsolari\.com/)
-  assert.equal(desktop.includes("127.0.0.1:17321"), false)
-  assert.equal(chooser.includes("wss://api.getsolari.com"), false)
   assert.equal(phone.includes("Seed/handoff door for typing"), false)
   assert.equal(phone.includes("not a live-session takeover"), false)
+  for (const [label, html] of [
+    ["door", oldDoor],
+    ["desktop", desktop],
+  ] as const) {
+    assert.match(html, /location\.replace\("\.\/phone\.html" \+ \(location\.hash \|\| ""\)\)/, `${label} redirects`)
+    assert.match(html, /id="phone"/, label)
+    assert.match(html, /Content-Security-Policy/, `${label} CSP`)
+    assert.match(html, /default-src 'none'/, `${label} no remote assets`)
+    assert.match(html, /frame-ancestors 'none'/, `${label} frame-ancestors`)
+    assert.equal(html.includes('id="ime"'), false, `${label} no typing field`)
+    assert.equal(html.includes('id="desktop"'), false, `${label} no desktop link`)
+    assert.equal(html.includes("door-page.js"), false, `${label} no door script`)
+    assert.equal(html.includes("novnc"), false, `${label} no VNC`)
+    assert.equal(html.includes(">Delete<"), false, label)
+    assert.equal(html.includes(">Clear<"), false, `${label} is not a typing door`)
+    assert.equal(html.includes("wss://api.getsolari.com"), false, label)
+    assert.equal(html.includes("auspex.solariKey"), false, label)
+  }
   assert.match(USAGE, /30 minutes/)
   assert.match(USAGE, /stream-expired/)
   assert.match(USAGE, /editor-save-hung/)
   assert.match(USAGE, /profile-busy/)
   assert.match(USAGE, /not included in the agent message/)
-  assert.match(USAGE, /chooser|door\.html/)
+  assert.match(USAGE, /phone\.html/)
+  assert.equal(USAGE.includes("door.html"), false)
+  assert.equal(USAGE.includes("chooser"), false)
   assert.match(OPERATOR_PURGE_QUESTION, /next Auspex command/)
   assert.match(OPERATOR_PURGE_QUESTION, /not that wipe/)
   assert.equal(OPERATOR_PURGE_QUESTION.includes("stay in the local page fields only"), false)
@@ -179,25 +153,25 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.equal(PROFILES_DESCRIPTION.includes(SOLARI_KEY), false)
   const watch = readDoor("index.html")
   assert.match(watch, /Phone door/)
-  assert.match(watch, /Desktop door/)
+  assert.equal(watch.includes("Desktop door"), false)
   assert.match(watch, /Agent door/)
   assert.match(watch, /not the Mousepad sandbox demo/)
   assert.match(watch, /keyless Pages/)
   assert.match(watch, /SOLARI_API_KEY or \.auspex\/operator-key/)
   assert.equal(phone.includes("Console Solari Save does not capture Microsoft/SPA sessionStorage"), false)
-  assert.equal(desktop.includes("Console Solari Save does not capture Microsoft/SPA sessionStorage"), false)
   assert.match(phone, /status stream-expired/)
-  assert.match(desktop, /status stream-expired/)
-  assert.match(chooser, /status stream-expired/)
   const sharedDoor = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
   assert.match(sharedDoor, /handshake-no-frames/)
   assert.match(sharedDoor, /securityfailure/)
+  assert.match(sharedDoor, /getElementById\("clear"\)/)
   assert.match(phone, /door-page\.js/)
-  assert.match(desktop, /door-page\.js/)
+  assert.equal(desktop.includes("door-page.js"), false)
+  assert.equal(oldDoor.includes("door-page.js"), false)
   assert.equal(phone.includes("If the window is still blank, wait a few seconds or remint"), false)
-  assert.equal(desktop.includes("If the window is still blank, wait a few seconds or remint"), false)
-  assert.match(watch, /door\.html/)
+  assert.equal(watch.includes("door.html"), false)
+  assert.equal(watch.includes("desktop.html"), false)
   assert.match(watch, /no Paste button/)
+  assert.match(watch, /Clear empties the whole field/)
   assert.equal(watch.includes("enlarge the noVNC canvas"), false)
   assert.match(watch, /ironadamant\.com does not see/)
   assert.match(watch, /type the login again/)
@@ -209,15 +183,18 @@ test("phone and desktop doors mount Solari and one typing field", () => {
   assert.match(OPERATOR_PURGE_QUESTION, /type the login again/)
   assert.match(OPERATOR_PURGE_QUESTION, /do not host those credentials or session secrets/)
   assert.equal(OPERATOR_PURGE_QUESTION.includes("clears on paste"), false)
-  const handoffNext = formatHandoffNext({ hasPhoneIme: true, hasDesktopPage: true, profileName: "app-example" })
+  const handoffNext = formatHandoffNext({ hasPhoneIme: true, profileName: "app-example" })
   for (const [label, text] of [
     ["openOnPhone", HANDOFF_OPEN_ON_PHONE],
-    ["openOnDesktop", HANDOFF_OPEN_ON_DESKTOP_PAGE],
     ["handoff next", handoffNext],
   ] as const) {
     assert.match(text, /type the login again/, label)
     assert.match(text, /do not host those credentials or session secrets/, label)
+    assert.match(text, /Clear empties the whole field/, label)
     assert.equal(text.includes(PASSWORD), false, label)
+    assert.equal(text.includes("desktopUrl"), false, label)
+    assert.equal(text.includes("desktop.html"), false, label)
+    assert.equal(text.includes("chooser"), false, label)
   }
   assert.equal(handoffNext.includes("Open editor"), false)
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
@@ -382,7 +359,12 @@ function loadDoor(
     },
   }
   const exp = Math.floor(Date.now() / 1000) + 600
-  const location = { hash: hash || `#v=door-token&exp=${exp}&n=supabase-com` }
+  const location: { hash: string; replaced?: string; replace: (url: string) => void } = {
+    hash: hash || `#v=door-token&exp=${exp}&n=supabase-com`,
+    replace(url: string) {
+      this.replaced = url
+    },
+  }
   let intervalId = 0
   let timeoutId = 0
   const timeouts = hooks?.timeouts ?? new Map<number, () => void>()
@@ -484,25 +466,23 @@ function emit(
   handler.fn(ev ?? { preventDefault() {} })
 }
 
-test("phone and desktop doors have no preview zoom controls", () => {
-  for (const name of ["phone.html", "desktop.html"] as const) {
-    const html = readDoor(name)
-    assert.equal(html.includes("zoomBar"), false, name)
-    assert.equal(html.includes("preview-zoom"), false, name)
-    assert.equal(html.includes("bindPreviewZoom"), false, name)
-    const loaded = loadDoor(html, "")
-    const ime = loaded.byId.get("ime")
-    assert.ok(ime)
-    assert.equal(loaded.byId.get("zoomIn"), undefined)
-    assert.equal(loaded.byId.get("zoomOut"), undefined)
-    assert.equal(loaded.byId.get("zoomReset"), undefined)
-    ime.value = PASSWORD
-    assert.equal(ime.value, PASSWORD)
-    assert.equal(ime.disabled, false)
-  }
+test("phone door has no preview zoom controls", () => {
+  const html = readDoor("phone.html")
+  assert.equal(html.includes("zoomBar"), false)
+  assert.equal(html.includes("preview-zoom"), false)
+  assert.equal(html.includes("bindPreviewZoom"), false)
+  const loaded = loadDoor(html, "")
+  const ime = loaded.byId.get("ime")
+  assert.ok(ime)
+  assert.equal(loaded.byId.get("zoomIn"), undefined)
+  assert.equal(loaded.byId.get("zoomOut"), undefined)
+  assert.equal(loaded.byId.get("zoomReset"), undefined)
+  ime.value = PASSWORD
+  assert.equal(ime.value, PASSWORD)
+  assert.equal(ime.disabled, false)
 })
 
-test("a served docs tree returns the chooser and desktop pages", async () => {
+test("a served docs tree returns the phone door and redirects old URLs", async () => {
   const pages: Record<string, string> = {
     "/door.html": readDoor("door.html"),
     "/desktop.html": readDoor("desktop.html"),
@@ -526,18 +506,21 @@ test("a served docs tree returns the chooser and desktop pages", async () => {
   if (!addr || typeof addr === "string") throw new Error("docs server has no port")
   try {
     const desktop = await fetch(`http://127.0.0.1:${addr.port}/desktop.html`)
-    const chooser = await fetch(`http://127.0.0.1:${addr.port}/door.html`)
+    const oldDoor = await fetch(`http://127.0.0.1:${addr.port}/door.html`)
+    const phone = await fetch(`http://127.0.0.1:${addr.port}/phone.html`)
     assert.equal(desktop.status, 200)
-    assert.equal(chooser.status, 200)
-    assert.match(await desktop.text(), /data-solari-remote="vnc"/)
-    assert.match(await chooser.text(), /id="phone"/)
+    assert.equal(oldDoor.status, 200)
+    assert.equal(phone.status, 200)
+    assert.match(await phone.text(), /data-solari-remote="vnc"/)
+    assert.match(await desktop.text(), /location\.replace\("\.\/phone\.html"/)
+    assert.match(await oldDoor.text(), /id="phone"/)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
 
 test("door scripts run in a browser-like page and keep secrets off the chat paste line", () => {
-  for (const name of ["phone.html", "desktop.html"] as const) {
+  for (const name of ["phone.html"] as const) {
     const loaded = loadDoor(readDoor(name), "")
     const ime = loaded.byId.get("ime")
     const chat = loaded.byId.get("paste")
@@ -564,33 +547,10 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     click(loaded.byId.get("save"))
     assert.match(chat.value, /I tapped Save/)
     assert.match(chat.value, /supabase-com/)
-    if (name === "desktop.html") {
-      assert.match(chat.value, /Auspex desktop page/)
-      assert.equal(chat.value.includes("Auspex phone page"), false)
-    } else {
-      assert.match(chat.value, /Auspex phone page/)
-      assert.equal(chat.value.includes("Auspex desktop page"), false)
-    }
+    assert.match(chat.value, /Auspex phone page/)
+    assert.equal(chat.value.includes("Auspex desktop page"), false)
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
-    if (name === "desktop.html") {
-      const minted = loadDoor(
-        readDoor(name),
-        `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop&u=${encodeURIComponent("https://consistencyhub.io")}`,
-      )
-      const mintedChat = minted.byId.get("paste")
-      const mintedIme = minted.byId.get("ime")
-      assert.ok(mintedChat && mintedIme)
-      mintedIme.value = PASSWORD
-      click(minted.byId.get("save"))
-      assert.match(mintedChat.value, /auspex-desktop/)
-      assert.match(mintedChat.value, /Auspex desktop page/)
-      assert.match(mintedChat.value, /Site URL: https:\/\/consistencyhub\.io/)
-      assert.equal(mintedChat.value.includes(USERNAME), false)
-      assert.equal(mintedChat.value.includes(PASSWORD), false)
-      assert.equal(minted.byId.get("solari-key"), undefined)
-      assert.equal(minted.byId.get("keybox"), undefined)
-    }
     const intervals = new Map<number, () => void>()
     const timeouts = new Map<number, () => void>()
     const clients: Array<{ fire: (type: string) => void }> = []
@@ -631,7 +591,7 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
 })
 
 test("door does not call stream-expired on a live timer, and does when the stamp is past", () => {
-  for (const name of ["phone.html", "desktop.html"] as const) {
+  for (const name of ["phone.html"] as const) {
     const clients: Array<{ fire: (type: string) => void }> = []
     const live = loadDoor(
       readDoor(name),
@@ -661,17 +621,16 @@ test("door does not call stream-expired on a live timer, and does when the stamp
   }
 })
 
-test("chooser door forwards the same hash to phone and desktop", () => {
+test("old door and desktop URLs redirect to the phone door and keep the hash", () => {
   const hash = `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`
-  const loaded = loadDoor(readDoor("door.html"), hash)
-  const phone = loaded.byId.get("phone")
-  const desktop = loaded.byId.get("desktop")
-  assert.ok(phone && desktop)
-  assert.equal(phone.href, `./phone.html${hash}`)
-  assert.equal(desktop.href, `./desktop.html${hash}`)
-  const dead = loadDoor(readDoor("door.html"), "#")
-  assert.equal(dead.byId.get("phone")?.href, "")
-  assert.match(dead.byId.get("ttl")?.textContent ?? "", /needs a live link|expired|unknown/)
+  for (const name of ["door.html", "desktop.html"] as const) {
+    const loaded = loadDoor(readDoor(name), hash)
+    assert.equal(loaded.location.replaced, `./phone.html${hash}`, name)
+    assert.equal(loaded.byId.get("phone")?.href, `./phone.html${hash}`, name)
+    assert.equal(loaded.byId.get("ime"), undefined, name)
+    assert.equal(loaded.byId.get("desktop"), undefined, name)
+    assert.equal(loaded.byId.get("clear"), undefined, name)
+  }
 })
 
 function doorPageApi() {
@@ -695,7 +654,7 @@ function extractStripSecret(_html: string, profileName = "app-example") {
 
 test("Save strips any non-empty typed secret without mangling Site URL or template", () => {
   const exp = Math.floor(Date.now() / 1000) + 600
-  for (const name of ["phone.html", "desktop.html"] as const) {
+  for (const name of ["phone.html"] as const) {
     const html = readDoor(name)
     const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
     assert.equal(page.includes("secret.length < 3"), false, `${name} no length floor`)
@@ -803,10 +762,29 @@ test("Save strips any non-empty typed secret without mangling Site URL or templa
   }
 })
 
+test("Clear empties the whole field in one click", () => {
+  const XK_BACKSPACE = 0xff08
+  const keys: number[] = []
+  const loaded = loadDoor(readDoor("phone.html"), "", { keys })
+  const ime = loaded.byId.get("ime")
+  const clear = loaded.byId.get("clear")
+  assert.ok(ime && clear)
+  ime.value = "secret"
+  emit(ime, "input")
+  const typed = keys.length
+  click(clear)
+  assert.equal(ime.value, "")
+  assert.deepEqual(keys.slice(typed), Array.from({ length: "secret".length }, () => XK_BACKSPACE))
+  const after = keys.length
+  click(clear)
+  assert.equal(keys.length, after)
+  assert.equal(ime.value, "")
+})
+
 test("Enter clears the IME after sending the key, and bullets mode still sends real characters", () => {
   const XK_RETURN = 0xff0d
   const XK_BACKSPACE = 0xff08
-  for (const name of ["phone.html", "desktop.html"] as const) {
+  for (const name of ["phone.html"] as const) {
     const keys: number[] = []
     const loaded = loadDoor(readDoor(name), "", { keys })
     const ime = loaded.byId.get("ime")
