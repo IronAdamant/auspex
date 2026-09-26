@@ -12,7 +12,7 @@ import {
   DOOR_AWAIT_END,
   SIGN_IN_WALL_REMIN,
   agentsAwaitLoginBullet,
-  agentsFoldBullet,
+  agentsDoorAwaitBlock,
   awaitLoginDescription,
   extractMarked,
   llmsDoorAwaitBlock,
@@ -27,7 +27,7 @@ import {
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repo = path.resolve(pkg, "../..")
 
-test("root and package AGENTS agree on P0/P1 contract facts", () => {
+test("root AGENTS holds P0/P1 contract facts; package AGENTS is a pointer", () => {
   const root = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const pack = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const copy = [CHECK_DESCRIPTION, LOGIN_DESCRIPTION, TRACE_DESCRIPTION].join("\n")
@@ -55,14 +55,18 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
     "One Dashboard",
   ]) {
     assert.match(root, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `root AGENTS missing ${needle}`)
-    assert.match(pack, new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `package AGENTS missing ${needle}`)
   }
+  assert.match(pack, /\.\.\/\.\.\/AGENTS\.md/)
+  assert.match(pack, /\.\.\/\.\.\/llms\.txt/)
+  assert.equal(pack.includes("## Frozen agent door sequence"), false, "package AGENTS must not copy the contract")
+  assert.equal(pack.includes(DOOR_AWAIT_BEGIN), false, "package AGENTS is not a stamp target")
+  assert.ok(pack.length < 400, "package AGENTS stays a thin pointer")
   assert.match(USAGE, /--mobile/)
   assert.match(USAGE, /--device/)
   assert.match(USAGE, /finalize-login/)
   assert.match(USAGE, /--save-editor/)
   assert.match(USAGE, /expectMatchedPublicLanding/)
-  assert.match(USAGE, /npx auspex login \[--profile <name>\] \[--url <https>\]/)
+  assert.match(USAGE, /npx auspex login --url <https>/)
   assert.match(USAGE, /AGENTS\.md/)
   assert.match(copy, /expectMatchedPublicLanding/)
   assert.match(copy, /real text field/)
@@ -71,7 +75,6 @@ test("root and package AGENTS agree on P0/P1 contract facts", () => {
   assert.match(copy, /host slug/)
   for (const [label, text] of [
     ["root AGENTS.md", root],
-    ["package AGENTS.md", pack],
     ["USAGE", USAGE],
     ["tool-copy.ts", copy],
   ] as const) {
@@ -85,7 +88,6 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
   const security = readFileSync(path.join(pkg, "SECURITY.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
 
   assert.equal(packReadme.includes("ok is protocol success"), false, "package README must not teach pre-#38 ok")
@@ -106,9 +108,7 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(security, /npm test/)
 
   assert.match(rootAgents, /FAIL-CLOSED `--type`/)
-  assert.match(packAgents, /FAIL-CLOSED `--type`/)
   assert.match(rootAgents, /verify=true.*is not.*verifyWithProfile|not `verifyWithProfile`/)
-  assert.match(packAgents, /verify=true.*is not.*verifyWithProfile|not `verifyWithProfile`/)
 
   assert.match(CHECK_DESCRIPTION, /They are not equivalent/)
   assert.match(CHECK_DESCRIPTION, /claimOkProfile/)
@@ -150,10 +150,7 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
 })
 
 test("AGENTS first calls lead with login --url / derived slug; CH lives under Worked example", () => {
-  for (const [label, file] of [
-    ["root AGENTS.md", path.join(repo, "AGENTS.md")],
-    ["package AGENTS.md", path.join(pkg, "AGENTS.md")],
-  ] as const) {
+  for (const [label, file] of [["root AGENTS.md", path.join(repo, "AGENTS.md")]] as const) {
     const text = readFileSync(file, "utf8")
     const firstCalls = text.split("## First calls")[1]?.split("\n## ")[0] ?? ""
     const worked = text.split("## Worked example (dogfood)")[1] ?? ""
@@ -291,7 +288,6 @@ test("clone MCP and replay stub stay honest after slim", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   const grok = readFileSync(path.join(pkg, "grok.mcp.example.toml"), "utf8")
   const cursorExample = readFileSync(path.join(pkg, "mcp.cursor.example.json"), "utf8")
@@ -304,7 +300,6 @@ test("clone MCP and replay stub stay honest after slim", () => {
 
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
     ["root README.md", rootReadme],
     ["package README.md", packReadme],
     ["Cursor rule", cursorRule],
@@ -371,7 +366,6 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   const license = readFileSync(path.join(repo, "LICENSE"), "utf8")
   const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
   const deferred = readFileSync(path.join(pkg, "docs", "archive", "deferred-check-2026-09-19.md"), "utf8")
 
@@ -386,11 +380,9 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
 
   assert.match(rootReadme, /auth \+ hygiene doors/)
   assert.match(rootAgents, /auth \+ hygiene doors/)
-  assert.match(packAgents, /auth \+ hygiene doors/)
   assert.match(pitch, /auth \+ hygiene doors/)
 
   assert.match(rootAgents, /no raw OneDrive PNG/)
-  assert.match(packAgents, /no raw OneDrive PNG/)
   assert.match(receipts, /no raw OneDrive PNG|No raw OneDrive PNG/)
   assert.match(receipts, /onedrive-receipt\.json/)
   assert.match(receipts, /35605123361/)
@@ -402,8 +394,6 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.equal(rootReadme.includes("weekly live coverage is not running"), false)
   assert.match(rootAgents, /35605123361/)
   assert.match(rootAgents, /SOLARI_API_KEY` is \*\*present\*\*/)
-  assert.match(packAgents, /35605123361/)
-  assert.match(packAgents, /SOLARI_API_KEY` is \*\*present\*\*/)
 
   assert.match(deferred, /fixed in #42/)
   assert.match(deferred, /vwp-magic-sleeps-2026-09-19/)
@@ -509,12 +499,10 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
 
 test("trace docs allow one post-handoff row and still forbid check rows and secrets", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
     ["root README.md", rootReadme],
     ["package README.md", packReadme],
     ["trace tool", TRACE_DESCRIPTION],
@@ -533,12 +521,10 @@ test("trace docs allow one post-handoff row and still forbid check rows and secr
 
 test("operator docs make claimOkProfile the reuse gate and phone a seed door", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
     ["tool-copy", CHECK_DESCRIPTION + " " + LOGIN_DESCRIPTION],
     ["Cursor rule", cursorRule],
     ["root README.md", rootReadme],
@@ -559,14 +545,10 @@ test("operator docs make claimOkProfile the reuse gate and phone a seed door", (
 
 test("frozen agent door sequence is documented for operators and not a takeover", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
-  for (const [label, text] of [
-    ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
-  ] as const) {
+  for (const [label, text] of [["root AGENTS.md", rootAgents]] as const) {
     assert.match(text, /## Frozen agent door sequence/)
     assert.match(text, /not\*\* a Handraise-style same-session live-view takeover|not a Handraise-style same-session live-view takeover/)
     assert.match(text, /login --url/)
@@ -591,37 +573,36 @@ test("door/await contract is generated from one source", () => {
   assert.match(AWAIT_LOGIN_DESCRIPTION, new RegExp(SIGN_IN_WALL_REMIN.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
   assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not finalize-login/)
   assert.match(AWAIT_LOGIN_DESCRIPTION, /Do not remint to finish Microsoft/)
-  assert.match(AWAIT_LOGIN_DESCRIPTION, /remint or finalize-now/)
+  assert.match(AWAIT_LOGIN_DESCRIPTION, /None of these is app-visible/)
   assert.match(AWAIT_LOGIN_DESCRIPTION, /dead fold/)
-  const fold = agentsFoldBullet()
+  assert.equal(/remint or finalize-now/.test(AWAIT_LOGIN_DESCRIPTION), false)
+  const fold = agentsDoorAwaitBlock()
   const awaitBullet = agentsAwaitLoginBullet()
-  assert.match(fold, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.match(awaitBullet, new RegExp(APP_VISIBLE_REFUSE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  assert.match(fold, /\| status \| do \| don't \| nextCall \|/)
+  assert.match(fold, /Do not finalize\. Do not remint to finish Microsoft/)
   assert.match(fold, /There is no `nextCall`/)
   assert.match(fold, /needsHuman/)
+  assert.equal(awaitBullet.includes(APP_VISIBLE_REFUSE), false, "await bullet must not restate the app-visible paragraph")
   const llms = llmsDoorAwaitBlock()
-  assert.match(llms, /kind `app-visible`/)
-  assert.match(llms, /Do not finalize/)
+  assert.match(llms, /`app-visible`/)
+  assert.match(llms, /do not finalize/)
   assert.match(llms, /Do not mint again to finish Microsoft/)
-  assert.equal(/remint auspex_login/.test(llms.split("\n")[1] ?? ""), false)
-  for (const file of [path.join(repo, "AGENTS.md"), path.join(pkg, "AGENTS.md")]) {
-    const text = readFileSync(file, "utf8")
-    assert.equal(extractMarked(text, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), fold, file)
-    assert.equal(extractMarked(text, AWAIT_LOGIN_BEGIN, AWAIT_LOGIN_END), awaitBullet, file)
-  }
+  assert.match(llms.split("\n")[1] ?? "", /sign-in-wall/)
+  assert.equal(/finalize-login now/.test(llms.split("\n")[0] ?? ""), false)
+  const rootOnly = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  assert.equal(extractMarked(rootOnly, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), fold)
+  assert.equal(extractMarked(rootOnly, AWAIT_LOGIN_BEGIN, AWAIT_LOGIN_END), awaitBullet)
   const card = readFileSync(path.join(repo, "llms.txt"), "utf8")
   assert.equal(extractMarked(card, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), llms)
 })
 
 test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason network", () => {
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const packAgents = readFileSync(path.join(pkg, "AGENTS.md"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
     ["root README.md", rootReadme],
     ["package README.md", packReadme],
     ["Cursor rule", cursorRule],
@@ -633,11 +614,6 @@ test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason networ
     )
     assert.match(text, /counted `sessionStorage === 0`|counted sessionStorage === 0|cookies\/origins with a counted/)
   }
-  for (const [label, text] of [
-    ["root AGENTS.md", rootAgents],
-    ["package AGENTS.md", packAgents],
-  ] as const) {
-    assert.match(text, /overlay `reason` is `network` \(intentional, retry-shaped\)/)
-    assert.match(text, /do not fold `claimOkProfile` into `ok`/)
-  }
+  assert.match(rootAgents, /overlay `reason` is `network` \(intentional, retry-shaped\)/)
+  assert.match(rootAgents, /do not fold `claimOkProfile` into `ok`/)
 })

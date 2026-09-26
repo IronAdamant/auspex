@@ -1,4 +1,4 @@
-/** Stamp the door/await contract into AGENTS.md, the package AGENTS.md, and llms.txt. */
+/** Stamp the door/await contract into root AGENTS.md and llms.txt. */
 import { readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -8,7 +8,7 @@ import {
   DOOR_AWAIT_BEGIN,
   DOOR_AWAIT_END,
   agentsAwaitLoginBullet,
-  agentsFoldBullet,
+  agentsDoorAwaitBlock,
   llmsDoorAwaitBlock,
   replaceMarked,
 } from "../src/door-await-contract.ts"
@@ -28,7 +28,7 @@ function ensureMarked(text: string, begin: string, end: string, body: string, le
 
 function stampAgents(file: string): void {
   let text = readFileSync(file, "utf8")
-  text = ensureMarked(text, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END, agentsFoldBullet(), "- `editorSave` 200")
+  text = ensureMarked(text, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END, agentsDoorAwaitBlock(), "- `editorSave` 200")
   text = ensureMarked(
     text,
     AWAIT_LOGIN_BEGIN,
@@ -56,11 +56,11 @@ function stampLlms(file: string): void {
 }
 
 export function generateAgentContract(): string[] {
-  const agents = [path.join(repo, "AGENTS.md"), path.join(pkg, "AGENTS.md")]
+  const agents = path.join(repo, "AGENTS.md")
   const llms = path.join(repo, "llms.txt")
-  for (const file of agents) stampAgents(file)
+  stampAgents(agents)
   stampLlms(llms)
-  return [...agents, llms]
+  return [agents, llms]
 }
 
 const thisFile = fileURLToPath(import.meta.url)
