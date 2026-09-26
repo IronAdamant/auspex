@@ -21,7 +21,7 @@ On the watch page the blurred dashboard is above the player. The player is the M
 
 The video is consistencyhub.io: Sign in with Microsoft, then the empty Microsoft box. Emails and passwords are stripped. Nobody typed them. The logged-in dashboard is a blurred still + receipt (ok=true, claimOk=false anonymous skipped, claimOkProfile=true). We do not publish a logged-in recording.
 
-Login mints one chooser link. Phone: open it in the phone's own browser and tap Phone. The page has a real text field, so the software keyboard opens, and the keys go into cloud Chrome (and the site). Desktop: same mint, tap Desktop. Tap Save, paste the copied line into chat, then await-login --save-editor. Keys stay off the AI chat line. Solari's picture of Chrome will not open a phone keyboard.
+Login mints one link: phone.html, on a phone or a computer. The page has a real text field, so the software keyboard opens, and the keys go into cloud Chrome (and the site). Clear empties the whole field. Tap Save, paste the copied line into chat, then await-login --save-editor. Keys stay off the AI chat line. Solari's picture of Chrome will not open a phone keyboard.
 
 Repo (cookbook fork, current HEAD): https://github.com/IronAdamant/auspex
 

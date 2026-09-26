@@ -99,7 +99,7 @@ If both pass, the override is safe to keep.
 
 ### Operator key (operator machine only)
 
-Door pages (`docs/door.html`, `phone.html`, `desktop.html`) do **not** collect the Solari API key. There is no key input, no `localStorage.auspex.solariKey`, and no Pages → loopback POST. Minted doors stay keyless for humans.
+The login door (`docs/phone.html`) does **not** collect the Solari API key. There is no key input, no `localStorage.auspex.solariKey`, and no Pages → loopback POST. Minted doors stay keyless for humans. Old `door.html` and `desktop.html` URLs only redirect to `phone.html`.
 
 ```
 human browser     →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in URL hash

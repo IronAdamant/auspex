@@ -246,7 +246,7 @@ export async function profileStatus(
       skippedLive: true,
       nextCall: loginCall,
       skipReason:
-        "password/OTP wall. Skip live. Call auspex_login and show handoff.url (chooser). Labeled deep links: handoff.mobileUrl (Auspex phone page, real text field) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor). " +
+        "password/OTP wall. Skip live. Call auspex_login and show handoff.url (phone.html, the only login door). handoff.mobileUrl is that same page, with a real text field. " +
         HANDOFF_PHONE_DOOR_BAN +
         ` Agent never types a password. ${RE_GATE_STOP}`,
       finalUrl: result.finalUrl,

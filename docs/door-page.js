@@ -1,12 +1,10 @@
-/* Shared phone/desktop typing door. No Solari HTTP. JWT cannot be extended here.
-   Phone passes surface "phone" (OTP + Delete/Enter). Desktop passes "desktop" (banner stays in the page).
+/* Phone login door. No Solari HTTP. JWT cannot be extended here.
+   Clear empties the whole typing field. Enter still sends Enter.
    liveSiteUrl() is always empty: this page cannot read the remote address bar. */
 (function (root) {
-  function savePasteLine(name, surface) {
+  function savePasteLine(name) {
     name = String(name || "").trim() || "<yours>"
-    var page = surface === "desktop" ? "desktop page" : "phone page"
-    var door = surface === "desktop" ? "chooser/desktop door" : "chooser/phone door"
-    return "I tapped Save on the Auspex " + page + " (" + door + ", Phone or Desktop, same hash) for profile " + name + ".\n" +
+    return "I tapped Save on the Auspex phone page for profile " + name + ".\n" +
       "Run: npx auspex await-login --profile " + name + " --save-editor\n" +
       "(MCP: auspex_await_login with saveEditor true).\n" +
       "Then: npx auspex finalize-login --profile " + name + " --url <the URL the logged-in app lands on> --expect \"<unique logged-in text>\".\n" +
@@ -94,9 +92,8 @@
     return earliest
   }
 
-  function start(opts) {
-    var surface = opts && opts.surface === "desktop" ? "desktop" : "phone"
-    var viewerLabel = surface === "desktop" ? "Desktop" : "Phone"
+  function start() {
+    var viewerLabel = "Phone"
     var XK_BACKSPACE = 0xff08
     var XK_TAB = 0xff09
     var XK_RETURN = 0xff0d
@@ -116,7 +113,7 @@
     var copied = document.getElementById("copied")
     var screen = document.getElementById("screen")
     var save = document.getElementById("save")
-    var backspace = document.getElementById("backspace")
+    var clearBtn = document.getElementById("clear")
     var enter = document.getElementById("enter")
     var bullets = document.getElementById("bullets")
     var otpMode = document.getElementById("otpMode")
@@ -212,7 +209,7 @@
       document.body.classList.add("locked")
       if (ime) ime.disabled = true
       if (save) save.disabled = true
-      if (backspace) backspace.disabled = true
+      if (clearBtn) clearBtn.disabled = true
       if (enter) enter.disabled = true
       if (bullets) bullets.disabled = true
       if (otpMode) otpMode.disabled = true
@@ -265,7 +262,7 @@
     save.addEventListener("click", function () {
       if (locked) return
       var typed = String(ime && ime.value || "")
-      var template = savePasteLine(profileName, surface)
+      var template = savePasteLine(profileName)
       var siteUrl = doorSiteUrl(liveSiteUrl(), params.get("u"))
       var siteClause = siteUrl ? " Site URL: " + siteUrl + "." : ""
       var line = stripSecret(template + siteClause, typed, [template, siteClause], profileName)
@@ -369,15 +366,13 @@
         }
       })
     }
-    if (backspace) {
-      backspace.addEventListener("click", function () {
-        if (locked) return
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        if (locked || !ime) return
         if (ime.value) {
-          ime.value = ime.value.slice(0, -1)
-          sendDiff(last, ime.value)
-          last = ime.value
-        } else {
-          sendBackspace()
+          ime.value = ""
+          sendDiff(last, "")
+          last = ""
         }
         ime.focus()
       })

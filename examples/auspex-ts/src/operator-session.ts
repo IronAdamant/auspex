@@ -18,8 +18,8 @@ export const OPERATOR_HELP =
   " auspex profiles lists those saved logins (site and profile name only). " +
   "npx auspex profiles --purge <name> --yes wipes one saved login only after the human agrees. " +
   "humanAgree is that same yes on MCP. No agent tool accepts a username, a password, or the Solari key. " +
-  "One mint opens docs/door.html (chooser). Phone is docs/phone.html; desktop is docs/desktop.html. Same hash. " +
-  "One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. They stay off agent chat, MCP, and receipts. " +
+  "One mint opens docs/phone.html, the only login door, on a phone or a computer. " +
+  "One typing field: click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes. Keys go into Solari remote Chrome and the destination site only; the destination site logs its own login. They stay off agent chat, MCP, and receipts. " +
   "Agents use SOLARI_API_KEY, or gitignored .auspex/operator-key written on the operator machine. Door pages have no Solari key field and do not post a key to loopback."
 
 export type OperatorProfileInput = {

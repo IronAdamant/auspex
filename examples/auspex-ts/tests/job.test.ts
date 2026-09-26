@@ -32,9 +32,8 @@ function loginOk(over: Partial<LoginResult> = {}): LoginResult {
     sinceVersion: 3,
     nextCall: { tool: "auspex_await_login", profile: "app-example", saveEditor: true },
     handoff: {
-      url: "https://ironadamant.com/auspex/door.html#v=not.a.jwt",
+      url: "https://ironadamant.com/auspex/phone.html#v=not.a.jwt",
       mobileUrl: "https://ironadamant.com/auspex/phone.html#v=not.a.jwt",
-      desktopUrl: "https://ironadamant.com/auspex/desktop.html#v=not.a.jwt",
     },
     ...over,
   }
@@ -159,7 +158,7 @@ test("first job mints and returns waiting nextCall to resume", async () => {
   assert.equal(result.profile, "app-example")
   assert.equal(result.nextCall?.tool, "auspex_job")
   assert.equal(result.nextCall?.jobId, result.jobId)
-  assert.equal(result.handoff?.url, "https://ironadamant.com/auspex/door.html#v=not.a.jwt")
+  assert.equal(result.handoff?.url, "https://ironadamant.com/auspex/phone.html#v=not.a.jwt")
   assert.equal(result.handoff?.mobileUrl, "https://ironadamant.com/auspex/phone.html#v=not.a.jwt")
   assert.deepEqual(wakes, ["awaiting-save"])
   const stored = await readJobRecord(result.jobId, dir)
@@ -384,7 +383,7 @@ test("webhook POST is scrubbed and uses mock fetch", async () => {
       event: "stream-expired",
       jobId: "job-1",
       next: "password hunter2secret token slr_live_abcdefghij user a@b.co",
-      handoff: "https://ironadamant.com/auspex/door.html#v=super.secret.jwt",
+      handoff: "https://ironadamant.com/auspex/phone.html#v=super.secret.jwt",
       sessionId: "sess-drop",
       excerpt: "private",
       nextCall: { tool: "auspex_login", profile: "app-example" },

@@ -2,155 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="referrer" content="no-referrer" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
-  <title>Auspex desktop login</title>
-  <style>
-    html, body { margin: 0; min-height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
-    #wrap { display: flex; flex-direction: column; min-height: 100vh; }
-    header { padding: 10px 12px 8px; font-size: 14px; }
-    header strong { display: block; font-size: 16px; }
-    #ttl { margin-top: 6px; font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; }
-    #ttl.warn { color: #fc6; }
-    #ttl.dead { color: #f88; }
-    #status { color: #9ab; font-size: 13px; margin-top: 4px; }
-    #status:empty { display: none; }
-    #stage {
-      position: relative;
-      width: 100%;
-      height: clamp(28rem, 72vh, 56rem);
-      background: #0b0f14;
-    }
-    @media (max-width: 1024px) {
-      #stage { height: clamp(26rem, 68vh, 48rem); }
-    }
-    @media (min-width: 1400px) {
-      #stage { height: clamp(36rem, 78vh, 64rem); }
-    }
-    #screen { position: absolute; inset: 0; }
-    #boot {
-      position: absolute; inset: 0; z-index: 2;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 14px; background: #0b0f14; text-align: center; padding: 24px;
-    }
-    #boot.hidden { display: none; }
-    .spin {
-      width: 36px; height: 36px;
-      border: 3px solid #243044; border-top-color: #e8eef4;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #bootText { margin: 0; color: #9ab; font-size: 15px; }
-    #expired {
-      display: none; position: absolute; inset: 0; z-index: 5;
-      align-items: center; justify-content: center; padding: 24px;
-      background: rgba(11, 15, 20, 0.92);
-    }
-    #expired.show { display: flex; }
-    #expiredBox {
-      max-width: 28rem; background: #1a2230; border: 1px solid #f88; border-radius: 12px;
-      padding: 18px 16px; text-align: center;
-    }
-    #expiredBox strong { display: block; font-size: 18px; margin-bottom: 8px; color: #f88; }
-    #bar { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #121821; border-top: 1px solid #243044; }
-    #ime, #paste {
-      width: 100%; box-sizing: border-box; font-size: 16px; padding: 12px;
-      border-radius: 8px; border: 1px solid #3a4a60; background: #0b0f14; color: #e8eef4;
-    }
-    #imeHint { margin: 4px 0 0; font-size: 12px; color: #6a7a90; line-height: 1.35; }
-    #bulletsLabel {
-      display: flex; align-items: center; gap: 8px;
-      margin-top: 8px; font-size: 14px; color: #cde;
-    }
-    #bullets { width: 1.15rem; height: 1.15rem; margin: 0; }
-    #paste { display: none; margin-top: 8px; min-height: 4.5em; font-size: 14px; }
-    #paste.show { display: block; }
-    #copied {
-      display: none; margin-top: 8px; padding: 12px; border-radius: 8px;
-      background: #1f6a3a; color: #e8eef4; font-weight: 600; text-align: center; font-size: 16px;
-    }
-    #copied.show { display: block; }
-    #copyScratch {
-      position: fixed; left: 0; top: 0; width: 1px; height: 1px;
-      opacity: 0.01; border: 0; padding: 0; margin: 0;
-    }
-    #row { display: flex; gap: 8px; margin-top: 8px; }
-    #row button {
-      flex: 1; text-align: center; color: #0b0f14;
-      background: #e8eef4; border: 0; border-radius: 8px; padding: 10px; font-size: 15px; font-weight: 600;
-    }
-    #row button.ghost { background: transparent; color: #e8eef4; border: 1px solid #3a4a60; }
-    #save.copied { background: #1f6a3a; color: #e8eef4; border-color: #1f6a3a; }
-    #secretNote { margin: 6px 0 0; font-size: 12px; color: #9ab; line-height: 1.35; }
-    #banner {
-      margin: 8px 12px 0; padding: 8px 10px; border-radius: 8px;
-      border: 1px solid #3a4a60; background: #1a2230; color: #cde; font-size: 13px;
-    }
-    #banner strong { display: block; font-size: 14px; margin-bottom: 4px; color: #e8eef4; }
-    #idpWall {
-      margin: 8px 12px 0; padding: 8px 10px; border-radius: 8px;
-      background: #3a2a10; color: #fc6; font-size: 13px; line-height: 1.35;
-    }
-    #idpWall.hidden { display: none; }
-    #imeForm { margin: 0; }
-    .sr-only {
-      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-    }
-    body.locked #screen { pointer-events: none; }
-    body.locked #ime, body.locked #row button, body.locked #bulletsLabel { opacity: 0.45; }
-    .err { color: #f88; }
-  </style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+  <title>Auspex login</title>
+  <script>
+    location.replace("./phone.html" + (location.hash || ""))
+  </script>
 </head>
 <body>
-  <div id="wrap">
-    <header>
-      <strong>Auspex desktop login</strong>
-      <div id="ttl">Checking how long this link is active…</div>
-      <div id="status"></div>
-      <div id="banner" role="status">
-        <strong>Same VNC token on disconnect.</strong>
-        A brief sleep or tab blur pauses the stream. Return while the link timer is live to reconnect. Password managers can autofill this field (check Show as bullets for a real password box). If the timer is gone, status is stream-expired — remint. Desktop is not the product answer for phone password-manager backgrounding.
-      </div>
-      <p id="idpWall" role="status">Still on Microsoft or Google? Finish sign-in, reach the app, then Save.</p>
-    </header>
-    <div id="stage">
-      <div id="boot" aria-live="polite">
-        <div class="spin" aria-hidden="true"></div>
-        <p id="bootText">Opening remote Chrome…</p>
-      </div>
-      <div id="screen" data-solari-remote="vnc"></div>
-      <div id="expired" role="alertdialog" aria-modal="true" aria-labelledby="expiredTitle">
-        <div id="expiredBox">
-          <strong id="expiredTitle">This login link has expired</strong>
-          <p id="expiredText">status stream-expired. Ask your AI agent to remint auspex login (nextCall auspex_login). Do not reuse this page.</p>
-        </div>
-      </div>
-    </div>
-    <div id="bar">
-      <form id="imeForm" action="#" method="post" autocomplete="on">
-        <label class="sr-only" for="imeUser">Account for password-manager matching. Not streamed.</label>
-        <input id="imeUser" class="sr-only" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" tabindex="-1" />
-        <input id="ime" name="password" type="text" autocapitalize="none" autocomplete="current-password" autocorrect="off" spellcheck="false" placeholder="Type here" aria-describedby="imeHint" />
-      </form>
-      <p id="imeHint">Click the remote field you want, then type here. Enter clears this box. Show as bullets for password autofill.</p>
-      <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
-      <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>
-      <div id="copied">Copied. Paste it in your AI chat.</div>
-      <textarea id="paste" readonly></textarea>
-      <div id="row">
-        <button type="button" id="save" class="ghost">Save</button>
-      </div>
-      <p id="secretNote">ironadamant.com does not see keystrokes. They go to remote Chrome and the site only.</p>
-    </div>
-  </div>
-  <script src="./novnc-rfb.js"></script>
-  <script src="./door-stream.js"></script>
-  <script src="./door-page.js"></script>
+  <p><a id="phone" href="./phone.html">Auspex login</a></p>
   <script>
-    AuspexDoorPage.start({ surface: "desktop" })
+    var link = document.getElementById("phone")
+    if (link) link.href = "./phone.html" + (location.hash || "")
   </script>
 </body>
 </html>

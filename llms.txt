@@ -22,7 +22,7 @@ A login wait can run about 30 minutes. A tool timeout near 300 seconds ends firs
 
 Seed/handoff door for off-site typing. Not a same-session VNC takeover.
 
-1. Mint `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). Chooser is `handoff.url`. Phone: `handoff.mobileUrl`. Desktop: `handoff.desktopUrl`.
+1. Mint `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). The door is `handoff.url` (`phone.html`). `handoff.mobileUrl` is that same page, on a phone or a computer. Clear empties the whole field.
 2. Human logs in. Secrets stay off agent chat, MCP, and receipts.
 3. Human Save. Paste the copied line. The local field is cleared.
 4. `await-login --save-editor`, then `finalize-login` only when the seed is the app session, not an IdP-only jar (`idp-only-save`, kind `app-visible`). Use `--url` and an expect unique to the logged-in app (absent from public marketing).

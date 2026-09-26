@@ -55,7 +55,7 @@ Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type ref
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Voluntary --purge <name> --yes stops the editor first; if that name is not wiped, ok is false and wipeFailed lists it. Keys are not included in the agent message.
 ${PROFILES_MAP_LINE}
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
-login --wait then blocks until Save and runs --save-editor. handoff.url is the chooser (door.html).
+login --wait then blocks until Save and runs --save-editor. handoff.url is the phone door (phone.html).
 Requires SOLARI_API_KEY. ${KEY_ENV_REFUSE} Detail: AGENTS.md, docs/ops-runbook.md, and docs/door-card-api.md.
 `
 

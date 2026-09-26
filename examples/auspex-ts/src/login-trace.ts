@@ -18,7 +18,7 @@ export type LoginTraceEventName = "login" | "post-handoff"
 
 export type PhoneDoor = "ime" | "novnc-fallback" | "none"
 
-/** Login computer door. desktop-page is docs/desktop.html (same hash as the phone). */
+/** Older traces only. New mints do not record a computer door. */
 export type ComputerDoor = "console-editor" | "desktop-page"
 
 export type LoginMintStage =
@@ -253,7 +253,7 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     return `${prefix} Mint stopped: Solari 403 PlanLimitExceeded. Not retryable. Delete unused profiles or upgrade. Do not retry create.`
   }
   if (last.solariCode === "NoHandoffUrl" || (last.mintStage === "handoff-post" && last.urlPresent === false)) {
-    return `${prefix} Mint stopped at handoff-post: login-handoff returned no url. Remint auspex_login. Laptop-only fallback is console Profiles → Open editor.`
+    return `${prefix} Mint stopped at handoff-post: login-handoff returned no url. Remint auspex_login for the phone door.`
   }
   if (last.editorStartStatus === 409 && last.vncMintOk !== true) {
     return `${prefix} Mint stopped at editor-start HTTP 409. The live editor token was not reused. Do not finalize-login. Do not purge and remint while that editor is still running. Stop the editor (DELETE /editor), then remint.`
@@ -269,25 +269,19 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
   }
   if (last.mintStage === "editor-token" && last.vncMintOk === false) {
     if ((last.editorStartStatus ?? 0) === 0 && (last.tokenTries ?? 0) === 0) {
-      return `${prefix} Mint stopped at editor-token: empty handoff token (VNC not minted). Phone door not ready. Computer Open editor may still work. Remint if the human cannot open the card.`
+      return `${prefix} Mint stopped at editor-token: empty handoff token (VNC not minted). Phone door not ready. Remint auspex_login for the phone door.`
     }
     const start = last.editorStartStatus ?? "ok"
     const tries = last.tokenTries ?? 20
-    return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Computer Open editor may still work. Refresh the handoff card once; if still blank after 2-3 minutes, remint.`
+    return `${prefix} Mint stopped at editor-token: no VNC token after ${tries}s (editor start ${start}). Phone door not ready. Refresh the handoff card once; if still blank after 2-3 minutes, remint auspex_login for the phone door.`
   }
   const phoneDoor =
     last.phoneDoor === "ime"
-      ? "Phone door is phone.html (IME)."
+      ? "Door is phone.html (the only login door, on a phone or a computer)."
       : last.phoneDoor === "novnc-fallback"
-        ? "Phone door fell back to Solari noVNC."
-        : "Phone door was not minted."
-  const computerDoor =
-    last.computerDoor === "desktop-page"
-      ? " Computer door is desktop.html (same hash) via the chooser (door.html)."
-      : last.phoneDoor === "novnc-fallback" || last.phoneDoor === "none" || !last.phoneDoor
-        ? " Computer Open editor is the door."
-        : " Computer Open editor may still work."
-  const door = `${phoneDoor}${computerDoor}`
+        ? "Phone door fell back to Solari noVNC. Remint auspex_login for the phone door."
+        : "Phone door was not minted. Remint auspex_login for the phone door."
+  const door = phoneDoor
   const clusterNote =
     last.hostKind === "cluster-internal"
       ? "Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. "
@@ -296,7 +290,7 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
     return `${prefix} ${clusterNote}Mint ready. ${door} Mint log stops here. Use await-login / finalize-login / check as normal ops.`
   }
   if (last.urlPresent === true && last.vncMintOk === false) {
-    return `${prefix} Handoff URL minted but phone VNC did not. ${door} Computer Open editor may still work. Remint only if the human cannot open the card.`
+    return `${prefix} Handoff URL minted but phone VNC did not. ${door} Remint auspex_login for the phone door.`
   }
   if (last.solariCode || last.solariStatus) {
     return `${prefix} Mint stopped: Solari ${last.solariStatus ?? ""} ${last.solariCode ?? ""}`.trim() + "."
