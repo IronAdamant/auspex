@@ -9,7 +9,11 @@ import {
   DOOR_AWAIT_END,
   agentsAwaitLoginBullet,
   agentsDoorAwaitBlock,
+  agentsLongRunBlock,
   llmsDoorAwaitBlock,
+  llmsLongRunBlock,
+  LONG_RUN_BEGIN,
+  LONG_RUN_END,
   replaceMarked,
 } from "../src/door-await-contract.ts"
 
@@ -36,6 +40,13 @@ function stampAgents(file: string): void {
     agentsAwaitLoginBullet(),
     "- `auspex_await_login`",
   )
+  text = ensureMarked(
+    text,
+    LONG_RUN_BEGIN,
+    LONG_RUN_END,
+    agentsLongRunBlock(),
+    "## Long unattended loops",
+  )
   writeFileSync(file, text)
 }
 
@@ -52,6 +63,7 @@ function stampLlms(file: string): void {
   } else {
     text = replaceMarked(text, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END, llmsDoorAwaitBlock())
   }
+  text = ensureMarked(text, LONG_RUN_BEGIN, LONG_RUN_END, llmsLongRunBlock(), "## Long run")
   writeFileSync(file, text)
 }
 

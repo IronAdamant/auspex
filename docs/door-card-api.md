@@ -131,7 +131,13 @@ Same table as [stream-jwt-solari.md](stream-jwt-solari.md#remint-nextcall-frozen
 | `editor-save-hung` / `profile-busy` | `auspex_await_login` + `saveEditor` | Do not finalize in parallel. |
 | `expectMatchedPublicLanding` | `auspex_finalize_login` | Better persistable URL + unique expect. |
 | `concurrency-limited` (429) | `auspex_job` + `jobId` | Job already ran ledger `auspex_reap` (not `accountWide`). |
-| `completed` + `claimOkProfile=true` | omit | Reuse gate is `claimOkProfile`, not `ok`. |
+| `completed` + `claimOkProfile=true` | omit | Reuse gate is `claimOkProfile`, not `ok`. Not a 24–48h lease. |
+| seed health before a long loop | (none) | Read `profile-status` and `claimOkProfile`. `loggedIn` and `ok` are not overnight-safe. Not a keepalive. |
+| re-gate (`needsHuman`, bare `stream-expired`, stale `weakSeed`, `emptySave`) | `auspex_login` once | Stop. Do not auto-fill. Do not claim a challenge is solved. |
+| `idp-only-save` / `app-visible` | (none) | The app on screen is not a saved login. Do not remint to finish Microsoft. |
+| `editorFold` `no-cdp` + app host in the jar | `auspex_finalize_login` | Finalize now. This row is not re-gate. |
+
+How long a saved login lasts is the Solari profile and the site session. Auspex does not extend it. Seed health and re-gate are door-table rows, not a new tool. `app-visible` stays separate from bare `stream-expired` and from finalize-now.
 
 Golden fail-closed job: [`examples/auspex-ts/demo/job-failed-receipt.json`](../examples/auspex-ts/demo/job-failed-receipt.json).
 

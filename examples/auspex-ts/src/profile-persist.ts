@@ -10,6 +10,7 @@ import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { createClient } from "./solari.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import type { LiveHostChange } from "./live-host-change.ts"
+import { CLAIM_FALSE_STOP, NOT_A_LEASE, NOT_OVERNIGHT_SAFE } from "./door-await-contract.ts"
 import { awaitRetryNextCall, finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { isFoldedExpiresOnStale, originHasLandedBytes, originStoreCounts } from "./profile-storage.ts"
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
@@ -242,8 +243,8 @@ export function claimOkProfileReuseNext(
   if (verify?.claimOkProfile === undefined) return existing
   const gate =
     verify.claimOkProfile === true
-      ? `${CLAIM_OK_PROFILE_REUSE_GATE} claimOkProfile=true — profile reuse is evidenced by this field.`
-      : `${CLAIM_OK_PROFILE_REUSE_GATE} claimOkProfile=false — do not reuse this seed. Remint or finalize-login while the token is live. ${DEAD_FOLD_VWP_BAN}`
+      ? `${CLAIM_OK_PROFILE_REUSE_GATE} claimOkProfile=true — profile reuse is evidenced by this field. ${NOT_A_LEASE}`
+      : `${CLAIM_OK_PROFILE_REUSE_GATE} ${CLAIM_FALSE_STOP} ${DEAD_FOLD_VWP_BAN}`
   return existing ? `${existing} ${gate}` : gate
 }
 
@@ -315,14 +316,14 @@ export function weakSeedGuide(
         `profile ${profile} has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). ` +
         `--save-editor does not refresh folded sessionStorage. ${DEAD_FOLD_VWP_BAN} ${remint.text} ` +
         `finalize-login now only if the live editor tab is still on the app dashboard with a valid session. ` +
-        `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+        `Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE}`,
       nextCall: remint.nextCall,
     }
   }
   return {
     text:
       `profile ${profile} has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. ` +
-      `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)}`,
+      `${DEAD_FOLD_VWP_BAN} Remint auspex_login if finalize-login returns needsHuman. ${finalizeLoginGuidance(profile)} ${NOT_OVERNIGHT_SAFE}`,
     nextCall: finalizeLoginGuide(profile).nextCall,
   }
 }
@@ -337,7 +338,7 @@ export function weakSeedWarning(
 /** Agent next/skipReason when the profile is missing or empty. Do not finalize-login. */
 export function emptyProfileGuide(profile: string): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
-  const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password.`
+  const text = `profile ${name} is empty or missing. Run npx auspex login --profile ${name} then npx auspex await-login --profile ${name} --save-editor. Do not finalize-login on an empty profile. Agent never types a password. ${NOT_OVERNIGHT_SAFE}`
   return { text, nextCall: remintLoginNextCall(name) }
 }
 
