@@ -4,6 +4,13 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+## 0.1.4 — 2026-09-26 (published)
+
+npm `auspex-solari@0.1.4` (latest). Agents do not `npm publish`. Founder may publish this release.
+
+- Editor 409 reuse and purge honesty: a live editor is reused instead of a purge-and-remint loop. Voluntary purge calls `stopProfileEditor` before wipe. If the wipe misses, `ok` is false and `wipeFailed` names the profile.
+- `check --fill` waits out Loading document chrome before type, then settles and re-reads visible `innerText`. `filled` is set only when that paint contains `--value`. A value glued only to the placeholder does not count. Evaluate payloads stay `__name`-safe source literals.
+- ConsistencyHub dogfood green: both docs land and `filled` on tip `d2bedff`.
 - Cookie and localStorage Solari Saves are a first-class shape. `seedReadiness` reports counts and allowlisted key names only (`cookie-strong`, `local-storage-auth`). `solariSaveReady` is not `claimOkProfile`. IdP hosts alone stay refused. `weakSeed` and IdP-only still block `--verify-with-profile`. Apps that want phone Save to become reusable still dual-write a short-lived token to localStorage, or set a first-party session cookie, on their side.
 - Solari SDK exhaustion (`exhausted N attempts`, status stripped, cookbook #56) is `SolariSdkExhausted` with `solariBlame`: `unknown-exhausted` (remint), `infra-5xx` (wait once when the cause still has 502–504), `stealth-pool-empty` (drop `--stealth` or wait once), or `concurrency` (ledger `auspex_reap`). Never `loggedOut` or `needsHuman`.
 - Await `preflight: low` when the VNC JWT has 90 seconds or less left. The Save poll uses that short cap. Auspex does not extend the JWT. Remint table: [docs/stream-jwt-solari.md](docs/stream-jwt-solari.md).
@@ -13,7 +20,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.3 — 2026-09-24 (published)
 
-npm `auspex-solari@0.1.3` is published (latest). Agents do not `npm publish`.
+npm `auspex-solari@0.1.3`. Later main commits through #114 ship in `auspex-solari@0.1.4`.
 
 Tip after #61–#65 (public-landing expect, `hostChanged` remint, door IME/Save, Site-URL `stripSecret`). This release adds:
 
