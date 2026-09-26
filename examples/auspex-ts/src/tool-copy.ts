@@ -3,7 +3,7 @@
  * First sentence is the mistake that fails the call (fail-closed lead).
  */
 
-import { awaitLoginDescription } from "./door-await-contract.ts"
+import { awaitLoginDescription, RE_GATE_TOOL_LINE, SEED_HEALTH_TOOL_LINE } from "./door-await-contract.ts"
 
 const DOOR = "Detail: docs/door-card-api.md and AGENTS.md."
 
@@ -70,6 +70,7 @@ export const PROFILE_STATUS_DESCRIPTION =
   "Never type a password. Microsoft/Google password/OTP is needsHuman: auspex_login, handoff.url " +
   "(mobileUrl real text field; desktopUrl on the computer). Never type in Solari noVNC on a phone. " +
   "Path / is loggedOut unless expect matched. " +
+  `${SEED_HEALTH_TOOL_LINE} ` +
   DOOR
 
 export const DESKTOP_DESCRIPTION =
@@ -101,6 +102,7 @@ export const JOB_DESCRIPTION =
   "and nextCall resumes this job. claimOkProfile only after verifyWithProfile. " +
   "Optional wakeWebhookUrl / AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON (operator-local). " +
   "Not a fourth primitive. Never types passwords. " +
+  `${RE_GATE_TOOL_LINE} ` +
   DOOR
 
 export const JOB_STATUS_DESCRIPTION =

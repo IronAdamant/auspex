@@ -36,6 +36,7 @@ import {
 import { stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
 import { decideLiveHostPersist, LIVE_HOST_CHANGED_SAVE_ERROR, noteProfileHostChanged, type LiveHostChange } from "./live-host-change.ts"
+import { NOT_OVERNIGHT_SAFE, RE_GATE_STOP } from "./door-await-contract.ts"
 import { finalizeLoginNextCall, remintLoginNextCall } from "./next-call.ts"
 import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./solari.ts"
@@ -144,7 +145,7 @@ export function checkLoggedOutGuide(profile: string, cookies: number): {
 } {
   const fin = finalizeLoginGuide(profile)
   return {
-    text: `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${fin.text}`,
+    text: `Profile has ${cookies} cookie(s) but landed on logged-out page. Cookies alone may not restore app session (e.g., Microsoft OAuth SPA needs sessionStorage). ${fin.text} ${NOT_OVERNIGHT_SAFE}`,
     nextCall: fin.nextCall,
   }
 }
@@ -162,7 +163,7 @@ export function needsHumanGuide(profile?: string): {
   const text =
     `Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile ${name} and show handoff.url (chooser: Phone or Desktop, same hash). Labeled deep links: handoff.mobileUrl (Auspex phone page with a real text field so the phone keyboard can open) and handoff.desktopUrl (Auspex desktop page when minted, otherwise console Open editor, hardware keyboard). ` +
     HANDOFF_PHONE_DOOR_BAN +
-    ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record.`
+    ` Never fill password via agent tools. After human completes sign-in and Save: await-login --profile ${name} --save-editor then finalize-login --profile ${name} --url <url> --expect <string>. Do not retry check on cookies alone. Never --record. ${RE_GATE_STOP}`
   return { text, nextCall: remintLoginNextCall(profile) }
 }
 

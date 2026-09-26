@@ -4,10 +4,19 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import {
+  DOOR_AWAIT_BEGIN,
+  DOOR_AWAIT_END,
   DOOR_AWAIT_ROWS,
+  LONG_RUN_BEGIN,
+  LONG_RUN_CLI_LINE,
+  LONG_RUN_END,
   agentsDoorAwaitBlock,
+  agentsLongRunBlock,
+  extractMarked,
   llmsDoorAwaitBlock,
+  llmsLongRunBlock,
 } from "../src/door-await-contract.ts"
+import { USAGE } from "../src/cli.ts"
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 
@@ -55,10 +64,33 @@ test("door table keeps opposite rows adjacent and unmerged", () => {
   assert.match(empty?.dont ?? "", /Do not finalize-login/)
   assert.equal(empty?.nextCall, "`auspex_login`")
 
-  const triad = DOOR_AWAIT_ROWS.find((row) => row.status.includes("claimOkProfile") || row.status.includes("triad"))
+  const triad = DOOR_AWAIT_ROWS.find((row) => row.status.includes("triad"))
   assert.ok(triad)
   assert.match(triad?.doThis ?? "", /claimOkProfile/)
   assert.match(triad?.dont ?? "", /Do not fold `claimOkProfile` into `ok`/)
+
+  const health = DOOR_AWAIT_ROWS[rowIndex("seed health")]
+  const regate = DOOR_AWAIT_ROWS[rowIndex("re-gate")]
+  assert.ok(health && regate)
+  assert.ok(rowIndex("seed health") > rowIndex("triad"))
+  assert.equal(rowIndex("re-gate"), rowIndex("seed health") + 1)
+  assert.ok(rowIndex("re-gate") > rowIndex("stream-expired"))
+  assert.equal(health?.nextCall, "(none)")
+  assert.match(health?.doThis ?? "", /claimOkProfile/)
+  assert.match(health?.dont ?? "", /not overnight-safe|overnight-safe/)
+  assert.match(health?.dont ?? "", /No Auspex keepalive/)
+  assert.match(regate?.doThis ?? "", /Stop the loop/)
+  assert.match(regate?.doThis ?? "", /matching row/)
+  assert.match(regate?.dont ?? "", /Do not remint `app-visible`/)
+  assert.match(regate?.dont ?? "", /Do not skip finalize-now/)
+  assert.match(regate?.dont ?? "", /CAPTCHA/)
+  assert.match(regate?.nextCall ?? "", /only when the matching row's nextCall is `auspex_login`/)
+  assert.equal(regate?.status.includes("app-visible"), false)
+  assert.equal(regate?.status.includes("no-cdp"), false)
+  assert.equal(
+    DOOR_AWAIT_ROWS.some((row) => row.status.includes("re-gate") && row.status.includes("app-visible")),
+    false,
+  )
 
   const rendered = agentsDoorAwaitBlock()
   assert.match(rendered, /\| status \| do \| don't \| nextCall \|/)
@@ -105,4 +137,35 @@ test("llms clock and If stuck do not fork mint-or-finalize next to app-visible",
   assert.match(card, /CAPTCHA/)
   assert.match(card, /auspex-solari/)
   assert.match(card, /SOLARI_API_KEY/)
+  const longRun = extractMarked(card, LONG_RUN_BEGIN, LONG_RUN_END)
+  assert.equal(longRun, llmsLongRunBlock())
+  assert.match(longRun, /no keepalive/)
+  assert.match(longRun, /claimOkProfile/)
+  assert.match(longRun, /not overnight-safe/)
+  assert.match(longRun, /auspex_login/)
+  assert.match(longRun, /app-visible/)
+  assert.match(longRun, /finalize now/)
+  assert.match(card, /#long-run/)
+  assert.match(card, /24–48h loop/)
+  const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  assert.equal(extractMarked(agents, LONG_RUN_BEGIN, LONG_RUN_END), agentsLongRunBlock())
+  assert.equal(extractMarked(agents, DOOR_AWAIT_BEGIN, DOOR_AWAIT_END), agentsDoorAwaitBlock())
+  assert.match(agents, /## Long unattended loops/)
+  assert.match(USAGE, new RegExp(LONG_RUN_CLI_LINE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  const cursorRule = readFileSync(path.join(repo, ".cursor/rules/auspex.mdc"), "utf8")
+  assert.match(cursorRule, /AGENTS\.md#long-unattended-loops/)
+  assert.match(cursorRule, /not a 24–48h login/)
+  const doorCard = readFileSync(path.join(repo, "docs/door-card-api.md"), "utf8")
+  assert.match(doorCard, /seed health before a long loop/)
+  assert.match(doorCard, /Not a keepalive/)
+  assert.match(doorCard, /app-visible` stays separate/)
+  const pack = readFileSync(path.join(repo, "examples/auspex-ts/README.md"), "utf8")
+  const commands = pack.split("### Commands")[1]?.split("Flag behavior")[0] ?? ""
+  assert.match(commands, /npx auspex login --url/)
+  assert.ok(commands.indexOf("npx auspex login --url") < commands.indexOf("npx auspex check <url>"))
+  const checkLine = commands.split("\n").find((line) => line.startsWith("npx auspex check <url>")) ?? ""
+  assert.equal(checkLine.includes("--captcha"), false)
+  assert.equal(checkLine.includes("--stealth"), false)
+  assert.match(commands, /Leave alone/)
+  assert.match(commands, /--captcha/)
 })

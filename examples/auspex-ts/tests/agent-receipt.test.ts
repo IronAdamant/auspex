@@ -308,6 +308,8 @@ test("toAgentReceipt next treats claimOkProfile as the reuse gate after VWP", ()
   assert.match(passed.next ?? "", /Reuse gate is claimOkProfile/)
   assert.match(passed.next ?? "", /ok=true is not enough to treat the profile as reusable/)
   assert.match(passed.next ?? "", /claimOkProfile=true/)
+  assert.match(passed.next ?? "", /not an overnight lease/)
+  assert.match(passed.next ?? "", /no keepalive/)
 
   const missed = toAgentReceipt(sampleCheck({ matched: true }), {
     verify: {
@@ -327,6 +329,8 @@ test("toAgentReceipt next treats claimOkProfile as the reuse gate after VWP", ()
   assert.match(missed.next ?? "", /claimOkProfile=false/)
   assert.match(missed.next ?? "", /do not reuse this seed/)
   assert.match(missed.next ?? "", /claimOkProfile will not pass/)
+  assert.match(missed.next ?? "", /Stop the loop/)
+  assert.equal((missed.next ?? "").includes("Remint or finalize-login"), false)
 
   const anonymous = toAgentReceipt(sampleCheck({ matched: true }), {
     verify: {

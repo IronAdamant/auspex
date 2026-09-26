@@ -47,3 +47,4 @@ Expect must be unique to the logged-in app and absent from public marketing copy
 - Never commit `.env` or `SOLARI_API_KEY`. Never print secrets. Document `SOLARI_API_KEY` only.
 - Do not intern-ping. Do not clone Solari's 33-tool MCP as the product.
 - Do not send a phone to `handoff.desktopUrl` / Solari noVNC to type. Phone: `handoff.mobileUrl` (Auspex phone page, real text field). Computer: `handoff.desktopUrl`.
+- Long unattended loops: seed health and re-gate are in [AGENTS.md](AGENTS.md#long-unattended-loops). The app on screen is not a 24–48h login.

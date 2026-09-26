@@ -18,6 +18,7 @@ import {
   writeStdoutJson,
 } from "./cli-json.ts"
 import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
+import { LONG_RUN_CLI_LINE } from "./door-await-contract.ts"
 import { createProgress } from "./progress.ts"
 
 export const USAGE = `Usage:
@@ -47,6 +48,7 @@ Leave alone (not first-line tools):
 CLI and MCP are the same contract. Stdout is one JSON object (schemaVersion 1 frozen plus ok). Exit 0 only when ok is true. --help is human text.
 Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | recordedLoggedIn | expectMatchedPublicLanding | hostChanged | stream-expired. Await also: editor-save-hung | profile-busy.
 ok is not claimOk and not claimOkProfile. claimOkProfile only after --verify-with-profile (reuse gate). They are not the same.
+${LONG_RUN_CLI_LINE}
 429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Keys are not included in the agent message.
