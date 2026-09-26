@@ -255,8 +255,8 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
   if (last.solariCode === "NoHandoffUrl" || (last.mintStage === "handoff-post" && last.urlPresent === false)) {
     return `${prefix} Mint stopped at handoff-post: login-handoff returned no url. Remint auspex_login. Laptop-only fallback is console Profiles → Open editor.`
   }
-  if (last.editorStartStatus === 409) {
-    return `${prefix} Mint stopped at editor-start HTTP 409. A prior editor is still running. Wait for it to close, or purge the profile after the human agrees, then remint. Do not finalize-login.`
+  if (last.editorStartStatus === 409 && last.vncMintOk !== true) {
+    return `${prefix} Mint stopped at editor-start HTTP 409. The live editor token was not reused. Do not finalize-login. Do not purge and remint while that editor is still running. Stop the editor (DELETE /editor), then remint.`
   }
   if (last.editorStartStatus === 401) {
     return `${prefix} Mint stopped at editor-start HTTP 401. Handoff token was rejected. Remint auspex_login; do not open Solari editor on a phone.`

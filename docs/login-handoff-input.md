@@ -2,7 +2,7 @@
 
 ## Check and finalize (Playwright attached)
 
-`auspex check --fill` on a session Auspex launched uses CDP `Input.insertText` after a click when the page exposes `keyboard.insertText`. That path does not walk the noVNC keystream. Password selectors stay refused. Agents never type passwords.
+`auspex check --fill` types into the control, then reads `value` or `textContent`. It sets `filled` only when that text contains `--value`. A contenteditable target (or an `insertText` that leaves the DOM unchanged) uses `keyboard.type` after a click. Prefer a stable selector such as `#save-document`; `text=Save` can match Unsaved chrome. Password selectors stay refused. Agents never type passwords.
 
 ## Login handoff (noVNC owns the browser)
 

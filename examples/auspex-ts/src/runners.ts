@@ -3,7 +3,7 @@
 import { toAgentReceipt } from "./agent-receipt.ts"
 import { runCheck, runFinalizeLogin, type CheckOptions, type CheckResult } from "./check.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
-import { attachMatchedPurgeNext, noteAfterSignupWait, SIGNUP_BUSY_MS } from "./operator-session.ts"
+import { attachMatchedPurgeNext, noteAfterSignupWait, SIGNUP_BUSY_MS, voluntaryPurgeHonesty } from "./operator-session.ts"
 import { attachHandoffQr, listProfiles, loginProfile, qrPayloadForHandoff, withOperatorSession } from "./profiles.ts"
 import { loginWaitPublicFields, preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
@@ -192,7 +192,19 @@ export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boole
     voluntary: opts.purge ? [opts.purge] : [],
   })
   const profiles = await listProfiles()
-  return stampSchema({ ok: true, profiles, operator: book.agent, wiped: book.wiped })
+  const honesty = voluntaryPurgeHonesty({
+    purge: opts.purge,
+    humanAgree: opts.humanAgree,
+    wiped: book.wiped,
+    wipeFailed: book.wipeFailed,
+  })
+  return stampSchema({
+    ok: honesty.ok,
+    profiles,
+    operator: book.agent,
+    wiped: book.wiped,
+    ...(honesty.wipeFailed ? { wipeFailed: honesty.wipeFailed } : {}),
+  })
 }
 
 export async function runProfileStatusDoor(opts: { profile?: string; name?: string; url?: string; authKeyNames?: string[] }) {

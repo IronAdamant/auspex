@@ -8,6 +8,7 @@ import {
   OPERATOR_PURGE_QUESTION,
   applyOperatorWipes,
   commitOperatorSession,
+  voluntaryPurgeHonesty,
   noteAfterSignupWait,
   decideOperatorSession,
   decodePhoneSavedList,
@@ -282,7 +283,8 @@ test("applyOperatorWipes deletes by profile id and does not take login secrets",
       deleted.push(id)
     },
   })
-  assert.deepEqual(wiped, ["supabase-com"])
+  assert.deepEqual(wiped.wiped, ["supabase-com"])
+  assert.deepEqual(wiped.wipeFailed, [])
   assert.deepEqual(deleted, ["prof_supabase"])
   assert.equal(deleted.includes(PASSWORD), false)
   assert.equal(deleted.includes(SOLARI_KEY), false)
@@ -378,4 +380,24 @@ test("writeOperatorKey stores the key under .auspex and the agent notice does no
   assert.equal(blob.includes(SOLARI_KEY), false)
   assert.match(blob, /dash-cloudflare-com/)
   assert.match(decision.agent.question, /purged/)
+})
+
+test("voluntary purge is not ok when the named profile was not wiped", () => {
+  const missed = voluntaryPurgeHonesty({
+    purge: "hub",
+    humanAgree: true,
+    wiped: [],
+    wipeFailed: [{ name: "hub", error: "409 editor is open" }],
+  })
+  assert.equal(missed.ok, false)
+  assert.equal(missed.wipeFailed?.[0]?.error, "409 editor is open")
+  const absent = voluntaryPurgeHonesty({ purge: "hub", humanAgree: true, wiped: [] })
+  assert.equal(absent.ok, false)
+  assert.equal(absent.wipeFailed?.[0]?.error, "profile was not wiped")
+  const listed = voluntaryPurgeHonesty({ wiped: [] })
+  assert.equal(listed.ok, true)
+  assert.equal(listed.wipeFailed, undefined)
+  const gone = voluntaryPurgeHonesty({ purge: "hub", humanAgree: true, wiped: ["hub"] })
+  assert.equal(gone.ok, true)
+  assert.equal(gone.wipeFailed, undefined)
 })

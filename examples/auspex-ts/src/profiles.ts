@@ -9,8 +9,12 @@ import { derivedProfileNext, requireProfileName } from "./profile-slug.ts"
 import {
   applyOperatorWipes,
   commitOperatorSession,
+  wipeErrorMessage,
   type OperatorAgentNotice,
   type OperatorNote,
+  type OperatorWipeDeps,
+  type OperatorWipeReport,
+  type WipeFailure,
 } from "./operator-session.ts"
 import {
   desktopHandoffUrlFromPhone,
@@ -23,6 +27,30 @@ import {
 } from "./handoff-doors.ts"
 import { packageRoot } from "./paths.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
+import {
+  EDITOR_BUSY_STATUS,
+  EDITOR_START_CONFLICT_REASON,
+  editorHandoffCall,
+  editorStartConflictGuide,
+  fetchEditorVncToken,
+  mintStageAfterVnc,
+  stopProfileEditor,
+  type EditorPost,
+} from "./editor-vnc.ts"
+
+export {
+  EDITOR_BUSY_STATUS,
+  EDITOR_START_CONFLICT_REASON,
+  EDITOR_CONSOLE_ORIGIN,
+  editorApiPath,
+  editorHandoffCall,
+  editorStartConflictGuide,
+  editorStartOk,
+  fetchEditorVncToken,
+  mintStageAfterVnc,
+  stopProfileEditor,
+} from "./editor-vnc.ts"
+export type { EditorPost, EditorVncMint, FetchEditorVncOpts } from "./editor-vnc.ts"
 
 export {
   DESKTOP_HANDOFF_PAGE,
@@ -315,7 +343,7 @@ export type LoginResult = {
   remintCount?: number
   traceSummary?: string
   nextCall?: NextCall
-  /** Set when editor start is refused. `editor-busy` is Solari 409. */
+  /** Set when a live editor could not be reused. `editor-busy` is Solari 409 after the token poll misses. */
   status?: string
   reason?: string
 }
@@ -451,8 +479,6 @@ export async function ensureProfile(name: string): Promise<ProfileInfo> {
   }
 }
 
-export type EditorPost = (path: string) => Promise<{ status: number; json: Record<string, unknown> }>
-
 export function handoffTokenFromUrl(url: string): string {
   try {
     const path = new URL(url).pathname
@@ -464,98 +490,11 @@ export function handoffTokenFromUrl(url: string): string {
   }
 }
 
-async function defaultEditorPost(handoffToken: string): Promise<EditorPost> {
-  return async (path) => {
-    const res = await fetch(`${CONSOLE_PROFILES_URL}${path}`, {
-      method: "POST",
-      headers: {
-        "x-handoff-token": handoffToken,
-        Origin: CONSOLE_PROFILES_URL,
-        Referer: `${CONSOLE_PROFILES_URL}/handoff/${handoffToken}`,
-        Accept: "application/json",
-      },
-    })
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
-    return { status: res.status, json }
-  }
-}
-
-export type EditorVncMint = {
-  token?: string
-  editorStartStatus: number
-  tokenLastStatus?: number
-  tokenTries: number
-}
-
-/** 200/201 ready, 202 Accepted (starting — poll token). 409 is a live editor, not a new start. */
-export function editorStartOk(status: number): boolean {
-  return status === 200 || status === 201 || status === 202
-}
-
-export const EDITOR_BUSY_STATUS = "editor-busy"
-export const EDITOR_START_CONFLICT_REASON = "editor-start-409"
-
-/** Solari 409: prior editor still running. Do not treat the mint as ready or steer finalize. */
-export function editorStartConflictGuide(profile: string): { text: string; nextCall: NextCall } {
-  const name = profile.trim() || "<name>"
-  const who = name === "<name>" ? "" : name
-  return {
-    text:
-      `status ${EDITOR_BUSY_STATUS}: Solari editor start returned 409 (an editor is already running` +
-      `${who ? ` for --profile ${who}` : ""}). This mint did not start a new stream. Do not finalize-login. ` +
-      `Wait for that editor to close, or purge the profile after you agree` +
-      `${who ? ` (npx auspex profiles --purge ${who} --yes)` : ""}, then remint: npx auspex login` +
-      `${who ? ` --profile ${who}` : ""}.`,
-    nextCall: remintLoginNextCall(who),
-  }
-}
-
-/** Phone-door mint stage. Empty token / failed VNC is never "ready". */
-export function mintStageAfterVnc(
-  mint: Pick<EditorVncMint, "token" | "editorStartStatus" | "tokenTries">,
-  vncMintOk = Boolean(mint.token),
-): Extract<LoginMintStage, "editor-start" | "editor-token" | "ready"> {
-  if (vncMintOk) return "ready"
-  const editorStartBad = mint.editorStartStatus !== 0 && !editorStartOk(mint.editorStartStatus)
-  return editorStartBad ? "editor-start" : "editor-token"
-}
-
-/** Start the profile editor if needed and return the noVNC bearer token (never log the token). */
-export async function fetchEditorVncToken(
-  profileId: string,
-  handoffToken: string,
-  opts?: { post?: EditorPost; tries?: number; sleepMs?: number },
-): Promise<EditorVncMint> {
-  const token = handoffToken.trim()
-  const id = profileId.trim()
-  const tries = opts?.tries ?? 20
-  if (!token || !id) return { editorStartStatus: 0, tokenTries: 0 }
-  const post = opts?.post ?? (await defaultEditorPost(token))
-  const sleepMs = opts?.sleepMs ?? 1000
-  const start = await post(`/api/profiles/${encodeURIComponent(id)}/editor`)
-  if (start.status === 409 || !editorStartOk(start.status)) {
-    return { editorStartStatus: start.status, tokenTries: 0 }
-  }
-  let tokenLastStatus: number | undefined
-  for (let i = 0; i < tries; i++) {
-    const got = await post(`/api/profiles/${encodeURIComponent(id)}/editor/token`)
-    tokenLastStatus = got.status
-    const vnc = typeof got.json.token === "string" ? got.json.token.trim() : ""
-    if (got.status === 200 && vnc) {
-      return { token: vnc, editorStartStatus: start.status, tokenLastStatus, tokenTries: i + 1 }
-    }
-    if (i + 1 < tries && sleepMs > 0) {
-      await new Promise((r) => setTimeout(r, sleepMs))
-    }
-  }
-  return { editorStartStatus: start.status, tokenLastStatus, tokenTries: tries }
-}
-
 export async function saveProfileEditor(
   handle: EditorSaveHandle,
   opts?: { post?: EditorPost },
 ): Promise<{ ok: boolean; status: number; error?: string; json?: Record<string, unknown> }> {
-  const post = opts?.post ?? (await defaultEditorPost(handle.handoffToken))
+  const post = opts?.post ?? (await editorHandoffCall(handle.handoffToken, "POST"))
   const got = await post(`/api/profiles/${encodeURIComponent(handle.profileId)}/editor/save`)
   const error = typeof got.json.error === "string" ? got.json.error : undefined
   return { ok: got.status === 200 || got.status === 201, status: got.status, error, json: got.json }
@@ -594,7 +533,9 @@ export async function loginProfile(
         ...(sinceVersion !== undefined ? { sinceVersion } : {}),
       }).catch(() => undefined)
     }
-    const vncMint = await fetchEditorVncToken(profile.id, handoffToken)
+    const vncMint = await fetchEditorVncToken(profile.id, handoffToken, {
+      recover: Boolean(handoffToken),
+    })
     let mobileUrl: string | undefined
     if (vncMint.token) {
       mobileUrl = phoneHandoffUrl(vncMint.token, handoff.url, {
@@ -616,7 +557,7 @@ export async function loginProfile(
       }).catch(() => undefined)
     }
     let result = loginInstructions(profile, urlHint, handoff, qrPath, mobileUrl, opts)
-    if (vncMint.editorStartStatus === 409) {
+    if (!vncMint.token && vncMint.editorStartStatus === 409) {
       const guide = editorStartConflictGuide(profile.name)
       result = {
         ...result,
@@ -665,28 +606,51 @@ export async function loginProfile(
   }
 }
 
+/**
+ * Stop the handoff editor before profiles.delete.
+ * No saved handoff token means there is nothing to DELETE; profile delete still runs.
+ */
+export async function stopEditorBeforeProfileDelete(
+  row: { id: string; name: string },
+  opts?: { root?: string; del?: EditorPost },
+): Promise<void> {
+  const saved = await loadEditorSave(row.name, opts?.root)
+  const handoffToken = saved?.handoffToken.trim() ?? ""
+  if (!handoffToken) return
+  const profileId = saved?.profileId.trim() || row.id
+  const stopped = await stopProfileEditor(profileId, handoffToken, opts?.del ? { del: opts.del } : undefined)
+  if (!stopped.ok && stopped.status !== 0) {
+    throw new Error(`editor stop HTTP ${stopped.status}`)
+  }
+}
+
 /** Deletes saved logins by name through Solari profiles.delete. No username or password argument. */
-export async function deleteSolariProfilesByName(names: readonly string[]): Promise<string[]> {
-  if (names.length === 0) return []
+export async function deleteSolariProfilesByName(
+  names: readonly string[],
+  deps?: OperatorWipeDeps,
+): Promise<OperatorWipeReport> {
+  if (names.length === 0) return { wiped: [], wipeFailed: [] }
+  if (deps) return applyOperatorWipes(names, deps)
   const solari = createClient()
   try {
     return await applyOperatorWipes(names, {
       list: async () => (await solari.profiles.list()).map((p) => ({ id: p.id, name: p.name })),
       deleteProfile: (id) => solari.profiles.delete(id),
+      stopEditor: (row) => stopEditorBeforeProfileDelete(row),
     })
   } finally {
     await solari.close()
   }
 }
 
-/** Records a use, then wipes idle or human-agreed profiles. A delete failure leaves the stamp in place. */
+/** Records a use, then wipes idle or human-agreed profiles. A delete failure stays on wipeFailed and leaves the stamp. */
 export async function withOperatorSession(opts: {
   nowMs?: number
   note?: OperatorNote
   humanAgree?: boolean
   voluntary?: readonly string[]
   root?: string
-}): Promise<{ agent: OperatorAgentNotice; wiped: string[] }> {
+}): Promise<{ agent: OperatorAgentNotice; wiped: string[]; wipeFailed: WipeFailure[] }> {
   return commitOperatorSession({
     root: opts.root ?? packageRoot,
     nowMs: opts.nowMs ?? Date.now(),
@@ -696,8 +660,12 @@ export async function withOperatorSession(opts: {
     applyWipes: async (names) => {
       try {
         return await deleteSolariProfilesByName(names)
-      } catch {
-        return []
+      } catch (err) {
+        const wipeFailed = names
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .map((name) => ({ name, error: wipeErrorMessage(err) }))
+        return { wiped: [], wipeFailed }
       }
     },
   })

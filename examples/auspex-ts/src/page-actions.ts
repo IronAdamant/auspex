@@ -10,7 +10,10 @@ export type ActionPage = {
     click: (opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown>
   }
   evaluate: <R, Arg>(pageFunction: (arg: Arg) => R, arg?: Arg) => Promise<R>
-  keyboard?: { insertText: (text: string) => Promise<unknown> }
+  keyboard?: {
+    insertText?: (text: string) => Promise<unknown>
+    type?: (text: string) => Promise<unknown>
+  }
 }
 
 export type PageActionOpts = {
@@ -28,6 +31,64 @@ export const PAGE_ACTIONS_PROFILE_ERROR =
 
 export const PASSWORD_FILL_ERROR =
   "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman."
+
+export const FILL_NOT_LANDED_ERROR =
+  "check --fill did not land: the control textContent/value does not contain --value. filled was not set."
+
+type FieldProbe = {
+  password: boolean
+  contentEditable: boolean
+  text: string
+}
+
+/** Test doubles may return `true` for a password input. A string is the control text. */
+export function normalizeFieldProbe(raw: unknown): FieldProbe {
+  if (raw === true) return { password: true, contentEditable: false, text: "" }
+  if (typeof raw === "string") return { password: false, contentEditable: false, text: raw }
+  if (!raw || typeof raw !== "object") return { password: false, contentEditable: false, text: "" }
+  const row = raw as { password?: unknown; contentEditable?: unknown; text?: unknown }
+  return {
+    password: row.password === true,
+    contentEditable: row.contentEditable === true,
+    text: typeof row.text === "string" ? row.text : "",
+  }
+}
+
+function textHasValue(text: string, value: string): boolean {
+  if (value.length === 0) return text.trim().length === 0
+  return text.includes(value)
+}
+
+async function readField(page: ActionPage, selector: string): Promise<FieldProbe> {
+  const raw = await page.evaluate((sel: string) => {
+    const blank = { password: false, contentEditable: false, text: "" }
+    try {
+      const el = document.querySelector(sel)
+      if (!el || !(el instanceof HTMLElement)) return blank
+      const password = el instanceof HTMLInputElement && el.type === "password"
+      const contentEditable = el.isContentEditable
+      const text =
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : (el.textContent ?? "")
+      return { password, contentEditable, text }
+    } catch {
+      return blank
+    }
+  }, selector)
+  return normalizeFieldProbe(raw)
+}
+
+async function controlContainsValue(page: ActionPage, selector: string, value: string): Promise<boolean> {
+  const probe = await readField(page, selector)
+  if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
+  return textHasValue(probe.text, value)
+}
+
+async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
+  const typeText = page.keyboard?.type
+  if (typeof typeText !== "function") return
+  await page.locator(selector).click({ timeout, signal })
+  await typeText(value)
+}
 
 export type PageActionResult = {
   waitedFor?: string
@@ -76,7 +137,7 @@ export function assertPageActionsAllowed(opts: PageActionOpts): void {
   throw new Error(PAGE_ACTIONS_PROFILE_ERROR)
 }
 
-/** wait-for-visible, then fill, then click. Missing fields are no-ops. */
+/** wait-for-visible, then fill, then click. `filled` is set only after the control contains --value. */
 export async function runPageActions(
   page: ActionPage,
   opts: PageActionOpts,
@@ -91,31 +152,36 @@ export async function runPageActions(
   }
   if (opts.fill && opts.value !== undefined) {
     const fillSelector = opts.fill
-    const isPassword = await page.evaluate((sel: string) => {
-      try {
-        const el = document.querySelector(sel)
-        return el instanceof HTMLInputElement && el.type === "password"
-      } catch {
-        return false
-      }
-    }, fillSelector)
-    if (isPassword) {
-      throw new Error(PASSWORD_FILL_ERROR)
-    }
-    const box = page.locator(opts.fill)
-    if (pageHasInsertText(page)) {
+    const value = opts.value
+    const first = await readField(page, fillSelector)
+    if (first.password) throw new Error(PASSWORD_FILL_ERROR)
+    const box = page.locator(fillSelector)
+    const canType = typeof page.keyboard?.type === "function"
+    if (first.contentEditable && canType) {
+      await typeInto(page, fillSelector, value, timeout, signal)
+    } else if (pageHasInsertText(page)) {
+      const insert = page.keyboard.insertText
       await insertTextAt(
         {
           click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),
-          insertText: (text) => page.keyboard.insertText(text).then(() => undefined),
+          insertText: (text) => insert(text).then(() => undefined),
         },
-        opts.value,
+        value,
         timeout,
       )
+      if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
+        await typeInto(page, fillSelector, value, timeout, signal)
+      }
     } else {
-      await box.fill(opts.value, { timeout, signal })
+      await box.fill(value, { timeout, signal })
+      if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
+        await typeInto(page, fillSelector, value, timeout, signal)
+      }
     }
-    out.filled = opts.fill
+    if (!(await controlContainsValue(page, fillSelector, value))) {
+      throw new Error(FILL_NOT_LANDED_ERROR)
+    }
+    out.filled = fillSelector
   }
   if (opts.click) {
     await page.locator(opts.click).click({ timeout, signal })
