@@ -28,7 +28,7 @@ One page: `phone.html`. That page is the login door on a phone or a computer.
 
 `npx auspex-solari login --url <https>` prints `handoff.url`. `handoff.mobileUrl` is the same page. Open it, click the remote field you mean to fill, then type in the box at the bottom. The box is a real text field because Solari’s remote view will not open the phone keyboard ([Solari cookbook #80](https://github.com/solari-sdk/solari-cookbook/issues/80)). A password manager can paste into it. **Clear** empties the whole field at once. Enter sends Enter and clears the box. Then tap Save.
 
-![Phone login door: phone page, then remote Chrome](examples/auspex-ts/demo/door-phone.gif)
+![Phone login door on a computer: Solari remote Chrome, countdown, and Clear](examples/auspex-ts/demo/door-phone.gif)
 
 This page is Solari's remote Chrome. Sign in on the site there. Saved login data stays on Solari — not on this phone or desktop, and not in Auspex. It is not a same-session VNC takeover. Show as bullets is off by default so a password manager can paste into the text field. It is not the Mousepad sandbox demo (`auspex desktop`).
 
