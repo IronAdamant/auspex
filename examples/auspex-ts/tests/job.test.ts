@@ -464,6 +464,71 @@ test("job-status reads the file and waitMs returns after a phase change", async 
   assert.equal(seen.phase, "finalize")
 })
 
+test("cookie-strong await skips finalize and checks with verifyWithProfile", async () => {
+  const dir = await tmpJobs()
+  const minted = await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({ jobsDir: dir }),
+  )
+  let finalized = 0
+  let verifyFlag: boolean | undefined
+  const done = await runJob(
+    { jobId: minted.jobId },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () =>
+        awaitResult({
+          sessionStorage: 0,
+          next: "cookie-strong",
+          nextCall: { tool: "auspex_check", profile: "app-example", verifyWithProfile: true },
+          seedReadiness: {
+            phase: "post-save",
+            shape: "cookie-strong",
+            solariSaveReady: true,
+            appOriginCookies: true,
+            appOriginCookieCount: 2,
+            localStorageCount: 0,
+            localStorageAuthKeyNames: [],
+            sessionStorageCount: 0,
+            sessionStorageMiss: true,
+            idpOnly: false,
+            weakSeed: false,
+          },
+        }),
+      finalize: async () => {
+        finalized += 1
+        return checkResult()
+      },
+      check: async (opts) => {
+        verifyFlag = opts.verifyWithProfile
+        return {
+          receipt: receiptOf({
+            ok: true,
+            reason: "matched",
+            verify: {
+              ok: true,
+              claimOk: false,
+              errors: [],
+              claimErrors: [],
+              anonymousClaimSkipped: true,
+              claimOkProfile: true,
+              claimErrorsProfile: [],
+              runDir: ".auspex/runs/x",
+            },
+          }),
+          verified: true,
+        }
+      },
+    }),
+  )
+  assert.equal(finalized, 0)
+  assert.equal(verifyFlag, true)
+  assert.equal(done.claimOkProfile, true)
+  assert.equal(done.ok, true)
+  assert.equal(done.seedReadiness?.shape, "cookie-strong")
+  assert.equal(done.seedReadiness?.solariSaveReady, true)
+})
+
 test("skipFinalize jumps to check; ok is not claimOkProfile", async () => {
   const dir = await tmpJobs()
   const minted = await runJob(

@@ -27,7 +27,7 @@ Save is the button on the Phone or Desktop door. It asks Solari to store what th
 
 `sign-in-wall` is the other kind of `idp-only-save`. You are still on the Microsoft or Google page. Finish that sign-in, land on the app, then Save. That one mints again (open login again). `app-visible` does not.
 
-If the cookie jar already includes the app host (the app’s own site, not only Microsoft or Google) and Save could not refresh in-tab session storage, run finalize-login now. That case is not Truth B.
+If the cookie jar already includes the app host (the app’s own site, not only Microsoft or Google) and Save could not refresh in-tab session storage, that case is not Truth B. A cookie-strong or local-storage-auth jar (app-origin cookies, or allowlisted localStorage auth key names) goes to `auspex_check` with verify-with-profile. Do not finalize to invent sessionStorage. Any other app-host jar still runs finalize-login now.
 
 Three results come back. They are separate. Read each one on its own.
 
@@ -79,7 +79,7 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 
 Anonymous verify (the second check with no saved login) is skipped for any attached profile on a non-public-marketing URL. Login, finalize, profile-status, reap, and trace are the auth + hygiene doors: sign in, finish saving the login, see whether that saved login is still good, clean up leftover cloud browsers, and read the login trace. The named Solari sandbox Mousepad demo (Mousepad, a text editor, inside Solari’s cloud desktop) is not your computer (402 on Free: the free Solari plan answers HTTP 402 and will not start that desktop).
 
-Save is not sessionStorage. Pressing Save does not, by itself, copy the tab’s session storage. A Save that stored cookies did not store the app token. `weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold (an older saved copy of in-tab session storage that is already expired or about to expire). `emptySave` means the profile is missing. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold (that saved copy can no longer be used, so there is no second browser). `ok` ≠ `claimOk` ≠ `claimOkProfile`.
+Save is not sessionStorage. Pressing Save does not, by itself, copy the tab’s session storage. Solari editor Save stores cookies and localStorage. Auspex does not invent sessionStorage on that Save. `weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold, when the jar has no app-origin cookies and no allowlisted localStorage auth key names. App-origin cookies or those key names are a cookie Save: run `check --verify-with-profile` and read `claimOkProfile`. `solariSaveReady` is not that gate. IdP hosts alone stay refused. `emptySave` means the profile is missing. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold (that saved copy can no longer be used, so there is no second browser). `ok` ≠ `claimOk` ≠ `claimOkProfile`.
 
 Login trace writes one post-handoff row (one redacted note after the login door is ready). Check rows are not written. Never tokens, passwords, or session ids. If mint is silent (opening login produces no door), read `npx auspex-solari trace` before minting again.
 
@@ -143,7 +143,7 @@ Contributors who cloned the repo still run `npm install && npm run build:mcp` in
 
 - The words you asked for showed up on a public login or marketing page, so the profile was not saved. `expectMatchedPublicLanding`. Use the real app URL and text that only the logged-in app shows.
 - The live site moved to a different host than the one minted into the door (the website on screen is not the website the login door was opened for). `hostChanged`. Mint login again. Leave the old profile alone.
-- The remote typing window expired and the profile has no cookies. `stream-expired`. Mint again. If save returned 200 but could not refresh in-tab session storage, and the cookie jar already includes the app host, run finalize-login now. An IdP-only cookie jar (only Microsoft or Google sign-in cookies) with the app already on screen is Truth B above: do not finalize.
+- The remote typing window expired and the profile has no cookies. `stream-expired`. Mint again. If save returned 200 but could not refresh in-tab session storage, and the cookie jar already includes the app host: a cookie-strong or local-storage-auth jar (app-origin cookies, or allowlisted localStorage auth key names) goes to `auspex_check` with verify-with-profile. Do not finalize to invent sessionStorage. Any other app-host jar runs finalize-login now. An IdP-only cookie jar (only Microsoft or Google sign-in cookies) with the app already on screen is Truth B above: do not finalize.
 - Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - A stealth browser (a harder-to-detect Chrome) applies only when a check opens a session (`auspex check --stealth`). Login mint cannot request it. The cold login handoff (the first remote Chrome opened for sign-in) and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 

@@ -210,8 +210,11 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
   record.profileHostMatch = waited.profileHostMatch
   record.suggestedProfile = waited.suggestedProfile
   record.suggestedUrl = waited.suggestedUrl
+  if (waited.seedReadiness) record.seedReadiness = waited.seedReadiness
   if (waited.status === "completed") {
-    record.phase = record.skipFinalize ? "check" : "finalize"
+    const cookieReady = waited.seedReadiness?.solariSaveReady === true && waited.foldMiss !== true
+    record.phase = record.skipFinalize || cookieReady ? "check" : "finalize"
+    if (cookieReady && record.verifyWithProfile !== false) record.verifyWithProfile = true
     record.status = "running"
     record.reason = "await-completed"
     return record

@@ -205,6 +205,12 @@ export const auspexCheckInputObject = z.object({
     .string()
     .optional()
     .describe("Use a specific device profile: iphone-12, iphone-13-pro, pixel-5, galaxy-s21, ipad-pro. Applied via Playwright context options. Best-effort: depends on Solari cloud Chrome respecting viewport/UA overrides."),
+  authKeyNames: z
+    .array(z.string().trim().min(1).max(80))
+    .optional()
+    .describe(
+      "Extra localStorage auth key names (names only, never values). Merged with the default allowlist: accessToken, access_token, idToken, id_token, refreshToken, refresh_token. Used to classify a Solari cookie or localStorage Save. solariSaveReady is not claimOkProfile.",
+    ),
 })
 
 /** Full parse including record+profile combination. MCP registerTool must use auspexCheckInputObject. */
@@ -287,7 +293,13 @@ export const auspexAwaitLoginInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. editorSave 200 with editorFold no-cdp and cookies: finalize-login NOW. If editorSave fails (e.g. 401), remint — cookies are not proof of login. Do not run verify-with-profile on a dead fold. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+      "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Claim a fold only when editorFold.ok. editorSave 200 with editorFold no-cdp finalizes now unless the jar is cookie-strong or local-storage-auth (app-origin cookies or allowlisted localStorage auth key names). That shape's nextCall is auspex_check with verifyWithProfile. sessionStorage 0 is expected. Do not invent sessionStorage. If editorSave fails (e.g. 401), remint — cookies are not proof of login. Do not run verify-with-profile on a weakSeed, emptySave, or IdP-only jar. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
+    ),
+  authKeyNames: z
+    .array(z.string().trim().min(1).max(80))
+    .optional()
+    .describe(
+      "Extra localStorage auth key names (names only). Merged with the default allowlist. Never values.",
     ),
 })
 
@@ -359,6 +371,12 @@ export const auspexProfileStatusInputSchema = z.object({
     .optional()
     .describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
   url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
+  authKeyNames: z
+    .array(z.string().trim().min(1).max(80))
+    .optional()
+    .describe(
+      "Extra localStorage auth key names (names only). Merged with the default allowlist. seedReadiness reports names and counts, never values.",
+    ),
 })
 
 /** ZodObject for MCP ListTools. Call-time jobId-or-name-or-url+expect lives in runJob. */
