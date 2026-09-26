@@ -1,5 +1,6 @@
 /** Fail-closed await-login statuses. Extra keys only; check schema v1 reasons stay frozen. */
 
+import { OPS_GUIDE } from "./door-await-contract.ts"
 import { awaitSaveEditorNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
 import { boundPromise } from "./timeout.ts"
 
@@ -22,7 +23,7 @@ export function streamExpiredGuide(profile: string): { text: string; nextCall: N
       `Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). ` +
       `This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. ` +
       `Remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
-      `Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect.`,
+      `Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. ${OPS_GUIDE}`,
     nextCall: remintLoginNextCall(name === "<name>" ? "" : name),
   }
 }
