@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
@@ -87,7 +87,6 @@ test("root AGENTS holds P0/P1 contract facts; package AGENTS is a pointer", () =
 test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile", () => {
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
-  const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
   const security = readFileSync(path.join(pkg, "SECURITY.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
@@ -103,8 +102,8 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(rootReadme, /emptySave/)
   assert.match(rootReadme, /claimOkProfile/)
 
-  assert.equal(pitch.includes("After anonymous verify"), false, "PITCH must not say VWP runs after anonymous verify")
-  assert.match(pitch, /Skips\*\* anonymous claim|Skips anonymous claim/)
+  assert.equal(rootAgents.includes("After anonymous verify"), false, "AGENTS must not say VWP runs after anonymous verify")
+  assert.match(rootAgents, /skips anonymous claim/)
 
   assert.equal(security.includes("232/235"), false, "SECURITY must not ship a rotting test-count")
   assert.match(security, /npm test/)
@@ -371,8 +370,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   const license = readFileSync(path.join(repo, "LICENSE"), "utf8")
   const receipts = readFileSync(path.join(repo, "RECEIPTS.md"), "utf8")
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
-  const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
-  const deferred = readFileSync(path.join(pkg, "docs", "archive", "deferred-check-2026-09-19.md"), "utf8")
+  const changelog = readFileSync(path.join(repo, "CHANGELOG.md"), "utf8")
 
   assert.match(rootReadme, /named Solari sandbox Mousepad demo/)
   assert.match(rootReadme, /402 on Free/)
@@ -385,7 +383,21 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
 
   assert.match(rootReadme, /auth \+ hygiene doors/)
   assert.match(rootAgents, /auth \+ hygiene doors/)
-  assert.match(pitch, /auth \+ hygiene doors/)
+  for (const absent of [
+    "PLAN.md",
+    "PITCH.md",
+    "examples/auspex-ts/docs/archive/deferred-check-2026-09-19.md",
+    "examples/auspex-ts/docs/archive/editor-fold-refresh-nogo-2026-09-20.md",
+    "examples/auspex-ts/docs/archive/leave-nothing-2026-09-19.md",
+    "examples/auspex-ts/docs/archive/vwp-magic-sleeps-2026-09-19.md",
+  ]) {
+    assert.equal(existsSync(path.join(repo, absent)), false, `${absent} stays off the public tip`)
+  }
+  assert.equal(rootReadme.includes("PLAN.md"), false, "README must not link PLAN.md")
+  assert.equal(rootReadme.includes("PITCH.md"), false, "README must not link PITCH.md")
+  assert.equal(receipts.includes("PLAN.md"), false, "RECEIPTS must not link PLAN.md")
+  assert.equal(receipts.includes("PITCH.md"), false, "RECEIPTS must not link PITCH.md")
+  assert.equal(changelog.includes("docs/archive"), false, "CHANGELOG must not point at private memos")
 
   assert.match(rootAgents, /no raw OneDrive PNG/)
   assert.match(receipts, /no raw OneDrive PNG|No raw OneDrive PNG/)
@@ -399,10 +411,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.equal(rootReadme.includes("weekly live coverage is not running"), false)
   assert.match(rootAgents, /35605123361/)
   assert.match(rootAgents, /SOLARI_API_KEY` is \*\*present\*\*/)
-
-  assert.match(deferred, /fixed in #42/)
-  assert.match(deferred, /vwp-magic-sleeps-2026-09-19/)
-  assert.match(deferred, /Do not claim timeout still invents an anonymous miss/)
+  assert.match(rootAgents, /does not treat the miss as an anonymous `claimOk` failure/)
 })
 
 test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
@@ -479,14 +488,10 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   assert.equal(index.includes('src="demo/phone.png"'), false, "do not ship a phone still before the live test")
   assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
-  const plan = readFileSync(path.join(repo, "PLAN.md"), "utf8")
-  assert.match(plan, /executed on `0aac1a1`/)
-  assert.equal(/plan only\. Do not execute/i.test(plan), false, "PLAN.md must not still say do not execute")
   for (const [label, text] of [
     ["package README", packReadme],
     ["RECEIPTS.md", receipts],
     ["Discord packet", discord],
-    ["PLAN.md", plan],
   ] as const) {
     assert.equal(
       text.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
@@ -552,7 +557,6 @@ test("frozen agent door sequence is documented for operators and not a takeover"
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const rootReadme = readFileSync(path.join(repo, "README.md"), "utf8")
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
-  const pitch = readFileSync(path.join(repo, "PITCH.md"), "utf8")
   for (const [label, text] of [["root AGENTS.md", rootAgents]] as const) {
     assert.match(text, /## Frozen agent door sequence/)
     assert.match(text, /not\*\* a Handraise-style same-session live-view takeover|not a Handraise-style same-session live-view takeover/)
@@ -567,7 +571,6 @@ test("frozen agent door sequence is documented for operators and not a takeover"
   }
   assert.match(rootReadme, /Frozen door sequence|frozen-agent-door-sequence/)
   assert.match(packReadme, /Frozen door sequence|frozen-agent-door-sequence/)
-  assert.match(pitch, /Frozen agent door|frozen-agent-door-sequence/)
   assert.match(rootReadme, /expectMatchedPublicLanding/)
   assert.match(rootReadme, /hostChanged/)
 })

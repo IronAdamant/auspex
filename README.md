@@ -171,7 +171,7 @@ Auspex is check and verify honesty on Solari, not a second Solari SDK tutorial. 
 - Ops runbook: [docs/ops-runbook.md](docs/ops-runbook.md)
 - Agent contract: [AGENTS.md](AGENTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md) · quick card: [llms.txt](llms.txt)
 - Host paste cards: [docs/HOSTS.md](docs/HOSTS.md)
-- Receipts: [RECEIPTS.md](RECEIPTS.md) · thesis: [PITCH.md](PITCH.md)
+- Receipts: [RECEIPTS.md](RECEIPTS.md)
 - Apply path (Harry Chow, LinkedIn 2026-08-31): fork the cookbook, ship a real Solari use case, make the repo public, and tag @harrychow_ @getsolari on LinkedIn or X. The tagged post is founder-only.
 - Console — [console.getsolari.com](https://console.getsolari.com) · Docs — [docs.getsolari.com](https://docs.getsolari.com)
 
