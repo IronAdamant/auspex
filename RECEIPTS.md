@@ -2,7 +2,7 @@
 
 Committed demo evidence from the Auspex check → verify → teardown workflow.
 
-**Why this matters ([PITCH.md](PITCH.md)):** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
+**Why this matters:** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
 
 ## Default recipe (any host)
 
