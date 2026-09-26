@@ -61,7 +61,8 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 - `--stealth` is on `check` only (`POST /sessions`). `login` has no `--stealth`: the cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 - Login trace: one post-handoff row after the handoff is ready. Check rows are not written. Never tokens, passwords, or session ids.
 - **429** is not retryable. Call `auspex_reap`, then retry.
-- Before a long unattended loop, check seed health (`profile-status`, then `claimOkProfile`). `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. On a re-gate, stop. There is no Auspex TTL. See [Long unattended loops](../../AGENTS.md#long-unattended-loops).
+- Before a long unattended loop, check seed health (`profile-status`, then `claimOkProfile`). `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. On a re-gate, stop. There is no Auspex TTL. See [Long unattended loops](../../AGENTS.md#long-unattended-loops) and [docs/ops-runbook.md](../../docs/ops-runbook.md).
+- One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes).
 
 ## MCP
 

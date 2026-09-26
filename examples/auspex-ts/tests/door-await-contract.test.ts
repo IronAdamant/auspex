@@ -4,12 +4,18 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import {
+  CLAIM_FALSE_STOP,
   DOOR_AWAIT_BEGIN,
   DOOR_AWAIT_END,
   DOOR_AWAIT_ROWS,
+  KEY_ENV_REFUSE,
+  LOGGED_IN_SEED_HEALTH,
   LONG_RUN_BEGIN,
   LONG_RUN_CLI_LINE,
   LONG_RUN_END,
+  OPS_GUIDE,
+  PROFILES_MAP_LINE,
+  RE_GATE_STOP,
   agentsDoorAwaitBlock,
   agentsLongRunBlock,
   extractMarked,
@@ -17,6 +23,7 @@ import {
   llmsLongRunBlock,
 } from "../src/door-await-contract.ts"
 import { USAGE } from "../src/cli.ts"
+import { PROFILES_DESCRIPTION } from "../src/tool-copy.ts"
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 
@@ -168,4 +175,46 @@ test("llms clock and If stuck do not fork mint-or-finalize next to app-visible",
   assert.equal(checkLine.includes("--stealth"), false)
   assert.match(commands, /Leave alone/)
   assert.match(commands, /--captcha/)
+})
+
+test("ops stamps lock key refuse, profile map, and the runbook", () => {
+  assert.equal(DOOR_AWAIT_ROWS.length, 10)
+  const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const card = readFileSync(path.join(repo, "llms.txt"), "utf8")
+  const runbook = readFileSync(path.join(repo, "docs/ops-runbook.md"), "utf8")
+  for (const text of [USAGE, agents, card]) {
+    assert.ok(text.includes(KEY_ENV_REFUSE), "key refuse stamp must match")
+  }
+  for (const text of [USAGE, agents, PROFILES_DESCRIPTION]) {
+    assert.ok(text.includes(PROFILES_MAP_LINE), "profile map stamp must match")
+  }
+  assert.ok(card.includes(PROFILES_MAP_LINE))
+  assert.match(agents, /docs\/ops-runbook\.md/)
+  assert.match(card, /docs\/ops-runbook\.md/)
+  const longRun = extractMarked(agents, LONG_RUN_BEGIN, LONG_RUN_END)
+  assert.match(longRun, /Operator note/)
+  assert.match(longRun, /occasional human door/)
+  assert.match(longRun, /re-gate path/)
+  assert.match(longRun, /no minute timer/)
+  assert.match(extractMarked(card, LONG_RUN_BEGIN, LONG_RUN_END), /Operator note/)
+  assert.match(runbook, /## Heartbeat/)
+  assert.match(runbook, /## Remint and re-gate/)
+  assert.match(runbook, /## Who opens the human door/)
+  assert.match(runbook, /## Stop the loop/)
+  assert.match(runbook, /## What to watch/)
+  assert.match(runbook, /## Many profiles/)
+  assert.match(runbook, /## How long a login lasts/)
+  assert.match(runbook, /claimOkProfile/)
+  assert.match(runbook, /weakSeed/)
+  assert.match(runbook, /stream-expired/)
+  assert.match(runbook, /needsHuman/)
+  assert.match(runbook, /One profile per host/)
+  assert.match(runbook, /Solari profile plus the site session/)
+  assert.equal(runbook.includes("auspex_pager"), false)
+  assert.equal(/auspex keepalive/.test(runbook), false)
+  assert.ok(LOGGED_IN_SEED_HEALTH.endsWith(OPS_GUIDE))
+  assert.ok(RE_GATE_STOP.endsWith(OPS_GUIDE))
+  assert.ok(CLAIM_FALSE_STOP.endsWith(OPS_GUIDE))
+  assert.match(RE_GATE_STOP, /This is a re-gate/)
+  assert.match(CLAIM_FALSE_STOP, /do not reuse this seed/)
 })

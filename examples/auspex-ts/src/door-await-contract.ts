@@ -12,19 +12,33 @@ export const AWAIT_LOGIN_END = "<!-- auspex-await-login:end -->"
 export const LONG_RUN_BEGIN = "<!-- auspex-long-run:begin -->"
 export const LONG_RUN_END = "<!-- auspex-long-run:end -->"
 
+/** Tiny pointer on existing next text. Not a pager and not a new tool. */
+export const OPS_GUIDE = "Guide: docs/ops-runbook.md."
+
+/** Locked refuse. Same sentence in CLI help, AGENTS rules, and llms Do not. */
+export const KEY_ENV_REFUSE =
+  "SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys."
+
+/** One profile per host, plus list and reclaim. CLI help and profiles tool copy. */
+export const PROFILES_MAP_LINE =
+  "One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes)."
+
 /** profile-status `next` when the live probe matched. Not a reuse gate and not a lease. */
 export const LOGGED_IN_SEED_HEALTH =
   "loggedIn is a live probe. It is not claimOkProfile and not overnight-safe. " +
   "Before a long unattended loop, run check --verify-with-profile and read claimOkProfile. " +
   "ok is not claimOk and not claimOkProfile. " +
-  "Longevity is the Solari profile and the site session, not an Auspex TTL. There is no keepalive."
+  "Longevity is the Solari profile and the site session, not an Auspex TTL. There is no keepalive. " +
+  OPS_GUIDE
 
 export const NOT_OVERNIGHT_SAFE = "This seed is not overnight-safe."
 
 /** Appended to a sign-in wall. Does not change nextCall. */
 export const RE_GATE_STOP =
   "This is a re-gate. Stop the loop. One human door. Do not auto-fill a secret or claim a challenge is solved. " +
-  NOT_OVERNIGHT_SAFE
+  NOT_OVERNIGHT_SAFE +
+  " " +
+  OPS_GUIDE
 
 export const NOT_A_LEASE =
   "That pass is not an overnight lease. Longevity is the Solari profile and the site session, not an Auspex TTL. There is no keepalive."
@@ -34,7 +48,8 @@ export const CLAIM_FALSE_STOP =
   "claimOkProfile=false — do not reuse this seed. Stop the loop. Follow the door table once. " +
   "Do not retry this check to chase claimOkProfile. " +
   "auspex_login only when that row's nextCall is auspex_login. " +
-  "This is not app-visible and not a keepalive."
+  "This is not app-visible and not a keepalive. " +
+  OPS_GUIDE
 
 export const SEED_HEALTH_TOOL_LINE =
   "loggedIn is a live probe, not claimOkProfile, and not overnight-safe. " +
@@ -215,9 +230,11 @@ export function agentsLongRunBlock(): string {
     "1. `profile-status` with that profile, the app URL, and the expect. `loggedIn` means the live probe saw the expect. The `next` line on that result says this is not `claimOkProfile` and not overnight-safe. It does not set `nextCall`.",
     "2. On an auth-gated host, `check --verify-with-profile`. Read `claimOkProfile`. That field is the reuse gate. `ok` is not `claimOk` and not `claimOkProfile`.",
     "",
-    "The heartbeat is that pair of checks. There is no other ping.",
+    "The heartbeat is that pair of checks. That is the cadence: before the loop, and again before an older pass is treated as still true. There is no other ping and no minute timer.",
     "",
     "`weakSeed`, an IdP-only jar, and `app-visible` are not overnight-safe. `claimOkProfile` true is evidence you can reuse the seed for another check. It is not a lease.",
+    "",
+    "Operator note: longevity is the Solari profile and the site session, not an Auspex TTL. Budget an occasional human door. When the site session dies, that expiry is the re-gate path in the door table. Auspex does not extend it. Operator page: docs/ops-runbook.md.",
     "",
     "If the loop hits a sign-in wall, a fresh challenge (a new password, code, or challenge page), a dead typing window with no cookies (bare `stream-expired`), or a seed you cannot reuse: stop. The clear status is the matching row in the door table. Take that row's `nextCall` once. The human door is `auspex_login` only when that nextCall is `auspex_login`. Do not type a password, OTP, or CAPTCHA answer. Do not claim the challenge is solved. Do not keep the loop running for hours.",
     "",
@@ -230,7 +247,9 @@ export function llmsLongRunBlock(): string {
   return [
     "A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive.",
     "",
-    "Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe.",
+    "Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.",
+    "",
+    "Operator note: budget an occasional human door. Site expiry is the re-gate row. Longevity is the Solari profile and the site session, not an Auspex TTL. Operator page: docs/ops-runbook.md.",
     "",
     "If you hit a sign-in wall, a fresh challenge, a dead typing window with no cookies, or a seed you cannot reuse: stop. One human door when the door table says `auspex_login`. Do not type a secret. Do not claim a CAPTCHA is solved. Do not keep checking for hours.",
     "",
