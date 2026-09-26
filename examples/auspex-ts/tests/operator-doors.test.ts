@@ -53,7 +53,7 @@ function assertTypingDoor(html: string, label: string) {
   assert.match(text, /Enter clears this box/, `${label} Enter clears`)
   assert.match(text, /Show as bullets for password autofill/, `${label} bullets how-to`)
   assert.match(text, /Saved login data stays on Solari/, `${label} session stays on Solari`)
-  assert.match(text, /not on this phone or in Auspex/, `${label} not a phone or Auspex vault`)
+  assert.match(text, /not on this phone or desktop, and not in Auspex/, `${label} not a phone, desktop, or Auspex vault`)
   assert.equal(text.includes("destination site logs its own login"), false, `${label} no legal essay on typing door`)
   assert.equal(text.includes("do not host those credentials or session secrets"), false, `${label} credentials essay stays in docs`)
   assert.equal(text.includes("off by default"), false, `${label} bullets default is the unchecked box`)

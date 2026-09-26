@@ -30,7 +30,7 @@ One page: `phone.html`. That page is the login door on a phone or a computer.
 
 ![Phone login door: phone page, then remote Chrome](examples/auspex-ts/demo/door-phone.gif)
 
-This page is Solari's remote Chrome. Sign in on the site there. Saved login data stays on Solari — not on this phone or in Auspex. It is not a same-session VNC takeover. Show as bullets is off by default so a password manager can paste into the text field. It is not the Mousepad sandbox demo (`auspex desktop`).
+This page is Solari's remote Chrome. Sign in on the site there. Saved login data stays on Solari — not on this phone or desktop, and not in Auspex. It is not a same-session VNC takeover. Show as bullets is off by default so a password manager can paste into the text field. It is not the Mousepad sandbox demo (`auspex desktop`).
 
 ## Two truths about Save
 
