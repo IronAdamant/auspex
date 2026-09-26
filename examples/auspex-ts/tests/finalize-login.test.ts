@@ -67,6 +67,8 @@ test("needsHuman next is finalize-login after Save, not retry check", () => {
   assert.match(next, /Never open handoff\.desktopUrl on a phone/)
   assert.match(next, /After human completes sign-in and Save: await-login --profile <yours> --save-editor then finalize-login --profile <yours>/)
   assert.match(next, /Do not retry check on cookies alone/)
+  assert.match(next, /This is a re-gate/)
+  assert.match(next, /Do not auto-fill a secret or claim a challenge is solved/)
   assert.equal(next.includes("retry check --profile"), false)
   assert.equal(next.includes("or retry check"), false)
 })
