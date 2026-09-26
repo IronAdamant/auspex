@@ -9,6 +9,7 @@ import { loginWaitPublicFields, preserveAwaitLiveHost } from "./live-host-change
 import { stampAwaitLoginHost, stampLoginHost, stampProfileHostAdvice } from "./profile-host-advice.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
+import { presentSiblingSaved } from "./save-drain.ts"
 import { COOKIE_SAVE_CONTRACT } from "./cookie-save.ts"
 import { profileStatus } from "./profile-status.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
@@ -113,13 +114,18 @@ export async function runLoginDoor(opts: {
   const finished = await withOperatorSession({
     note: noteAfterSignupWait({ profile: opts.profile, site: opts.url, status: waited.status }),
   })
-  return stampSchema({
-    ...shown,
-    ...loginWaitPublicFields(waited),
-    cookieSaveContract: COOKIE_SAVE_CONTRACT,
-    wait: waited,
-    operator: finished.agent,
-  })
+  return stampSchema(
+    presentSiblingSaved(
+      {
+        ...shown,
+        ...loginWaitPublicFields(waited),
+        cookieSaveContract: COOKIE_SAVE_CONTRACT,
+        wait: waited,
+        operator: finished.agent,
+      },
+      waited,
+    ),
+  )
 }
 
 export async function runAwaitLoginDoor(opts: {
@@ -147,8 +153,11 @@ export async function runAwaitLoginDoor(opts: {
     authKeyNames: opts.authKeyNames,
     onProgress: opts.onProgress,
   })
-  const result = preserveAwaitLiveHost(
-    await stampAwaitLoginHost(rawWait, { profile: opts.profile, url: opts.url }),
+  const result = presentSiblingSaved(
+    preserveAwaitLiveHost(
+      await stampAwaitLoginHost(rawWait, { profile: opts.profile, url: opts.url }),
+      rawWait,
+    ),
     rawWait,
   )
   const finished = await withOperatorSession({

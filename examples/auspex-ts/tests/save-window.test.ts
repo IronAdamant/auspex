@@ -9,7 +9,7 @@ import {
   saveEditorWithNotSavableReuse,
 } from "../src/editor-save-attempt.ts"
 import { enableLiveLineBuffer, writeLiveLine } from "../src/line-buffer.ts"
-import { saveDrainDir, signalSaveDrain } from "../src/save-drain.ts"
+import { clearSaveOwner, saveDrainDir, siblingSavedNext, signalSaveDrain } from "../src/save-drain.ts"
 import { postEditorSaveWhenSignaled, waitForSaveSignal } from "../src/signaled-editor-save.ts"
 
 const NOT_SAVABLE = { ok: false, status: 409, error: "profile is not in a savable state" }
@@ -293,6 +293,231 @@ test("expiry before Save does not POST", async () => {
     })
     assert.equal(outcome.mode, "expired-before-save")
     assert.equal(saves, 0)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("a sibling that already saved is not stream-expired and does not POST", async () => {
+  const root = await tempRoot()
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
+  let saves = 0
+  const now = 9_000_000
+  try {
+    assert.ok(child.pid)
+    const dir = saveDrainDir(root)
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      path.join(dir, "app-example.owner.json"),
+      JSON.stringify({ pid: child.pid, profile: "app-example", phase: "saved", status: 200 }),
+    )
+    const outcome = await postEditorSaveWhenSignaled({
+      profile: "app-example",
+      sinceVersion: 1,
+      waitForSaveSignal: true,
+      streamExpiresAt: new Date(now - 5_000).toISOString(),
+      deadlineMs: now + 60_000,
+      now: () => now,
+      sleep: async () => undefined,
+      pollMs: 1_000,
+      readVersion: async () => 8,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 200 }
+      },
+      editorStillLive: async () => false,
+      drainRoot: root,
+    })
+    assert.equal(outcome.mode, "sibling-saved")
+    assert.equal(saves, 0)
+    assert.match(outcome.next ?? "", /status sibling-saved/)
+    assert.match(outcome.next ?? "", /Do not call this stream-expired/)
+    assert.match(outcome.next ?? "", /Do not remint/)
+    assert.match(outcome.next ?? "", /did not read the jar/)
+    assert.equal(outcome.next, siblingSavedNext("app-example"))
+  } finally {
+    child.kill()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("a paste does not POST when a sibling save is in flight", async () => {
+  const root = await tempRoot()
+  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
+  let saves = 0
+  try {
+    assert.ok(child.pid)
+    const dir = saveDrainDir(root)
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      path.join(dir, "app-example.owner.json"),
+      JSON.stringify({ pid: child.pid, profile: "app-example", phase: "posting" }),
+    )
+    const outcome = await postEditorSaveWhenSignaled({
+      profile: "app-example",
+      sinceVersion: 1,
+      waitForSaveSignal: false,
+      deadlineMs: Date.now() + 60_000,
+      readVersion: async () => 4,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 200 }
+      },
+      editorStillLive: async () => true,
+      drainRoot: root,
+    })
+    assert.equal(outcome.mode, "sibling-saved")
+    assert.equal(saves, 0)
+    assert.match(outcome.next ?? "", /Do not call this stream-expired/)
+  } finally {
+    child.kill()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("the waiter yields when the sibling save appears before the token ends", async () => {
+  const root = await tempRoot()
+  let saves = 0
+  let now = 6_000_000
+  let noted = false
+  try {
+    const outcome = await postEditorSaveWhenSignaled({
+      profile: "app-example",
+      sinceVersion: 2,
+      waitForSaveSignal: true,
+      streamExpiresAt: new Date(now + 30_000).toISOString(),
+      deadlineMs: now + 20_000,
+      now: () => now,
+      sleep: async (ms: number) => {
+        if (!noted) {
+          noted = true
+          const dir = saveDrainDir(root)
+          await mkdir(dir, { recursive: true })
+          await writeFile(
+            path.join(dir, "app-example.owner.json"),
+            JSON.stringify({ pid: process.pid + 1, profile: "app-example", phase: "saved", status: 200 }),
+          )
+        }
+        now += ms
+      },
+      pollMs: 1_000,
+      readVersion: async () => 2,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 200 }
+      },
+      editorStillLive: async () => false,
+      drainRoot: root,
+    })
+    assert.equal(outcome.mode, "sibling-saved")
+    assert.equal(saves, 0)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("two concurrent paste paths POST editor/save once", async () => {
+  const root = await tempRoot()
+  let release: () => void = () => undefined
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let entered = 0
+  try {
+    const run = () =>
+      postEditorSaveWhenSignaled({
+        profile: "app-example",
+        sinceVersion: 1,
+        waitForSaveSignal: false,
+        deadlineMs: Date.now() + 60_000,
+        readVersion: async () => 1,
+        save: async () => {
+          entered += 1
+          await gate
+          return { ok: true, status: 200 }
+        },
+        editorStillLive: async () => false,
+        drainRoot: root,
+      })
+    const left = run()
+    const right = run()
+    const first = await Promise.race([
+      left.then((result) => ({ label: "left" as const, result })),
+      right.then((result) => ({ label: "right" as const, result })),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("both saves blocked")), 2_000)),
+    ])
+    assert.equal(first.result.mode, "sibling-saved")
+    const start = Date.now()
+    while (entered < 1 && Date.now() - start < 1_000) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    assert.equal(entered, 1)
+    release()
+    const second = await (first.label === "left" ? right : left)
+    assert.equal(second.mode, "posted")
+    assert.equal(second.editorSave?.ok, true)
+    assert.equal(entered, 1)
+  } finally {
+    release()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("a failed save does not block a later POST, and a saved owner does until the next login clears it", async () => {
+  const root = await tempRoot()
+  let saves = 0
+  const base = {
+    profile: "app-example",
+    sinceVersion: 1,
+    waitForSaveSignal: false as const,
+    deadlineMs: Date.now() + 60_000,
+    readVersion: async () => 1,
+    editorStillLive: async () => false,
+    drainRoot: root,
+  }
+  try {
+    const failed = await postEditorSaveWhenSignaled({
+      ...base,
+      save: async () => {
+        saves += 1
+        return NOT_SAVABLE
+      },
+    })
+    assert.equal(failed.mode, "posted")
+    assert.equal(failed.editorSave?.notSavableExhausted, true)
+    assert.equal(saves, 1)
+
+    const again = await postEditorSaveWhenSignaled({
+      ...base,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 200 }
+      },
+    })
+    assert.equal(again.mode, "posted")
+    assert.equal(saves, 2)
+
+    const blocked = await postEditorSaveWhenSignaled({
+      ...base,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 200 }
+      },
+    })
+    assert.equal(blocked.mode, "sibling-saved")
+    assert.equal(saves, 2)
+
+    await clearSaveOwner("app-example", root)
+    const remint = await postEditorSaveWhenSignaled({
+      ...base,
+      save: async () => {
+        saves += 1
+        return { ok: true, status: 201 }
+      },
+    })
+    assert.equal(remint.mode, "posted")
+    assert.equal(remint.editorSave?.status, 201)
+    assert.equal(saves, 3)
   } finally {
     await rm(root, { recursive: true, force: true })
   }

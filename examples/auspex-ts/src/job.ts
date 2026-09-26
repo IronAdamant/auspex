@@ -22,6 +22,7 @@ import { postJobWake, resolveWakeWebhookUrl, type JobWakeEvent, type JobWakeResu
 import { preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost } from "./profile-host-advice.ts"
 import { liveAwaitLogin, type AwaitLoginResult } from "./profile-persist.ts"
+import { presentSiblingSaved } from "./save-drain.ts"
 import { loginProfile, requireProfileName, type LoginResult } from "./profiles.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { reapLeftovers, type ReapResult } from "./reap.ts"
@@ -224,6 +225,15 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
     if (cookieReady && record.verifyWithProfile !== false) record.verifyWithProfile = true
     record.status = "running"
     record.reason = "await-completed"
+    return record
+  }
+  if (waited.status === "sibling-saved") {
+    record.phase = "failed"
+    record.status = "sibling-saved"
+    record.reason = "sibling-saved"
+    record.ok = false
+    record.next = waited.next
+    delete record.nextCall
     return record
   }
   if (waited.status === "stream-expired") {
@@ -461,8 +471,11 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         waitForSaveSignal: record.wait === true,
         onProgress: (phase) => progress(phase),
       })
-      const waited = preserveAwaitLiveHost(
-        await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }),
+      const waited = presentSiblingSaved(
+        preserveAwaitLiveHost(
+          await stampAwaitLoginHost(raw, { profile: record.profile, url: record.url }),
+          raw,
+        ),
         raw,
       ) as AwaitLoginResult
       const afterAwait = applyAwaitOutcome(record, waited)

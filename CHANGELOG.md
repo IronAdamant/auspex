@@ -4,6 +4,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+- Concurrent `login --wait` and `await-login --save-editor`: one path owns `editor/save`. The loser is `sibling-saved` and does not report `stream-expired` when the sibling already posted or is posting. The Solari JWT `exp` is unchanged. A failed save still does not claim cookies.
+
 ## 0.1.4 — 2026-09-26 (published)
 
 npm `auspex-solari@0.1.4` (latest). Agents do not `npm publish`. Founder may publish this release.

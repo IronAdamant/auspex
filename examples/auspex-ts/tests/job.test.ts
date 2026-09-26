@@ -239,6 +239,38 @@ test("stream-expired returns remint nextCall and does not continue", async () =>
   assert.equal(again.phase, "failed")
 })
 
+test("sibling-saved stops the job without a remint", async () => {
+  const dir = await tmpJobs()
+  const minted = await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({ jobsDir: dir }),
+  )
+  assert.equal(minted.nextCall?.tool, "auspex_job")
+  const lost = await runJob(
+    { jobId: minted.jobId },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () =>
+        awaitResult({
+          status: "sibling-saved",
+          cookies: 0,
+          origins: 0,
+          next: "status sibling-saved: another path owns editor/save",
+          nextCall: { tool: "auspex_login", profile: "app-example" },
+        }),
+    }),
+  )
+  assert.equal(lost.ok, false)
+  assert.equal(lost.status, "sibling-saved")
+  assert.equal(lost.reason, "sibling-saved")
+  assert.equal(lost.phase, "failed")
+  assert.equal(lost.nextCall, undefined)
+  assert.match(lost.next ?? "", /sibling-saved/)
+  const again = await runJob({ jobId: minted.jobId }, deps({ jobsDir: dir }))
+  assert.equal(again.status, "sibling-saved")
+  assert.equal(again.nextCall, undefined)
+})
+
 test("idp-only app-visible omits nextCall; sign-in-wall remints", async () => {
   const dir = await tmpJobs()
   const minted = await runJob(

@@ -112,6 +112,8 @@ A sign-in that takes longer than about five minutes needs a fresh `auspex login`
 
 If Solari says the editor is not in a savable state, Auspex asks once whether the editor is still live and saves once more. If that fails, the status is `stream-expired`. A failed save does not claim cookies.
 
+When `login --wait` and `await-login --save-editor` are both active, one path owns the POST. The other exits `sibling-saved`. That is not `stream-expired` and not a remint. It does not read the jar.
+
 ## Keys
 
 SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys.
