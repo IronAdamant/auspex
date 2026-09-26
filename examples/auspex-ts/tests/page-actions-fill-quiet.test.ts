@@ -162,7 +162,8 @@ test("runPageActions classifies a contenteditable that mounts during the quiet w
         },
       }
     }, 40)
-    let probes = 0
+    let sawMissing = false
+    let firstPresent = ""
     const keyboard = {
       _page: { session: "solari" },
       async insertText(text: string) {
@@ -187,11 +188,9 @@ test("runPageActions classifies a contenteditable that mounts during the quiet w
       evaluate: async <R, Arg>(fn: (arg: Arg) => R, arg?: Arg): Promise<R> => {
         const result = await fn(arg as Arg)
         if (fn.name === "probeVisibleControl") {
-          probes += 1
-          if (probes === 1) {
-            assert.equal(editor.current?.isContentEditable, true)
-            assert.match(editor.current?.innerText ?? "", /chapter/)
-          }
+          const row = result as { present?: boolean; text?: string }
+          if (row.present === false) sawMissing = true
+          else if (!firstPresent) firstPresent = row.text ?? ""
         }
         return result
       },
@@ -201,7 +200,8 @@ test("runPageActions classifies a contenteditable that mounts during the quiet w
       const out = await runPageActions(page, { fill: "#editor-content", value: MARK })
       assert.equal(out.filled, "#editor-content")
       assert.match(editor.current?.innerText ?? "", /MARK/)
-      assert.ok(probes >= 1)
+      assert.equal(sawMissing, true)
+      assert.match(firstPresent, /chapter/)
     } finally {
       g.document = prevDoc
       if (prevMo) g.MutationObserver = prevMo
@@ -423,10 +423,11 @@ test("fill page.evaluate payloads run without the tsx keepNames helper", async (
     sandbox.globalThis = sandbox
     const fn = vm.runInContext(`(${shipped})`, vm.createContext(sandbox)) as (arg: unknown) => unknown
     if (payload.name === "probeVisibleControl") {
-      const probe = fn("#editor-content") as { password: boolean; contentEditable: boolean; text: string }
+      const probe = fn("#editor-content") as { password: boolean; contentEditable: boolean; text: string; present: boolean }
       assert.equal(probe.password, false)
       assert.equal(probe.contentEditable, false)
       assert.equal(probe.text, "")
+      assert.equal(probe.present, false)
     } else if (payload.name === "prepareFillTarget") {
       assert.equal(fn({ selector: "#editor-content", select: "all" }), false)
     } else if (payload.name === "paintFillTarget") {

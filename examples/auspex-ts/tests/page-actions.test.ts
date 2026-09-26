@@ -258,8 +258,11 @@ test("probeVisibleControl uses innerText and ignores hidden textContent", () => 
   try {
     const probe = probeVisibleControl("#editor-content")
     assert.equal(probe.contentEditable, true)
+    assert.equal(probe.present, true)
     assert.equal(probe.text, "visible sentence")
     assert.equal(probe.text.includes("MARK"), false)
+    ;(globalThis as { document: unknown }).document = { querySelector: () => null }
+    assert.equal(probeVisibleControl("#missing").present, false)
   } finally {
     ;(globalThis as { document?: unknown }).document = prev
   }
@@ -270,10 +273,10 @@ test("probeVisibleControl reads input value and blanks a password", () => {
   const input = { tagName: "INPUT", type: "text", value: "alice", innerText: "", textContent: "" }
   ;(globalThis as { document: unknown }).document = { querySelector: () => input }
   try {
-    assert.deepEqual(probeVisibleControl("#user"), { password: false, contentEditable: false, text: "alice" })
+    assert.deepEqual(probeVisibleControl("#user"), { password: false, contentEditable: false, text: "alice", present: true })
     input.type = "password"
     input.value = "secret"
-    assert.deepEqual(probeVisibleControl("#pwd"), { password: true, contentEditable: false, text: "" })
+    assert.deepEqual(probeVisibleControl("#pwd"), { password: true, contentEditable: false, text: "", present: true })
   } finally {
     ;(globalThis as { document?: unknown }).document = prev
   }

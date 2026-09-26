@@ -52,12 +52,18 @@ const CE_VISIBLE_POLL_TRIES = 8
 const SURFACE_QUIET_MS = 400
 /** Bound for a lazy editor that mounts, then replaces its HTML. Past this, the fill proceeds. */
 const SURFACE_QUIET_TIMEOUT_MS = 8_000
+/** Gap while the document editor is still the loading placeholder. */
+const EDITOR_READY_POLL_MS = 300
+/** Bound for a document that shows loading chrome, then the chapter. Past this, the fill does not type. */
+const EDITOR_READY_TIMEOUT_MS = 12_000
 const CE_LAND_PASSES = 2
 
 type FieldProbe = {
   password: boolean
   contentEditable: boolean
   text: string
+  /** False only when the browser probe did not find the node. Omitted on a test double means present. */
+  present: boolean
 }
 
 /** none = focus only. all = replace the control. end = caret after the current text. */
@@ -65,15 +71,33 @@ export type FillSelectMode = "none" | "all" | "end"
 
 /** Test doubles may return `true` for a password input. A string is the control text. */
 export function normalizeFieldProbe(raw: unknown): FieldProbe {
-  if (raw === true) return { password: true, contentEditable: false, text: "" }
-  if (typeof raw === "string") return { password: false, contentEditable: false, text: raw }
-  if (!raw || typeof raw !== "object") return { password: false, contentEditable: false, text: "" }
-  const row = raw as { password?: unknown; contentEditable?: unknown; text?: unknown }
+  if (raw === true) return { password: true, contentEditable: false, text: "", present: true }
+  if (typeof raw === "string") return { password: false, contentEditable: false, text: raw, present: true }
+  if (!raw || typeof raw !== "object") return { password: false, contentEditable: false, text: "", present: true }
+  const row = raw as { password?: unknown; contentEditable?: unknown; text?: unknown; present?: unknown }
   return {
     password: row.password === true,
     contentEditable: row.contentEditable === true,
     text: typeof row.text === "string" ? row.text : "",
+    present: row.present !== false,
   }
+}
+
+/** Document-editor placeholder. Typing into it glues --value to the spinner. */
+function isLoadingChrome(text: string): boolean {
+  const trimmed = text.replace(/[\s\u00a0]+/g, " ").trim()
+  return /^loading document(?:\s*[.…]*)?$/i.test(trimmed)
+}
+
+function blockedByLoadingChrome(text: string, value: string): boolean {
+  if (isLoadingChrome(text)) return true
+  if (value.length === 0 || !text.includes(value)) return false
+  return isLoadingChrome(text.split(value).join(""))
+}
+
+function visibleTextHoldsValue(text: string, value: string): boolean {
+  if (!textHasValue(text, value)) return false
+  return !blockedByLoadingChrome(text, value)
 }
 
 function textHasValue(text: string, value: string): boolean {
@@ -93,7 +117,7 @@ async function readField(page: Pick<ActionPage, "evaluate">, selector: string): 
 async function controlContainsValue(page: Pick<ActionPage, "evaluate">, selector: string, value: string): Promise<boolean> {
   const probe = await readField(page, selector)
   if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
-  return textHasValue(probe.text, value)
+  return visibleTextHoldsValue(probe.text, value)
 }
 
 async function visibleLanded(
@@ -145,7 +169,7 @@ export async function assertVisibleFillLanded(
 ): Promise<void> {
   const probe = await readField(page, selector)
   if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
-  if (!textHasValue(probe.text, value)) throw new Error(FILL_NOT_LANDED_ERROR)
+  if (!visibleTextHoldsValue(probe.text, value)) throw new Error(FILL_NOT_LANDED_ERROR)
   if (probe.contentEditable && excerptText !== undefined && !textHasValue(excerptText, value)) {
     throw new Error(FILL_NOT_LANDED_ERROR)
   }
@@ -157,6 +181,34 @@ async function surfaceQuiet(page: ActionPage, selector: string): Promise<void> {
     quietMs: SURFACE_QUIET_MS,
     timeoutMs: SURFACE_QUIET_TIMEOUT_MS,
   })
+}
+
+async function surfaceStillLoading(page: Pick<ActionPage, "evaluate">, selector: string, value: string): Promise<boolean> {
+  const probe = await readField(page, selector)
+  if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
+  if (!probe.present) return true
+  return blockedByLoadingChrome(probe.text, value)
+}
+
+/**
+ * The document editor can mount, show a loading placeholder, then replace that node.
+ * Quiet on the placeholder is a stable spinner, not a surface that is ready to type.
+ */
+async function awaitReadyThenQuiet(page: ActionPage, selector: string, value: string): Promise<boolean> {
+  const deadline = Date.now() + EDITOR_READY_TIMEOUT_MS
+  while (Date.now() <= deadline) {
+    const probe = await readField(page, selector)
+    if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
+    if (probe.present && !blockedByLoadingChrome(probe.text, value)) {
+      await surfaceQuiet(page, selector)
+      const after = await readField(page, selector)
+      if (after.password) throw new Error(PASSWORD_FILL_ERROR)
+      if (after.present && !blockedByLoadingChrome(after.text, value)) return true
+    }
+    if (Date.now() >= deadline) return false
+    await wait(EDITOR_READY_POLL_MS)
+  }
+  return false
 }
 
 async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
@@ -186,6 +238,8 @@ async function landOnce(
     if (await visibleLanded(page, selector, value, true)) return true
     // Key events can commit after type() returns. Read innerText before select-all or execCommand.
     if (await awaitVisibleText(page, selector, value)) return true
+    // The placeholder ate the keystrokes. Do not select-all that chrome.
+    if (await surfaceStillLoading(page, selector, value)) return false
   }
   if (typeof box.pressSequentially === "function") {
     await box.pressSequentially(value, { delay: CE_TYPE_DELAY_MS, timeout })
@@ -216,8 +270,11 @@ async function landContentEditable(
 ): Promise<boolean> {
   for (let pass = 0; pass < CE_LAND_PASSES; pass++) {
     // Pass 0 already waited in runPageActions, before the contenteditable read.
-    // A later rewrite can still drop the value; pass 1 waits out that rewrite, then types again.
-    if (pass > 0) await surfaceQuiet(page, selector)
+    // A later rewrite can still drop the value; pass 1 waits out loading chrome, then types again.
+    if (pass > 0) {
+      const again = await awaitReadyThenQuiet(page, selector, value)
+      if (!again) return false
+    }
     const painted = await landOnce(page, selector, value, timeout, signal)
     if (!painted) continue
     await surfaceQuiet(page, selector)
@@ -291,10 +348,10 @@ export async function runPageActions(
   if (opts.fill && opts.value !== undefined) {
     const fillSelector = opts.fill
     const value = opts.value
-    // Classify after the node exists and its HTML has stopped changing. A lazy editor
-    // mounts the control, then replaces its contents; a fill before that rewrite never
-    // reaches the visible document, and a missing node is not contenteditable yet.
-    await surfaceQuiet(page, fillSelector)
+    // Wait until the control exists and is not the loading placeholder, then until its
+    // HTML stops changing. A fill into "Loading document…" never reaches the chapter.
+    const ready = await awaitReadyThenQuiet(page, fillSelector, value)
+    if (!ready) throw new Error(FILL_NOT_LANDED_ERROR)
     const first = await readField(page, fillSelector)
     if (first.password) throw new Error(PASSWORD_FILL_ERROR)
     const box = page.locator(fillSelector)

@@ -26,7 +26,7 @@ export function compileBrowserFunction<T>(source: string): T {
 }
 
 const PROBE_VISIBLE_CONTROL_SOURCE = `function probeVisibleControl(selector) {
-  const blank = { password: false, contentEditable: false, text: "" }
+  const blank = { password: false, contentEditable: false, text: "", present: false }
   const doc = globalThis.document
   if (!doc) return blank
   try {
@@ -40,9 +40,9 @@ const PROBE_VISIBLE_CONTROL_SOURCE = `function probeVisibleControl(selector) {
       const attr = nested?.getAttribute?.("contenteditable")
       if (nested && !(typeof attr === "string" && attr.toLowerCase() === "false")) contentEditable = true
     }
-    if (password) return { password: true, contentEditable, text: "" }
+    if (password) return { password: true, contentEditable, text: "", present: true }
     const text = tag === "INPUT" || tag === "TEXTAREA" ? String(el.value ?? "") : String(el.innerText ?? "")
-    return { password: false, contentEditable, text }
+    return { password: false, contentEditable, text, present: true }
   } catch {
     return blank
   }
@@ -232,7 +232,7 @@ const PAINT_FILL_TARGET_SOURCE = `function paintFillTarget(arg) {
 }`
 
 export const probeVisibleControl = compileBrowserFunction<
-  (selector: string) => { password: boolean; contentEditable: boolean; text: string }
+  (selector: string) => { password: boolean; contentEditable: boolean; text: string; present: boolean }
 >(PROBE_VISIBLE_CONTROL_SOURCE)
 
 export const prepareFillTarget = compileBrowserFunction<
