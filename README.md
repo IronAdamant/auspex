@@ -136,6 +136,14 @@ Qwen Code, Kimi Code, DeepSeek Harness, and OpenHands can start this same local 
 
 Contributors who cloned the repo still run `npm install && npm run build:mcp` in `examples/auspex-ts`. Clone Cursor file: [mcp.cursor.example.json](examples/auspex-ts/mcp.cursor.example.json). Notes: [package README](examples/auspex-ts/README.md#mcp).
 
+## What one check can do
+
+One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open.
+
+`--allow-page-actions` does not raise that ceiling. A dialog, a typed field, and a submit are three steps. Stage the page, then have a person finish it. One click is one click.
+
+A saved login is ready to reuse only when a later check sees the logged-in page. The short version is [Two truths about Save](#two-truths-about-save). The full rules are in [AGENTS.md](AGENTS.md).
+
 ## When a check refuses
 
 - The words you asked for showed up on a public login or marketing page, so the profile was not saved. `expectMatchedPublicLanding`. Use the real app URL and text that only the logged-in app shows.

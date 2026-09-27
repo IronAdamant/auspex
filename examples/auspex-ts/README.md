@@ -52,6 +52,8 @@ Optional dogfood saved checks (not the stranger path): `npx auspex check --name 
 
 Leave alone (not first-line tools): `--stealth`, `--proxy`, `--proxy-sticky`, `--captcha` (402 is not retryable), `--record`, `--allow-record-profile`, `--fill`, `--value`, `--click`, `--allow-page-actions`. Never type a password.
 
+One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. `--allow-page-actions` does not raise that ceiling. Stage the page, then have a person finish a multi-step form. A saved login is ready to reuse only when a later check sees the logged-in page. See [Two truths about Save](../../README.md#two-truths-about-save). The full rules are in [AGENTS.md](../../AGENTS.md).
+
 Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../AGENTS.md). Short facts that belong next to the commands:
 
 - `auspex_finalize_login` is `finalize-login`. Unknown profiles need `--url` and `--expect`. Saved-check names may omit them.

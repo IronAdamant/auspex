@@ -179,3 +179,16 @@ export function contractCliCommands(): string[] {
  */
 export const PROFILE_HOST_ADVICE_CMDS = ["login", "await-login", "finalize-login"] as const
 export const PROFILE_HOST_RECEIPT_FIELDS = ["profileHostMatch", "suggestedProfile"] as const
+
+/**
+ * One check takes one CSS fill and one CSS click (strings, not lists).
+ * The next check is a new browser. Page state from the first check is gone.
+ */
+export const PAGE_ACTION_CEILING = {
+  fillsPerCheck: 1,
+  clicksPerCheck: 1,
+} as const
+
+/** Public sentence. README, AGENTS, llms, and tool copy must keep it. */
+export const ONE_CHECK_PAGE_ACTIONS =
+  "One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open."
