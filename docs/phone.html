@@ -23,7 +23,7 @@
     }
     #idpWall.hidden { display: none; }
     #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; }
-    #screen { position: absolute; inset: 0; }
+    #screen { position: absolute; inset: 0; overflow: hidden; touch-action: manipulation; }
     #boot {
       position: absolute; inset: 0; z-index: 2;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -120,7 +120,7 @@
           <input id="imeUser" class="sr-only" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" tabindex="-1" />
           <input id="ime" name="password" type="text" autocapitalize="none" autocomplete="current-password" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="Type here (phone keyboard)" aria-describedby="imeHint" />
         </form>
-        <p id="imeHint">Tap a field in Solari's Chrome, then type here. Enter clears this box. Show as bullets for password autofill. SMS / email code for a one-time code.</p>
+        <p id="imeHint">Tap a field in Solari's Chrome, then type here. The picture fits this screen and stays still while you tap. Enter clears this box. Show as bullets for password autofill. SMS / email code for a one-time code.</p>
         <div id="checks">
           <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
           <label id="otpLabel"><input id="otpMode" type="checkbox" /> SMS / email code</label>
