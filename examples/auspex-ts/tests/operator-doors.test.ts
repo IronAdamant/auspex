@@ -270,7 +270,7 @@ function loadDoor(
     intervals?: Map<number, () => void>
     timeouts?: Map<number, () => void>
     cleared?: number[]
-    clients?: Array<{ fire: (type: string) => void }>
+    clients?: Array<{ fire: (type: string) => void; rfb?: { scaleViewport: boolean; resizeSession: boolean; qualityLevel?: number; compressionLevel?: number } }>
     keys?: number[]
     hidden?: boolean
   },
@@ -407,12 +407,7 @@ function loadDoor(
   if (hooks?.clients || hooks?.keys) {
     context.NoVNCRFB = function StubRemote() {
       const listeners: Array<{ type: string; fn: () => void }> = []
-      hooks?.clients?.push({
-        fire(type: string) {
-          for (const row of listeners) if (row.type === type) row.fn()
-        },
-      })
-      return {
+      const rfb = {
         scaleViewport: false,
         resizeSession: false,
         background: "",
@@ -424,6 +419,13 @@ function loadDoor(
         },
         disconnect() {},
       }
+      hooks?.clients?.push({
+        fire(type: string) {
+          for (const row of listeners) if (row.type === type) row.fn()
+        },
+        rfb,
+      })
+      return rfb
     }
   }
   context.window = context
@@ -451,6 +453,10 @@ function loadDoor(
     for (const row of docListeners) if (row.type === "visibilitychange") row.fn()
   }
   return { byId, stored, location, document, flushTimeouts, fireVisibility }
+}
+
+function drain(live: { flushTimeouts: () => void }, rounds = 80) {
+  for (let i = 0; i < rounds; i++) live.flushTimeouts()
 }
 
 function click(el: DoorEl | undefined) {
@@ -800,7 +806,15 @@ test("Clear empties the whole field in one click", () => {
   assert.ok(ime && clear)
   ime.value = "secret"
   emit(ime, "input")
+  assert.equal(keys.length, 0)
+  click(clear)
+  assert.equal(ime.value, "")
+  assert.equal(keys.length, 0)
+  ime.value = "secret"
+  emit(ime, "input")
+  drain(loaded)
   const typed = keys.length
+  assert.equal(typed, "secret".length)
   click(clear)
   assert.equal(ime.value, "")
   assert.deepEqual(keys.slice(typed), Array.from({ length: "secret".length }, () => XK_BACKSPACE))
@@ -825,13 +839,14 @@ test("Enter clears the IME after sending the key, and bullets mode still sends r
     const hashBefore = loaded.location.hash
     ime.value = "ab"
     emit(ime, "input")
-    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0)])
+    assert.equal(keys.length, 0)
     emit(ime, "keydown", { key: "Enter", preventDefault() {} })
     assert.equal(ime.value, "")
     assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN])
     assert.equal(keys.includes(XK_BACKSPACE), false)
     ime.value = "Z"
     emit(ime, "input")
+    drain(loaded)
     assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
     bullets.checked = true
     emit(bullets, "change")
@@ -841,6 +856,7 @@ test("Enter clears the IME after sending the key, and bullets mode still sends r
     emit(ime, "keydown", { key: "Enter", preventDefault() {} })
     ime.value = PASSWORD
     emit(ime, "input")
+    drain(loaded)
     const passwordCodes = [...PASSWORD].map((ch) => ch.charCodeAt(0))
     assert.deepEqual(keys.slice(-passwordCodes.length), passwordCodes)
     assert.equal(keys.includes(0x2022), false)
@@ -871,4 +887,21 @@ test("Enter clears the IME after sending the key, and bullets mode still sends r
     assert.equal(chat.value.includes(USERNAME), false)
     assert.equal(user.value, "")
   }
+})
+
+test("phone door fits the picture and does not keep resizing the remote", () => {
+  const clients: Array<{ fire: (type: string) => void; rfb: { scaleViewport: boolean; resizeSession: boolean; qualityLevel: number; compressionLevel: number } }> = []
+  const loaded = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+    { clients },
+  )
+  assert.ok(clients[0])
+  assert.equal(clients[0].rfb.scaleViewport, true)
+  assert.equal(clients[0].rfb.resizeSession, false)
+  assert.equal(clients[0].rfb.qualityLevel, 4)
+  assert.equal(clients[0].rfb.compressionLevel, 6)
+  assert.match(readDoor("phone.html"), /touch-action: manipulation/)
+  assert.match(readDoor("phone.html"), /stays still while you tap/)
+  assert.equal(loaded.byId.get("ime")?.disabled, false)
 })

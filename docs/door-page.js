@@ -122,6 +122,7 @@
     var imeUser = document.getElementById("imeUser")
     var imeForm = document.getElementById("imeForm")
     var rfb = null
+    var imeOut = null
     var last = ""
     var clearing = false
     var bootTimer = null
@@ -210,6 +211,7 @@
     function lockUi(title, message) {
       if (locked) return
       locked = true
+      if (imeOut) imeOut.cancel()
       document.body.classList.add("locked")
       if (ime) ime.disabled = true
       if (save) save.disabled = true
@@ -266,6 +268,7 @@
 
     save.addEventListener("click", function () {
       if (locked) return
+      if (imeOut) imeOut.flushCommit()
       var typed = String(ime && ime.value || "")
       var template = savePasteLine(profileName)
       var siteUrl = doorSiteUrl(liveSiteUrl(), params.get("u"))
@@ -309,8 +312,17 @@
     }
 
     function sendKey(keysym, code) {
-      if (locked || !rfb || typeof rfb.sendKey !== "function") return
+      if (locked || !rfb || typeof rfb.sendKey !== "function") return false
       rfb.sendKey(keysym, code)
+      return true
+    }
+
+    if (typeof Door.createImeCoalescer === "function") {
+      imeOut = Door.createImeCoalescer({
+        send: sendKey,
+        schedule: function (fn, ms) { return setTimeout(fn, ms) },
+        cancel: function (id) { clearTimeout(id) },
+      })
     }
 
     function sendChar(ch) {
@@ -358,17 +370,20 @@
       ime.addEventListener("input", function () {
         if (locked || clearing) return
         var next = ime.value
-        sendDiff(last, next)
+        if (imeOut) imeOut.note(next)
+        else sendDiff(last, next)
         last = next
       })
       ime.addEventListener("keydown", function (e) {
         if (locked) { e.preventDefault(); return }
         if (e.key === "Enter") {
           e.preventDefault()
-          sendKey(XK_RETURN, "Enter")
+          if (imeOut) imeOut.flushCommit(function () { sendKey(XK_RETURN, "Enter") })
+          else sendKey(XK_RETURN, "Enter")
           clearLocalSecrets()
         } else if (e.key === "Tab") {
           e.preventDefault()
+          if (imeOut) imeOut.flushPending()
           sendKey(XK_TAB, "Tab")
         } else if (e.key === "Backspace" && ime.value === "") {
           e.preventDefault()
@@ -379,9 +394,10 @@
     if (clearBtn) {
       clearBtn.addEventListener("click", function () {
         if (locked || !ime) return
-        if (ime.value) {
+        if (ime.value || (imeOut && last)) {
+          if (imeOut) imeOut.erase()
+          else if (ime.value) sendDiff(last, "")
           ime.value = ""
-          sendDiff(last, "")
           last = ""
         }
         ime.focus()
@@ -390,7 +406,8 @@
     if (enter) {
       enter.addEventListener("click", function () {
         if (locked) return
-        sendKey(XK_RETURN, "Enter")
+        if (imeOut) imeOut.flushCommit(function () { sendKey(XK_RETURN, "Enter") })
+        else sendKey(XK_RETURN, "Enter")
         clearLocalSecrets()
         ime.focus()
       })
@@ -542,8 +559,11 @@
     function openRfb() {
       try {
         rfb = new RFB(screen, ws)
-        rfb.scaleViewport = true
-        rfb.resizeSession = true
+        if (typeof Door.applyDoorView === "function") Door.applyDoorView(rfb)
+        else {
+          rfb.scaleViewport = true
+          rfb.resizeSession = false
+        }
         rfb.background = "#0b0f14"
         rfb.addEventListener("clipboard", function (ev) {
           noteRemoteSurface(ev && ev.detail && ev.detail.text)
