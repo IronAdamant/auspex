@@ -19,14 +19,42 @@ export type EditorSaveOutcome = EditorSaveSnap & {
   tokenReuse?: boolean
 }
 
-export function isNotSavableConflict(status: number, error?: string): boolean {
-  return status === 409 && /not in a savable state/i.test(error ?? "")
+/** Await receipt slice. Counts no cookies. Omits the Solari JSON body. */
+export type EditorSaveReceipt = {
+  ok: boolean
+  status: number
+  error?: string
+  notSavableExhausted?: boolean
+  tokenReuse?: boolean
+}
+
+export function editorSaveForReceipt(saved: EditorSaveOutcome): EditorSaveReceipt {
+  const receipt: EditorSaveReceipt = {
+    ok: saved.ok,
+    status: saved.status,
+    ...(saved.error !== undefined ? { error: saved.error } : {}),
+  }
+  if (saved.notSavableExhausted === true) receipt.notSavableExhausted = true
+  if (typeof saved.tokenReuse === "boolean") receipt.tokenReuse = saved.tokenReuse
+  return receipt
 }
 
 /**
- * POST editor/save. On 409 "not in a savable state", ask /editor/token once.
+ * Solari's live 409 body is "The editor isn't in a savable state."
+ * Uncontracted copy ("is not" / "not in a savable state") is the same conflict.
+ * Word boundaries keep "cannot…" and "isn't ready" off this path.
+ */
+const NOT_SAVABLE_STATE = /(?:\bisn['\u2019\u2018]t|\bnot)\s+in\s+a\s+savable\s+state\b/i
+
+export function isNotSavableConflict(status: number, error?: string): boolean {
+  return status === 409 && NOT_SAVABLE_STATE.test(error ?? "")
+}
+
+/**
+ * POST editor/save. On that 409, ask /editor/token once.
  * A token means the editor still exists: save one more time. Otherwise stop.
  * A failed save stays not ok. This function does not read cookies.
+ * The token call does not lengthen the JWT and the token is not returned.
  */
 export async function saveEditorWithNotSavableReuse(opts: {
   save: () => Promise<EditorSaveSnap>

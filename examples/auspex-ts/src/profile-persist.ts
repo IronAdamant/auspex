@@ -37,6 +37,7 @@ import {
   STREAM_EXPIRED_WAIT_MS,
   streamExpiredGuide,
 } from "./await-fail.ts"
+import { editorSaveForReceipt, type EditorSaveReceipt } from "./editor-save-attempt.ts"
 import { editorTokenStillLive } from "./editor-vnc.ts"
 import { enableLiveLineBuffer, writeLiveLine } from "./line-buffer.ts"
 import { postEditorSaveWhenSignaled } from "./signaled-editor-save.ts"
@@ -143,7 +144,7 @@ export type AwaitLoginResult = {
   suggestedUrl?: string
   next: string
   nextCall?: NextCall
-  editorSave?: { ok: boolean; status: number; error?: string }
+  editorSave?: EditorSaveReceipt
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
   /** Door should call finalize-login now. Set only when url and expect are known. */
@@ -830,11 +831,11 @@ export async function liveAwaitLogin(
           editorSaveAttempted = true
           notSavableExhausted = saved.notSavableExhausted === true
           if (notSavableExhausted) streamExpired = true
-          if (saved.hung || isBoundTimeoutMessage(saved.error ?? "")) {
-            editorHung = true
-            editorSave = { ok: false, status: saved.status, error: saved.error }
-          } else {
-            editorSave = { ok: saved.ok, status: saved.status, error: saved.error }
+          const hungSave = Boolean(saved.hung) || isBoundTimeoutMessage(saved.error ?? "")
+          if (hungSave) editorHung = true
+          const receipt = editorSaveForReceipt(saved)
+          editorSave = hungSave ? { ...receipt, ok: false } : receipt
+          if (!hungSave) {
             if (saved.ok) {
               const capturedBound = await boundEditorWork(
                 () =>

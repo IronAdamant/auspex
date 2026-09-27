@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import {
+  editorSaveForReceipt,
   isNotSavableConflict,
   saveEditorWithNotSavableReuse,
 } from "../src/editor-save-attempt.ts"
@@ -13,6 +14,8 @@ import { clearSaveOwner, saveDrainDir, siblingSavedNext, signalSaveDrain } from 
 import { postEditorSaveWhenSignaled, waitForSaveSignal } from "../src/signaled-editor-save.ts"
 
 const NOT_SAVABLE = { ok: false, status: 409, error: "profile is not in a savable state" }
+/** Exact Solari editor/save 409 body from live dogfood. */
+const SOLARI_NOT_SAVABLE = "The editor isn't in a savable state."
 
 async function tempRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "auspex-save-window-"))
@@ -21,10 +24,89 @@ async function tempRoot(): Promise<string> {
 test("isNotSavableConflict matches only that 409 phrase", () => {
   assert.equal(isNotSavableConflict(409, "not in a savable state"), true)
   assert.equal(isNotSavableConflict(409, "Editor is NOT in a savable state right now"), true)
+  assert.equal(isNotSavableConflict(409, "profile is not in a savable state"), true)
+  assert.equal(isNotSavableConflict(409, SOLARI_NOT_SAVABLE), true)
+  assert.equal(isNotSavableConflict(409, "The editor isn’t in a savable state."), true)
   assert.equal(isNotSavableConflict(409, "editor already running"), false)
   assert.equal(isNotSavableConflict(409, "editor is open"), false)
+  assert.equal(isNotSavableConflict(409, "The editor isn't ready"), false)
+  assert.equal(isNotSavableConflict(409, "not savable"), false)
+  assert.equal(isNotSavableConflict(409, "cannot in a savable state"), false)
   assert.equal(isNotSavableConflict(502, "not in a savable state"), false)
+  assert.equal(isNotSavableConflict(502, SOLARI_NOT_SAVABLE), false)
   assert.equal(isNotSavableConflict(401, "not in a savable state"), false)
+})
+
+test("Solari 409 isn't in a savable state reuses one live token then saves again", async () => {
+  let saves = 0
+  let liveChecks = 0
+  const phases: string[] = []
+  const saved = await saveEditorWithNotSavableReuse({
+    save: async () => {
+      saves += 1
+      return saves === 1 ? { ok: false, status: 409, error: SOLARI_NOT_SAVABLE } : { ok: true, status: 200 }
+    },
+    editorStillLive: async () => {
+      liveChecks += 1
+      return true
+    },
+    onProgress: (phase) => {
+      phases.push(phase)
+    },
+  })
+  assert.equal(saves, 2)
+  assert.equal(liveChecks, 1)
+  assert.equal(saved.ok, true)
+  assert.equal(saved.status, 200)
+  assert.equal(saved.tokenReuse, true)
+  assert.equal(saved.notSavableExhausted, undefined)
+  assert.deepEqual(editorSaveForReceipt(saved), { ok: true, status: 200, tokenReuse: true })
+  assert.equal(phases[0], "await: editor/save 409 not in a savable state. One live editor/token check.")
+  assert.equal(phases[1], "await: editor still live. POST editor/save once more.")
+})
+
+test("Solari 409 isn't stays fail-closed when the token is gone or the retry fails", async () => {
+  let goneSaves = 0
+  const gone = await saveEditorWithNotSavableReuse({
+    save: async () => {
+      goneSaves += 1
+      return { ok: false, status: 409, error: SOLARI_NOT_SAVABLE }
+    },
+    editorStillLive: async () => false,
+  })
+  assert.equal(goneSaves, 1)
+  assert.equal(gone.ok, false)
+  assert.equal(gone.notSavableExhausted, true)
+  assert.equal(gone.tokenReuse, false)
+  assert.equal(gone.error, SOLARI_NOT_SAVABLE)
+  assert.deepEqual(editorSaveForReceipt(gone), {
+    ok: false,
+    status: 409,
+    error: SOLARI_NOT_SAVABLE,
+    notSavableExhausted: true,
+    tokenReuse: false,
+  })
+
+  let retrySaves = 0
+  const retry = await saveEditorWithNotSavableReuse({
+    save: async () => {
+      retrySaves += 1
+      return { ok: false, status: 409, error: SOLARI_NOT_SAVABLE }
+    },
+    editorStillLive: async () => true,
+  })
+  assert.equal(retrySaves, 2)
+  assert.equal(retry.ok, false)
+  assert.equal(retry.notSavableExhausted, true)
+  assert.equal(retry.tokenReuse, true)
+  assert.equal(retry.error, SOLARI_NOT_SAVABLE)
+  assert.deepEqual(editorSaveForReceipt(retry), {
+    ok: false,
+    status: 409,
+    error: SOLARI_NOT_SAVABLE,
+    notSavableExhausted: true,
+    tokenReuse: true,
+  })
 })
 
 test("409 not-savable reuses one live token then saves again", async () => {
