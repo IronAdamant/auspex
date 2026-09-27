@@ -6,6 +6,8 @@ Auspex checks a live web page in Solari cloud Chrome (a browser Solari runs in t
 
 Watch with no clone and no API key: https://ironadamant.com/auspex/ — the landing opens on the blurred redacted demo and the three results. The player lower on the page is the stripped Microsoft wall, not logged-in proof. The Pages landing has a short Agent door card beside the phone login door.
 
+After a clone, `npm install && npm test` shows fail-closed rules with no `SOLARI_API_KEY`.
+
 The command people paste first, `npx auspex-solari check --name ironadamant`, is a **measured public check**: a public page, no login. It does **not** prove logged-in honesty. From Cursor: `npx -p auspex-solari auspex-mcp`.
 
 **Auth-gated evidence** is a redacted auth-gated SaaS demo, receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json). The blur hides personal data. That file is evidence from one finished sign-in, not the steps for your site.
@@ -55,7 +57,7 @@ npx auspex-solari check --name ironadamant
 npx -p auspex-solari auspex-mcp
 ```
 
-npm `auspex` is a different scraper. `auspex-solari` **0.1.4 is published**. Agents do not `npm publish`.
+npm `auspex` is a different scraper. `auspex-solari` **0.1.5 is published**. Agents do not `npm publish`.
 
 After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (the server files were not built). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
 

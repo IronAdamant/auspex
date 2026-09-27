@@ -4,11 +4,23 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
-- Concurrent `login --wait` and `await-login --save-editor`: one path owns `editor/save`. The loser is `sibling-saved` and does not report `stream-expired` when the sibling already posted or is posting. The Solari JWT `exp` is unchanged. A failed save still does not claim cookies.
+-
+
+## 0.1.5 — 2026-09-27 (published)
+
+npm `auspex-solari@0.1.5` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- Phone-only door (#116): a new login opens `phone.html` on a phone or a computer. Old `door.html` and `desktop.html` links redirect to that page and keep the hash. **Clear** empties the whole typing field. Delete is gone.
+- Save stays honest inside the ~5 minute Solari token (#118). Clipboard Save signals a running await, and `editor/save` runs when that signal arrives. A failed save does not claim cookies. Auspex does not extend the JWT.
+- Concurrent `login --wait` and `await-login --save-editor` (#119): one path owns `editor/save`. The other exits `sibling-saved` and does not report `stream-expired` when the sibling already posted or is posting. It does not read the jar. The Solari JWT `exp` is unchanged.
+- Phone-door copy (#120): the page is Solari's remote Chrome. Saved login data stays on Solari, not on this phone or desktop, and not in Auspex.
+- Phone-door demo (#121): the README shows the `phone.html` recording (countdown, Clear, Solari remote Chrome). The desktop-door clip is gone.
+- Solari live 409 (#123): `editor/save` text "isn't in a savable state" enters the documented retry (one live `editor/token` check, then `stream-expired`). The older "not in a savable state" check never matched, so await waited out the JWT. This does not extend the Solari JWT.
+- Docs hygiene (#122): PLAN.md and PITCH.md stay off the public tip.
 
 ## 0.1.4 — 2026-09-26 (published)
 
-npm `auspex-solari@0.1.4` (latest). Agents do not `npm publish`. Founder may publish this release.
+npm `auspex-solari@0.1.4`. Later main commits through #123 ship in `auspex-solari@0.1.5`. Agents do not `npm publish`. Founder publishes.
 
 - Editor 409 reuse and purge honesty: a live editor is reused instead of a purge-and-remint loop. Voluntary purge calls `stopProfileEditor` before wipe. If the wipe misses, `ok` is false and `wipeFailed` names the profile.
 - `check --fill` waits out Loading document chrome before type, then settles and re-reads visible `innerText`. `filled` is set only when that paint contains `--value`. A value glued only to the placeholder does not count. Evaluate payloads stay `__name`-safe source literals.
