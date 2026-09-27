@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "reason": "mismatch",
+  "url": "https://app.lorari.com/member/",
+  "expect": "Your Bookings",
+  "screenshotPath": "",
+  "title": "Lorari — [redacted auth-gated member chrome]",
+  "finalUrl": "https://app.lorari.com/member/",
+  "matched": false,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari — PII, account identity, project/app names, and activity omitted for public demo. Expect did not match on this soft-verify pass while claimOkProfile stayed true (SPA chrome flake).]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "profileSeed": {
+    "cookies": 13,
+    "origins": 3
+  },
+  "demoNote": "Single-source Aron soft-verify 2026-09-27 AEST. ok is false (reason mismatch) while claimOkProfile stayed true — an ok≠claimOkProfile teaching case on a SPA chrome flake. sessionId/sandbox/cookieHosts omitted. Receipt-only — no PNG. Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  }
+}

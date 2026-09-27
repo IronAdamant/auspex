@@ -84,5 +84,9 @@ Public demo artifacts (Solari cloud Chrome, not a local window):
 - **Watch (auth-gated Microsoft wall):** generate with `npm run generate:replay` from `demo/replay.ndjson` (committed `replay.html` is a stub). Public landing, Sign in with Microsoft, empty Microsoft box. Emails and passwords stripped. Not a logged-in dashboard. Pages serves the generated player.
 - **Ironadamant (public marketing):** [demo/ironadamant.png](demo/ironadamant.png) + [demo/receipt.json](demo/receipt.json) (`sessionId`). Marketing summary with `sessionId` and verify flags.
 - **Redacted auth-gated SaaS demo:** [demo/consistencyhub.png](demo/consistencyhub.png) + [demo/consistencyhub-receipt.json](demo/consistencyhub-receipt.json). Redacted schema-v1-shaped receipt (blur ≠ blank fail; triad honest: `ok=true`, `claimOk=false`, `claimOkProfile=true`).
+- **Clozemaster (receipt-only):** [demo/clozemaster-receipt.json](demo/clozemaster-receipt.json). No PNG. Triad: `ok=true`, `claimOk=false`, `claimOkProfile=true`. Evidence, not the default recipe.
+- **Back4App (receipt-only):** [demo/back4app-receipt.json](demo/back4app-receipt.json). No PNG. Triad: `ok=true`, `claimOk=false`, `claimOkProfile=true`. Evidence, not the default recipe.
+- **Lorari (receipt-only):** [demo/lorari-receipt.json](demo/lorari-receipt.json). No PNG. Triad: `ok=false`, `claimOk=false`, `claimOkProfile=true`. This receipt shows `claimOkProfile` can hold when the page match failed (SPA flake). Evidence, not the default recipe.
+- **Chatwoot (receipt-only):** [demo/chatwoot-receipt.json](demo/chatwoot-receipt.json). No PNG. Triad: `ok=true`, `claimOk=false`, `claimOkProfile=true`. Evidence, not the default recipe.
 
 **Note:** `demo/receipt.json` is a public marketing summary (`sessionId` + verify flags); the agent contract is schema v1 on CLI/MCP stdout (see [Receipt schema v1](../../AGENTS.md#receipt-schema-v1-frozen)). Do not post unredacted logged-in ConsistencyHub dashboards.

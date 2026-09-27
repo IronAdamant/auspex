@@ -2,7 +2,7 @@
 
 Committed demo evidence from the Auspex check → verify → teardown workflow.
 
-**Why this matters:** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host.
+**Why this matters:** Agents need honest eyes on auth-gated SaaS, not just public marketing pages. Auspex verifies claims independently (`ok` ≠ `claimOk` ≠ `claimOkProfile`) and never types passwords. The **default recipe** is `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect. ConsistencyHub / OneDrive below are a **worked example (dogfood)** — evidence that auth-gated verify works, not the recipe a stranger should copy for their own host. Four more receipt-only files are from live checks on 2026-09-27. Clozemaster, Back4App, and Chatwoot passed the page match. Lorari did not: `claimOkProfile` stayed true while the page match failed. Breadth is shown by those receipts, not by a list of site names.
 
 ## Default recipe (any host)
 
@@ -56,10 +56,16 @@ The artifact table is **Truth A** only. It does not mean Save always yields a re
 
 `sign-in-wall` is still on the Microsoft or Google page. Finish that sign-in, land on the app, then Save. That one mints again. If the jar already includes the app host and Save could not refresh in-tab session storage, finalize now. That case is not Truth B.
 
+The first two rows are the Microsoft pair. The next four are other sign-in sites, receipt-only, with no screenshot. Breadth is shown by these receipts, not by a list of site names. They are evidence, not the default recipe.
+
 | Host | Artifact | Triad |
 | --- | --- | --- |
 | ConsistencyHub | [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) + [blurred PNG](examples/auspex-ts/demo/consistencyhub.png) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | OneDrive | [receipt-only](examples/auspex-ts/demo/onedrive-receipt.json) — **no raw PNG** (PII) | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| Clozemaster | [receipt-only](examples/auspex-ts/demo/clozemaster-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| Back4App | [receipt-only](examples/auspex-ts/demo/back4app-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| Lorari | [receipt-only](examples/auspex-ts/demo/lorari-receipt.json) — **no PNG** | `ok=false`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
+| Chatwoot | [receipt-only](examples/auspex-ts/demo/chatwoot-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | hostChanged remint | [golden](examples/auspex-ts/demo/host-changed-receipt.json) — synthetic hosts | `ok=false`, `reason=hostChanged`, `nextCall` remints `auspex_login` |
 
 Pack manifest: [`examples/auspex-ts/demo/dogfood-pack.json`](examples/auspex-ts/demo/dogfood-pack.json). Optional silent mint sample (redacted, no tokens): [`login-trace-sample.jsonl`](examples/auspex-ts/demo/login-trace-sample.jsonl).
@@ -69,7 +75,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
   --profile consistencyhub --verify-with-profile
 ```
 
-**Key insight:** The same Microsoft profile seed can `claimOkProfile` on ConsistencyHub and on OneDrive. That is worked evidence, not a recipe to copy for a new host. Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot. Do not fold `claimOkProfile` into `ok`.
+**Key insight:** The same Microsoft profile seed can `claimOkProfile` on ConsistencyHub and on OneDrive. That is worked evidence, not a recipe to copy for a new host. Clozemaster, Back4App, and Chatwoot are separate sign-ins with `ok=true`. This Lorari receipt shows `claimOkProfile` can hold when the page match failed (SPA flake). Profile-seeded verification is meant to see logged-in content that anonymous fetch cannot. Do not fold `claimOkProfile` into `ok`.
 
 ## ConsistencyHub (optional named recipe)
 
@@ -159,6 +165,19 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 - **[Receipt JSON](examples/auspex-ts/demo/onedrive-receipt.json)** — Redacted schema-v1-shaped receipt from a live 2026-09-18 AEST profile-seeded OneDrive check (same Microsoft seed as ConsistencyHub). SessionId/sandbox ids omitted. Account identity, file names, and storage amounts omitted. **No public PNG.** **Triad remains honest:** `ok=true`, `claimOk=false` (anonymous claim skipped), **`claimOkProfile=true`**.
 
 **Result:** ✅ Same seed can `claimOkProfile` on ConsistencyHub and OneDrive. Evidence, not the default recipe.
+
+## Other sign-in receipts (receipt-only)
+
+Live checks on 2026-09-27. Each file is redacted: no screenshot, no session id, no cookie host list. Personal details stay out of the public files. Clozemaster, Back4App, and Chatwoot show `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`**.
+
+This Lorari receipt shows `claimOkProfile` can hold when the page match failed (SPA flake).
+
+Breadth is shown by these receipts, not by a list of site names. They are evidence, not the default recipe.
+
+- **[Clozemaster](examples/auspex-ts/demo/clozemaster-receipt.json)** — expect `READY FOR REVIEW` on `https://www.clozemaster.com/l/spa-eng`
+- **[Back4App](examples/auspex-ts/demo/back4app-receipt.json)** — expect `Ready to build your first app?` on `https://dashboard.back4app.com/apps`
+- **[Lorari](examples/auspex-ts/demo/lorari-receipt.json)** — expect `Your Bookings` on `https://app.lorari.com/member/`; `ok=false`, `reason=mismatch`, **`claimOkProfile=true`**
+- **[Chatwoot](examples/auspex-ts/demo/chatwoot-receipt.json)** — expect `Conversations` on `https://app.chatwoot.com`
 
 ## Important Notes
 

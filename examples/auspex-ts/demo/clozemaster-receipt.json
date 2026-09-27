@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://www.clozemaster.com/l/spa-eng",
+  "expect": "READY FOR REVIEW",
+  "screenshotPath": "",
+  "title": "Clozemaster \u2014 [redacted auth-gated lesson chrome]",
+  "finalUrl": "https://www.clozemaster.com/l/spa-eng",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Clozemaster \u2014 PII, account identity, project/app names, and activity omitted for public demo. Live expect matched: READY FOR REVIEW.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": true,
+  "profileSeed": {
+    "cookies": 5,
+    "origins": 0
+  },
+  "demoNote": "Redacted public-safe shape from live 2026-09-27 AEST Auspex dogfood on Clozemaster (first-party \u2014 not Microsoft). Evidence source: hand VWP --verify-with-profile (2026-09-27 AEST); claimOkProfile true. sessionId/sandbox/runDir/cookieHosts omitted. Receipt-only \u2014 no PNG (PII). Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  }
+}
