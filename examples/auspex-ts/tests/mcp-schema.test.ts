@@ -148,6 +148,8 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(recordDesc, /sso|saveProfile/i)
     
     const fillDesc = (props as any).fill?.description ?? ""
+    assert.equal((props as any).fill?.type, "string", "fill is one string, not a list")
+    assert.equal((props as any).click?.type, "string", "click is one string, not a list")
     assert.match(fillDesc, /FAIL-CLOSED/i, "fill description should advertise FAIL-CLOSED constraints")
     assert.match(fillDesc, /call-time/i, "fill description should mark call-time constraints")
     assert.match(fillDesc, /allowPageActions/i)

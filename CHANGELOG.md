@@ -4,7 +4,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
--
+- One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. Documented ceiling only. Multi-step page actions are not in this change.
 
 ## 0.1.5 — 2026-09-27 (published)
 
