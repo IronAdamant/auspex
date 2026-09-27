@@ -178,15 +178,25 @@ test("public docs keep the one-check ceiling", () => {
   }
 
   const readme = section(readFileSync(path.join(repo, "README.md"), "utf8"), "## What one check can do")
-  assert.match(readme, /claimOkProfile/)
-  assert.match(readme, /cookie-strong/)
-  assert.match(readme, /local-storage-auth/)
-  assert.match(readme, /Do not invent sessionStorage/)
   assert.match(readme, /--allow-page-actions/)
   assert.match(readme, /One click is one click/)
+  assert.match(readme, /Two truths about Save/)
+  assert.match(readme, /AGENTS\.md/)
+  for (const jargon of ["claimOkProfile", "cookie-strong", "local-storage-auth", "sessionStorage", "--verify-with-profile"]) {
+    assert.equal(readme.includes(jargon), false, `README skim: ${jargon}`)
+  }
 
   const card = section(readFileSync(path.join(repo, "llms.txt"), "utf8"), "## What one check can do")
-  assert.match(card, /claimOkProfile/)
-  assert.match(card, /cookie-strong/)
-  assert.match(card, /Do not invent sessionStorage/)
+  assert.match(card, /Two truths about Save/)
+  assert.match(card, /AGENTS\.md/)
+  for (const jargon of ["claimOkProfile", "cookie-strong", "local-storage-auth", "sessionStorage", "--verify-with-profile"]) {
+    assert.equal(card.includes(jargon), false, `llms skim: ${jargon}`)
+  }
+
+  const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  assert.match(agents, /claimOkProfile/)
+  assert.match(agents, /cookie-strong/)
+  assert.match(agents, /local-storage-auth/)
+  assert.match(agents, /sessionStorage/)
+  assert.match(agents, /--verify-with-profile/)
 })

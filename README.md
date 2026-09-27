@@ -142,7 +142,7 @@ One check can fill one field and click one control. A later check starts a new b
 
 `--allow-page-actions` does not raise that ceiling. A dialog, a typed field, and a submit are three steps. Stage the page, then have a person finish it. One click is one click.
 
-After `--verify-with-profile`, `claimOkProfile` is the reuse gate. `ok` alone is not enough. A cookie-strong or local-storage-auth save goes to `check --verify-with-profile`. Do not invent sessionStorage.
+A saved login is ready to reuse only when a later check sees the logged-in page. The short version is [Two truths about Save](#two-truths-about-save). The full rules are in [AGENTS.md](AGENTS.md).
 
 ## When a check refuses
 

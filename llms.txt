@@ -12,7 +12,7 @@ We do not claim Alice-vs-Bob wrong-account detection.
 
 ## What one check can do
 
-One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. `--allow-page-actions` does not raise that ceiling. A dialog, a typed field, and a submit are three steps. Stage the page, then have a person finish it. After `--verify-with-profile`, `claimOkProfile` is the reuse gate. A cookie-strong or local-storage-auth save goes to that check. Do not invent sessionStorage.
+One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. `--allow-page-actions` does not raise that ceiling. A dialog, a typed field, and a submit are three steps. Stage the page, then have a person finish it. A saved login is ready to reuse only when a later check sees the logged-in page. The short version is [Two truths about Save](README.md#two-truths-about-save). The full rules are in [AGENTS.md](AGENTS.md).
 
 `npx auspex-solari check --name ironadamant` is a public page with no login. It does **not** prove logged-in honesty.
 
