@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://app.lorari.com/member/",
+  "expect": "Your Bookings",
+  "screenshotPath": "",
+  "title": "Lorari \u2014 [redacted auth-gated member chrome]",
+  "finalUrl": "https://app.lorari.com/member/",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari \u2014 PII, account identity, project/app names, and activity omitted for public demo. Live expect matched: Your Bookings.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": true,
+  "profileSeed": {
+    "cookies": 13,
+    "origins": 3
+  },
+  "demoNote": "Redacted public-safe shape from live 2026-09-27 AEST Auspex dogfood on Lorari (first-party \u2014 not Microsoft). Evidence source: soft-verify --verify-with-profile (2026-09-27 AEST); claimOkProfile true; soft page matched false / SPA flake on Your Bookings chrome \u2014 claimOkProfile still true. sessionId/sandbox/runDir/cookieHosts omitted. Receipt-only \u2014 no PNG (PII). Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  }
+}

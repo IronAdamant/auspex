@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://app.chatwoot.com",
+  "expect": "Conversations",
+  "screenshotPath": "",
+  "title": "Chatwoot \u2014 [redacted auth-gated inbox]",
+  "finalUrl": "https://app.chatwoot.com/app/accounts/[redacted]/dashboard",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Chatwoot \u2014 PII, account identity, project/app names, and activity omitted for public demo. Live expect matched: Conversations.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": true,
+  "profileSeed": {
+    "cookies": 8,
+    "origins": 1
+  },
+  "demoNote": "Redacted public-safe shape from live 2026-09-27 AEST Auspex dogfood on Chatwoot (first-party \u2014 not Microsoft). Evidence source: soft-verify --verify-with-profile (2026-09-27 AEST); claimOkProfile true. sessionId/sandbox/runDir/cookieHosts omitted. Receipt-only \u2014 no PNG (PII). Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  }
+}

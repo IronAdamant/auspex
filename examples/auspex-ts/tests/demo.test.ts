@@ -124,8 +124,59 @@ test("demo host-changed-receipt.json is schema v1 fail-closed remint", () => {
     items: Array<{ id: string; receipt: string }>
   }
   const ids = pack.items.map((row) => row.id)
-  assert.deepEqual(ids, ["consistencyhub", "onedrive", "hostChanged"])
+  assert.deepEqual(ids, [
+    "consistencyhub",
+    "onedrive",
+    "hostChanged",
+    "clozemaster",
+    "back4app",
+    "lorari",
+    "chatwoot",
+  ])
   assert.ok(existsSync(path.join(demo, "login-trace-sample.jsonl")))
+})
+
+test("demo non-Microsoft receipts are redacted schema v1 and receipt-only", () => {
+  const pack = JSON.parse(readFileSync(path.join(demo, "dogfood-pack.json"), "utf8")) as {
+    note: string
+    items: Array<{
+      id: string
+      receipt: string
+      png: string | null
+      receiptOnly?: boolean
+      triad?: { ok: boolean; claimOk: boolean; claimOkProfile: boolean }
+    }>
+  }
+  assert.match(
+    pack.note,
+    /Microsoft dual pack plus non-Microsoft IdP diversity receipts are evidence, not the default recipe/,
+  )
+  for (const id of ["clozemaster", "back4app", "lorari", "chatwoot"]) {
+    const row = pack.items.find((item) => item.id === id)
+    assert.ok(row, id)
+    assert.equal(row.receiptOnly, true)
+    assert.equal(row.png, null)
+    assert.deepEqual(row.triad, { ok: true, claimOk: false, claimOkProfile: true })
+    assert.equal(existsSync(path.join(demo, `${id}.png`)), false, `${id} must stay receipt-only`)
+    const raw = JSON.parse(readFileSync(path.join(demo, row.receipt), "utf8")) as Record<string, unknown>
+    const receipt = parseReceiptV1(raw)
+    assert.equal(receipt.schemaVersion, 1)
+    assert.equal(receipt.ok, true)
+    assert.equal(receipt.reason, "matched")
+    assert.equal(receipt.matched, true)
+    assert.equal(receipt.screenshotPath, "")
+    assert.equal(receipt.verify?.claimOk, false)
+    assert.equal(receipt.verify?.anonymousClaimSkipped, true)
+    assert.equal(receipt.verify?.claimOkProfile, true)
+    assert.equal("sessionId" in raw, false)
+    assert.equal("cookieHosts" in raw, false)
+    const seed = raw.profileSeed
+    assert.equal(Boolean(seed && typeof seed === "object" && "cookieHosts" in seed), false)
+    const verify = raw.verify as Record<string, unknown>
+    assert.equal("claimProfileSessionId" in verify, false)
+    assert.equal("runDir" in verify, false)
+    assert.match(receipt.excerpt ?? "", /REDACTED/)
+  }
 })
 
 test("demo PNG is a real PNG", () => {
