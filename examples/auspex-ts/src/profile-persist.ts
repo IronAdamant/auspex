@@ -32,9 +32,10 @@ import {
   EDITOR_SAVE_BOUND_MS,
   editorSaveHungGuide,
   isBoundTimeoutMessage,
+  isEditorSaveInfraStatus,
   isProfileBusyMessage,
   profileBusyAwaitGuide,
-  STREAM_EXPIRED_WAIT_MS,
+  profileSaveWaitTimeoutMs,
   streamExpiredGuide,
 } from "./await-fail.ts"
 import { editorSaveForReceipt, type EditorSaveReceipt } from "./editor-save-attempt.ts"
@@ -899,14 +900,19 @@ export async function liveAwaitLogin(
         next: siblingNext ?? siblingSavedNext(handle.name),
       }
     }
+    // Completed 502/503/504 caps the jar poll. Do not set streamExpired from that status.
+    const editorSaveInfra5xx =
+      editorSaveAttempted && editorSave?.ok === false && isEditorSaveInfraStatus(editorSave.status)
     const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion ?? handle?.sinceVersion,
-      timeoutMs:
-        streamExpired || editorHung
-          ? Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
-          : streamPlan.preflight === "low"
-            ? (streamPlan.waitTimeoutMs ?? STREAM_EXPIRED_WAIT_MS)
-            : streamPlan.waitTimeoutMs,
+      timeoutMs: profileSaveWaitTimeoutMs({
+        timeoutMs: opts.timeoutMs,
+        streamExpired,
+        editorHung,
+        editorSaveInfra5xx,
+        preflight: streamPlan.preflight,
+        streamWaitTimeoutMs: streamPlan.waitTimeoutMs,
+      }),
       url: opts.url,
       expect: opts.expect,
       authKeyNames: opts.authKeyNames,

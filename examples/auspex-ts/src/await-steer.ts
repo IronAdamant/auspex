@@ -107,7 +107,10 @@ export function steerAwaitLogin(input: {
   const saveFailed = Boolean(input.editorSave && !input.editorSave.ok)
   const exhaustedLead =
     input.notSavableExhausted === true && !patch
-      ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
+      ? {
+          status: "stream-expired" as const,
+          ...streamExpiredGuide(steered.name, { editorSaveStatus: input.editorSave?.status }),
+        }
       : undefined
   const cookieLead =
     !exhaustedLead &&
@@ -170,7 +173,10 @@ export function steerAwaitLogin(input: {
     steered.status !== "host-changed" &&
     steered.status !== "idp-only-save"
       ? input.streamExpired
-        ? { status: "stream-expired" as const, ...streamExpiredGuide(steered.name) }
+        ? {
+            status: "stream-expired" as const,
+            ...streamExpiredGuide(steered.name, { editorSaveStatus: input.editorSave?.status }),
+          }
         : input.editorHung
           ? { status: "editor-save-hung" as const, ...editorSaveHungGuide(steered.name) }
           : input.profileBusy

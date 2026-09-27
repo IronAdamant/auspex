@@ -6,6 +6,7 @@ import path from "node:path"
 import test from "node:test"
 import {
   editorSaveForReceipt,
+  editorSaveHttpProgress,
   isNotSavableConflict,
   saveEditorWithNotSavableReuse,
 } from "../src/editor-save-attempt.ts"
@@ -188,16 +189,30 @@ test("a hung save is not a savable-state retry", async () => {
 
 test("other failures do not ask for a new editor token", async () => {
   let liveChecks = 0
+  const phases: string[] = []
   const saved = await saveEditorWithNotSavableReuse({
-    save: async () => ({ ok: false, status: 502, error: "bad gateway" }),
+    save: async () => ({ ok: false, status: 502, error: "Failed to export storageState" }),
     editorStillLive: async () => {
       liveChecks += 1
       return true
+    },
+    onProgress: (phase) => {
+      phases.push(phase)
     },
   })
   assert.equal(liveChecks, 0)
   assert.equal(saved.status, 502)
   assert.equal(saved.notSavableExhausted, undefined)
+  assert.deepEqual(phases, [
+    "await: editor/save 502 Failed to export storageState. POST finished.",
+  ])
+  assert.equal(
+    editorSaveHttpProgress({ ok: false, status: 502, error: "Failed to export storageState" }),
+    phases[0],
+  )
+  assert.equal(editorSaveHttpProgress({ ok: true, status: 200 }), undefined)
+  assert.equal(editorSaveHttpProgress({ ok: false, status: 0, error: "timed out", hung: true }), undefined)
+  assert.equal(editorSaveHttpProgress({ ok: false, status: 409, error: SOLARI_NOT_SAVABLE }), undefined)
 })
 
 test("waitForSaveSignal returns drain, version, expiry, or timeout", async () => {

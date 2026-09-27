@@ -15,13 +15,52 @@ export const EDITOR_FOLD_BOUND_MS = 30_000
 /** After VNC/stream expiry, poll Save once or twice — do not sit the full 30 minutes. */
 export const STREAM_EXPIRED_WAIT_MS = 8_000
 
-export function streamExpiredGuide(profile: string): { text: string; nextCall: NextCall } {
+/** Completed editor/save HTTP statuses. A dead VNC JWT is a separate signal. */
+export function isEditorSaveInfraStatus(status: number | undefined): boolean {
+  return status === 502 || status === 503 || status === 504
+}
+
+/**
+ * Jar-poll budget after editor/save.
+ * A completed 502/503/504 uses the short cap and must not be labeled stream-expired by itself.
+ * editorSave.ok keeps the plan timeout (full poll while the JWT is alive).
+ * 409 not-savable exhaustion arrives as streamExpired and keeps this same short cap.
+ */
+export function profileSaveWaitTimeoutMs(opts: {
+  timeoutMs?: number
+  streamExpired: boolean
+  editorHung: boolean
+  editorSaveInfra5xx: boolean
+  preflight: "proceed" | "low" | "past"
+  streamWaitTimeoutMs?: number
+}): number | undefined {
+  if (opts.streamExpired || opts.editorHung || opts.editorSaveInfra5xx) {
+    return Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
+  }
+  if (opts.preflight === "low") return opts.streamWaitTimeoutMs ?? STREAM_EXPIRED_WAIT_MS
+  return opts.streamWaitTimeoutMs
+}
+
+function streamExpiredNotLine(editorSaveStatus?: number): string {
+  if (isEditorSaveInfraStatus(editorSaveStatus)) {
+    return (
+      `editorSave returned Solari ${editorSaveStatus}. That status stands. ` +
+      `This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. `
+    )
+  }
+  return `This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. `
+}
+
+export function streamExpiredGuide(
+  profile: string,
+  opts?: { editorSaveStatus?: number },
+): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
   return {
     text:
       `status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. ` +
       `Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). ` +
-      `This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. ` +
+      streamExpiredNotLine(opts?.editorSaveStatus) +
       `Remint now: npx auspex login --profile ${name} (MCP: auspex_login). ` +
       `Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. ${OPS_GUIDE}`,
     nextCall: remintLoginNextCall(name === "<name>" ? "" : name),

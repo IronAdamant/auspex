@@ -51,6 +51,17 @@ export function isNotSavableConflict(status: number, error?: string): boolean {
 }
 
 /**
+ * stderr line after a completed non-200 editor/save.
+ * The 409 not-savable path keeps its own lines. A hung POST (status 0) is not this line.
+ */
+export function editorSaveHttpProgress(saved: EditorSaveSnap): string | undefined {
+  if (saved.ok || saved.hung || saved.status < 400) return undefined
+  if (isNotSavableConflict(saved.status, saved.error)) return undefined
+  const detail = saved.error ? ` ${saved.error}` : ""
+  return `await: editor/save ${saved.status}${detail}. POST finished.`
+}
+
+/**
  * POST editor/save. On that 409, ask /editor/token once.
  * A token means the editor still exists: save one more time. Otherwise stop.
  * A failed save stays not ok. This function does not read cookies.
@@ -62,7 +73,11 @@ export async function saveEditorWithNotSavableReuse(opts: {
   onProgress?: (phase: string) => void
 }): Promise<EditorSaveOutcome> {
   const first = await opts.save()
-  if (first.hung || !isNotSavableConflict(first.status, first.error)) return first
+  if (first.hung || !isNotSavableConflict(first.status, first.error)) {
+    const progress = editorSaveHttpProgress(first)
+    if (progress) opts.onProgress?.(progress)
+    return first
+  }
   opts.onProgress?.("await: editor/save 409 not in a savable state. One live editor/token check.")
   let live = false
   try {
