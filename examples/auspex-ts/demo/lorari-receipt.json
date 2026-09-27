@@ -1,20 +1,19 @@
 {
   "schemaVersion": 1,
-  "ok": true,
-  "reason": "matched",
+  "ok": false,
+  "reason": "mismatch",
   "url": "https://app.lorari.com/member/",
   "expect": "Your Bookings",
   "screenshotPath": "",
-  "title": "Lorari \u2014 [redacted auth-gated member chrome]",
+  "title": "Lorari — [redacted auth-gated member chrome]",
   "finalUrl": "https://app.lorari.com/member/",
-  "matched": true,
-  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari \u2014 PII, account identity, project/app names, and activity omitted for public demo. Live expect matched: Your Bookings.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
-  "networkIdle": true,
+  "matched": false,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari — PII, account identity, project/app names, and activity omitted for public demo. Expect did not match on this soft-verify pass while claimOkProfile stayed true (SPA chrome flake).]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
   "profileSeed": {
     "cookies": 13,
     "origins": 3
   },
-  "demoNote": "Redacted public-safe shape from live 2026-09-27 AEST Auspex dogfood on Lorari (first-party \u2014 not Microsoft). Evidence source: soft-verify --verify-with-profile (2026-09-27 AEST); claimOkProfile true; soft page matched false / SPA flake on Your Bookings chrome \u2014 claimOkProfile still true. sessionId/sandbox/runDir/cookieHosts omitted. Receipt-only \u2014 no PNG (PII). Evidence, not the default recipe.",
+  "demoNote": "Single-source Aron soft-verify 2026-09-27 AEST. ok is false (reason mismatch) while claimOkProfile stayed true — an ok≠claimOkProfile teaching case on a SPA chrome flake. sessionId/sandbox/cookieHosts omitted. Receipt-only — no PNG. Evidence, not the default recipe.",
   "verify": {
     "ok": true,
     "errors": [],
