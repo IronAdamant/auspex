@@ -186,6 +186,43 @@ test("steer order is host patch, cookie Save, finalize, fail-closed, IdP-only, t
   assert.equal(missed.failClosed, undefined)
 })
 
+test("completed editorSave 502 lands on the save overlay and does not deny Solari 5xx", () => {
+  const overlay = steerAwaitLogin({
+    steered: seed({
+      status: "timeout",
+      cookies: 0,
+      origins: 0,
+      cookieHosts: [],
+      next: "No non-empty Save yet for app-example.",
+    }),
+    editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
+    streamExpired: false,
+    editorHung: false,
+    profileBusy: false,
+  })
+  assert.equal(overlay.failClosed, undefined)
+  assert.equal(overlay.cookieLead, undefined)
+  assert.equal(overlay.foldLead, undefined)
+  assert.match(overlay.guided.text, /editorSave failed \(502: Failed to export storageState\)/)
+  assert.equal(/or a Solari 502/i.test(overlay.guided.text), false)
+  assert.equal(/not a Solari 502/i.test(overlay.guided.text), false)
+
+  for (const status of [502, 503, 504]) {
+    const expired = steerAwaitLogin({
+      steered: seed({ status: "timeout", cookies: 0, origins: 0, cookieHosts: [] }),
+      editorSave: { ok: false, status, error: "Failed to export storageState" },
+      streamExpired: true,
+      editorHung: false,
+      profileBusy: false,
+    })
+    assert.equal(expired.failClosed?.status, "stream-expired")
+    assert.equal(/or a Solari 502/i.test(expired.guided.text), false)
+    assert.equal(/not a Solari 502/i.test(expired.guided.text), false)
+    assert.equal(/not a Solari 5\d\d/i.test(expired.guided.text), false)
+    assert.match(expired.guided.text, new RegExp(`editorSave returned Solari ${status}`))
+  }
+})
+
 test("not-savable exhaustion is stream-expired and does not claim a cookie Save", () => {
   const exhausted = steerAwaitLogin({
     steered: seed({
@@ -207,4 +244,5 @@ test("not-savable exhaustion is stream-expired and does not claim a cookie Save"
   assert.equal(exhausted.failClosed?.status, "stream-expired")
   assert.equal(exhausted.guided.nextCall?.tool, "auspex_login")
   assert.match(exhausted.guided.text, /POST \/editor\/token has no TTL/)
+  assert.match(exhausted.guided.text, /or a Solari 502/)
 })

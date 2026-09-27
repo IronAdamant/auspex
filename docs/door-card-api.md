@@ -60,7 +60,7 @@ Expect must be unique to the logged-in app. `Dashboard` does not match `One Dash
 }
 ```
 
-Not `loggedOut`, not `needsHuman`, not a Solari 502.
+Not `loggedOut` and not `needsHuman`. Bare `stream-expired` (no completed editor/save 502, 503, or 504) is not a Solari 502. When that receipt's `editorSave.status` is 502, 503, or 504, the Solari status stands.
 
 ### Phone background / password manager (door UI)
 
