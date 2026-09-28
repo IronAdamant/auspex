@@ -29,7 +29,7 @@ export const USAGE = `Usage:
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
   npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex profiles [--purge <name>] [--yes]
-  npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--auth-keys <names>]
+  npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--expect <string>] [--auth-keys <names>]
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
@@ -69,7 +69,7 @@ export type CliCommand =
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean; authKeyNames?: string[] }
   | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
-  | { cmd: "profile-status"; profile?: string; name?: string; url?: string; authKeyNames?: string[] }
+  | { cmd: "profile-status"; profile?: string; name?: string; url?: string; expect?: string; authKeyNames?: string[] }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
@@ -395,6 +395,7 @@ export function parseArgv(argv: string[]): ParseResult {
     const profileRaw = takeOption(args, "--profile")
     const name = takeOption(args, "--name")
     const url = takeOption(args, "--url")
+    const expect = takeOption(args, "--expect", { rejectHttp: true })
     const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
     let authKeyNames: string[] | undefined
     if (authRaw !== undefined) {
@@ -419,7 +420,10 @@ export function parseArgv(argv: string[]): ParseResult {
     if (url !== undefined && !isHttpOrHttpsUrl(url)) {
       return { status: "error", message: "url must be an http or https URL" }
     }
-    return { status: "ok", command: { cmd: "profile-status", profile, name, url, authKeyNames } }
+    if (expect !== undefined && !isNonEmptyExpect(expect)) {
+      return { status: "error", message: "profile-status --expect must be a non-empty string" }
+    }
+    return { status: "ok", command: { cmd: "profile-status", profile, name, url, expect, authKeyNames } }
   }
   if (cmd === "reap") {
     if (args.includes("--help") || args.includes("-h")) {

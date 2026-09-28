@@ -1,6 +1,7 @@
 /** Pure await-login steer. Same order every time. waitForProfileSave stays the poll. */
 
 import {
+  completedEditorSaveFailureLead,
   editorSaveHungGuide,
   profileBusyAwaitGuide,
   streamExpiredGuide,
@@ -14,7 +15,7 @@ import {
   type EditorSaveSnap,
 } from "./fold-steer.ts"
 import type { NextCall } from "./next-call.ts"
-import { overlaySaveEditorGuidance } from "./profile-persist.ts"
+import { overlaySaveEditorGuidance, remintLoginGuide } from "./profile-persist.ts"
 
 export type AwaitSteerPatch = {
   next?: string
@@ -64,8 +65,9 @@ export type AwaitSteerResult = {
  * 3. cookie or localStorage Save (check --verify-with-profile)
  * 4. finalize steer
  * 5. stream-expired, then editor-save-hung, then profile-busy
- * 6. IdP-only (keeps the seed nextCall; app-visible has none)
- * 7. save-editor overlay
+ * 6. empty jar (a failed POST names the status; a 200 with no cookies does not finalize)
+ * 7. IdP-only (keeps the seed nextCall; app-visible has none)
+ * 8. save-editor overlay
  */
 export function steerAwaitLogin(input: {
   patch?: AwaitSteerPatch
@@ -183,6 +185,22 @@ export function steerAwaitLogin(input: {
             ? { status: "profile-busy" as const, ...profileBusyAwaitGuide(steered.name) }
             : undefined
       : undefined)
+  const emptyJar =
+    !patch &&
+    !exhaustedLead &&
+    !cookieLead &&
+    !foldLead &&
+    !failClosed &&
+    steered.status === "empty-save"
+  const failedEmpty = emptyJar && input.editorSave && !input.editorSave.ok ? remintLoginGuide(steered.name) : undefined
+  const emptyLead = failedEmpty
+    ? {
+        text: `${completedEditorSaveFailureLead(input.editorSave!, true)}${failedEmpty.text}`,
+        nextCall: failedEmpty.nextCall,
+      }
+    : emptyJar
+      ? { text: steered.next }
+      : undefined
   const guided = patch
     ? { text: patch.next ?? "", nextCall: patch.nextCall }
     : exhaustedLead
@@ -193,6 +211,8 @@ export function steerAwaitLogin(input: {
         ? { text: foldLead.text, nextCall: foldLead.nextCall }
       : failClosed
         ? { text: failClosed.text, nextCall: failClosed.nextCall }
+        : emptyLead
+          ? { text: emptyLead.text, nextCall: emptyLead.nextCall }
         : steered.status === "idp-only-save"
           ? { text: steered.next, nextCall: steered.nextCall }
           : input.editorSave || input.editorFold

@@ -107,9 +107,30 @@ test("editorSave.ok keeps the full poll and the 409 path keeps the short cap", (
 test("live await uses the 5xx cap and does not set streamExpired from that status", () => {
   const src = readFileSync(new URL("../src/profile-persist.ts", import.meta.url), "utf8")
   assert.match(src, /editorSaveInfra5xx/)
+  assert.match(src, /editorSaveCompletedFailure/)
   assert.match(src, /profileSaveWaitTimeoutMs\(\{/)
-  assert.match(src, /Do not set streamExpired from that status/)
+  assert.match(src, /Do not set streamExpired from that HTTP status/)
   assert.equal(/isEditorSaveInfraStatus\([\s\S]{0,120}streamExpired\s*=\s*true/.test(src), false)
+  assert.equal(/editorSaveCompletedFailure[\s\S]{0,80}streamExpired\s*=\s*true/.test(src), false)
+})
+
+test("completed editorSave 4xx uses the same short jar poll and is not a stream-expired label", () => {
+  const full = 1_800_000
+  const capped = profileSaveWaitTimeoutMs({
+    timeoutMs: full,
+    streamExpired: false,
+    editorHung: false,
+    editorSaveInfra5xx: false,
+    editorSaveCompletedFailure: true,
+    preflight: "proceed",
+    streamWaitTimeoutMs: full,
+  })
+  assert.equal(capped, STREAM_EXPIRED_WAIT_MS)
+  const bare = streamExpiredGuide("app-example")
+  assert.match(bare.text, /or a Solari 502/)
+  const named = streamExpiredGuide("app-example", { editorSaveStatus: 401 })
+  assert.match(named.text, /or a Solari 502/)
+  assert.equal(/editorSave returned Solari 401/.test(named.text), false)
 })
 
 test("editor-save-hung and profile-busy do not point at finalize-login", () => {

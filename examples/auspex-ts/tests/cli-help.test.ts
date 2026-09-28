@@ -494,6 +494,24 @@ test("parseArgv profile-status and reap --pack-receipts", () => {
   if (status.status === "ok" && status.command.cmd === "profile-status") {
     assert.equal(status.command.name, "consistencyhub")
   }
+  const probed = parseArgv([
+    "profile-status",
+    "--profile",
+    "app-example",
+    "--url",
+    "https://app.example",
+    "--expect",
+    "Workspace ready",
+  ])
+  assert.equal(probed.status, "ok")
+  if (probed.status === "ok" && probed.command.cmd === "profile-status") {
+    assert.equal(probed.command.profile, "app-example")
+    assert.equal(probed.command.url, "https://app.example")
+    assert.equal(probed.command.expect, "Workspace ready")
+  }
+  const emptyExpect = parseArgv(["profile-status", "--profile", "app-example", "--expect", ""])
+  assert.equal(emptyExpect.status, "error")
+  if (emptyExpect.status === "error") assert.match(emptyExpect.message, /non-empty/)
   const reap = parseArgv(["reap", "--dry-run", "--pack-receipts"])
   assert.equal(reap.status, "ok")
   if (reap.status === "ok" && reap.command.cmd === "reap") {

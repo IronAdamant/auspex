@@ -67,6 +67,9 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "timeoutMs", flag: "--timeout-ms", kind: "number" },
       { json: "saveEditor", flag: "--save-editor", kind: "boolean" },
       { json: "url", flag: "--url", kind: "string" },
+      { json: "expect", flag: "--expect", kind: "string" },
+      // JSON chainFinalize false is CLI --no-chain-finalize. Omit to chain when url and expect are known.
+      { json: "chainFinalize", flag: "--no-chain-finalize", kind: "boolean" },
       { json: "authKeyNames", flag: "--auth-keys", kind: "string" },
     ],
   },
@@ -95,6 +98,7 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "profile", flag: "--profile", kind: "string" },
       { json: "name", flag: "--name", kind: "string" },
       { json: "url", flag: "--url", kind: "string" },
+      { json: "expect", flag: "--expect", kind: "string" },
       { json: "authKeyNames", flag: "--auth-keys", kind: "string" },
     ],
   },

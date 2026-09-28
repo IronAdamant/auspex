@@ -7,6 +7,7 @@
 
 import type { LoginMintStage } from "./login-trace.ts"
 import { remintLoginNextCall, type NextCall } from "./next-call.ts"
+import { boundPromise } from "./timeout.ts"
 
 /** Same origin as CONSOLE_PROFILES_URL. Local so this module does not import profiles.ts. */
 export const EDITOR_CONSOLE_ORIGIN = "https://console.getsolari.com"
@@ -30,6 +31,30 @@ export const EDITOR_START_CONFLICT_REASON = "editor-start-409"
 
 const EDITOR_RECOVER_WAIT_MS = 400
 
+/** One editor HTTP call. A hung socket aborts here instead of sitting on the OS timeout. */
+export const EDITOR_HTTP_TIMEOUT_MS = 20_000
+
+export async function editorHttp(
+  url: string,
+  init: RequestInit,
+  opts?: { timeoutMs?: number; fetchImpl?: typeof fetch },
+): Promise<Response> {
+  const timeoutMs = opts?.timeoutMs ?? EDITOR_HTTP_TIMEOUT_MS
+  const fetchImpl = opts?.fetchImpl ?? fetch
+  const ac = new AbortController()
+  const message = `editor HTTP timed out after ${timeoutMs}ms`
+  const timer = setTimeout(() => ac.abort(), timeoutMs)
+  try {
+    return await boundPromise(fetchImpl(url, { ...init, signal: ac.signal }), timeoutMs, message)
+  } catch (err) {
+    const text = err instanceof Error ? err.message : String(err)
+    if (ac.signal.aborted || /timed out after/i.test(text)) throw new Error(message)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export function editorApiPath(profileId: string, tail = ""): string {
   return `/api/profiles/${encodeURIComponent(profileId)}/editor${tail}`
 }
@@ -46,7 +71,7 @@ function editorHeaders(handoffToken: string): Record<string, string> {
 /** Handoff-auth POST or DELETE. No API key. No body. */
 export async function editorHandoffCall(handoffToken: string, method: "POST" | "DELETE"): Promise<EditorPost> {
   return async (path) => {
-    const res = await fetch(`${EDITOR_CONSOLE_ORIGIN}${path}`, {
+    const res = await editorHttp(`${EDITOR_CONSOLE_ORIGIN}${path}`, {
       method,
       headers: editorHeaders(handoffToken),
     })

@@ -244,6 +244,27 @@ export function createClient(): Solari {
   return new Solari({ apiKey: requireApiKey() })
 }
 
+export function chromiumConnectTimeoutMessage(timeoutMs: number): string {
+  return `chromium.connect timed out after ${timeoutMs}ms. Connecting did not finish. This is not loggedOut or needsHuman.`
+}
+
+/**
+ * Playwright's connect timeout defaults to 0 (forever) and retries with "Connecting…".
+ * Pass timeout > 0, and bound the call so an ignored timeout still releases the session.
+ */
+export async function connectChromium(
+  connect: LaunchDeps["connect"],
+  wsEndpoint: string,
+  timeoutMs: number,
+  slackMs = 2_000,
+): Promise<unknown> {
+  return boundPromise(
+    connect(wsEndpoint, { timeout: timeoutMs }),
+    Math.max(1, timeoutMs) + slackMs,
+    chromiumConnectTimeoutMessage(timeoutMs),
+  )
+}
+
 /** sessions.create then chromium.connect with a real timeout; release if connect fails or abort fires. */
 export async function launchBrowser(
   solari: Solari,
@@ -296,9 +317,11 @@ export async function launchBrowser(
     throw new Error("aborted")
   }
   try {
-    const browser = await deps.connect(session.wsEndpoint, {
-      timeout: CHROMIUM_CONNECT_OPTS.timeout,
-    })
+    const browser = await connectChromium(
+      deps.connect,
+      session.wsEndpoint,
+      CHROMIUM_CONNECT_OPTS.timeout,
+    )
     if (signal?.aborted) {
       const held = deps.wrap(session, browser)
       await closeThenRelease(() => held.close(), () => deps.releaseAndWait(session.id), closeMs).catch(

@@ -204,7 +204,7 @@ test("other failures do not ask for a new editor token", async () => {
   assert.equal(saved.status, 502)
   assert.equal(saved.notSavableExhausted, undefined)
   assert.deepEqual(phases, [
-    "await: editor/save 502 Failed to export storageState. POST finished.",
+    "await: editor/save 502 Failed to export storageState. POST finished. Solari status stands. Short jar poll. Not a 30-minute wait.",
   ])
   assert.equal(
     editorSaveHttpProgress({ ok: false, status: 502, error: "Failed to export storageState" }),

@@ -108,7 +108,7 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_await_login",
     { description: AWAIT_LOGIN_DESCRIPTION, inputSchema: auspexAwaitLoginInputSchema },
-    async ({ profile, sinceVersion, timeoutMs, saveEditor, url, authKeyNames }, extra) => {
+    async ({ profile, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize, authKeyNames }, extra) => {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_await_login")
@@ -119,6 +119,8 @@ export function registerAuspexTools(server: McpServer): void {
           timeoutMs,
           saveEditor,
           url,
+          expect,
+          chainFinalize,
           authKeyNames,
           onProgress,
         })

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { editorHttp } from "../src/editor-vnc.ts"
+import { chromiumConnectTimeoutMessage, connectChromium } from "../src/solari.ts"
 import {
   abortableSleep,
   boundPromise,
@@ -244,4 +246,36 @@ test("closeThenRelease still calls release if close times out", async () => {
     /timed out/,
   )
   assert.equal(released, true)
+})
+
+test("connectChromium stops a connect that ignores its timeout", async () => {
+  await assert.rejects(
+    () => connectChromium(() => new Promise(() => undefined), "ws://example", 20, 30),
+    /chromium.connect timed out after 20ms/,
+  )
+  assert.match(chromiumConnectTimeoutMessage(20), /not loggedOut or needsHuman/)
+})
+
+test("editorHttp aborts a hung editor call and rethrows other network errors", async () => {
+  await assert.rejects(
+    () =>
+      editorHttp(
+        "https://console.getsolari.com/api/profiles/p/editor/save",
+        { method: "POST" },
+        { timeoutMs: 30, fetchImpl: (() => new Promise(() => undefined)) as typeof fetch },
+      ),
+    /editor HTTP timed out after 30ms/,
+  )
+  await assert.rejects(
+    () =>
+      editorHttp(
+        "https://console.getsolari.com/api/profiles/p/editor/token",
+        { method: "POST" },
+        {
+          timeoutMs: 500,
+          fetchImpl: (() => Promise.reject(new Error("socket reset"))) as typeof fetch,
+        },
+      ),
+    /socket reset/,
+  )
 })

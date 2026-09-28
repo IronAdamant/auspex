@@ -18,7 +18,7 @@ function seed(over: Partial<AwaitSteerSeed> = {}): AwaitSteerSeed {
 const foldSave = { ok: true, status: 200 }
 const foldMiss = { ok: false, reason: "no-cdp" as const }
 
-test("steer order is host patch, cookie Save, finalize, fail-closed, IdP-only, then overlay", () => {
+test("steer order is host patch, cookie Save, finalize, fail-closed, empty jar, IdP-only, then overlay", () => {
   const patched = steerAwaitLogin({
     patch: { next: "remint the live host", nextCall: { tool: "auspex_login", profile: "app-socialaize-com" } },
     steered: seed({ status: "host-changed" }),
@@ -245,4 +245,76 @@ test("not-savable exhaustion is stream-expired and does not claim a cookie Save"
   assert.equal(exhausted.guided.nextCall?.tool, "auspex_login")
   assert.match(exhausted.guided.text, /POST \/editor\/token has no TTL/)
   assert.match(exhausted.guided.text, /or a Solari 502/)
+})
+
+test("empty jar after a completed non-2xx names the status and does not finalize", () => {
+  const empty = steerAwaitLogin({
+    steered: seed({
+      status: "empty-save",
+      cookies: 0,
+      origins: 0,
+      cookieHosts: [],
+      next: "Save bumped the profile to v3 but stored no cookies or origins. Do not reuse --profile app-example until a non-empty Save.",
+    }),
+    editorSave: { ok: false, status: 413, error: "Payload Too Large" },
+    editorFold: foldMiss,
+    streamExpired: false,
+    editorHung: false,
+    profileBusy: false,
+  })
+  assert.equal(empty.foldLead, undefined)
+  assert.equal(empty.failClosed, undefined)
+  assert.equal(empty.guided.nextCall?.tool, "auspex_login")
+  assert.match(empty.guided.text, /editorSave failed \(413: Payload Too Large\)/)
+  assert.match(empty.guided.text, /The jar is empty/)
+  assert.match(empty.guided.text, /POST finished/)
+  assert.match(empty.guided.text, /Not a 30-minute wait/)
+  assert.equal(/Finalize-login NOW/.test(empty.guided.text), false)
+  assert.equal(/Keep the handoff open/.test(empty.guided.text), false)
+})
+
+test("empty jar after editorSave 200 does not append finalize", () => {
+  const next =
+    "Save bumped the profile to v4 but stored no cookies or origins. Do not reuse --profile app-example until a non-empty Save."
+  const empty = steerAwaitLogin({
+    steered: seed({
+      status: "empty-save",
+      cookies: 0,
+      origins: 0,
+      cookieHosts: [],
+      next,
+    }),
+    editorSave: foldSave,
+    editorFold: foldMiss,
+    streamExpired: false,
+    editorHung: false,
+    profileBusy: false,
+    siteHost: "app.example",
+  })
+  assert.equal(empty.foldLead, undefined)
+  assert.equal(empty.guided.text, next)
+  assert.equal(empty.guided.nextCall, undefined)
+  assert.equal(/finalize-login/i.test(empty.guided.text), false)
+})
+
+test("completed 502 next copy drops the waiting lead and keeps the Solari status", () => {
+  const overlay = steerAwaitLogin({
+    steered: seed({
+      status: "timeout",
+      cookies: 0,
+      origins: 0,
+      cookieHosts: [],
+      next: "No non-empty Save yet for app-example. Keep the handoff open, Save, then retry auspex_await_login.",
+    }),
+    editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
+    streamExpired: false,
+    editorHung: false,
+    profileBusy: false,
+  })
+  assert.match(overlay.guided.text, /editorSave failed \(502: Failed to export storageState\)/)
+  assert.match(overlay.guided.text, /Solari 502 stands/)
+  assert.match(overlay.guided.text, /not loggedOut or needsHuman/)
+  assert.equal(/Keep the handoff open/.test(overlay.guided.text), false)
+  assert.equal(/No non-empty Save yet/.test(overlay.guided.text), false)
+  assert.equal(/or a Solari 502/i.test(overlay.guided.text), false)
 })
