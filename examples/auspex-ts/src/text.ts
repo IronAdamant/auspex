@@ -129,3 +129,15 @@ export function haystackMatches(raw: string, expect: string): boolean {
 export const expectSchema = z
   .string()
   .refine(isNonEmptyExpect, { message: "check requires a non-empty --expect" })
+
+/**
+ * A bot or browser check (Cloudflare "Just a moment...", "Attention Required!", "Verify you are human")
+ * served instead of the site. Not a logout and not a password wall. Auspex never solves these.
+ */
+export function isBotChallengePage(title: string, text: string): boolean {
+  const t = title.trim()
+  if (/^just a moment\.{0,3}…?$/i.test(t)) return true
+  if (/^attention required!?\s*\|\s*cloudflare$/i.test(t)) return true
+  const body = text.slice(0, 2000)
+  return /verify you are human by completing|checking (if the site connection is secure|your browser before accessing)|enable javascript and cookies to continue/i.test(body)
+}

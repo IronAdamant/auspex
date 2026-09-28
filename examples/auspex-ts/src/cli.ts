@@ -19,7 +19,7 @@ import {
   writeStdoutJson,
 } from "./cli-json.ts"
 import { parseJobFlags, parseJobStatusFlags, type JobRunOptions } from "./job-cli.ts"
-import { CONNECT_NEEDS_TTY, parseConnectFlags, type ConnectOptions } from "./connect.ts"
+import { parseConnectFlags, type ConnectCommand } from "./connect.ts"
 import { parseAuthKeyNames } from "./cookie-save.ts"
 import { ONE_CHECK_PAGE_ACTIONS } from "./contract.ts"
 import { KEY_ENV_REFUSE, LONG_RUN_CLI_LINE, PROFILES_MAP_LINE } from "./door-await-contract.ts"
@@ -36,6 +36,7 @@ export const USAGE = `Usage:
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
   npx auspex connect <https> [--expect <words>] [--profile <name>] [--verbose]
+  npx auspex connect --save <profile>
   npx auspex sweep --plan <plan.json> [--notify <url>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex trace [--profile <name>] [--limit <n>] [--all]
@@ -62,7 +63,7 @@ Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type ref
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Voluntary --purge <name> --yes stops the editor first; if that name is not wiped, ok is false and wipeFailed lists it. Keys are not included in the agent message.
 ${PROFILES_MAP_LINE}
 sweep is read-only check over an operator-written plan (JSON: profile, optional keepProfile, pages of url+expect; no fill, click, or save). Each page is pass, fail, or could-not-tell; could-not-tell is never a pass. A re-gate or 429 stops the sweep. Report: .auspex/sweeps/<stamp>/report.md and report.json. --notify or AUSPEX_WAKE_WEBHOOK posts a scrubbed summary.
-connect is one command for a person at a terminal: it shows the phone door link, Enter is Save, then it runs the job chain with --verify-with-profile and prints one plain sentence. It needs a real terminal; agents use job.
+connect is one command for a person at a terminal: it shows the phone door link, Enter is Save, then it runs the job chain with --verify-with-profile and prints one plain sentence. In a terminal, Enter is Save. Without one (an agent), pass --expect; after the human taps Save, run connect --save <profile>. The wait ends with Solari's typing window.
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
 login --wait blocks until Save is signaled, then runs --save-editor. It does not POST editor/save before that signal. handoff.url is the phone door (phone.html).
 await-login --save-editor POSTs Solari editor/save when Save is signaled. If one await is already running, this call signals it and does not kill it. If another path already owns that Save, status is sibling-saved (not stream-expired). Clipboard Save is not the jar. Progress is stderr lines that start with :: . Stdout stays one JSON object.
@@ -84,7 +85,7 @@ export type CliCommand =
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
   | { cmd: "trace"; profile?: string; limit?: number; all?: boolean }
   | { cmd: "job"; opts: JobRunOptions }
-  | { cmd: "connect"; opts: ConnectOptions }
+  | { cmd: "connect"; connect: ConnectCommand }
   | { cmd: "job-status"; jobId: string; waitMs?: number }
   | { cmd: "sweep"; planPath: string; notify?: string }
 
@@ -528,7 +529,8 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const parsed = parseConnectFlags(args)
     if (!parsed.ok) return { status: "error", message: parsed.message }
-    return { status: "ok", command: { cmd: "connect", opts: parsed.opts } }
+    const { ok: _ok, ...connect } = parsed
+    return { status: "ok", command: { cmd: "connect", connect } }
   }
   if (cmd === "job-status") {
     if (args.includes("--help") || args.includes("-h")) {
@@ -647,15 +649,19 @@ export async function main(argv: string[]): Promise<number> {
       return exitFromOk(result.ok)
     }
     if (cmd.cmd === "connect") {
-      if (!process.stdin.isTTY || !process.stdout.isTTY) {
-        process.stderr.write(`${CONNECT_NEEDS_TTY}\n`)
-        writeStdoutJson(usageErrorReceipt(CONNECT_NEEDS_TTY))
-        return 1
+      const { runConnect, runConnectSave } = await import("./connect.ts")
+      if (cmd.connect.mode === "save") {
+        const saved = await runConnectSave(cmd.connect.profile)
+        process.stdout.write(`${saved.message}\n`)
+        return saved.ok ? 0 : 1
       }
-      const { runConnect } = await import("./connect.ts")
-      const result = await runConnect(cmd.opts, { stdin: process.stdin, stdout: process.stdout }, {
+      const result = await runConnect(cmd.connect.opts, { stdin: process.stdin, stdout: process.stdout }, {
         runJob: (opts) => runners.runJobDoor(opts),
       })
+      if (result.error) {
+        process.stderr.write(`${result.error}\n`)
+        writeStdoutJson(usageErrorReceipt(result.error))
+      }
       return result.ok ? 0 : 1
     }
     if (cmd.cmd === "job-status") {

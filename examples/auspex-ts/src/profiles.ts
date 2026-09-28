@@ -189,6 +189,7 @@ export function phoneSavePaste(profileName?: string): string {
   const name = (profileName ?? "").trim() || "<yours>"
   return [
     `I tapped Save on the Auspex phone page for profile ${name}.`,
+    `Ran auspex connect? Press Enter in that terminal instead (pasting this there also works), or have your agent run: npx auspex-solari connect --save ${name}`,
     `Run: npx auspex-solari await-login --profile ${name} --save-editor`,
     `(MCP: auspex_await_login with saveEditor true).`,
     `Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.`,

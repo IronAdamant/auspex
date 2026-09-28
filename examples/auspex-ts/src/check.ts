@@ -42,7 +42,7 @@ import { finalizeLoginNextCall, remintLoginNextCall } from "./next-call.ts"
 import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./profiles.ts"
 import { attachRecordedReplay } from "./solari.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
-import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
+import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect, isBotChallengePage } from "./text.ts"
 import { ensureRunDir, packageRoot, resolveStatePath, toStatePath } from "./paths.ts"
 import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
@@ -124,6 +124,8 @@ export type CheckResult = {
   /** Click target not found or not clickable; ok is false and the screenshot shows the page. */
   clickMissed?: string
   needsHuman?: boolean
+  /** The site served a bot check instead of the page. Not loggedOut; nothing was matched. */
+  botWall?: boolean
   next?: string
   nextCall?: import("./next-call.ts").NextCall
   profileHostMatch?: boolean
@@ -308,6 +310,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   const screenshotPath = toReceiptPath(screenshotAbs)
 
   let title = ""
+  let botWall = false
   let finalUrl = ""
   let excerpt = ""
   let matched = false
@@ -492,6 +495,12 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           raw: excerptSource || raw || excerpt,
           prefix: `expectMatchedPublicLanding: expect text is on ${liveUrl}, which is not a persistable app URL. Profile was not saved.`,
         })
+      } else if (!matched && isBotChallengePage(title, raw || excerpt)) {
+        botWall = true
+        excerpt = prepareCheckExcerpt({
+          raw: excerptSource || raw || excerpt,
+          prefix: `botWall: the site served a bot check ("${title.slice(0, 60)}") at ${liveUrl}, not the page.`,
+        })
       } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl, { matched })) {
         special = "loggedOut"
         matched = false
@@ -626,6 +635,11 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     if (liveHostChange) {
       next = liveHostChange.nextLead
       nextCall = liveHostChange.nextCall
+    } else if (botWall) {
+      next =
+        "The site showed a bot check (for example Cloudflare \"Just a moment...\") to the cloud browser instead of the page. " +
+        "This is not loggedOut and not a failed sign-in, and it does not prove the login is bad or good. Auspex does not solve bot checks. " +
+        "Do not remint or finalize for this; the site is blocking cloud browsers."
     } else if (reason === "loggedOut" && profileSeed && profileSeed.cookies > 0) {
       const guided = checkLoggedOutGuide(opts.profile ?? "<name>", profileSeed.cookies)
       next = guided.text
@@ -675,6 +689,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       clicked,
       clickMissed,
       needsHuman: needsHuman || undefined,
+      botWall: botWall || undefined,
       next,
       nextCall,
       ...(liveHostChange

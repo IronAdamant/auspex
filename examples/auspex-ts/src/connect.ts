@@ -3,7 +3,8 @@
  * treat Enter as Save, then run the same job chain (await → finalize when needed →
  * check --verify-with-profile) and say the outcome in one plain sentence.
  *
- * Human-only. Needs a real terminal. Agents and MCP use `job` (same chain, JSON out).
+ * A person at a terminal presses Enter. Without a terminal (an agent's shell), connect
+ * waits for `connect --save <profile>` instead; the wait ends with Solari's typing window.
  */
 
 import { createInterface, type Interface } from "node:readline"
@@ -12,11 +13,12 @@ import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { jobFilePath, type JobReceipt } from "./job-store.ts"
 import type { JobRunOptions } from "./job-cli.ts"
 import type { HandoffPacket } from "./profiles.ts"
-import { signalSaveDrain } from "./save-drain.ts"
+import { readSaveWaiter, signalSaveDrain, waiterIsOtherProcess } from "./save-drain.ts"
+import { requireProfileName } from "./profile-slug.ts"
 import { isNonEmptyExpect } from "./text.ts"
 
-export const CONNECT_NEEDS_TTY =
-  "connect is for a person at a terminal. Agents and scripts use: auspex job --url <https> --expect <words> --wait --verify-with-profile"
+export const CONNECT_NEEDS_EXPECT =
+  "Without a terminal, connect needs --expect <words that only appear once logged in>."
 
 export type ConnectOptions = {
   url: string
@@ -25,7 +27,9 @@ export type ConnectOptions = {
   verbose?: boolean
 }
 
-export function parseConnectFlags(args: string[]): { ok: true; opts: ConnectOptions } | { ok: false; message: string } {
+export type ConnectCommand = { mode: "run"; opts: ConnectOptions } | { mode: "save"; profile: string }
+
+export function parseConnectFlags(args: string[]): ({ ok: true } & ConnectCommand) | { ok: false; message: string } {
   const rest = [...args]
   const take = (name: string) => {
     const i = rest.indexOf(name)
@@ -41,6 +45,18 @@ export function parseConnectFlags(args: string[]): { ok: true; opts: ConnectOpti
     rest.splice(i, 1)
     return true
   }
+  const saveAt = rest.indexOf("--save")
+  if (saveAt !== -1) {
+    const name = rest[saveAt + 1]
+    if (!name || name.startsWith("-") || rest.length !== 2) {
+      return { ok: false, message: "usage: auspex connect --save <profile>" }
+    }
+    try {
+      return { ok: true, mode: "save", profile: requireProfileName(name) }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) }
+    }
+  }
   const expect = take("--expect")
   const profile = take("--profile")
   let url = take("--url")
@@ -50,7 +66,27 @@ export function parseConnectFlags(args: string[]): { ok: true; opts: ConnectOpti
   if (!url) return { ok: false, message: "connect requires the app URL: auspex connect https://app.example" }
   if (!isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
   if (expect !== undefined && !isNonEmptyExpect(expect)) return { ok: false, message: "--expect must not be empty" }
-  return { ok: true, opts: { url, expect, profile, verbose: verbose || undefined } }
+  return { ok: true, mode: "run", opts: { url, expect, profile, verbose: verbose || undefined } }
+}
+
+/** Second call for agents (or another terminal): tell a waiting connect that the human is done. */
+export async function runConnectSave(
+  profile: string,
+  deps: {
+    isWaiting?: (profile: string) => Promise<boolean>
+    signalSave?: (profile: string) => Promise<void>
+  } = {},
+): Promise<{ ok: boolean; message: string }> {
+  const isWaiting = deps.isWaiting ?? (async (name) => waiterIsOtherProcess(await readSaveWaiter(name)))
+  const signalSave = deps.signalSave ?? ((name) => signalSaveDrain(name, undefined, "connect --save"))
+  if (!(await isWaiting(profile))) {
+    return {
+      ok: false,
+      message: `No connect is waiting for ${profile}. It may have finished or its window closed. Run connect again.`,
+    }
+  }
+  await signalSave(profile)
+  return { ok: true, message: `Save signaled for ${profile}. The running connect finishes on its own and prints the result.` }
 }
 
 export type ConnectOutcome = { ok: boolean; headline: string; detail: string[] }
@@ -77,12 +113,36 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       detail: [`Do not reuse profile ${job.profile} yet. ${again}`],
     }
   }
+  if (job.botWall && !(job.phase === "completed" && job.ok)) {
+    return {
+      ok: false,
+      headline: `${host} showed a bot check ("Just a moment…") to the fresh cloud browser, so Auspex could not confirm the login.`,
+      detail: [
+        "That is the site blocking cloud browsers, not a failed sign-in. Auspex does not solve bot checks.",
+        "Running it again will likely hit the same check.",
+      ],
+    }
+  }
+  if (
+    job.editorSave &&
+    !job.editorSave.ok &&
+    (job.status === "timeout" || job.status === "waiting" || job.status === "stream-expired")
+  ) {
+    const code = `HTTP ${job.editorSave.status}${job.editorSave.error ? `: ${job.editorSave.error}` : ""}`
+    const headline =
+      job.editorSave.status >= 500
+        ? `Solari could not save the login (${code}). That is on Solari's side, not your sign-in.`
+        : job.editorSave.status === 409
+          ? `Solari said the remote browser could not be saved right then (${code}).`
+          : `Solari refused to save the login (${code}).`
+    return { ok: false, headline, detail: [`Nothing was saved or claimed. ${again}`] }
+  }
   switch (job.status) {
     case "stream-expired":
       return {
         ok: false,
         headline: "The five-minute sign-in window closed before Save.",
-        detail: ["Solari sets that window and Auspex cannot extend it.", `${again} Press Enter as soon as the app is on screen.`],
+        detail: ["Solari sets that window and Auspex cannot extend it.", `${again} Save as soon as the app is on screen.`],
       }
     case "timeout":
     case "waiting":
@@ -91,7 +151,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       return {
         ok: false,
         headline: "Nothing was saved. The remote browser had no login for this site yet.",
-        detail: [`${again} Press Enter only once the logged-in app is on screen.`],
+        detail: [`${again} Save only once the logged-in app is on screen.`],
       }
     case "idp-only-save":
       if (job.idpOnlyKind === "app-visible") {
@@ -107,7 +167,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       return {
         ok: false,
         headline: "Save happened while the Microsoft or Google sign-in page was still showing.",
-        detail: [`${again} Finish signing in until the app itself is on screen, then press Enter.`],
+        detail: [`${again} Finish signing in until the app itself is on screen, then save.`],
       }
     case "host-changed":
       return {
@@ -129,13 +189,13 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       return {
         ok: false,
         headline: "The saved login hit a password or code screen. Auspex never types those.",
-        detail: [`${again} Complete every sign-in step (tick "Stay signed in" if offered) before pressing Enter.`],
+        detail: [`${again} Complete every sign-in step (tick "Stay signed in" if offered) before saving.`],
       }
     case "loggedOut":
       return {
         ok: false,
         headline: "A fresh browser with the saved login landed on a logged-out page.",
-        detail: [`${again} Make sure the app is fully loaded before pressing Enter.`],
+        detail: [`${again} Make sure the app is fully loaded before saving.`],
       }
     case "mismatch":
       return {
@@ -185,6 +245,7 @@ const HUMAN_PHASES: Record<string, string> = {
   "job:mint": "Opening a cloud browser…",
   "job:await": "",
   "job:finalize": "Saving the app's own login…",
+  "job:finalize-fallback": "The saved login was not enough on its own (common with Microsoft sign-in). Capturing the app's session once more…",
   "job:check": "Checking with a fresh browser that uses only the saved login…",
   "job:reap": "Closing leftover browsers…",
 }
@@ -206,15 +267,16 @@ export async function runConnect(
   io: ConnectIo,
   deps: ConnectDeps,
 ): Promise<{ ok: boolean; job?: JobReceipt; outcome?: ConnectOutcome; error?: string }> {
-  if (!io.stdin.isTTY || !io.stdout.isTTY) return { ok: false, error: CONNECT_NEEDS_TTY }
+  const interactive = io.stdin.isTTY === true && io.stdout.isTTY === true
+  if (!interactive && !opts.expect?.trim()) return { ok: false, error: CONNECT_NEEDS_EXPECT }
   const out = (line = "") => io.stdout.write(`${line}\n`)
   const now = io.now ?? Date.now
   const signalSave = deps.signalSave ?? ((profile) => signalSaveDrain(profile, undefined, "terminal"))
   const qr = deps.qr ?? ((url) => QRCode.toString(url, { type: "terminal", small: true }))
-  const rl: Interface = createInterface({ input: io.stdin, terminal: false })
+  const rl: Interface | undefined = interactive ? createInterface({ input: io.stdin, terminal: false }) : undefined
   const lines: string[] = []
   const waiters: Array<(line: string) => void> = []
-  rl.on("line", (line) => {
+  rl?.on("line", (line) => {
     const next = waiters.shift()
     if (next) next(line)
     else lines.push(line)
@@ -258,10 +320,20 @@ export async function runConnect(
         if (warnIn > 0) {
           timers.push(
             setTimeout(() => {
-              if (!saving) out("One minute left. Press Enter as soon as the app is on screen.")
+              if (saving) return
+              out(
+                interactive
+                  ? "One minute left. Press Enter as soon as the app is on screen."
+                  : "One minute left. If you have not tapped Save on the phone page yet, do it now.",
+              )
             }, warnIn),
           )
         }
+      }
+      if (!interactive) {
+        out("When the app itself is on screen, tap Save on the phone page and paste the line to your agent.")
+        out(`Agent: npx auspex-solari connect --save ${profile}`)
+        return
       }
       out("When the app itself is on screen, press Enter here. (You don't need the Save button on the phone page.)")
       await nextLine()
@@ -279,6 +351,7 @@ export async function runConnect(
       onMinted,
       onProgress: (phase) => {
         const key = phase.split(" ")[0] ?? phase
+        if (key === "job:finalize" || key === "job:check") saving = true
         const human = HUMAN_PHASES[key]
         if (human) out(human)
         else if (opts.verbose && human === undefined) out(`  ${phase}`)
@@ -296,6 +369,6 @@ export async function runConnect(
     return { ok: outcome.ok, job, outcome }
   } finally {
     for (const t of timers) clearTimeout(t)
-    rl.close()
+    rl?.close()
   }
 }

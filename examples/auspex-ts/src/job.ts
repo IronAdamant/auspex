@@ -151,6 +151,8 @@ function copyReceiptMeta(record: JobRecord, receipt: AgentReceipt): void {
   record.suggestedProfile = receipt.suggestedProfile
   record.suggestedUrl = receipt.suggestedUrl
   record.reason = String(receipt.reason)
+  if (receipt.botWall) record.botWall = true
+  else delete record.botWall
 }
 
 /** Fail-closed finalize/check reasons. Does not grant claimOkProfile. */
@@ -219,9 +221,15 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
   record.suggestedProfile = waited.suggestedProfile
   record.suggestedUrl = waited.suggestedUrl
   if (waited.seedReadiness) record.seedReadiness = waited.seedReadiness
+  if (waited.editorSave && !waited.editorSave.ok) {
+    record.editorSave = { ok: false, status: waited.editorSave.status, error: waited.editorSave.error }
+  } else {
+    delete record.editorSave
+  }
   if (waited.status === "completed") {
     const cookieReady = waited.seedReadiness?.solariSaveReady === true && waited.foldMiss !== true
     record.phase = record.skipFinalize || cookieReady ? "check" : "finalize"
+    if (cookieReady && !record.skipFinalize) record.finalizeSkippedSeedReady = true
     if (cookieReady && record.verifyWithProfile !== false) record.verifyWithProfile = true
     record.status = "running"
     record.reason = "await-completed"
@@ -487,52 +495,74 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
       if (awaitStopped) return publicJob(afterAwait, { wake: posted })
     }
 
-    if (record.phase === "finalize") {
-      if (!record.skipFinalize) {
-        progress("job:finalize")
-        if (!record.url || !record.expect) {
-          if (!savedCheckForProfile(record.profile)) {
-            throw new Error("finalize-login requires --url and --expect unless --profile matches a saved check")
+    for (;;) {
+      if (record.phase === "finalize") {
+        if (!record.skipFinalize) {
+          progress("job:finalize")
+          if (!record.url || !record.expect) {
+            if (!savedCheckForProfile(record.profile)) {
+              throw new Error("finalize-login requires --url and --expect unless --profile matches a saved check")
+            }
           }
+          const finalized = await (deps.finalize ?? runFinalizeLogin)({
+            profile: record.profile,
+            url: record.url,
+            expect: record.expect,
+          })
+          const finalizedReceipt = toAgentReceipt(finalized)
+          if (applyFailClosedReceipt(record, finalizedReceipt)) {
+            await persist()
+            const event = wakeEventFor(record, "terminal")
+            return publicJob(record, { wake: event ? await wake(event) : undefined })
+          }
+          record.phase = "check"
+          record.status = "running"
+          record.reason = "finalize-completed"
+          record.ok = false
+          record.receipt = slimJobReceipt(finalizedReceipt)
+          await persist()
+          await wake("profile-saved")
+        } else {
+          record.phase = "check"
         }
-        const finalized = await (deps.finalize ?? runFinalizeLogin)({
-          profile: record.profile,
+      }
+
+      if (record.phase === "check") {
+        progress("job:check")
+        const checked = await (deps.check ?? defaultJobCheck)({
+          name: record.name,
           url: record.url,
           expect: record.expect,
+          profile: record.profile,
+          verifyWithProfile: record.verifyWithProfile,
         })
-        const finalizedReceipt = toAgentReceipt(finalized)
-        if (applyFailClosedReceipt(record, finalizedReceipt)) {
+        applyCheckOutcome(record, checked.receipt)
+        if (record.verifyWithProfile !== true) delete record.claimOkProfile
+        else if (checked.receipt.verify?.claimOkProfile === undefined) delete record.claimOkProfile
+        if (
+          record.status === "loggedOut" &&
+          record.botWall !== true &&
+          record.finalizeSkippedSeedReady === true &&
+          record.finalizeFallback !== true &&
+          record.skipFinalize !== true
+        ) {
+          // The save looked ready (cookie or localStorage auth) but a fresh browser is logged out.
+          // Microsoft-style SPAs also need session storage, which only finalize captures. Once.
+          record.finalizeFallback = true
+          record.phase = "finalize"
+          record.status = "running"
+          record.reason = "finalize-fallback"
+          record.ok = false
+          delete record.claimOkProfile
+          progress("job:finalize-fallback")
           await persist()
-          const event = wakeEventFor(record, "terminal")
-          return publicJob(record, { wake: event ? await wake(event) : undefined })
+          continue
         }
-        record.phase = "check"
-        record.status = "running"
-        record.reason = "finalize-completed"
-        record.ok = false
-        record.receipt = slimJobReceipt(finalizedReceipt)
         await persist()
-        await wake("profile-saved")
-      } else {
-        record.phase = "check"
+        const event = wakeEventFor(record, "terminal")
+        return publicJob(record, { wake: event ? await wake(event) : undefined })
       }
-    }
-
-    if (record.phase === "check") {
-      progress("job:check")
-      const checked = await (deps.check ?? defaultJobCheck)({
-        name: record.name,
-        url: record.url,
-        expect: record.expect,
-        profile: record.profile,
-        verifyWithProfile: record.verifyWithProfile,
-      })
-      applyCheckOutcome(record, checked.receipt)
-      if (record.verifyWithProfile !== true) delete record.claimOkProfile
-      else if (checked.receipt.verify?.claimOkProfile === undefined) delete record.claimOkProfile
-      await persist()
-      const event = wakeEventFor(record, "terminal")
-      return publicJob(record, { wake: event ? await wake(event) : undefined })
+      break
     }
 
     await persist()

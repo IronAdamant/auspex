@@ -88,6 +88,7 @@ export function toAgentReceipt(
     clicked: check.clicked,
     clickMissed: check.clickMissed,
     needsHuman: check.needsHuman,
+    botWall: check.botWall,
     next,
     nextCall,
     profileHostMatch: check.profileHostMatch,

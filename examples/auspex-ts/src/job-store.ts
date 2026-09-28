@@ -80,6 +80,14 @@ export type JobRecord = {
   claimOkProfile?: boolean
   /** Post-save cookie/localStorage shape. Not claimOkProfile. */
   seedReadiness?: SeedReadiness
+  /** The last check hit a bot check instead of the page. */
+  botWall?: boolean
+  /** Finalize was skipped because the save already looked ready (cookie or localStorage auth). */
+  finalizeSkippedSeedReady?: boolean
+  /** A check landed logged out after that skip, so finalize ran once after all. Never repeats. */
+  finalizeFallback?: boolean
+  /** Solari editor/save result from the await, when it ran and failed. Status and error text only. */
+  editorSave?: { ok: boolean; status: number; error?: string }
   reaped?: boolean
   receipt?: Record<string, unknown>
 }
@@ -141,6 +149,7 @@ export function slimJobReceipt(receipt: AgentReceipt): Record<string, unknown> {
   if (receipt.next) out.next = receipt.next
   if (receipt.nextCall) out.nextCall = receipt.nextCall
   if (receipt.hostChanged) out.hostChanged = true
+  if (receipt.botWall) out.botWall = true
   if (receipt.profileHostMatch !== undefined) out.profileHostMatch = receipt.profileHostMatch
   if (receipt.suggestedProfile) out.suggestedProfile = receipt.suggestedProfile
   if (receipt.suggestedUrl) out.suggestedUrl = receipt.suggestedUrl

@@ -5,7 +5,7 @@ import path from "node:path"
 import { PassThrough } from "node:stream"
 import test from "node:test"
 import { parseArgv, USAGE } from "../src/cli.ts"
-import { CONNECT_NEEDS_TTY, connectOutcome, parseConnectFlags, runConnect } from "../src/connect.ts"
+import { CONNECT_NEEDS_EXPECT, connectOutcome, parseConnectFlags, runConnect, runConnectSave } from "../src/connect.ts"
 import type { JobReceipt } from "../src/job-store.ts"
 import type { JobRunOptions } from "../src/job-cli.ts"
 import { runJob } from "../src/job.ts"
@@ -43,11 +43,11 @@ function tty() {
 
 test("parseConnectFlags takes a positional or --url, expect, profile", () => {
   const a = parseConnectFlags(["https://app.example", "--expect", "Workspace ready"])
-  assert.ok(a.ok)
+  assert.ok(a.ok && a.mode === "run")
   assert.equal(a.opts.url, "https://app.example")
   assert.equal(a.opts.expect, "Workspace ready")
   const b = parseConnectFlags(["--url", "https://app.example", "--profile", "mine"])
-  assert.ok(b.ok)
+  assert.ok(b.ok && b.mode === "run")
   assert.equal(b.opts.profile, "mine")
   assert.equal(b.opts.expect, undefined)
   assert.equal(parseConnectFlags([]).ok, false)
@@ -55,27 +55,79 @@ test("parseConnectFlags takes a positional or --url, expect, profile", () => {
   assert.equal(parseConnectFlags(["https://app.example", "extra"]).ok, false)
 })
 
-test("parseArgv routes connect and USAGE names it", () => {
+test("parseConnectFlags --save takes one profile and nothing else", () => {
+  const s = parseConnectFlags(["--save", "app-lorari-com"])
+  assert.ok(s.ok && s.mode === "save")
+  assert.equal(s.profile, "app-lorari-com")
+  assert.equal(parseConnectFlags(["--save"]).ok, false)
+  assert.equal(parseConnectFlags(["--save", "x", "https://app.example"]).ok, false)
+})
+
+test("parseArgv routes connect and USAGE names both forms", () => {
   const parsed = parseArgv(["connect", "https://app.example"])
   assert.equal(parsed.status, "ok")
   assert.equal(parsed.status === "ok" && parsed.command.cmd, "connect")
   assert.match(USAGE, /npx auspex connect <https>/)
-  assert.match(USAGE, /agents use job/)
+  assert.match(USAGE, /npx auspex connect --save <profile>/)
 })
 
-test("connect refuses without a terminal so an agent cannot hang on Enter", async () => {
+test("without a terminal connect needs --expect and never reads stdin", async () => {
   const stdin = new PassThrough()
   const stdout = new PassThrough()
   let ran = false
-  const result = await runConnect({ url: "https://app.example", expect: "X" }, { stdin, stdout }, {
+  const result = await runConnect({ url: "https://app.example" }, { stdin, stdout }, {
     runJob: async () => {
       ran = true
       return job()
     },
   })
-  assert.equal(result.ok, false)
-  assert.equal(result.error, CONNECT_NEEDS_TTY)
+  assert.equal(result.error, CONNECT_NEEDS_EXPECT)
   assert.equal(ran, false)
+})
+
+test("agent path: no terminal, door printed, connect --save ends the wait", async () => {
+  const stdin = new PassThrough()
+  let text = ""
+  const stdout = new PassThrough()
+  stdout.on("data", (chunk) => {
+    text += String(chunk)
+  })
+  let signaled = false
+  const result = await runConnect({ url: "https://app.example/dash", expect: "Workspace ready" }, { stdin, stdout }, {
+    qr: async () => "QR",
+    runJob: async (opts) => {
+      opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR } })
+      // Stands in for the real waiter: connect --save flips this from another process.
+      setTimeout(() => void runConnectSave("app-example", {
+        isWaiting: async () => true,
+        signalSave: async () => {
+          signaled = true
+        },
+      }), 10)
+      while (!signaled) await new Promise((r) => setTimeout(r, 5))
+      return job()
+    },
+  })
+  assert.equal(result.ok, true)
+  assert.match(text, /phone\.html/)
+  assert.match(text, /connect --save app-example/)
+  assert.equal(/press enter/i.test(text), false, "agent mode must not tell anyone to press Enter")
+  assert.match(text, /✓ Logged in/)
+})
+
+test("connect --save says so when nothing is waiting", async () => {
+  let signaled = false
+  const none = await runConnectSave("app-example", {
+    isWaiting: async () => false,
+    signalSave: async () => {
+      signaled = true
+    },
+  })
+  assert.equal(none.ok, false)
+  assert.match(none.message, /No connect is waiting/)
+  assert.equal(signaled, false)
+  const live = await runConnectSave("app-example", { isWaiting: async () => true, signalSave: async () => undefined })
+  assert.equal(live.ok, true)
 })
 
 test("connect shows the door, Enter signals Save, and success needs claimOkProfile", async () => {
@@ -148,6 +200,28 @@ test("connectOutcome: ok only with claimOkProfile, and fail-closed rows stay hon
   const wall = connectOutcome(job({ phase: "failed", status: "idp-only-save", ok: false, idpOnlyKind: "sign-in-wall" }))
   assert.match(wall.detail.join(" "), /Run the same command again/)
 
+  const solari502 = connectOutcome(
+    job({
+      phase: "await",
+      status: "timeout",
+      ok: false,
+      editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
+    }),
+  )
+  assert.equal(solari502.ok, false)
+  assert.match(solari502.headline, /Solari could not save the login \(HTTP 502: Failed to export storageState\)/)
+  assert.equal(/No Save arrived/.test(solari502.headline), false, "a finished Solari 502 is not a missing Save")
+  assert.match(connectOutcome(job({ phase: "await", status: "timeout", ok: false })).headline, /No Save arrived/)
+  const notSavable = connectOutcome(
+    job({
+      phase: "failed",
+      status: "stream-expired",
+      ok: false,
+      editorSave: { ok: false, status: 409, error: "The editor isn't in a savable state." },
+    }),
+  )
+  assert.match(notSavable.headline, /HTTP 409: The editor isn't in a savable state/)
+  assert.equal(/five-minute/.test(notSavable.headline), false, "a Solari 409 is not the clock")
   assert.match(connectOutcome(job({ phase: "failed", status: "stream-expired", ok: false })).headline, /five-minute/)
   assert.match(connectOutcome(job({ phase: "failed", status: "needsHuman", ok: false })).headline, /never types/)
   const moved = connectOutcome(
@@ -190,4 +264,114 @@ test("runJob calls onMinted with the door before the await", async () => {
   assert.deepEqual(order, [`minted ${DOOR}`, "await"])
   assert.equal(result.status, "timeout")
   assert.equal(JSON.stringify(result).includes("onMinted"), false)
+})
+
+test("runJob keeps a failed Solari editor/save status so connect can name it", async () => {
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-502-"))
+  const result = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true },
+    {
+      jobsDir,
+      login: async () => ({
+        profileId: "p1",
+        name: "app-example",
+        consoleUrl: "https://console.getsolari.com/profiles",
+        next: "Open handoff.url",
+        sinceVersion: 1,
+        handoff: { url: DOOR, mobileUrl: DOOR },
+      }),
+      awaitLogin: async () => ({
+        status: "timeout",
+        profileId: "p1",
+        name: "app-example",
+        version: 1,
+        cookies: 0,
+        origins: 0,
+        next: "editorSave failed (502: Failed to export storageState). POST finished.",
+        editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
+      }),
+      wake: async () => ({ ok: true, skipped: true }),
+    },
+  )
+  assert.equal(result.status, "timeout")
+  assert.deepEqual(result.editorSave, { ok: false, status: 502, error: "Failed to export storageState" })
+  assert.match(connectOutcome(result).headline, /Solari could not save the login \(HTTP 502/)
+})
+
+test("isBotChallengePage names Cloudflare checks and leaves real pages alone", async () => {
+  const { isBotChallengePage } = await import("../src/text.ts")
+  assert.equal(isBotChallengePage("Just a moment...", "We’ll have you designing again soon"), true)
+  assert.equal(isBotChallengePage("Attention Required! | Cloudflare", ""), true)
+  assert.equal(isBotChallengePage("", "Verify you are human by completing the action below."), true)
+  assert.equal(isBotChallengePage("Home - Canva", "What will you design today? Templates for you"), false)
+  assert.equal(isBotChallengePage("Just a moment of calm | Blog", "An article"), false)
+  assert.equal(isBotChallengePage("Sign in", "Enter your password"), false)
+})
+
+test("connectOutcome: a bot wall is named, not blamed on the sign-in", () => {
+  const out = connectOutcome(job({ phase: "failed", status: "mismatch", ok: false, botWall: true, url: "https://www.canva.com/" }))
+  assert.equal(out.ok, false)
+  assert.match(out.headline, /bot check/)
+  assert.equal(/logged-out|Make sure the app is fully loaded/.test(out.headline + out.detail.join(" ")), false)
+})
+
+test("runJob: a bot wall never triggers the finalize fallback", async () => {
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-bot-"))
+  let finalized = 0
+  const result = await runJob(
+    { url: "https://www.canva.com/", expect: "Templates for you", wait: true, verifyWithProfile: true },
+    {
+      jobsDir,
+      login: async () => ({
+        profileId: "p1",
+        name: "canva-com",
+        consoleUrl: "https://console.getsolari.com/profiles",
+        next: "",
+        sinceVersion: 1,
+        handoff: { url: DOOR, mobileUrl: DOOR },
+      }),
+      awaitLogin: async () => ({
+        status: "completed",
+        profileId: "p1",
+        name: "canva-com",
+        version: 2,
+        cookies: 40,
+        origins: 1,
+        next: "",
+        seedReadiness: {
+          phase: "post-save",
+          shape: "cookie-strong",
+          solariSaveReady: true,
+          appOriginCookies: true,
+          appOriginCookieCount: 29,
+          localStorageCount: 21,
+          localStorageAuthKeyNames: [],
+          sessionStorageCount: 0,
+          sessionStorageMiss: true,
+          idpOnly: false,
+          weakSeed: false,
+        },
+      }),
+      finalize: async () => {
+        finalized += 1
+        throw new Error("finalize must not run on a bot wall")
+      },
+      check: async () => ({
+        receipt: {
+          schemaVersion: 1,
+          ok: false,
+          reason: "loggedOut",
+          url: "https://www.canva.com/",
+          expect: "Templates for you",
+          screenshotPath: "",
+          botWall: true,
+        },
+        verified: true,
+      }),
+      wake: async () => ({ ok: true, skipped: true }),
+    },
+  )
+  assert.equal(finalized, 0)
+  assert.equal(result.botWall, true)
+  assert.match(connectOutcome(result).headline, /bot check/)
 })

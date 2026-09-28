@@ -79,6 +79,8 @@ export type ReceiptV1 = {
   /** Click target not found or not clickable. ok is false; the screenshot is the page before the click. */
   clickMissed?: string
   needsHuman?: boolean
+  /** The site served a bot check instead of the page. Optional; reason is unchanged. */
+  botWall?: boolean
   next?: string
   /** Login / await-login / finalize-login host compare. Omitted when there is no URL. */
   profileHostMatch?: boolean

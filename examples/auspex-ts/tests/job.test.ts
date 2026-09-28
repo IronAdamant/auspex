@@ -599,3 +599,102 @@ test("demo job-failed-receipt.json is a redacted fail-closed nextCall", async ()
   assert.equal(dumped.includes("password"), false)
   assert.equal(dumped.includes("sessionId"), false)
 })
+
+function localStorageAuthAwait() {
+  return awaitResult({
+    sessionStorage: 0,
+    next: "local-storage-auth",
+    seedReadiness: {
+      phase: "post-save",
+      shape: "local-storage-auth",
+      solariSaveReady: true,
+      appOriginCookies: false,
+      appOriginCookieCount: 0,
+      localStorageCount: 79,
+      localStorageAuthKeyNames: ["refreshToken"],
+      sessionStorageCount: 0,
+      sessionStorageMiss: true,
+      idpOnly: false,
+      weakSeed: false,
+    },
+  })
+}
+
+const loggedOutReceipt = () => receiptOf({ ok: false, reason: "loggedOut", matched: false })
+const confirmedReceipt = () =>
+  receiptOf({
+    verify: { ok: true, claimOk: false, claimOkProfile: true, errors: [], claimErrors: [], runDir: ".auspex/runs/x" },
+  })
+
+test("job: a seed-ready save that checks logged out gets one finalize, then passes (MSAL)", async () => {
+  const dir = await tmpJobs()
+  let finalized = 0
+  const checks: string[] = []
+  const done = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true, verifyWithProfile: true },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () => localStorageAuthAwait(),
+      finalize: async () => {
+        finalized += 1
+        return checkResult()
+      },
+      check: async () => {
+        const receipt = checks.length === 0 ? loggedOutReceipt() : confirmedReceipt()
+        checks.push(String(receipt.reason))
+        return { receipt, verified: true }
+      },
+    }),
+  )
+  assert.equal(finalized, 1)
+  assert.deepEqual(checks, ["loggedOut", "matched"])
+  assert.equal(done.phase, "completed")
+  assert.equal(done.ok, true)
+  assert.equal(done.claimOkProfile, true)
+  assert.equal(done.finalizeFallback, true)
+})
+
+test("job: the finalize fallback runs once and a second logged-out check stays loggedOut", async () => {
+  const dir = await tmpJobs()
+  let finalized = 0
+  let checked = 0
+  const done = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true, verifyWithProfile: true },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () => localStorageAuthAwait(),
+      finalize: async () => {
+        finalized += 1
+        return checkResult()
+      },
+      check: async () => {
+        checked += 1
+        return { receipt: loggedOutReceipt(), verified: true }
+      },
+    }),
+  )
+  assert.equal(finalized, 1)
+  assert.equal(checked, 2)
+  assert.equal(done.status, "loggedOut")
+  assert.equal(done.ok, false)
+  assert.equal(done.claimOkProfile, undefined)
+})
+
+test("job: --skip-finalize never triggers the finalize fallback", async () => {
+  const dir = await tmpJobs()
+  let finalized = 0
+  const done = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true, skipFinalize: true },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () => localStorageAuthAwait(),
+      finalize: async () => {
+        finalized += 1
+        return checkResult()
+      },
+      check: async () => ({ receipt: loggedOutReceipt(), verified: false }),
+    }),
+  )
+  assert.equal(finalized, 0)
+  assert.equal(done.status, "loggedOut")
+})
