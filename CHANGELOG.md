@@ -4,6 +4,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+- **Phone door Clear** now empties the whole remote field (select-all + Backspace in remote Chrome) and drops keys not yet sent. Before, it only erased characters it was still tracking, so after Enter, Save, or autofill the remote field kept its text.
+- **Phone door Save paste** says `npx auspex-solari …`. Bare `npx auspex` fetched the unrelated npm package `auspex` for anyone without a clone.
 - **`auspex sweep` / `auspex_sweep`:** read-only check over an operator-written JSON plan (one site, up to 12 pages). Each page is pass, fail, or could-not-tell; could-not-tell is never a pass, and a live match the second machine cannot confirm is could-not-tell, not fail. A re-gate or 429 stops the sweep with one human step. Writes `report.md` + `report.json` (no page text); optional scrubbed webhook summary. Regressions compare only the same URL and expect.
 - **`keepProfile`** in a sweep plan exempts that profile from the 30-minute idle wipe. A human-agreed purge still wipes it.
 - **Release smoke** (`npm run smoke:release`, CI): runs the MCP server from the packed tarball on every push and from the npm release daily (with live verify). It fails on 0.1.5 (no `dist/`) and would have failed 0.1.7.

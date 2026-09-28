@@ -5,11 +5,11 @@
   function savePasteLine(name) {
     name = String(name || "").trim() || "<yours>"
     return "I tapped Save on the Auspex phone page for profile " + name + ".\n" +
-      "Run: npx auspex await-login --profile " + name + " --save-editor\n" +
+      "Run: npx auspex-solari await-login --profile " + name + " --save-editor\n" +
       "(MCP: auspex_await_login with saveEditor true).\n" +
       "Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.\n" +
       "Save before the phone countdown hits zero. A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. Auspex cannot lengthen the Solari token.\n" +
-      "Then: npx auspex finalize-login --profile " + name + " --url <the URL the logged-in app lands on> --expect \"<unique logged-in text>\".\n" +
+      "Then: npx auspex-solari finalize-login --profile " + name + " --url <the URL the logged-in app lands on> --expect \"<unique logged-in text>\".\n" +
       "Never open Solari's editor on a phone (GET editor HTTP 401).\n" +
       "editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.\n" +
       "A different product is hostChanged → remint. A same-product rebrand is adopted (SkySQL and MariaDB).\n" +
@@ -184,7 +184,7 @@
       var n = String(profileName || "").trim()
       var flag = n ? " --profile " + n : ""
       var statusName = reason || "stream-expired"
-      return "status " + statusName + ". Remint: npx auspex login" + flag + " (nextCall auspex_login). Do not reuse this page."
+      return "status " + statusName + ". Remint: npx auspex-solari login" + flag + " (nextCall auspex_login). Do not reuse this page."
     }
 
     function resolveExpirySeconds() {
@@ -391,15 +391,25 @@
         }
       })
     }
+    // Clear empties the whole remote field, not only what this page still tracks: after Enter,
+    // Save, autofill, or an earlier attempt the remote field can hold text this page never typed.
+    // Drop pending keys, then select-all + Backspace in remote Chrome (Linux: Ctrl+A).
+    var XK_CONTROL_L = 0xffe3
+    var XK_A = 0x61
+    function clearRemoteField() {
+      if (locked || !rfb || typeof rfb.sendKey !== "function") return
+      rfb.sendKey(XK_CONTROL_L, "ControlLeft", true)
+      rfb.sendKey(XK_A, "KeyA", true)
+      rfb.sendKey(XK_A, "KeyA", false)
+      rfb.sendKey(XK_CONTROL_L, "ControlLeft", false)
+      rfb.sendKey(XK_BACKSPACE, "Backspace")
+    }
     if (clearBtn) {
       clearBtn.addEventListener("click", function () {
         if (locked || !ime) return
-        if (ime.value || (imeOut && last)) {
-          if (imeOut) imeOut.erase()
-          else if (ime.value) sendDiff(last, "")
-          ime.value = ""
-          last = ""
-        }
+        if (imeOut) imeOut.cancel()
+        clearLocalSecrets()
+        clearRemoteField()
         ime.focus()
       })
     }

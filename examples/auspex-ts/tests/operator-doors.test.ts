@@ -556,6 +556,9 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
     assert.match(chat.value, /I tapped Save/)
     assert.match(chat.value, /supabase-com/)
     assert.match(chat.value, /Auspex phone page/)
+    // npm users have no clone: bare `npx auspex` would fetch the unrelated npm package `auspex`.
+    assert.match(chat.value, /npx auspex-solari await-login --profile supabase-com --save-editor/)
+    assert.equal(/npx auspex (?!-solari)/.test(chat.value), false, "paste must not say bare npx auspex")
     assert.equal(chat.value.includes("Auspex desktop page"), false)
     assert.equal(chat.value.includes(PASSWORD), false)
     assert.equal(chat.value.includes(USERNAME), false)
@@ -797,30 +800,36 @@ test("Save strips any non-empty typed secret without mangling Site URL or templa
   }
 })
 
-test("Clear empties the whole field in one click", () => {
+test("Clear empties the whole field in one click, local and remote", () => {
   const XK_BACKSPACE = 0xff08
+  const XK_CONTROL_L = 0xffe3
+  const XK_A = 0x61
+  // Ctrl down, A down, A up, Ctrl up, Backspace: select-all + delete in remote Chrome.
+  const CLEAR_REMOTE = [XK_CONTROL_L, XK_A, XK_A, XK_CONTROL_L, XK_BACKSPACE]
   const keys: number[] = []
   const loaded = loadDoor(readDoor("phone.html"), "", { keys })
   const ime = loaded.byId.get("ime")
   const clear = loaded.byId.get("clear")
   assert.ok(ime && clear)
+  // Typed but not yet sent: the pending keys are dropped, never sent after the clear.
   ime.value = "secret"
   emit(ime, "input")
   assert.equal(keys.length, 0)
   click(clear)
   assert.equal(ime.value, "")
-  assert.equal(keys.length, 0)
-  ime.value = "secret"
+  drain(loaded)
+  assert.deepEqual(keys, CLEAR_REMOTE)
+  // Typed and sent, then Enter already emptied the local field: Clear still empties the remote field.
+  keys.length = 0
+  ime.value = "wrong@example.com"
   emit(ime, "input")
   drain(loaded)
-  const typed = keys.length
-  assert.equal(typed, "secret".length)
-  click(clear)
+  emit(ime, "keydown", { key: "Enter", preventDefault() {} })
   assert.equal(ime.value, "")
-  assert.deepEqual(keys.slice(typed), Array.from({ length: "secret".length }, () => XK_BACKSPACE))
-  const after = keys.length
+  const before = keys.length
   click(clear)
-  assert.equal(keys.length, after)
+  drain(loaded)
+  assert.deepEqual(keys.slice(before), CLEAR_REMOTE)
   assert.equal(ime.value, "")
 })
 
