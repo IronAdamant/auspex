@@ -18,6 +18,7 @@ export const JOB_WAKE_EVENTS = [
   "profile-claimable",
   "completed",
   "failed",
+  "sweep-report",
 ] as const
 
 export type JobWakeEvent = (typeof JOB_WAKE_EVENTS)[number]

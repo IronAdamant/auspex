@@ -53,6 +53,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "trace",
     "job",
     "job-status",
+    "sweep",
   ])
   assert.deepEqual(contractToolNames(), [
     "auspex_check",
@@ -68,6 +69,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "auspex_trace",
     "auspex_job",
     "auspex_job_status",
+    "auspex_sweep",
   ])
   const shapes: Record<string, Record<string, unknown>> = {
     check: auspexCheckInputObject.shape,

@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      spec:
+        description: "npm spec for the published-package smoke (e.g. auspex-solari@0.1.9)"
+        required: false
+        default: "auspex-solari@latest"
   schedule:
     - cron: "17 6 * * *"
     - cron: "42 6 * * 1"
@@ -34,6 +39,11 @@ jobs:
       - name: Root spawn door
         working-directory: ${{ github.workspace }}
         run: node bin/auspex.mjs --help
+      - name: Packed-tarball MCP smoke (what npm users install; no key)
+        working-directory: ${{ github.workspace }}
+        run: |
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP"
+          node examples/auspex-ts/scripts/release-smoke.mjs --spec "$(ls "$RUNNER_TEMP"/auspex-solari-*.tgz)"
 
   live:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 6 * * *'
@@ -59,6 +69,15 @@ jobs:
             exit 0
           fi
           npx tsx src/cli.ts check https://example.com --expect "Example Domain"
+      - name: Published-package MCP smoke (npm release, live verify)
+        env:
+          SMOKE_SPEC: ${{ github.event.inputs.spec || 'auspex-solari@latest' }}
+        run: |
+          if [ -z "$SOLARI_API_KEY" ]; then
+            echo "Skipping published smoke: SOLARI_API_KEY secret is not set"
+            exit 0
+          fi
+          node scripts/release-smoke.mjs --live --spec "$SMOKE_SPEC"
 
   public:
     # Repo secret SOLARI_API_KEY is present; weekly public runs live

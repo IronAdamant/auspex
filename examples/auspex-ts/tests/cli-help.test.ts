@@ -603,3 +603,19 @@ test("parseArgv --verify-with-profile enables verifyAfter for consistencyhub", (
     assert.equal(explicitNoVerify.command.verifyAfter, false, "--no-verify should disable verifyAfter")
   }
 })
+
+test("option values may start with a dash; a following flag is still not a value", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  const ok = parseArgv(["check", "https://example.com", "--expect", "-20% off"])
+  assert.equal(ok.status, "ok")
+  if (ok.status === "ok" && ok.command.cmd === "check") assert.equal(ok.command.opts.expect, "-20% off")
+  const missing = parseArgv(["check", "https://example.com", "--expect", "--no-verify"])
+  assert.equal(missing.status, "error")
+})
+
+test("sweep parses --plan and --notify and refuses a non-http notify", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  assert.deepEqual(parseArgv(["sweep", "--plan", "plan.json"]), { status: "ok", command: { cmd: "sweep", planPath: "plan.json", notify: undefined } })
+  assert.equal(parseArgv(["sweep"]).status, "error")
+  assert.equal(parseArgv(["sweep", "--plan", "p.json", "--notify", "file:///x"]).status, "error")
+})

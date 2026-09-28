@@ -25,6 +25,8 @@ import { stampSchema } from "./schema-version.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import { readJobStatus, type JobStatusOptions } from "./job-store.ts"
 import { runJob, type JobRunOptions } from "./job.ts"
+import { AUSPEX_WAKE_WEBHOOK_ENV, postJobWake } from "./job-wake.ts"
+import { parseSweepPlan, runSweep, sweepNotifyPayload, writeSweepReport } from "./sweep.ts"
 import type { ProgressFn } from "./progress.ts"
 import type { SsoProvider } from "./sso.ts"
 
@@ -288,6 +290,35 @@ export async function runJobDoor(opts: JobRunOptions) {
   })
   const result = await runJob(opts)
   return stampSchema({ ...result, operator: book.agent })
+}
+
+/** Read-only sweep over an operator-written plan. One check per page, in order, then one report. */
+export async function runSweepDoor(opts: { plan: unknown; notify?: string; onProgress?: ProgressFn }) {
+  const plan = parseSweepPlan(opts.plan)
+  const total = plan.pages.length
+  let index = 0
+  const notifyUrl = opts.notify?.trim() || process.env[AUSPEX_WAKE_WEBHOOK_ENV]?.trim()
+  const report = await runSweep(plan, {
+    check: async (page) => {
+      index += 1
+      opts.onProgress?.(`sweep ${index}/${total} ${page.name}`)
+      const { receipt } = await executeAuspexCheck({
+        url: page.url,
+        expect: page.expect,
+        profile: plan.profile,
+        verifyWithProfile: Boolean(plan.profile),
+      })
+      return receipt
+    },
+    noteUse: async (p) => {
+      await withOperatorSession({
+        note: p.profile ? { profile: p.profile, site: p.pages[0]!.url, keep: p.keepProfile } : undefined,
+      })
+    },
+    writeReport: (report, markdown) => writeSweepReport(report, markdown),
+    notify: notifyUrl ? (report) => postJobWake(sweepNotifyPayload(report), { url: notifyUrl }) : undefined,
+  })
+  return stampSchema(report)
 }
 
 export async function runJobStatusDoor(opts: JobStatusOptions) {

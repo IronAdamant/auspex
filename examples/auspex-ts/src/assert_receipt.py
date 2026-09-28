@@ -93,8 +93,25 @@ def normalize(text):
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def _word_char(ch):
+    return bool(ch) and (ch.isalnum() or ch == "_")
+
+
 def haystack_matches(raw, expect):
-    return normalize(expect) in normalize(raw) if expect.strip() else False
+    """Case-sensitive, word-bounded, like text.ts: Dashboard does not match Dashboards."""
+    needle = normalize(expect)
+    if not needle:
+        return False
+    hay = normalize(raw)
+    start = hay.find(needle)
+    while start >= 0:
+        before = hay[start - 1] if start > 0 else ""
+        end = start + len(needle)
+        after = hay[end] if end < len(hay) else ""
+        if not _word_char(before) and not _word_char(after):
+            return True
+        start = hay.find(needle, start + 1)
+    return False
 
 
 class VisibleText(HTMLParser):

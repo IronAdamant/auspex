@@ -128,6 +128,15 @@ export const JOB_DESCRIPTION =
   `${RE_GATE_TOOL_LINE} ` +
   DOOR
 
+export const SWEEP_DESCRIPTION =
+  "Read-only sweep over an operator-written plan: one auspex_check per page, in order, with verifyWithProfile when the plan names a saved login. " +
+  "Each page is pass (matched and, with a profile, claimOkProfile true), fail (page loaded, expect text missing), or could-not-tell (anything else). " +
+  "Could-not-tell is never a pass. ok is true only when every page passed. " +
+  "A re-gate (loggedOut, needsHuman, stream-expired, hostChanged) or a Solari 429 / plan limit stops the sweep; remaining pages are not-run and stopped.nextCall is the one human step. Do not loop. " +
+  "No fill, click, record, sso, or save. Writes report.md + report.json under .auspex/sweeps (no page text). keepProfile true in the plan exempts that profile from the 30-minute idle wipe; a human-agreed purge still wipes it. " +
+  "Each page takes about a minute; keep MCP sweeps short or run the CLI (auspex sweep --plan). Not a fourth primitive. Never types passwords. " +
+  DOOR
+
 export const JOB_STATUS_DESCRIPTION =
   "Blind 30-minute polls of await-login waste the slot. " +
   "Read the local job file; optional waitMs (max 60s) blocks until phase/status changes. " +

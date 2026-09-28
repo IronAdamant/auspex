@@ -167,6 +167,14 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
       { json: "waitMs", flag: "--wait-ms", kind: "number" },
     ],
   },
+  {
+    cmd: "sweep",
+    tool: "auspex_sweep",
+    fields: [
+      { json: "planPath", flag: "--plan", kind: "string" },
+      { json: "notify", flag: "--notify", kind: "string" },
+    ],
+  },
 ]
 
 export function contractJsonFields(cmd: string): string[] {

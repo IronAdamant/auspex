@@ -189,3 +189,27 @@ test("capitalized nav items on their own lines still match a single-word expect"
   // Multi-word expects still span a line break after whitespace collapse.
   assert.equal(haystackMatches("Document\nEditor", "Document Editor"), true)
 })
+
+test("sandbox assert matcher is word-bounded like the live matcher", async () => {
+  const { spawnSync } = await import("node:child_process")
+  const { ASSERT_RECEIPT_PY_PATH } = await import("../src/receipt.ts")
+  const probe = `import importlib.util, sys
+spec = importlib.util.spec_from_file_location("a", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+for hay, needle in [("Your Dashboards", "Dashboard"), ("MyDashboard", "Dashboard"), ("Open the Dashboard now", "Dashboard"), ("One office job. Your", "One office job."), ("job.Your", "job."), ("Document\\nEditor", "Document Editor")]:
+    print(m.haystack_matches(hay, needle))`
+  const ran = spawnSync("python3", ["-c", probe, ASSERT_RECEIPT_PY_PATH], { encoding: "utf8" })
+  if (ran.error) return
+  assert.equal(ran.status, 0, ran.stderr)
+  const cases: Array<[string, string]> = [
+    ["Your Dashboards", "Dashboard"],
+    ["MyDashboard", "Dashboard"],
+    ["Open the Dashboard now", "Dashboard"],
+    ["One office job. Your", "One office job."],
+    ["job.Your", "job."],
+    ["Document\nEditor", "Document Editor"],
+  ]
+  // Same answers as the live TS matcher on these cases (no title-case guard needed here).
+  const expected = cases.map(([hay, needle]) => (haystackMatches(hay, needle) ? "True" : "False"))
+  assert.deepEqual(expected, ["False", "False", "True", "True", "False", "True"])
+  assert.deepEqual(ran.stdout.trim().split("\n"), expected)
+})

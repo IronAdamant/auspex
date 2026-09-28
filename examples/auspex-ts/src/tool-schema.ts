@@ -447,6 +447,20 @@ export const auspexJobInputObject = z.object({
   timeoutMs: z.number().optional().describe("Await-login cap in ms (same bound as auspex_await_login)."),
 })
 
+export const auspexSweepInputSchema = z.object({
+  planPath: z
+    .string()
+    .trim()
+    .min(1)
+    .describe(
+      "Path to an operator-written sweep plan JSON (absolute is safest): { name, profile?, keepProfile?, pages: [{ name?, url, expect }] }. Read-only: pages may not set fill, click, record, sso, or save. Max 12 pages, one site per profile.",
+    ),
+  notify: z
+    .string()
+    .optional()
+    .describe("Optional http(s) URL for a scrubbed summary POST (falls back to AUSPEX_WAKE_WEBHOOK). No page text is sent."),
+})
+
 export const auspexJobStatusInputSchema = z.object({
   jobId: z.string().trim().min(1).describe("Job id from auspex_job"),
   waitMs: z

@@ -7,6 +7,8 @@ export type ReceiptDiff = {
   previousUrl?: string
   previousExcerpt?: string
   previousReason?: string
+  /** Expect text on that previous receipt. A regression compares only the same expect. */
+  previousExpect?: string
   urlChanged: boolean
   excerptChanged: boolean
   sameUrl: boolean
@@ -86,6 +88,7 @@ export async function diffAgainstLastReceipt(opts: {
         : undefined
   const previousExcerpt = typeof previous.manifest.excerpt === "string" ? previous.manifest.excerpt : undefined
   const previousReason = typeof previous.manifest.reason === "string" ? previous.manifest.reason : undefined
+  const previousExpect = typeof previous.manifest.expect === "string" ? previous.manifest.expect : undefined
   const landed = opts.finalUrl || opts.url
   let urlChanged = false
   if (previousUrl && landed) {
@@ -101,6 +104,7 @@ export async function diffAgainstLastReceipt(opts: {
     previousUrl,
     previousExcerpt,
     previousReason,
+    previousExpect,
     urlChanged,
     excerptChanged,
     sameUrl: true,

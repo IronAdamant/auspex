@@ -11,6 +11,7 @@ import {
   FINALIZE_LOGIN_DESCRIPTION,
   JOB_DESCRIPTION,
   JOB_STATUS_DESCRIPTION,
+  SWEEP_DESCRIPTION,
   LOGIN_DESCRIPTION,
   PROFILE_STATUS_DESCRIPTION,
   PROFILES_DESCRIPTION,
@@ -26,6 +27,7 @@ import {
   auspexFinalizeLoginInputSchema,
   auspexJobInputObject,
   auspexJobStatusInputSchema,
+  auspexSweepInputSchema,
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexProfilesInputSchema,
@@ -283,6 +285,25 @@ export function registerAuspexTools(server: McpServer): void {
         onProgress("auspex_job_status")
         const result = await readJobStatus({ jobId, waitMs, onProgress })
         return { content: [{ type: "text" as const, text: toolJson(result) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_sweep",
+    { description: SWEEP_DESCRIPTION, inputSchema: auspexSweepInputSchema },
+    async ({ planPath, notify }, extra) => {
+      try {
+        const onProgress = progressFromExtra(extra)
+        onProgress("auspex_sweep")
+        const { readFile } = await import("node:fs/promises")
+        const path = await import("node:path")
+        const file = path.resolve(process.env.AUSPEX_CALLER_CWD || process.cwd(), planPath)
+        const plan = JSON.parse(await readFile(file, "utf8")) as unknown
+        const { runSweepDoor } = await import("./runners.ts")
+        return { content: [{ type: "text" as const, text: toolJson(await runSweepDoor({ plan, notify, onProgress })) }] }
       } catch (err) {
         return packToolFailure(err)
       }

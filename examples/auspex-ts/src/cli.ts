@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { type CheckOptions } from "./check.ts"
@@ -33,6 +34,7 @@ export const USAGE = `Usage:
   npx auspex solari-health
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
+  npx auspex sweep --plan <plan.json> [--notify <url>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
   npx auspex trace [--profile <name>] [--limit <n>] [--all]
   npx auspex verify [runDir]
@@ -57,6 +59,7 @@ solari-health asks if Solari answers with this key (GET /profiles, one try, 8s).
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Voluntary --purge <name> --yes stops the editor first; if that name is not wiped, ok is false and wipeFailed lists it. Keys are not included in the agent message.
 ${PROFILES_MAP_LINE}
+sweep is read-only check over an operator-written plan (JSON: profile, optional keepProfile, pages of url+expect; no fill, click, or save). Each page is pass, fail, or could-not-tell; could-not-tell is never a pass. A re-gate or 429 stops the sweep. Report: .auspex/sweeps/<stamp>/report.md and report.json. --notify or AUSPEX_WAKE_WEBHOOK posts a scrubbed summary.
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
 login --wait blocks until Save is signaled, then runs --save-editor. It does not POST editor/save before that signal. handoff.url is the phone door (phone.html).
 await-login --save-editor POSTs Solari editor/save when Save is signaled. If one await is already running, this call signals it and does not kill it. If another path already owns that Save, status is sibling-saved (not stream-expired). Clipboard Save is not the jar. Progress is stderr lines that start with :: . Stdout stays one JSON object.
@@ -79,6 +82,7 @@ export type CliCommand =
   | { cmd: "trace"; profile?: string; limit?: number; all?: boolean }
   | { cmd: "job"; opts: JobRunOptions }
   | { cmd: "job-status"; jobId: string; waitMs?: number }
+  | { cmd: "sweep"; planPath: string; notify?: string }
 
 export type ParseResult =
   | { status: "ok"; command: CliCommand }
@@ -91,6 +95,11 @@ function takeFlag(args: string[], name: string): boolean {
   return true
 }
 
+/** `--flag` or `-x` is the next option, not a value. `-20% off` and `-1` are values. */
+function looksLikeFlag(value: string): boolean {
+  return /^--/.test(value) || /^-[A-Za-z]/.test(value)
+}
+
 function takeOption(
   args: string[],
   name: string,
@@ -99,7 +108,7 @@ function takeOption(
   const i = args.indexOf(name)
   if (i === -1) return undefined
   const value = args[i + 1]
-  if (value === undefined || (value.length > 0 && value.startsWith("-"))) return undefined
+  if (value === undefined || looksLikeFlag(value)) return undefined
   if (opts.rejectHttp && /^https?:\/\//i.test(value)) return undefined
   args.splice(i, 2)
   return value
@@ -506,6 +515,19 @@ export function parseArgv(argv: string[]): ParseResult {
     if (!parsed.ok) return { status: "error", message: parsed.message }
     return { status: "ok", command: { cmd: "job-status", jobId: parsed.jobId, waitMs: parsed.waitMs } }
   }
+  if (cmd === "sweep") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    const planPath = takeOption(args, "--plan")
+    const notify = takeOption(args, "--notify")
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    if (!planPath) return { status: "error", message: "sweep requires --plan <plan.json>" }
+    if (notify !== undefined && !isHttpOrHttpsUrl(notify)) {
+      return { status: "error", message: "--notify must be an http or https URL (no userinfo)" }
+    }
+    return { status: "ok", command: { cmd: "sweep", planPath, notify } }
+  }
   return { status: "error", message: `unknown command: ${cmd}` }
 }
 
@@ -607,6 +629,18 @@ export async function main(argv: string[]): Promise<number> {
         waitMs: cmd.waitMs,
         onProgress: createProgress(),
       })
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
+    }
+    if (cmd.cmd === "sweep") {
+      let plan: unknown
+      try {
+        plan = JSON.parse(await readFile(path.resolve(process.env.AUSPEX_CALLER_CWD || process.cwd(), cmd.planPath), "utf8"))
+      } catch (err) {
+        throw new Error(`sweep --plan ${cmd.planPath} is not readable JSON: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      const result = await runners.runSweepDoor({ plan, notify: cmd.notify, onProgress: createProgress() })
+      process.stderr.write(`${result.next}\n`)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }

@@ -56,7 +56,8 @@ export function spawnAuspex(entryRel, extraArgs = []) {
   const child = spawn(process.execPath, [tsx, entry, ...extraArgs], {
     stdio: "inherit",
     cwd: pkgRoot,
-    env: process.env,
+    // The CLI runs from the package root; relative user paths (sweep --plan) resolve from here.
+    env: { ...process.env, AUSPEX_CALLER_CWD: process.env.AUSPEX_CALLER_CWD || process.cwd() },
   })
   inheritChild(child)
 }
@@ -71,7 +72,7 @@ export function spawnAuspexMcp() {
   const child = spawn(process.execPath, [dist], {
     stdio: "inherit",
     cwd: pkgRoot,
-    env: process.env,
+    env: { ...process.env, AUSPEX_CALLER_CWD: process.env.AUSPEX_CALLER_CWD || process.cwd() },
   })
   inheritChild(child)
 }

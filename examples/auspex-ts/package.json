@@ -15,6 +15,7 @@
     "public-check": "tsx scripts/public-check.ts",
     "generate:replay": "tsx scripts/generate-replay-html.ts",
     "generate:agent-contract": "tsx scripts/generate-agent-contract.ts",
+    "smoke:release": "node scripts/release-smoke.mjs",
     "start": "tsx src/cli.ts"
   },
   "dependencies": {

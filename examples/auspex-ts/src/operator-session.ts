@@ -29,6 +29,8 @@ export type OperatorProfileInput = {
   lastUsedMs: number
   /** Signup or an open handoff. Idle wipe skips it. */
   inUse?: boolean
+  /** Operator opted this profile out of the idle wipe (sweep plan keepProfile). A human-agreed purge still wipes it. */
+  keep?: boolean
   username?: string
   password?: string
   solariKey?: string
@@ -71,6 +73,7 @@ export type StoredOperatorProfile = {
   site?: string
   lastUsedMs: number
   busyUntilMs?: number
+  keep?: boolean
 }
 
 export type OperatorState = {
@@ -83,6 +86,8 @@ export type OperatorNote = {
   busyMs?: number
   /** End of signup only. Ordinary checks keep an unexpired busy window. */
   clearBusy?: boolean
+  /** Set by an operator-written sweep plan. Omitted keeps the stored value. */
+  keep?: boolean
 }
 
 export type WipeFailure = {
@@ -139,7 +144,7 @@ export function decideOperatorSession(input: OperatorDecisionInput): OperatorDec
     if (!profile || seen.has(profile)) continue
     seen.add(profile)
     sites.push(siteIdentity({ profile, site: row.site }))
-    const idle = !row.inUse && now - row.lastUsedMs >= OPERATOR_IDLE_MS
+    const idle = !row.inUse && row.keep !== true && now - row.lastUsedMs >= OPERATOR_IDLE_MS
     if (idle || voluntary.has(profile)) wipe.push(profile)
   }
   return {
@@ -187,12 +192,17 @@ export function readOperatorState(root: string): OperatorState {
     for (const [name, raw] of Object.entries(parsed.profiles as Record<string, unknown>)) {
       const profile = cleanProfile(name)
       if (!profile || !raw || typeof raw !== "object") continue
-      const row = raw as { site?: unknown; lastUsedMs?: unknown; busyUntilMs?: unknown }
+      const row = raw as { site?: unknown; lastUsedMs?: unknown; busyUntilMs?: unknown; keep?: unknown }
       const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0
       const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : undefined
       const busyUntilMs =
         typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : undefined
-      profiles[profile] = { site, lastUsedMs, ...(busyUntilMs !== undefined ? { busyUntilMs } : {}) }
+      profiles[profile] = {
+        site,
+        lastUsedMs,
+        ...(busyUntilMs !== undefined ? { busyUntilMs } : {}),
+        ...(row.keep === true ? { keep: true } : {}),
+      }
     }
     return { profiles }
   } catch {
@@ -211,6 +221,7 @@ export function writeOperatorState(root: string, state: OperatorState): void {
       ...(row.site ? { site: row.site } : {}),
       lastUsedMs: row.lastUsedMs,
       ...(row.busyUntilMs !== undefined ? { busyUntilMs: row.busyUntilMs } : {}),
+      ...(row.keep === true ? { keep: true } : {}),
     }
   }
   writeFileSync(file, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 0o600 })
@@ -233,6 +244,8 @@ export function noteOperatorUse(state: OperatorState, note: OperatorNote, nowMs:
     site: note.site?.trim() || prev?.site,
     lastUsedMs: nowMs,
   }
+  const keep = note.keep ?? prev?.keep
+  if (keep === true) next.keep = true
   if (note.busyMs !== undefined && note.busyMs > 0) {
     next.busyUntilMs = nowMs + note.busyMs
   } else if (note.clearBusy) {
@@ -249,6 +262,7 @@ export function profilesFromState(state: OperatorState, nowMs: number): Operator
     site: row.site,
     lastUsedMs: row.lastUsedMs,
     inUse: row.busyUntilMs !== undefined && row.busyUntilMs > nowMs,
+    ...(row.keep === true ? { keep: true } : {}),
   }))
 }
 
