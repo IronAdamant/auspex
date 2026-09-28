@@ -97,10 +97,12 @@ test("docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile"
   assert.match(packReadme, /weakSeed|emptySave/)
   assert.match(packReadme, /auspex_finalize_login/)
 
-  assert.match(rootReadme, /auspex_finalize_login/)
-  assert.match(rootReadme, /weakSeed/)
-  assert.match(rootReadme, /emptySave/)
+  // The README is for humans; agent vocabulary lives in AGENTS.md.
   assert.match(rootReadme, /claimOkProfile/)
+  assert.match(rootReadme, /AGENTS\.md/)
+  assert.match(rootAgents, /auspex_finalize_login/)
+  assert.match(rootAgents, /weakSeed/)
+  assert.match(rootAgents, /emptySave/)
 
   assert.equal(rootAgents.includes("After anonymous verify"), false, "AGENTS must not say VWP runs after anonymous verify")
   assert.match(rootAgents, /skips anonymous claim/)
@@ -250,12 +252,8 @@ test("root README first screen is For Reviewers + watch URL", () => {
   assert.match(first, /auspex-mcp/)
   assert.equal(first.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"), false)
   assert.match(first, /[Pp]ublic check/)
-  assert.match(first, /[Aa]uth-gated/)
-  assert.match(first, /measured public check|Measured public check/)
-  assert.match(first, /[Rr]edacted demo/)
-  assert.match(first, /Auth-gated evidence/)
   assert.match(first, /consistencyhub-receipt\.json/)
-  assert.match(first, /redacted auth-gated SaaS demo/)
+  assert.match(first, /[Ll]ogged-in evidence/)
   assert.match(first, /--profile <yours>|login --url/)
   assert.equal(
     /login --profile consistencyhub/.test(first.split("## Worked example")[0] ?? first),
@@ -280,8 +278,9 @@ test("root README shipped bullets match shouldVerifyCheck and resolveFinalizeLog
     false,
     "README must not teach finalize-login always defaulting to ConsistencyHub",
   )
-  assert.match(rootReadme, /any attached profile on a non-public-marketing URL/)
-  assert.match(rootReadme, /unknown profiles require `--url` and `--expect`/)
+  const rootAgentsShipped = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  assert.match(rootAgentsShipped, /any attached profile on a non-public-marketing URL/)
+  assert.match(rootAgentsShipped, /unknown profiles require `--url` and `--expect`/)
   assert.match(rootReadme, /tap Save/)
   assert.match(rootReadme, /--save-editor/)
   assert.match(rootReadme, /phone keyboard/)
@@ -372,8 +371,7 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   const rootAgents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
   const changelog = readFileSync(path.join(repo, "CHANGELOG.md"), "utf8")
 
-  assert.match(rootReadme, /named Solari sandbox Mousepad demo/)
-  assert.match(rootReadme, /402 on Free/)
+  assert.match(rootAgents, /named Solari sandbox desktop demo/)
   assert.match(packReadme, /named Solari sandbox demo \(default Mousepad\)/)
   assert.match(packReadme, /402 on Free/)
   assert.match(USAGE, /desktop/)
@@ -381,7 +379,6 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.match(license, /Copyright \(c\) 2026 Pinetree Research/)
   assert.match(license, /Copyright \(c\) 2026 Iron Adamant/)
 
-  assert.match(rootReadme, /auth \+ hygiene doors/)
   assert.match(rootAgents, /auth \+ hygiene doors/)
   for (const absent of [
     "PLAN.md",
@@ -514,7 +511,6 @@ test("trace docs allow one post-handoff row and still forbid check rows and secr
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["root README.md", rootReadme],
     ["package README.md", packReadme],
     ["trace tool", TRACE_DESCRIPTION],
   ] as const) {
@@ -572,8 +568,6 @@ test("frozen agent door sequence is documented for operators and not a takeover"
   }
   assert.match(rootReadme, /Frozen door sequence|frozen-agent-door-sequence/)
   assert.match(packReadme, /Frozen door sequence|frozen-agent-door-sequence/)
-  assert.match(rootReadme, /expectMatchedPublicLanding/)
-  assert.match(rootReadme, /hostChanged/)
 })
 
 test("door/await contract is generated from one source", () => {
@@ -615,7 +609,6 @@ test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason networ
   const cursorRule = readFileSync(path.join(repo, ".cursor", "rules", "auspex.mdc"), "utf8")
   for (const [label, text] of [
     ["root AGENTS.md", rootAgents],
-    ["root README.md", rootReadme],
     ["package README.md", packReadme],
     ["Cursor rule", cursorRule],
   ] as const) {
