@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Auspex</title>
-  <meta name="description" content="ok ≠ claimOk ≠ claimOkProfile. Cloud Chrome reads a page; a second machine checks the claim. We do not claim Alice-vs-Bob. Never types passwords."/>
+  <meta name="description" content="An agent can say a dashboard loaded when the page is still the login screen. Auspex reads the page in cloud Chrome and a second browser checks the claim. Tested on eight live apps. Never types passwords."/>
   <style>
     :root {
       --bg: #111;
@@ -53,8 +53,8 @@
       font-size: 0.88rem;
       color: var(--fg);
     }
-    .signals, .kinds { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; max-width: 1100px; margin: 0.75rem 0 0; }
-    .signals div, .kinds p {
+    .signals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; max-width: 1100px; margin: 0.75rem 0 0; }
+    .signals div {
       margin: 0;
       border: 1px solid var(--border);
       background: var(--panel);
@@ -63,7 +63,7 @@
       color: var(--muted);
       font-size: 0.92rem;
     }
-    .signals strong, .kinds strong { color: var(--fg); display: block; margin-bottom: 0.25rem; }
+    .signals strong { color: var(--fg); display: block; margin-bottom: 0.25rem; }
     .hero { margin: 0.85rem 0 0; max-width: 1100px; }
     .hero img { max-height: 280px; object-fit: cover; object-position: top; }
     .aside-shot { margin: 0.85rem 0 0; max-width: 36rem; }
@@ -86,15 +86,31 @@
       padding: 8px 12px;
       margin: 0.75rem 0 0;
     }
+    table.apps {
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 46rem;
+      margin: 0.6rem 0 0;
+      font-size: 0.92rem;
+    }
+    table.apps th, table.apps td {
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    table.apps th { color: var(--fg); font-weight: 600; }
+    table.apps td:last-child { color: var(--fg); white-space: nowrap; }
+    .tally { color: var(--fg); }
+    .formula { font-size: 0.92rem; }
+    h2.later { margin-top: 2.6rem; border-top: 1px solid var(--border); padding-top: 1.2rem; }
     @media (max-width: 800px) {
       .signals { grid-template-columns: 1fr; }
-      .kinds { gap: 0.35rem; }
-      .kinds p { padding: 6px 8px; font-size: 0.78rem; }
-      .skim { display: flex; flex-direction: column; }
-      .skim > .formula { order: 1; }
-      .skim > .hero { order: 2; }
-      .skim > .kinds { order: 3; }
-      .skim > .signals { order: 4; }
+      header, main, footer { padding: 12px 16px; }
+      table.apps { font-size: 0.84rem; }
+      table.apps th, table.apps td { padding: 5px 6px; }
+      table.apps td:last-child { white-space: normal; }
       .hero img { max-height: 220px; object-fit: cover; object-position: top; }
       .watch { min-height: 420px; }
     }
@@ -105,43 +121,66 @@
     <h1>Auspex</h1>
     <p>
       An agent can say a dashboard loaded when the page is still the login screen.
-      Auspex opens cloud Chrome, reads the page, and a second machine checks that claim.
-      It never types a password.
+      Auspex opens cloud Chrome, reads the page, and can have a second machine check that claim again.
+      A person signs in once. The agent never sees the password, and Auspex never types one.
     </p>
-    <div class="skim">
+
+    <h2>Three answers on every receipt</h2>
+    <div class="signals" aria-label="Three receipt results">
+      <div>
+        <strong>The live browser saw the words.</strong>
+        <code>ok</code>
+      </div>
+      <div>
+        <strong>A machine with no login also saw them.</strong>
+        <code>claimOk</code>. On a logged-in app this stays false on purpose: a stranger's browser cannot see your dashboard.
+      </div>
+      <div>
+        <strong>A second browser, using only the saved login, saw them.</strong>
+        <code>claimOkProfile</code>. This one means the login can be reused. <code>ok</code> alone is not enough.
+      </div>
+    </div>
     <p class="formula">
       <strong>ok ≠ claimOk ≠ claimOkProfile.</strong>
-      Three separate results on one receipt. They are not interchangeable.
-      We do not claim Alice-vs-Bob wrong-account detection.
-      Numbers below are the redacted auth-gated receipt, not the public page.
+      They are kept apart and never merged.
+      We do not claim Alice-vs-Bob wrong-account detection: a saved login can be the wrong account and still show the words.
     </p>
-    <div class="signals" aria-label="Three receipt results on the redacted demo">
-      <div>
-        <strong>ok · true</strong>
-        The live browser matched the claim, and the second check passed.
-      </div>
-      <div>
-        <strong>claimOk · false</strong>
-        Skipped. A machine with no saved login cannot see a logged-in page. That false is on purpose, not a failed public check.
-      </div>
-      <div>
-        <strong>claimOkProfile · true</strong>
-        A second browser that reused the saved login saw the claim. That is the reuse gate. <code>ok</code> alone is not enough.
-      </div>
-    </div>
-    <div class="kinds" aria-label="Measured, redacted demo, and stripped wall">
-      <p><strong>Measured.</strong> Public page, no login. Does not prove a logged-in app.</p>
-      <p><strong>Redacted demo.</strong> Blurred logged-in page below, plus its receipt. The blur hides personal data. It is not a blank fail.</p>
-      <p><strong>Stripped wall.</strong> The player lower on this page is only a Microsoft sign-in wall. Emails and passwords are removed. Not logged-in proof.</p>
-    </div>
+
+    <h2>Tested on eight live apps</h2>
+    <p>
+      2026-09-28. Real accounts. A person signed in once per site through the phone door; an agent (Claude Code over MCP) did the rest.
+    </p>
+    <table class="apps">
+      <thead>
+        <tr><th>Backend / sign-in</th><th>Kind of app</th><th>Second browser confirmed the login</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Appwrite</td><td>Class-booking platform</td><td>Yes</td></tr>
+        <tr><td>Supabase</td><td>Audio transcription SaaS</td><td>Yes</td></tr>
+        <tr><td>AWS</td><td>Language-learning app</td><td>Yes</td></tr>
+        <tr><td>Cloudflare + Clerk</td><td>Collaborative whiteboard</td><td>Yes</td></tr>
+        <tr><td>Postgres</td><td>Customer-support inbox</td><td>Yes</td></tr>
+        <tr><td>MySQL</td><td>Managed database console</td><td>Yes</td></tr>
+        <tr><td>MongoDB (Parse)</td><td>Backend-as-a-service dashboard</td><td>Yes</td></tr>
+        <tr><td>Azure + Microsoft sign-in</td><td>Our own document SaaS</td><td>Yes, after one extra step</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong class="tally">Eight of eight</strong>, on a laptop and on a phone.
+      When a login was not really saved, Auspex said so instead of guessing: an empty saved login,
+      a Microsoft app that came back logged out, and a Microsoft password screen it stopped at rather than typed into.
+      Redacted receipts for every row: <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#other-sign-in-receipts-receipt-only">RECEIPTS.md</a>.
+    </p>
+
     <figure class="hero">
       <img
         src="demo/consistencyhub.png"
         alt="Blurred logged-in page from an auth-gated app. Redacted demo. The blur hides personal data. Not a blank fail."
       />
       <figcaption>
-        <strong>Redacted auth-gated SaaS demo.</strong>
-        ok true, claimOk false (skipped), claimOkProfile true.
+        <strong>Logged-in app, personal data removed.</strong>
+        A second browser, using only the saved login, confirmed it.
+        Redacted auth-gated SaaS demo: ok true, claimOk false (skipped), claimOkProfile true.
         <a href="demo/consistencyhub-receipt.json">Receipt</a>.
       </figcaption>
       <p class="dual-pack">
@@ -149,18 +188,19 @@
         ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a>.
         OneDrive: receipt-only <a href="demo/onedrive-receipt.json">onedrive-receipt.json</a> (no public PNG, PII).
         Both: ok true, claimOk false (skipped), claimOkProfile true.
-        That pair is Truth A (a finished seed).
-        Truth B: Save can return 200 while the app is already on screen and the jar is still only Microsoft or Google cookies (session storage 0).
-        Status idp-only-save, kind app-visible. Do not finalize.
-        The app on screen is not a reusable saved login. An IdP session (often MSAL) can look logged in while Save stored only sign-in cookies.
-        That stop is honest. Login worked. Finalize only when the save holds the app session.
-        The picture is not a saved login. Solari handoff Save stores cookies and local storage; it cannot read the in-tab session token.
-        Not Auspex broken, and not a reason to mint again to finish Microsoft.
         Worked evidence, not the recipe — strangers still use <code>login --url</code> plus their URL and expect.
         <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#dual-pack-same-microsoft-seed">RECEIPTS.md Dual pack</a>.
       </p>
     </figure>
-    </div>
+
+    <h2>Try one command</h2>
+    <pre>export SOLARI_API_KEY=slr_live_…   # console.getsolari.com
+npx auspex-solari check --name ironadamant</pre>
+    <p>
+      Good looks like <code>"ok": true</code> in the JSON it prints.
+      This is a public page with no login, so it does not prove the logged-in path; the table above does.
+      No key? Clone the repo and run <code>npm install &amp;&amp; npm test</code>.
+    </p>
     <p class="proof">
       <a href="https://www.npmjs.com/package/auspex-solari">npm auspex-solari@0.1.12</a>.
       Install <code>auspex-solari</code> (not npm <code>auspex</code>). Repo is <a href="https://github.com/IronAdamant/auspex">IronAdamant/auspex</a>.
@@ -178,6 +218,8 @@
         <a href="demo/ironadamant-receipt.json">Receipt</a>
       </figcaption>
     </figure>
+
+    <h2 class="later">How the login works</h2>
     <p>
       Recipe for any other site: <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>).
       <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">Receipts</a>.
@@ -230,6 +272,22 @@
     <pre class="key-paths" aria-label="Keyless Pages vs live SOLARI_API_KEY">human browser  →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in hash
 operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
 Pages never collect the key. Agents never type a password.</pre>
+
+    <h2 class="later">Honest limits</h2>
+    <p>
+      <strong>A dashboard on screen is not always a saved login.</strong>
+      Save can return 200 while the app is already on screen and the saved login is still only Microsoft or Google cookies (session storage 0).
+      Auspex reports that as <code>idp-only-save</code>, kind <code>app-visible</code>, and does not finalize.
+      An IdP session (often MSAL) can look logged in while Save stored only sign-in cookies.
+      That stop is honest. Login worked. Finalize only when the save holds the app session.
+      Solari handoff Save stores cookies and local storage; it cannot read the in-tab session token.
+      Not Auspex broken, and not a reason to mint again to finish Microsoft.
+    </p>
+    <p>
+      The Solari typing window lasts about five minutes and Auspex cannot extend it.
+      A saved login outlives that window; how long is up to Solari and the site.
+      <a href="https://github.com/IronAdamant/auspex/blob/main/docs/stream-jwt-solari.md">Why</a>.
+    </p>
     <p>
       <a href="https://github.com/IronAdamant/auspex">GitHub</a>
       · <a href="demo/replay.html">Replay only</a>

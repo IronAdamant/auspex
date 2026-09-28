@@ -2,7 +2,7 @@
 
 **Evidence from a live web page, for AI agents, without guessing.**
 
-An agent says "the dashboard shows X". Was it looking at the real app, a login screen, or its own guess? Auspex opens the page in [Solari](https://getsolari.com) cloud Chrome, checks for the exact words you asked for, saves a screenshot and a JSON receipt, then confirms on a second machine. For sites behind a login, a human signs in once through a phone-friendly door; the agent never sees the password, and Auspex refuses to call a login saved until a fresh browser proves it.
+An agent says "the dashboard shows X". Was it looking at the real app, a login screen, or its own guess? Auspex opens the page in [Solari](https://getsolari.com) cloud Chrome, checks for the exact words you asked for, saves a screenshot and a JSON receipt. On a public page, a second machine then checks the same claim. For sites behind a login, a human signs in once through a phone-friendly door and the agent never sees the password. Add `--verify-with-profile` and a second, fresh browser using only the saved login checks again; Auspex does not call that login reusable until it passes.
 
 CLI and MCP, same contract. Works with Claude Code, Cursor, Grok and other MCP hosts.
 
