@@ -196,3 +196,39 @@ test("cookie guide points at check and does not print a token", () => {
   assert.equal(guide.text.includes(secret), false)
   assert.equal(JSON.stringify(guide.nextCall).includes("cookie"), false)
 })
+
+test("a refresh-token-only localStorage Save says finalize is next if the check lands loggedOut", async () => {
+  const { classifySeedReadiness, cookieSaveGuide, refreshTokenOnly } = await import("../src/cookie-save.ts")
+  // Live ConsistencyHub shape: Microsoft cookies only, app origin holds refreshToken.
+  const msal = classifySeedReadiness({
+    url: "https://consistencyhub.io/",
+    cookies: 32,
+    origins: 2,
+    sessionStorage: 0,
+    cookieHosts: ["live.com", "login.live.com", "login.microsoftonline.com"],
+    liveHost: "consistencyhub.io",
+    appOriginCookieCount: 0,
+    localStorageCount: 82,
+    localStorageAuthKeyNames: ["refreshToken"],
+  })
+  assert.equal(msal.shape, "local-storage-auth")
+  assert.equal(refreshTokenOnly(msal), true)
+  const guide = cookieSaveGuide({ profile: "consistencyhub", readiness: msal })
+  assert.match(guide.text, /If that check lands loggedOut, run finalize-login --profile consistencyhub next/)
+  assert.equal(guide.text.includes("Do not finalize to invent sessionStorage"), false)
+  assert.equal(guide.nextCall.tool, "auspex_check")
+  // An access token keeps the old rule.
+  const access = classifySeedReadiness({
+    url: "https://app.example.com/",
+    cookies: 3,
+    origins: 1,
+    sessionStorage: 0,
+    cookieHosts: ["login.microsoftonline.com"],
+    liveHost: "app.example.com",
+    appOriginCookieCount: 0,
+    localStorageCount: 4,
+    localStorageAuthKeyNames: ["accessToken", "refreshToken"],
+  })
+  assert.equal(refreshTokenOnly(access), false)
+  assert.match(cookieSaveGuide({ profile: "p", readiness: access }).text, /Do not finalize to invent sessionStorage/)
+})

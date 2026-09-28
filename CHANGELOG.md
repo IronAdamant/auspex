@@ -4,6 +4,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+- **Refresh-token-only saves point to finalize when needed.** A `local-storage-auth` Save whose only auth key is a refresh token (no access token, no app cookie) now says: run the check, and if it lands loggedOut, finalize-login is next. Live ConsistencyHub (MSAL) needed exactly that; the old advice said never to finalize.
 - **Receipt excerpts mask key-shaped text** (JWTs, `sk-`/`pk_`/`slr_` keys, long letter-and-digit tokens) before truncation. A live back4app overview printed its client key into a local receipt.
 - **Late client-side redirects no longer fail a check.** When a page navigates itself after load (MariaDB Cloud `/alerts`, `/billing`, `/byoa`), the text read hit "Execution context was destroyed" and the check ended with no receipt. The check now settles on the new page and reads once more.
 - `clickMissed` keeps Playwright's reason (the last call-log step, e.g. `<div> intercepts pointer events`, `element is not stable`), not only "Timeout exceeded".
