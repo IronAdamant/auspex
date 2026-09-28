@@ -21,7 +21,9 @@ function newestSrcMs(): number {
 /** Build when dist is missing or older than src, so a stale local bundle is not tested. */
 function ensureDist(): string {
   const dest = path.join(root, "dist/mcp.mjs")
-  if (!existsSync(dest) || statSync(dest).mtimeMs < newestSrcMs()) {
+  const cli = path.join(root, "dist/cli.mjs")
+  const stale = (file: string) => !existsSync(file) || statSync(file).mtimeMs < newestSrcMs()
+  if (stale(dest) || stale(cli)) {
     const built = spawnSync("npm", ["run", "build:mcp"], { cwd: root, encoding: "utf8" })
     assert.equal(built.status, 0, built.stderr || built.stdout)
   }
@@ -112,4 +114,36 @@ test("published tarball ships dist/ and the sandbox assert script", () => {
   assert.ok(files.includes("examples/auspex-ts/dist/mcp.mjs"), "dist/mcp.mjs must be in the package")
   assert.ok(files.includes("examples/auspex-ts/src/assert_receipt.py"))
   assert.equal(files.some((f) => f.includes("__pycache__") || f.endsWith(".pyc")), false)
+})
+
+test("CLI launch: a clone runs source, an npm install runs the prebuilt dist/cli.mjs", async () => {
+  // @ts-expect-error plain .mjs launcher
+  const { cliLaunch } = await import("../bin/run.mjs")
+  const root = "/pkg"
+  const has = (paths: string[]) => (p: string) => paths.includes(p)
+  const tsx = path.join(root, "node_modules", "tsx", "dist", "cli.mjs")
+  const src = path.join(root, "src", "cli.ts")
+  const dist = path.join(root, "dist", "cli.mjs")
+  assert.equal(cliLaunch("src/cli.ts", { root, exists: has([tsx, src, dist]) }).kind, "source")
+  assert.deepEqual(cliLaunch("src/cli.ts", { root, exists: has([src, dist]) }), { kind: "dist", args: [dist] })
+  assert.equal(cliLaunch("src/cli.ts", { root, exists: has([src]) }).kind, "missing")
+})
+
+test("published tarball ships the bundled CLI and root runtime dependencies", () => {
+  ensureDist()
+  assert.ok(existsSync(path.join(root, "dist", "cli.mjs")), "build:mcp bundles dist/cli.mjs")
+  const repo = path.resolve(root, "../..")
+  const rootPkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  }
+  for (const dep of ["@modelcontextprotocol/sdk", "@solarisdk/browser", "@solarisdk/sdk", "patchright-core", "qrcode", "zod"]) {
+    assert.ok(rootPkg.dependencies?.[dep], `root package.json depends on ${dep}`)
+  }
+  assert.equal(rootPkg.dependencies?.tsx, undefined, "npm installs do not need tsx")
+  assert.equal(rootPkg.scripts?.postinstall, "node bin/postinstall.mjs")
+  const packed = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: repo, encoding: "utf8" })
+  const files = (JSON.parse(packed.stdout) as Array<{ files: Array<{ path: string }> }>)[0]!.files.map((f) => f.path)
+  assert.ok(files.includes("examples/auspex-ts/dist/cli.mjs"))
+  assert.ok(files.includes("bin/postinstall.mjs"))
 })

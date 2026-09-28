@@ -9,7 +9,8 @@
   "scripts": {
     "check": "tsx src/cli.ts check",
     "mcp": "node dist/mcp.mjs",
-    "build:mcp": "esbuild src/mcp.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp.mjs && esbuild src/solari-mcp-entry.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/solari-mcp.mjs",
+    "build": "npm run build:mcp",
+    "build:mcp": "esbuild src/cli.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/cli.mjs && esbuild src/mcp.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/mcp.mjs && esbuild src/solari-mcp-entry.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/solari-mcp.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "public-check": "tsx scripts/public-check.ts",

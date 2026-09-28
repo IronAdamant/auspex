@@ -2,9 +2,17 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.11 — 2026-09-28 (published)
+
+npm `auspex-solari@0.1.11` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **The npm CLI runs prebuilt JavaScript.** `npm run build:mcp` also bundles the CLI to `dist/cli.mjs`; an npm install runs it directly instead of compiling TypeScript with tsx on every call. A clone still runs the source, so an edit never meets a stale bundle.
+- **No nested install for npm users.** Runtime dependencies moved to the root `package.json`. The nested `npm install` under `examples/auspex-ts` now runs only in a git clone (`bin/postinstall.mjs`), so `npm install --ignore-scripts auspex-solari` works (it used to fail with NotInstalled) and installs no TypeScript toolchain.
+- The release smoke also runs `npx auspex-solari trace` from the empty folder, so a broken CLI cannot ship unnoticed.
+
 ## 0.1.10 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.10` (latest). Agents do not `npm publish`. Founder publishes this release. Closes the open items from the live test.
+npm `auspex-solari@0.1.10`. Agents do not `npm publish`. Founder publishes this release. Closes the open items from the live test.
 
 - **Receipt excerpts prefer the page's main region** (`<main>` / `role=main`) when it has real content, so menus and promo cards stop filling the 500 characters. Matching still uses the whole page.
 - **`auspex profiles --keep <name>` / `--unkeep <name>`** (MCP `keep` / `unkeep`): exempt a saved login from the 30-minute idle wipe for long agent loops, outside a sweep plan. A human-agreed purge still wipes it.

@@ -1,6 +1,6 @@
 {
   "name": "auspex-solari",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": false,
   "description": "Agent web eyes on Solari cloud Chrome. CLI and MCP, same JSON contract. Not the npm package named auspex.",
   "publishConfig": {
@@ -23,8 +23,17 @@
     "examples/auspex-ts/package.json",
     "examples/auspex-ts/package-lock.json"
   ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "@solarisdk/browser": "0.1.2",
+    "@solarisdk/mcp": "0.4.3",
+    "@solarisdk/sdk": "0.1.2",
+    "patchright-core": "1.62.2",
+    "qrcode": "^1.5.4",
+    "zod": "^3.25.0"
+  },
   "scripts": {
-    "postinstall": "npm install --prefix examples/auspex-ts",
+    "postinstall": "node bin/postinstall.mjs",
     "test": "npm test --prefix examples/auspex-ts",
     "typecheck": "npm run typecheck --prefix examples/auspex-ts",
     "build:mcp": "npm run build:mcp --prefix examples/auspex-ts",

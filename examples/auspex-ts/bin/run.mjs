@@ -5,13 +5,6 @@ import { fileURLToPath } from "node:url"
 
 const pkgRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-function findTsx() {
-  return [
-    path.join(pkgRoot, "node_modules", "tsx", "dist", "cli.mjs"),
-    path.join(pkgRoot, "node_modules", "tsx", "dist", "cli.js"),
-  ].find((p) => existsSync(p))
-}
-
 export function mcpDistPath() {
   return process.env.AUSPEX_MCP_DIST || path.join(pkgRoot, "dist", "mcp.mjs")
 }
@@ -39,21 +32,38 @@ function inheritChild(child) {
   })
 }
 
+/**
+ * How to start the CLI. A clone (tsx installed next to src/) runs the source, so an edit never meets
+ * a stale bundle. An npm install has no tsx and runs the prebuilt dist/cli.mjs.
+ */
+export function cliLaunch(entryRel = "src/cli.ts", opts = {}) {
+  const root = opts.root ?? pkgRoot
+  const exists = opts.exists ?? existsSync
+  const tsx = [
+    path.join(root, "node_modules", "tsx", "dist", "cli.mjs"),
+    path.join(root, "node_modules", "tsx", "dist", "cli.js"),
+  ].find((p) => exists(p))
+  const source = path.join(root, entryRel)
+  if (tsx && exists(source)) return { kind: "source", args: [tsx, source] }
+  const dist = path.join(root, "dist", "cli.mjs")
+  if (exists(dist)) return { kind: "dist", args: [dist] }
+  return { kind: "missing", args: [] }
+}
+
 export function spawnAuspex(entryRel, extraArgs = []) {
-  const tsx = findTsx()
-  if (!tsx) {
+  const launch = cliLaunch(entryRel)
+  if (launch.kind === "missing") {
     const payload = {
       ok: false,
       schemaVersion: 1,
       error:
-        "Auspex is not installed. From the repository root run: npm install (installs examples/auspex-ts).",
+        "Auspex is not installed. npm: reinstall auspex-solari (its dist/cli.mjs is missing). Clone: from the repository root run npm install && npm run build:mcp.",
       code: "NotInstalled",
     }
     process.stdout.write(`${JSON.stringify(payload)}\n`)
     process.exit(1)
   }
-  const entry = path.join(pkgRoot, entryRel)
-  const child = spawn(process.execPath, [tsx, entry, ...extraArgs], {
+  const child = spawn(process.execPath, [...launch.args, ...extraArgs], {
     stdio: "inherit",
     cwd: pkgRoot,
     // The CLI runs from the package root; relative user paths (sweep --plan) resolve from here.

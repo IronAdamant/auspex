@@ -9,7 +9,7 @@
 //
 // Prints one JSON summary. Exit 0 only when every step passed. Never prints the key.
 
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -113,6 +113,24 @@ async function run() {
   // Loads the runner chain (receipt.ts reads assert_receipt.py at import). No key needed.
   const trace = await callTool("auspex_trace", {})
   record("auspex_trace", trace.json?.ok === true, trace.json?.ok === true ? {} : { error: trace.json?.error ?? trace.error })
+
+  // The CLI a stranger types: `npx auspex-solari trace` from the same empty folder (no key needed).
+  const cli = spawnSync("npx", ["-y", "-p", spec, "auspex-solari", "trace"], {
+    cwd,
+    env: process.env,
+    encoding: "utf8",
+    timeout: 240_000,
+    shell: process.platform === "win32",
+  })
+  let cliJson
+  try {
+    // Stdout is one JSON object (npx may print install notices to stderr only).
+    const out = cli.stdout ?? ""
+    cliJson = JSON.parse(out.slice(out.indexOf("{")))
+  } catch {
+    cliJson = undefined
+  }
+  record("cli auspex-solari trace", cli.status === 0 && cliJson?.ok === true, cli.status === 0 ? {} : { status: cli.status, stderrTail: (cli.stderr ?? "").trim().split("\n").slice(-3) })
 
   if (!live) return
   if (!process.env.SOLARI_API_KEY) {
