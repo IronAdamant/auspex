@@ -66,7 +66,7 @@ It is a seed/handoff door for typing off-site, not a same-session VNC takeover o
 
 ## Two truths about Save
 
-1. **A saved login is real only when a later check proves it.** A second fresh browser opens the app with the saved login and sees your words.
+1. **A saved login is ready to reuse only when a later check proves it.** A second fresh browser opens the app with the saved login and sees your words.
 2. **What is on screen can be ahead of what was saved.** Some apps (especially Microsoft sign-in) show the app while Save captured only the sign-in provider's cookies. Auspex reports that instead of pretending, and the next step is one extra command, not a new login.
 
 ## What one check can do

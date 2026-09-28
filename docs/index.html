@@ -104,6 +104,15 @@
     table.apps td:last-child { color: var(--fg); white-space: nowrap; }
     .tally { color: var(--fg); }
     .formula { font-size: 0.92rem; }
+    details.later { margin-top: 2.6rem; border-top: 1px solid var(--border); padding-top: 1.2rem; }
+    details.later > summary {
+      cursor: pointer;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--fg);
+      padding: 4px 0;
+    }
+    details.later > summary .hint { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
     h2.later { margin-top: 2.6rem; border-top: 1px solid var(--border); padding-top: 1.2rem; }
     @media (max-width: 800px) {
       .signals { grid-template-columns: 1fr; }
@@ -219,7 +228,8 @@ npx auspex-solari check --name ironadamant</pre>
       </figcaption>
     </figure>
 
-    <h2 class="later">How the login works</h2>
+    <details class="later">
+      <summary>How the login works <span class="hint">(phone door, agent steps)</span></summary>
     <p>
       Recipe for any other site: <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>).
       <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">Receipts</a>.
@@ -272,6 +282,7 @@ npx auspex-solari check --name ironadamant</pre>
     <pre class="key-paths" aria-label="Keyless Pages vs live SOLARI_API_KEY">human browser  →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in hash
 operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
 Pages never collect the key. Agents never type a password.</pre>
+    </details>
 
     <h2 class="later">Honest limits</h2>
     <p>
