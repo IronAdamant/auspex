@@ -213,3 +213,24 @@ for hay, needle in [("Your Dashboards", "Dashboard"), ("MyDashboard", "Dashboard
   assert.deepEqual(expected, ["False", "False", "True", "True", "False", "True"])
   assert.deepEqual(ran.stdout.trim().split("\n"), expected)
 })
+
+test("a late client-side redirect during extraction settles and reads once more", async () => {
+  const { extractPageSettled, isNavigationRace } = await import("../src/check.ts")
+  let reads = 0
+  let settled = 0
+  const out = await extractPageSettled(
+    async () => {
+      reads += 1
+      if (reads === 1) throw new Error("page.evaluate: Execution context was destroyed, most likely because of a navigation.")
+      return "second read"
+    },
+    async () => {
+      settled += 1
+    },
+  )
+  assert.equal(out, "second read")
+  assert.equal(reads, 2)
+  assert.equal(settled, 1)
+  await assert.rejects(extractPageSettled(async () => { throw new Error("boom") }, async () => undefined), /boom/)
+  assert.equal(isNavigationRace(new Error("Timeout 45000ms exceeded")), false)
+})

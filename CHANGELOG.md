@@ -4,6 +4,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+- **Late client-side redirects no longer fail a check.** When a page navigates itself after load (MariaDB Cloud `/alerts`, `/billing`, `/byoa`), the text read hit "Execution context was destroyed" and the check ended with no receipt. The check now settles on the new page and reads once more.
 - `clickMissed` keeps Playwright's reason (the last call-log step, e.g. `<div> intercepts pointer events`, `element is not stable`), not only "Timeout exceeded".
 - **Phone door Save reports the copy honestly.** It says Copied only when the clipboard write is confirmed. Otherwise the button reads Copy by hand, the page says the clipboard still holds its old contents, and the line on screen is selected. Before, a failed copy still said Copied, and a live tester pasted days-old text.
 - **A missed click no longer ends the check.** When the click target is not found, the receipt comes back with the screenshot, `clicked` unset, `clickMissed` (first line of the error), `ok: false`, and a `next` that says to pick a selector that exists. Before, the agent got an error with no screenshot.

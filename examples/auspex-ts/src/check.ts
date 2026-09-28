@@ -254,6 +254,26 @@ async function extractPage(
   )
 }
 
+/** A client-side redirect after load destroys the evaluate context. */
+export function isNavigationRace(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /Execution context was destroyed|Cannot find context with specified id/i.test(msg)
+}
+
+/** Read the page; if a late client-side redirect replaced it mid-read, settle on the new page and read once more. */
+export async function extractPageSettled<T>(
+  read: () => Promise<T>,
+  settle: () => Promise<void>,
+): Promise<T> {
+  try {
+    return await read()
+  } catch (err) {
+    if (!isNavigationRace(err)) throw err
+    await settle().catch(() => undefined)
+    return read()
+  }
+}
+
 async function writeFittedScreenshot(abs: string): Promise<void> {
   const png = await readFile(abs)
   const fitted = fitPngUnderCap(png, MAX_IMAGE_BYTES)
@@ -396,7 +416,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       let hasPassword = false
       let sawPageText = false
       try {
-        const extracted = await extractPage(page, opts.selector, signal)
+        const extracted = await extractPageSettled(
+          () => extractPage(page, opts.selector, signal),
+          async () => {
+            await page.waitForLoadState("domcontentloaded", { timeout: 15_000, signal }).catch(() => undefined)
+            await page.waitForLoadState("networkidle", { timeout: 5_000, signal }).catch(() => undefined)
+          },
+        )
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
