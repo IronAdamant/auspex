@@ -293,11 +293,18 @@ export type PageActionResult = {
   clickMissed?: string
 }
 
-/** First line of a Playwright click error, without ANSI codes. */
+/**
+ * First line of a Playwright click error plus its last meaningful call-log step, without ANSI codes.
+ * The first line only says it timed out; the reason ("element is not stable", "<div> intercepts
+ * pointer events") is the last call-log step.
+ */
 export function shortClickError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err)
   // eslint-disable-next-line no-control-regex
-  return raw.replace(/\u001b\[[0-9;]*m/g, "").split("\n")[0]!.trim().slice(0, 200)
+  const raw = (err instanceof Error ? err.message : String(err)).replace(/\u001b\[[0-9;]*m/g, "")
+  const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean)
+  const head = (lines[0] ?? "").slice(0, 200)
+  const reason = [...lines].reverse().find((line) => line.startsWith("- ") && !/^- (waiting \d+ms|retrying click action)/.test(line))
+  return reason ? `${head} ${reason.slice(2, 202)}` : head
 }
 
 export function clickMissedNext(selector: string, error: string): string {

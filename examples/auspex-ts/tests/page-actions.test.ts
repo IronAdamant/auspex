@@ -451,7 +451,13 @@ test("a missed click keeps the check alive: clickMissed is set, clicked is not",
   }
   const out = await runPageActions(page as never, { click: "header button" })
   assert.equal(out.clicked, undefined)
-  assert.equal(out.clickMissed, "locator.click: Timeout 15000ms exceeded.")
+  assert.equal(out.clickMissed, "locator.click: Timeout 15000ms exceeded. waiting for locator('header button')")
+  const { shortClickError } = await import("../src/page-actions.ts")
+  const covered = new Error(
+    "locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('a')\n  - <div class=\"overlay\"></div> intercepts pointer events\n  - retrying click action\n  - waiting 500ms",
+  )
+  assert.equal(shortClickError(covered), 'locator.click: Timeout 15000ms exceeded. <div class="overlay"></div> intercepts pointer events')
+  assert.equal(shortClickError(new Error("boom")), "boom")
   const { clickMissedNext } = await import("../src/page-actions.ts")
   assert.match(clickMissedNext("header button", out.clickMissed!), /clicked is unset and ok is false/)
 })
