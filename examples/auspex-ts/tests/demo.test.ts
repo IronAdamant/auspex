@@ -128,10 +128,14 @@ test("demo host-changed-receipt.json is schema v1 fail-closed remint", () => {
     "consistencyhub",
     "onedrive",
     "hostChanged",
-    "clozemaster",
-    "back4app",
     "lorari",
+    "goodtape",
+    "clozemaster",
+    "tldraw",
     "chatwoot",
+    "mariadb",
+    "back4app",
+    "consistencyhub-msal",
   ])
   assert.ok(existsSync(path.join(demo, "login-trace-sample.jsonl")))
 })
@@ -151,7 +155,8 @@ test("demo non-Microsoft receipts are redacted schema v1 and receipt-only", () =
     pack.note,
     /Microsoft dual pack plus non-Microsoft IdP diversity receipts are evidence, not the default recipe/,
   )
-  for (const id of ["clozemaster", "back4app", "chatwoot"]) {
+  // Every 2026-09-28 live-test receipt is held to the same redaction bar.
+  for (const id of ["lorari", "goodtape", "clozemaster", "tldraw", "chatwoot", "mariadb", "back4app", "consistencyhub-msal"]) {
     const row = pack.items.find((item) => item.id === id)
     assert.ok(row, id)
     assert.equal(row.receiptOnly, true)
@@ -177,33 +182,17 @@ test("demo non-Microsoft receipts are redacted schema v1 and receipt-only", () =
     assert.equal("runDir" in verify, false)
     assert.match(receipt.excerpt ?? "", /REDACTED/)
   }
-  const lorari = pack.items.find((item) => item.id === "lorari")
-  assert.ok(lorari)
-  assert.equal(lorari.receiptOnly, true)
-  assert.equal(lorari.png, null)
-  assert.deepEqual(lorari.triad, { ok: false, claimOk: false, claimOkProfile: true })
-  assert.equal(existsSync(path.join(demo, "lorari.png")), false)
-  const lorariRaw = JSON.parse(readFileSync(path.join(demo, lorari.receipt), "utf8")) as Record<string, unknown>
+  // Lorari's 2026-09-27 receipt (ok false while claimOkProfile held) is superseded by a clean pass.
+  const lorariRaw = JSON.parse(readFileSync(path.join(demo, "lorari-receipt.json"), "utf8")) as Record<string, unknown>
   const lorariReceipt = parseReceiptV1(lorariRaw)
-  assert.equal(lorariReceipt.ok, false)
-  assert.equal(lorariReceipt.matched, false)
-  assert.equal(lorariReceipt.reason, "mismatch")
+  assert.equal(lorariReceipt.ok, true)
   assert.equal(lorariReceipt.expect, "Your Bookings")
   assert.equal(lorariReceipt.url, "https://app.lorari.com/member/")
-  assert.equal(lorariReceipt.finalUrl, "https://app.lorari.com/member/")
-  assert.equal(lorariReceipt.screenshotPath, "")
-  assert.equal(lorariReceipt.verify?.claimOk, false)
-  assert.equal(lorariReceipt.verify?.anonymousClaimSkipped, true)
-  assert.equal(lorariReceipt.verify?.claimOkProfile, true)
-  assert.deepEqual(lorariReceipt.verify?.claimErrorsProfile, [])
-  const lorariSeed = lorariRaw.profileSeed as { cookies?: number; origins?: number }
-  assert.equal(lorariSeed.cookies, 13)
-  assert.equal(lorariSeed.origins, 3)
-  assert.equal("sessionId" in lorariRaw, false)
-  assert.equal("cookieHosts" in lorariRaw, false)
-  assert.equal(/Live expect matched/i.test(lorariReceipt.excerpt ?? ""), false)
-  assert.match(lorariReceipt.excerpt ?? "", /did not match/)
-  assert.match(lorariReceipt.excerpt ?? "", /claimOkProfile stayed true/)
+  // Account and file ids stay out of the public URLs.
+  const chatwoot = parseReceiptV1(JSON.parse(readFileSync(path.join(demo, "chatwoot-receipt.json"), "utf8")))
+  assert.match(chatwoot.url, /\/app\/accounts\/<account>\//)
+  const tldraw = parseReceiptV1(JSON.parse(readFileSync(path.join(demo, "tldraw-receipt.json"), "utf8")))
+  assert.match(tldraw.url, /\/f\/<file>$/)
 })
 
 test("demo PNG is a real PNG", () => {

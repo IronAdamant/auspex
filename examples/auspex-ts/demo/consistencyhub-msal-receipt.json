@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://consistencyhub.io",
+  "expect": "Document Editor",
+  "screenshotPath": "",
+  "title": "ConsistencyHub — [redacted auth-gated project dashboard]",
+  "finalUrl": "https://consistencyhub.io/dashboard",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated ConsistencyHub — PII, account identity, project/app names, keys, and activity omitted for public demo. Live expect matched: Document Editor]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "profileSeed": {
+    "cookies": 34,
+    "origins": 2
+  },
+  "demoNote": "Live test 2026-09-28 AEST, driven by Claude Code over the Auspex MCP server (Azure + Microsoft MSAL). Path: phone door → Save → await-login --save-editor → finalize-login (MSAL sessionStorage) → check --verify-with-profile. claimOkProfile true from a second fresh Solari browser seeded only with the saved login. sessionId/sandbox/runDir/cookieHosts omitted; account IDs masked. Receipt-only — no PNG (PII). Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  },
+  "networkIdle": false
+}

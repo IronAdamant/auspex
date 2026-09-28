@@ -5,16 +5,15 @@
   "url": "https://www.clozemaster.com/l/spa-eng",
   "expect": "READY FOR REVIEW",
   "screenshotPath": "",
-  "title": "Clozemaster \u2014 [redacted auth-gated lesson chrome]",
+  "title": "Clozemaster — [redacted auth-gated lesson dashboard]",
   "finalUrl": "https://www.clozemaster.com/l/spa-eng",
   "matched": true,
-  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Clozemaster \u2014 PII, account identity, project/app names, and activity omitted for public demo. Live expect matched: READY FOR REVIEW.]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
-  "networkIdle": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Clozemaster — PII, account identity, project/app names, keys, and activity omitted for public demo. Live expect matched: READY FOR REVIEW]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
   "profileSeed": {
     "cookies": 5,
     "origins": 0
   },
-  "demoNote": "Redacted public-safe shape from live 2026-09-27 AEST Auspex dogfood on Clozemaster (first-party \u2014 not Microsoft). Evidence source: hand VWP --verify-with-profile (2026-09-27 AEST); claimOkProfile true. sessionId/sandbox/runDir/cookieHosts omitted. Receipt-only \u2014 no PNG (PII). Evidence, not the default recipe.",
+  "demoNote": "Live test 2026-09-28 AEST, driven by Claude Code over the Auspex MCP server (AWS). Path: phone door → Save → await-login --save-editor → check --verify-with-profile. claimOkProfile true from a second fresh Solari browser seeded only with the saved login. sessionId/sandbox/runDir/cookieHosts omitted; account IDs masked. Receipt-only — no PNG (PII). Evidence, not the default recipe.",
   "verify": {
     "ok": true,
     "errors": [],
@@ -25,5 +24,6 @@
     "anonymousClaimSkipped": true,
     "claimOkProfile": true,
     "claimErrorsProfile": []
-  }
+  },
+  "networkIdle": true
 }

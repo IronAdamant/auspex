@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "ok": false,
-  "reason": "mismatch",
+  "ok": true,
+  "reason": "matched",
   "url": "https://app.lorari.com/member/",
   "expect": "Your Bookings",
   "screenshotPath": "",
-  "title": "Lorari — [redacted auth-gated member chrome]",
+  "title": "Lorari — [redacted auth-gated member dashboard]",
   "finalUrl": "https://app.lorari.com/member/",
-  "matched": false,
-  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari — PII, account identity, project/app names, and activity omitted for public demo. Expect did not match on this soft-verify pass while claimOkProfile stayed true (SPA chrome flake).]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Lorari — PII, account identity, project/app names, keys, and activity omitted for public demo. Live expect matched: Your Bookings]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
   "profileSeed": {
     "cookies": 13,
-    "origins": 3
+    "origins": 2
   },
-  "demoNote": "Single-source Aron soft-verify 2026-09-27 AEST. ok is false (reason mismatch) while claimOkProfile stayed true — an ok≠claimOkProfile teaching case on a SPA chrome flake. sessionId/sandbox/cookieHosts omitted. Receipt-only — no PNG. Evidence, not the default recipe.",
+  "demoNote": "Live test 2026-09-28 AEST, driven by Claude Code over the Auspex MCP server (Appwrite). Path: phone door → Save → await-login --save-editor → check --verify-with-profile. claimOkProfile true from a second fresh Solari browser seeded only with the saved login. sessionId/sandbox/runDir/cookieHosts omitted; account IDs masked. Receipt-only — no PNG (PII). Evidence, not the default recipe.",
   "verify": {
     "ok": true,
     "errors": [],
@@ -24,5 +24,6 @@
     "anonymousClaimSkipped": true,
     "claimOkProfile": true,
     "claimErrorsProfile": []
-  }
+  },
+  "networkIdle": true
 }

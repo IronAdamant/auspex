@@ -1,20 +1,28 @@
 {
   "schemaVersion": 1,
   "kind": "dogfood-pack",
-  "note": "Microsoft dual pack plus non-Microsoft IdP diversity receipts are evidence, not the default recipe. ConsistencyHub + OneDrive are the Microsoft pair (Truth A: finished seed, claimOkProfile). Clozemaster, Back4App, and Chatwoot are receipt-only breadth with ok true, claimOk false, claimOkProfile true. Lorari is receipt-only with ok false, claimOk false, claimOkProfile true: the saved-login check held when the page match failed (SPA flake). Breadth is those receipts, not a host name list. hostChanged stays the fail-closed remint golden. Truth B is separate: editorSave 200 with the app already on screen and an IdP-only jar (Microsoft or Google cookies, session storage 0) is idp-only-save / app-visible — do not finalize. Solari handoff Save stores cookies and local storage; it cannot read the in-tab session token. Not a remint to finish Microsoft. Refresh live with SOLARI_API_KEY locally; do not commit secrets, live session ids, or a PNG for a receipt-only row.",
+  "note": "Microsoft dual pack plus non-Microsoft IdP diversity receipts are evidence, not the default recipe. ConsistencyHub + OneDrive are the Microsoft pair (Truth A: finished seed, claimOkProfile). The 2026-09-28 live test adds eight receipt-only sign-ins across eight stacks (Lorari/Appwrite, Good Tape/Supabase, Clozemaster/AWS, tldraw/Cloudflare+Clerk, Chatwoot/Postgres, MariaDB Cloud/MySQL, Back4App/MongoDB-Parse, ConsistencyHub/Microsoft MSAL after finalize-login), all ok true, claimOk false, claimOkProfile true. The earlier Lorari receipt (2026-09-27, ok false while claimOkProfile held) is superseded by a clean pass. hostChanged stays the fail-closed remint golden. Truth B is separate: editorSave 200 with the app already on screen and an IdP-only jar (Microsoft or Google cookies, session storage 0) is idp-only-save / app-visible — do not finalize. Refresh live with SOLARI_API_KEY locally; do not commit secrets, live session ids, account ids, or a PNG for a receipt-only row.",
   "items": [
     {
       "id": "consistencyhub",
       "receipt": "consistencyhub-receipt.json",
       "png": "consistencyhub.png",
-      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
     },
     {
       "id": "onedrive",
       "receipt": "onedrive-receipt.json",
       "png": null,
       "receiptOnly": true,
-      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
     },
     {
       "id": "hostChanged",
@@ -23,32 +31,92 @@
       "reason": "hostChanged"
     },
     {
-      "id": "clozemaster",
-      "receipt": "clozemaster-receipt.json",
-      "png": null,
-      "receiptOnly": true,
-      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
-    },
-    {
-      "id": "back4app",
-      "receipt": "back4app-receipt.json",
-      "png": null,
-      "receiptOnly": true,
-      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
-    },
-    {
       "id": "lorari",
       "receipt": "lorari-receipt.json",
       "png": null,
       "receiptOnly": true,
-      "triad": { "ok": false, "claimOk": false, "claimOkProfile": true }
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "goodtape",
+      "receipt": "goodtape-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "clozemaster",
+      "receipt": "clozemaster-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "tldraw",
+      "receipt": "tldraw-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
     },
     {
       "id": "chatwoot",
       "receipt": "chatwoot-receipt.json",
       "png": null,
       "receiptOnly": true,
-      "triad": { "ok": true, "claimOk": false, "claimOkProfile": true }
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "mariadb",
+      "receipt": "mariadb-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "back4app",
+      "receipt": "back4app-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
+    },
+    {
+      "id": "consistencyhub-msal",
+      "receipt": "consistencyhub-msal-receipt.json",
+      "png": null,
+      "receiptOnly": true,
+      "triad": {
+        "ok": true,
+        "claimOk": false,
+        "claimOkProfile": true
+      }
     }
   ]
 }
