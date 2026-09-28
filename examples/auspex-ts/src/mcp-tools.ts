@@ -15,6 +15,7 @@ import {
   PROFILE_STATUS_DESCRIPTION,
   PROFILES_DESCRIPTION,
   REAP_DESCRIPTION,
+  SOLARI_HEALTH_DESCRIPTION,
   TRACE_DESCRIPTION,
   VERIFY_DESCRIPTION,
 } from "./tool-copy.ts"
@@ -28,6 +29,7 @@ import {
   auspexLoginInputObject,
   auspexProfileStatusInputSchema,
   auspexProfilesInputSchema,
+  auspexSolariHealthInputSchema,
   auspexReapInputSchema,
   auspexTraceInputSchema,
 } from "./tool-schema.ts"
@@ -43,6 +45,7 @@ export {
   PROFILE_STATUS_DESCRIPTION,
   PROFILES_DESCRIPTION,
   REAP_DESCRIPTION,
+  SOLARI_HEALTH_DESCRIPTION,
   TRACE_DESCRIPTION,
   VERIFY_DESCRIPTION,
 }
@@ -156,6 +159,19 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const { runProfilesDoor } = await import("./runners.ts")
         return { content: [{ type: "text" as const, text: toolJson(await runProfilesDoor({ purge, humanAgree })) }] }
+      } catch (err) {
+        return packToolFailure(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    "auspex_solari_health",
+    { description: SOLARI_HEALTH_DESCRIPTION, inputSchema: auspexSolariHealthInputSchema },
+    async () => {
+      try {
+        const { runSolariHealthDoor } = await import("./runners.ts")
+        return { content: [{ type: "text" as const, text: toolJson(await runSolariHealthDoor()) }] }
       } catch (err) {
         return packToolFailure(err)
       }

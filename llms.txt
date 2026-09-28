@@ -86,6 +86,7 @@ Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required key
 - `emptySave` (no saved profile): mint again. Do not finalize.
 - `cookie-strong` or `local-storage-auth`: Solari Save already holds app-origin cookies or allowlisted localStorage auth key names. Counted sessionStorage 0 is expected. Run `check --verify-with-profile` and read `claimOkProfile`. `solariSaveReady` is not `claimOkProfile`. Do not finalize to invent sessionStorage. IdP hosts alone stay the IdP rows.
 - Long unattended loop: [Long run](#long-run) and [docs/ops-runbook.md](docs/ops-runbook.md). Check the seed before you leave it. On a re-gate, stop.
+- Before a remint or a long await, `npx auspex-solari solari-health` asks if Solari answers with this key. It does not say the app is logged in. `profile-status` does that jar check.
 - Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
 

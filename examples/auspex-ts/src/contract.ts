@@ -103,6 +103,11 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
     ],
   },
   {
+    cmd: "solari-health",
+    tool: "auspex_solari_health",
+    fields: [],
+  },
+  {
     cmd: "verify",
     tool: "auspex_verify",
     fields: [{ json: "runDir", flag: "<runDir>", kind: "positional" }],

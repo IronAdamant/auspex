@@ -12,6 +12,7 @@ import { liveAwaitLogin, loginWaitAwaitOpts } from "./profile-persist.ts"
 import { presentSiblingSaved } from "./save-drain.ts"
 import { COOKIE_SAVE_CONTRACT } from "./cookie-save.ts"
 import { profileStatus } from "./profile-status.ts"
+import { solariHealth } from "./solari-health.ts"
 import { defaultDesktopDeps, runDesktopReview } from "./desktop.ts"
 import { generateQRCode } from "./qr-gen.ts"
 import { ensureRunDir } from "./paths.ts"
@@ -220,6 +221,10 @@ export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boole
     wiped: book.wiped,
     ...(honesty.wipeFailed ? { wipeFailed: honesty.wipeFailed } : {}),
   })
+}
+
+export async function runSolariHealthDoor() {
+  return solariHealth()
 }
 
 export async function runProfileStatusDoor(opts: {

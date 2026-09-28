@@ -30,6 +30,7 @@ export const USAGE = `Usage:
   npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex profiles [--purge <name>] [--yes]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--expect <string>] [--auth-keys <names>]
+  npx auspex solari-health
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
   npx auspex job-status --job-id <id> [--wait-ms <n>]
   npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
@@ -52,6 +53,7 @@ Fail-closed reasons: matched | loggedOut | needsHuman | mismatch | network | rec
 ok is not claimOk and not claimOkProfile. claimOkProfile only after --verify-with-profile (reuse gate). They are not the same.
 ${LONG_RUN_CLI_LINE}
 429: auspex_reap leftover ledger sessions (not --account-wide by default), then retry. 402 FeatureRequiresPlan is not retryable.
+solari-health asks if Solari answers with this key (GET /profiles, one try, 8s). It does not log in, mint a browser, or say the app is logged in. profile-status is the jar check.
 Never type passwords. Never --record a logged-in session. FAIL-CLOSED --type refuses password/OTP-like strings.
 Profiles: after a saved login has been used and tested, ask whether testing is done and the login may be purged. An idle saved profile is deleted on the next command after 30 minutes without use. Voluntary --purge <name> --yes stops the editor first; if that name is not wiped, ok is false and wipeFailed lists it. Keys are not included in the agent message.
 ${PROFILES_MAP_LINE}
@@ -70,6 +72,7 @@ export type CliCommand =
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean; authKeyNames?: string[] }
   | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string; expect?: string; authKeyNames?: string[] }
+  | { cmd: "solari-health" }
   | { cmd: "verify"; runDir?: string }
   | { cmd: "desktop"; open?: string; type?: string; click?: { x: number; y: number }; expect?: string }
   | { cmd: "reap"; dryRun?: boolean; sessionId?: string; vmId?: string; packReceipts?: boolean; accountWide?: boolean }
@@ -425,6 +428,13 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     return { status: "ok", command: { cmd: "profile-status", profile, name, url, expect, authKeyNames } }
   }
+  if (cmd === "solari-health") {
+    if (args.includes("--help") || args.includes("-h")) {
+      return { status: "ok", command: { cmd: "help" } }
+    }
+    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
+    return { status: "ok", command: { cmd: "solari-health" } }
+  }
   if (cmd === "reap") {
     if (args.includes("--help") || args.includes("-h")) {
       return { status: "ok", command: { cmd: "help" } }
@@ -573,6 +583,12 @@ export async function main(argv: string[]): Promise<number> {
     }
     if (cmd.cmd === "profile-status") {
       const result = await runners.runProfileStatusDoor(cmd)
+      writeStdoutJson(result)
+      return exitFromOk(result.ok)
+    }
+    if (cmd.cmd === "solari-health") {
+      const result = await runners.runSolariHealthDoor()
+      process.stderr.write(`${result.next}\n`)
       writeStdoutJson(result)
       return exitFromOk(result.ok)
     }

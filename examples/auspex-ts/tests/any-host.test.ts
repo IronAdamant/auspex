@@ -23,6 +23,7 @@ import {
   auspexProfileStatusInputSchema,
   auspexProfilesInputSchema,
   auspexReapInputSchema,
+  auspexSolariHealthInputSchema,
   auspexTraceInputSchema,
 } from "../src/tool-schema.ts"
 
@@ -45,6 +46,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "finalize-login",
     "profiles",
     "profile-status",
+    "solari-health",
     "verify",
     "desktop",
     "reap",
@@ -59,6 +61,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "auspex_finalize_login",
     "auspex_profiles",
     "auspex_profile_status",
+    "auspex_solari_health",
     "auspex_verify",
     "auspex_desktop",
     "auspex_reap",
@@ -73,6 +76,7 @@ test("CLI and MCP share one contract: tools, commands, and JSON fields", () => {
     "finalize-login": auspexFinalizeLoginInputSchema.shape,
     profiles: auspexProfilesInputSchema.shape,
     "profile-status": auspexProfileStatusInputSchema.shape,
+    "solari-health": auspexSolariHealthInputSchema.shape,
     desktop: auspexDesktopInputSchema.shape,
     reap: auspexReapInputSchema.shape,
     trace: auspexTraceInputSchema.shape,

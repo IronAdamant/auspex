@@ -19,6 +19,10 @@ That pair is the heartbeat and the cadence. There is no other ping and no minute
 
 Reuse the seed only when `claimOkProfile` is true. `ok` is not `claimOk` and not `claimOkProfile`.
 
+## Before a remint or a long await
+
+`solari-health` asks whether Solari answers with this key. It lists profiles and stops. It does not open a browser, a phone door, or your app. A healthy result is not a saved login. If the key is missing, set `SOLARI_API_KEY`. If it reports too many browsers (429), run `reap`, then try again. If Solari is slow or returns a server error, wait and run `solari-health` again. That is not the seed heartbeat below.
+
 ## Remint and re-gate
 
 These are different stops. The door table keeps them on separate rows.
