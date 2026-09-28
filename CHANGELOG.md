@@ -4,6 +4,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## Unreleased
 
+- **Phone door Save reports the copy honestly.** It says Copied only when the clipboard write is confirmed. Otherwise the button reads Copy by hand, the page says the clipboard still holds its old contents, and the line on screen is selected. Before, a failed copy still said Copied, and a live tester pasted days-old text.
 - **A missed click no longer ends the check.** When the click target is not found, the receipt comes back with the screenshot, `clicked` unset, `clickMissed` (first line of the error), `ok: false`, and a `next` that says to pick a selector that exists. Before, the agent got an error with no screenshot.
 - **Empty saved login is one step to fix.** A check on a profile with 0 cookies and 0 origins now fails with `code: EmptySave` and `nextCall: auspex_login`. `auspex profiles` says what `populated` means (Solari holds a file; it can be empty).
 - **Door links are never served stale.** Each minted `phone.html` link carries `?r=<exp>`, and the Pages deploy versions the three door scripts. Before, a tester could get the previous door for ~10 minutes after a deploy.

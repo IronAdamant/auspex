@@ -244,26 +244,49 @@
       applyIdpWall(false)
     }
 
-    function copyOnTap(text) {
+    // Report the copy honestly. A silent failure left an old line on the clipboard, and the
+    // human pasted days-old text while this page said "Copied".
+    function copyOnTap(text, done) {
+      var settled = false
+      function finish(ok) {
+        if (settled) return
+        settled = true
+        done(ok)
+      }
+      var syncOk = false
       scratch.value = text
       scratch.removeAttribute("readonly")
       scratch.focus()
       scratch.setSelectionRange(0, text.length)
-      var ok = false
-      try { ok = document.execCommand("copy") } catch (e) {}
+      try { syncOk = document.execCommand("copy") === true } catch (e) {}
       scratch.setAttribute("readonly", "readonly")
       scratch.blur()
+      if (syncOk) finish(true)
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () { ok = true }).catch(function () {})
+        navigator.clipboard.writeText(text).then(function () { finish(true) }, function () { finish(syncOk) })
+      } else {
+        finish(syncOk)
       }
-      return ok
     }
 
-    function showCopied() {
+    function showCopied(ok) {
       copied.classList.add("show")
-      save.textContent = "Copied"
-      save.classList.add("copied")
-      setStatus("Copied. Paste it in your AI chat, then stay on this page.")
+      if (ok) {
+        copied.textContent = "Copied. Paste it in your AI chat."
+        save.textContent = "Copied"
+        save.classList.add("copied")
+        setStatus("Copied. Paste it in your AI chat, then stay on this page.")
+        return
+      }
+      copied.textContent = "Copy did not work in this browser. Copy the line below by hand, then paste it in your AI chat."
+      save.textContent = "Copy by hand"
+      setStatus("Copy did not work. Select the line below and copy it. Your clipboard still holds whatever it had before.", true)
+      try {
+        paste.removeAttribute("readonly")
+        paste.focus()
+        paste.setSelectionRange(0, paste.value.length)
+        paste.setAttribute("readonly", "readonly")
+      } catch (e) {}
     }
 
     save.addEventListener("click", function () {
@@ -276,9 +299,8 @@
       var line = stripSecret(template + siteClause, typed, [template, siteClause], profileName)
       clearLocalSecrets()
       paste.value = line
-      copyOnTap(line)
       paste.classList.add("show")
-      showCopied()
+      copyOnTap(line, showCopied)
     })
 
     var expSec = resolveExpirySeconds()

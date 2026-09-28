@@ -452,7 +452,7 @@ function loadDoor(
     document.visibilityState = hidden ? "hidden" : "visible"
     for (const row of docListeners) if (row.type === "visibilitychange") row.fn()
   }
-  return { byId, stored, location, document, flushTimeouts, fireVisibility }
+  return { byId, stored, location, document, context, flushTimeouts, fireVisibility }
 }
 
 function drain(live: { flushTimeouts: () => void }, rounds = 80) {
@@ -913,4 +913,28 @@ test("phone door fits the picture and does not keep resizing the remote", () => 
   assert.match(readDoor("phone.html"), /touch-action: manipulation/)
   assert.match(readDoor("phone.html"), /stays still while you tap/)
   assert.equal(loaded.byId.get("ime")?.disabled, false)
+})
+
+test("Save says Copied only when the copy is confirmed; otherwise it asks for a hand copy", async () => {
+  const settle = () => new Promise((resolve) => setImmediate(resolve))
+  // Clipboard API resolves: confirmed.
+  const good = loadDoor(readDoor("phone.html"), "")
+  click(good.byId.get("save"))
+  await settle()
+  assert.equal(good.byId.get("save")?.textContent, "Copied")
+  assert.match(good.byId.get("copied")?.textContent ?? "", /^Copied/)
+  // execCommand false and the Clipboard API rejects: never claim Copied.
+  const bad = loadDoor(readDoor("phone.html"), "")
+  bad.context.navigator = { clipboard: { writeText: async () => { throw new Error("denied") } } }
+  click(bad.byId.get("save"))
+  await settle()
+  assert.equal(bad.byId.get("save")?.textContent, "Copy by hand")
+  assert.match(bad.byId.get("copied")?.textContent ?? "", /Copy did not work/)
+  assert.match(bad.byId.get("paste")?.value ?? "", /I tapped Save on the Auspex phone page/)
+  // No Clipboard API at all and execCommand false: same honest failure.
+  const none = loadDoor(readDoor("phone.html"), "")
+  none.context.navigator = {}
+  click(none.byId.get("save"))
+  await settle()
+  assert.equal(none.byId.get("save")?.textContent, "Copy by hand")
 })
