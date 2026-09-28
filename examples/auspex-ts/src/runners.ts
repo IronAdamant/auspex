@@ -222,7 +222,13 @@ export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boole
   })
 }
 
-export async function runProfileStatusDoor(opts: { profile?: string; name?: string; url?: string; authKeyNames?: string[] }) {
+export async function runProfileStatusDoor(opts: {
+  profile?: string
+  name?: string
+  url?: string
+  expect?: string
+  authKeyNames?: string[]
+}) {
   const named = applySavedCheckName(opts)
   const book = await withOperatorSession({
     note: named.profile ? { profile: named.profile, site: named.url } : undefined,

@@ -20,9 +20,37 @@ export function isEditorSaveInfraStatus(status: number | undefined): boolean {
   return status === 502 || status === 503 || status === 504
 }
 
+const WAITING_NEXT = /Keep the handoff open|Still waiting for non-empty Save|No non-empty Save yet/
+
+/** Drop a "still waiting for Save" sentence after the POST has already finished. */
+export function dropWaitingLead(next: string): string {
+  const trimmed = next.trim()
+  if (!trimmed || WAITING_NEXT.test(trimmed)) return ""
+  return trimmed
+}
+
+/**
+ * Next-copy lead after a completed editor/save failure.
+ * Names the HTTP status. A Solari 5xx stays a Solari 5xx.
+ */
+export function completedEditorSaveFailureLead(
+  saved: { status: number; error?: string },
+  emptyJar: boolean,
+): string {
+  const detail = saved.error ? `: ${saved.error}` : ""
+  const stand = isEditorSaveInfraStatus(saved.status)
+    ? `Solari ${saved.status} stands. This is not loggedOut or needsHuman. `
+    : ""
+  const jar = emptyJar ? "The jar is empty. " : ""
+  return (
+    `editorSave failed (${saved.status}${detail}). POST finished. ${stand}${jar}` +
+    `Not a 30-minute wait. Do not finalize-login on this seed. `
+  )
+}
+
 /**
  * Jar-poll budget after editor/save.
- * A completed 502/503/504 uses the short cap and must not be labeled stream-expired by itself.
+ * A completed non-2xx (including 502/503/504) uses the short cap and must not be labeled stream-expired by itself.
  * editorSave.ok keeps the plan timeout (full poll while the JWT is alive).
  * 409 not-savable exhaustion arrives as streamExpired and keeps this same short cap.
  */
@@ -31,10 +59,17 @@ export function profileSaveWaitTimeoutMs(opts: {
   streamExpired: boolean
   editorHung: boolean
   editorSaveInfra5xx: boolean
+  /** Completed 4xx/5xx. Same short cap as a Solari 5xx. Does not mark the stream expired. */
+  editorSaveCompletedFailure?: boolean
   preflight: "proceed" | "low" | "past"
   streamWaitTimeoutMs?: number
 }): number | undefined {
-  if (opts.streamExpired || opts.editorHung || opts.editorSaveInfra5xx) {
+  if (
+    opts.streamExpired ||
+    opts.editorHung ||
+    opts.editorSaveInfra5xx ||
+    opts.editorSaveCompletedFailure
+  ) {
     return Math.min(opts.timeoutMs ?? STREAM_EXPIRED_WAIT_MS, STREAM_EXPIRED_WAIT_MS)
   }
   if (opts.preflight === "low") return opts.streamWaitTimeoutMs ?? STREAM_EXPIRED_WAIT_MS

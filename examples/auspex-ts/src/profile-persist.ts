@@ -28,6 +28,8 @@ import {
 import { isPublicMarketingUrl, savedCheckForProfile } from "./saved-checks.ts"
 import {
   boundEditorWork,
+  completedEditorSaveFailureLead,
+  dropWaitingLead,
   EDITOR_FOLD_BOUND_MS,
   EDITOR_SAVE_BOUND_MS,
   editorSaveHungGuide,
@@ -295,10 +297,16 @@ export function overlaySaveEditorNext(opts: {
   const stripped = opts.next.replace(/\s*Run auspex check with --profile \S+\.?/g, "").trim()
   const prefix = stripped || opts.next
   if (opts.editorSave && !opts.editorSave.ok) {
+    const kept = dropWaitingLead(prefix)
+    const emptyJar = /no cookies or origins/i.test(opts.next)
+    const lead = completedEditorSaveFailureLead(opts.editorSave, emptyJar)
+    const proof = emptyJar
+      ? ""
+      : "Cookies in the profile are not proof this login saved (a pre-login jar looks the same). "
     const remint = remintLoginGuidance(opts.profile)
     return (
-      `${prefix} ${why} Cookies in the profile are not proof this login saved (a pre-login jar looks the same). ` +
-      `${remint} Do not finalize-login on this seed. If a later finalize returns needsHuman, that remint stands. ${DEAD_FOLD_VWP_BAN}`
+      `${kept ? `${kept} ` : ""}${lead}${proof}` +
+      `${remint} If a later finalize returns needsHuman, that remint stands. ${DEAD_FOLD_VWP_BAN}`
     )
   }
   if (prefix.includes("Finalize-login NOW") && prefix.includes("claimOkProfile will not pass")) {
@@ -900,9 +908,16 @@ export async function liveAwaitLogin(
         next: siblingNext ?? siblingSavedNext(handle.name),
       }
     }
-    // Completed 502/503/504 caps the jar poll. Do not set streamExpired from that status.
+    // Completed non-2xx caps the jar poll. Do not set streamExpired from that HTTP status.
     const editorSaveInfra5xx =
       editorSaveAttempted && editorSave?.ok === false && isEditorSaveInfraStatus(editorSave.status)
+    const editorSaveCompletedFailure =
+      editorSaveInfra5xx ||
+      (editorSaveAttempted &&
+        !editorHung &&
+        editorSave?.ok === false &&
+        typeof editorSave.status === "number" &&
+        editorSave.status >= 400)
     const waited = await waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion ?? handle?.sinceVersion,
       timeoutMs: profileSaveWaitTimeoutMs({
@@ -910,6 +925,7 @@ export async function liveAwaitLogin(
         streamExpired,
         editorHung,
         editorSaveInfra5xx,
+        editorSaveCompletedFailure,
         preflight: streamPlan.preflight,
         streamWaitTimeoutMs: streamPlan.waitTimeoutMs,
       }),

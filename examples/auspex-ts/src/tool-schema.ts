@@ -299,6 +299,17 @@ export const auspexAwaitLoginInputSchema = z.object({
     .describe(
       "After the human taps Save on the Auspex phone page, POST Solari editor/save from the agent and probe for editor CDP. Clipboard Save is not the jar. If an await is already running, this call signals that process instead of a second save. Do not kill it. If another path already owns editor/save (posted or in flight), status is sibling-saved: do not POST again, do not read the jar, and do not report stream-expired. A 409 not in a savable state gets one live editor/token check and one retry, then stream-expired, unless that sibling already owns the Save. A failed save does not claim cookies. POST /editor/token has no TTL. Claim a fold only when editorFold.ok. editorSave 200 with editorFold no-cdp finalizes now unless the jar is cookie-strong or local-storage-auth (app-origin cookies or allowlisted localStorage auth key names). That shape's nextCall is auspex_check with verifyWithProfile. sessionStorage 0 is expected. Do not invent sessionStorage. If editorSave fails (e.g. 401), remint — cookies are not proof of login. Do not run verify-with-profile on a weakSeed, emptySave, or IdP-only jar. Do not open Solari's handoff page on a phone (GET editor HTTP 401). Do not pass this until they finished typing.",
     ),
+  expect: expectSchema
+    .optional()
+    .describe(
+      "Logged-in app substring. With url, saveEditor chains finalize unless chainFinalize is false. Saved checks supply it when omitted.",
+    ),
+  chainFinalize: z
+    .boolean()
+    .optional()
+    .describe(
+      "Set false to skip chained finalize after a fold miss (CLI --no-chain-finalize). Omit to chain when url and expect are known.",
+    ),
   authKeyNames: z
     .array(z.string().trim().min(1).max(80))
     .optional()
@@ -375,6 +386,11 @@ export const auspexProfileStatusInputSchema = z.object({
     .optional()
     .describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
   url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
+  expect: expectSchema
+    .optional()
+    .describe(
+      "Claim substring for the live probe. loggedIn means this text was on the page. Saved checks supply it when omitted. Public marketing stays loggedOut.",
+    ),
   authKeyNames: z
     .array(z.string().trim().min(1).max(80))
     .optional()

@@ -14,7 +14,7 @@ import {
 import { createClient } from "./solari.ts"
 import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
-import { resolveSavedCheck, savedCheckForProfile, type SavedCheck } from "./saved-checks.ts"
+import { isPublicMarketingUrl, resolveSavedCheck, savedCheckForProfile, type SavedCheck } from "./saved-checks.ts"
 
 export type ProfileStatusReason = "loggedIn" | "loggedOut" | "needsHuman" | "weakSeed" | "emptySave"
 
@@ -44,6 +44,8 @@ export type ProfileStatusOpts = {
   profile?: string
   name?: string
   url?: string
+  /** Live-probe claim. loggedIn means this text was on the page. Saved checks fill it when omitted. */
+  expect?: string
   authKeyNames?: string[]
 }
 
@@ -94,14 +96,14 @@ function resolveStatusTarget(opts: ProfileStatusOpts, deps?: ProfileStatusDeps):
 } {
   let profile = opts.profile?.trim()
   let url = opts.url?.trim()
-  let expect: string | undefined
+  let expect = opts.expect?.trim() || undefined
   if (opts.name?.trim()) {
     const saved = deps?.savedForName
       ? deps.savedForName(opts.name)
       : resolveSavedCheck(opts.name)
     profile = profile || saved.profile
     url = url || saved.url
-    expect = saved.expect
+    expect = expect || saved.expect
   }
   if (!profile) {
     throw new Error("profile-status requires --profile or --name")
@@ -308,6 +310,69 @@ export async function profileStatus(
       populated: true,
       live: true,
       skipReason: guided.text,
+      nextCall: guided.nextCall,
+      finalUrl: landed,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath,
+      ...seedCounts(seed, url, profile, opts.name),
+    }
+  }
+  if (isPublicMarketingUrl(landed || url)) {
+    return {
+      ok: false,
+      reason: "loggedOut",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skipReason: "Public marketing pages stay loggedOut. A text hit here is not a saved login.",
+      finalUrl: landed,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath,
+      ...seedCounts(seed, url, profile, opts.name),
+    }
+  }
+  if (claim && result.matched !== true) {
+    const weakNow = isWeakSeed({
+      name: opts.name,
+      profile,
+      url,
+      cookies: seed?.cookies,
+      origins: seed?.origins,
+      sessionStorage: seed?.sessionStorage,
+      sessionStorageStale: seed?.sessionStorageStale,
+      cookieHosts: seed?.cookieHosts,
+      liveHost: seed?.liveHost,
+      appOriginCookieCount: seed?.appOriginCookieCount,
+      localStorageAuthKeyNames: seed?.localStorageAuthKeyNames,
+    })
+    if (weakNow) {
+      const weak = weakSeedGuide(profile, seed)
+      return {
+        ok: false,
+        reason: "weakSeed",
+        profile,
+        url,
+        populated: true,
+        live: true,
+        skipReason: `Live probe did not see expect "${claim}". ${weak.text}`,
+        nextCall: weak.nextCall,
+        finalUrl: landed,
+        excerpt: result.excerpt,
+        screenshotPath: result.screenshotPath,
+        ...seedCounts(seed, url, profile, opts.name),
+      }
+    }
+    const hasCookies = (seed?.cookies ?? 0) > 0 || (seed?.origins ?? 0) > 0
+    const guided = hasCookies ? finalizeLoginGuide(profile) : emptyProfileGuide(profile)
+    return {
+      ok: false,
+      reason: "loggedOut",
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skipReason: `Live probe did not see expect "${claim}". loggedIn means that expect was on the page. ${guided.text}`,
       nextCall: guided.nextCall,
       finalUrl: landed,
       excerpt: result.excerpt,

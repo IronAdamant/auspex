@@ -58,7 +58,9 @@ export function editorSaveHttpProgress(saved: EditorSaveSnap): string | undefine
   if (saved.ok || saved.hung || saved.status < 400) return undefined
   if (isNotSavableConflict(saved.status, saved.error)) return undefined
   const detail = saved.error ? ` ${saved.error}` : ""
-  return `await: editor/save ${saved.status}${detail}. POST finished.`
+  const stand =
+    saved.status === 502 || saved.status === 503 || saved.status === 504 ? " Solari status stands." : ""
+  return `await: editor/save ${saved.status}${detail}. POST finished.${stand} Short jar poll. Not a 30-minute wait.`
 }
 
 /**

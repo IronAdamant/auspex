@@ -430,6 +430,89 @@ test("profileStatus derives weakSeed from live stale profileSeed when inspect is
   assert.equal((result.skipReason ?? "").includes("--sso --save-profile"), false)
 })
 
+function probe(over: Partial<CheckResult>): CheckResult {
+  return {
+    ok: false,
+    reason: "mismatch",
+    url: "https://app.example/home",
+    expect: "Workspace ready",
+    screenshotPath: ".auspex/runs/x/screenshot.png",
+    title: "App",
+    finalUrl: "https://app.example/home",
+    matched: false,
+    excerpt: "home",
+    sessionId: "s",
+    networkIdle: true,
+    ...over,
+  }
+}
+
+test("profileStatus sends --expect to the live probe and does not call a miss loggedIn", async () => {
+  let seen = ""
+  const missed = await profileStatus(
+    { profile: "app-example", url: "https://app.example/home", expect: "Workspace ready" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "app-example", populated: true }],
+      runCheck: async (opts) => {
+        seen = opts.expect
+        return probe({
+          url: opts.url,
+          expect: opts.expect,
+          profileSeed: { cookies: 2, origins: 1, sessionStorage: 2 },
+        })
+      },
+    },
+  )
+  assert.equal(seen, "Workspace ready")
+  assert.equal(missed.reason, "loggedOut")
+  assert.equal(missed.ok, false)
+  assert.match(missed.skipReason ?? "", /did not see expect "Workspace ready"/)
+  assert.match(missed.skipReason ?? "", /loggedIn means that expect was on the page/)
+})
+
+test("unmatched app page with counted sessionStorage 0 stays weakSeed", async () => {
+  const result = await profileStatus(
+    { name: "consistencyhub" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "consistencyhub", populated: true }],
+      savedForName: () => hubSaved,
+      runCheck: async () =>
+        probe({
+          url: "https://consistencyhub.io/dashboard",
+          expect: "Document Editor",
+          finalUrl: "https://consistencyhub.io/dashboard",
+          profileSeed: { cookies: 5, origins: 1, sessionStorage: 0 },
+        }),
+    },
+  )
+  assert.equal(result.reason, "weakSeed")
+  assert.match(result.skipReason ?? "", /did not see expect "Document Editor"/)
+  assert.match(result.skipReason ?? "", /Finalize-login NOW/)
+})
+
+test("public marketing stays loggedOut when expect matches", async () => {
+  const result = await profileStatus(
+    { profile: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
+    {
+      listProfiles: async () => [{ id: "p1", name: "ironadamant", populated: true }],
+      runCheck: async (opts) =>
+        probe({
+          ok: true,
+          reason: "matched",
+          url: opts.url,
+          expect: opts.expect,
+          finalUrl: "https://ironadamant.com/",
+          matched: true,
+          excerpt: "One office job.",
+          profileSeed: { cookies: 4, origins: 1, sessionStorage: 0 },
+        }),
+    },
+  )
+  assert.equal(result.reason, "loggedOut")
+  assert.equal(result.ok, false)
+  assert.match(result.skipReason ?? "", /Public marketing pages stay loggedOut/)
+})
+
 test("loggedOut check next names finalize-login not remint sso save-profile", () => {
   const next = checkLoggedOutNext("consistencyhub", 78)
   assert.match(next, /finalize-login/)
