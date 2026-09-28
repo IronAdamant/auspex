@@ -20,6 +20,14 @@ import { isNonEmptyExpect } from "./text.ts"
 export const CONNECT_NEEDS_EXPECT =
   "Without a terminal, connect needs --expect <words that only appear once logged in>."
 
+/** Thrown from onMinted when the mint fell back to Solari's own handoff page (no phone door). */
+export const NO_PHONE_DOOR =
+  "Solari did not open a phone door: its remote browser was not ready (the editor token never arrived)."
+
+export function isPhoneDoor(link: string | undefined): boolean {
+  return Boolean(link && /\/auspex\/phone\.html/.test(link))
+}
+
 export type ConnectOptions = {
   url: string
   expect?: string
@@ -111,6 +119,16 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       ok: false,
       headline: `The live browser saw ${words}, but a second browser using only the saved login did not confirm it.`,
       detail: [`Do not reuse profile ${job.profile} yet. ${again}`],
+    }
+  }
+  if (job.phase === "failed" && job.reason.includes(NO_PHONE_DOOR)) {
+    return {
+      ok: false,
+      headline: NO_PHONE_DOOR,
+      detail: [
+        "That is on Solari's side. Nothing was saved or claimed.",
+        "Wait a few minutes (Solari can take up to about 10 minutes to release a stuck browser), then run the same command again.",
+      ],
     }
   }
   if (job.botWall && !(job.phase === "completed" && job.ok)) {
@@ -299,6 +317,9 @@ export async function runConnect(
     }
 
     const onMinted = ({ profile, handoff }: { profile: string; handoff: HandoffPacket }) => {
+      // Solari's fallback handoff page is a picture of Chrome with no phone keyboard. Stop now
+      // instead of handing it out and waiting up to 30 minutes on it.
+      if (!isPhoneDoor(handoff.mobileUrl || handoff.url)) throw new Error(NO_PHONE_DOOR)
       void showDoor(profile, handoff)
     }
     const showDoor = async (profile: string, handoff: HandoffPacket) => {

@@ -375,3 +375,41 @@ test("runJob: a bot wall never triggers the finalize fallback", async () => {
   assert.equal(result.botWall, true)
   assert.match(connectOutcome(result).headline, /bot check/)
 })
+
+test("connect stops at once when Solari gives no phone door, instead of handing out the fallback page", async () => {
+  const { NO_PHONE_DOOR } = await import("../src/connect.ts")
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-nodoor-"))
+  let awaited = false
+  let text = ""
+  const stdout = new PassThrough()
+  stdout.on("data", (chunk) => {
+    text += String(chunk)
+  })
+  const result = await runConnect(
+    { url: "https://www.canva.com/", expect: "Templates for you" },
+    { stdin: new PassThrough(), stdout },
+    {
+      runJob: (opts) =>
+        runJob(opts, {
+          jobsDir,
+          login: async () => ({
+            profileId: "p1",
+            name: "canva-com",
+            consoleUrl: "https://console.getsolari.com/profiles",
+            next: "",
+            sinceVersion: 1,
+            handoff: { url: "https://console.getsolari.com/handoff/abc" },
+          }),
+          awaitLogin: async () => {
+            awaited = true
+            return { status: "timeout", profileId: "p1", name: "canva-com", version: 1, cookies: 0, origins: 0, next: "" }
+          },
+          wake: async () => ({ ok: true, skipped: true }),
+        }),
+    },
+  )
+  assert.equal(result.ok, false)
+  assert.equal(awaited, false, "must not wait on Solari's fallback page")
+  assert.equal(text.includes("console.getsolari.com/handoff"), false, "must not hand out the fallback page")
+  assert.match(text, new RegExp(NO_PHONE_DOOR.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+})

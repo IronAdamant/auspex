@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "kind": "connect-run",
+  "date": "2026-09-29",
+  "note": "Live run of `auspex connect` driven by Claude Code as the agent: connect in the background, the human signs in on the phone door and taps Save, the agent runs `connect --save <profile>`. A pass means ok true and claimOkProfile true from a second fresh Solari browser seeded only with the saved login; claimOk stays false on purpose (anonymous claim skipped). Redacted: no door links, tokens, session ids, cookie hosts, page text, or screenshots. Evidence, not the default recipe.",
+  "summary": {
+    "apps": 9,
+    "passed": 8,
+    "notConfirmed": [
+      "Canva"
+    ]
+  },
+  "apps": [
+    {
+      "app": "Lorari",
+      "signIn": "Appwrite",
+      "url": "https://app.lorari.com/member/",
+      "expect": "Your Bookings",
+      "attempts": [
+        {
+          "result": "not-saved",
+          "ok": false,
+          "status": "stream-expired",
+          "note": "Terminal run: the phone page's Save button was tapped instead of Enter, so no Save signal reached connect and the window closed. Led to the phone Save text naming connect."
+        },
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "Good Tape",
+      "signIn": "Supabase",
+      "url": "https://app.goodtape.io/tapes/new",
+      "expect": "You have no tapes.",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "Clozemaster",
+      "signIn": "AWS",
+      "url": "https://www.clozemaster.com/l/spa-eng",
+      "expect": "READY FOR REVIEW",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "MariaDB Cloud",
+      "signIn": "MySQL",
+      "url": "https://cloud.mariadb.com/dashboard",
+      "expect": "Create New Service",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "Back4App",
+      "signIn": "MongoDB (Parse)",
+      "url": "https://dashboard.back4app.com/apps",
+      "expect": "New Backend",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "Chatwoot",
+      "signIn": "Postgres",
+      "url": "https://app.chatwoot.com/",
+      "expect": "All Conversations",
+      "attempts": [
+        {
+          "result": "solari-error",
+          "ok": false,
+          "status": "timeout",
+          "note": "Solari editor/save returned HTTP 502 (Failed to export storageState). Nothing was saved or claimed. connect then said 'No Save arrived'; it now names the 502."
+        },
+        {
+          "result": "stopped",
+          "ok": false,
+          "note": "The phone page lost its connection while the human switched apps for the password; the door was reopened."
+        },
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "tldraw",
+      "signIn": "Cloudflare + Clerk",
+      "url": "https://www.tldraw.com/",
+      "expect": "My workspace",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong"
+        }
+      ]
+    },
+    {
+      "app": "ConsistencyHub",
+      "signIn": "Azure + Microsoft (MSAL)",
+      "url": "https://consistencyhub.io",
+      "expect": "Document Editor",
+      "attempts": [
+        {
+          "result": "logged-out",
+          "ok": false,
+          "status": "loggedOut",
+          "note": "The save held a localStorage refreshToken (local-storage-auth), so finalize was skipped and a fresh browser landed logged out (MSAL also needs session storage). Led to the one-time finalize fallback."
+        },
+        {
+          "result": "solari-error",
+          "ok": false,
+          "status": "stream-expired",
+          "note": "Solari editor/save returned HTTP 409 (The editor isn't in a savable state) about 4 minutes before the link expired. Reported as stream-expired at the time; connect now names the 409."
+        },
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "local-storage-auth",
+          "finalizeFallback": true
+        }
+      ]
+    },
+    {
+      "app": "Canva",
+      "signIn": "Google",
+      "url": "https://www.canva.com/",
+      "expect": "Templates for you",
+      "attempts": [
+        {
+          "result": "bot-wall",
+          "ok": false,
+          "status": "loggedOut",
+          "note": "The save was cookie-strong (29 app-origin cookies), but every fresh cloud browser got Cloudflare's bot check (title 'Just a moment...') instead of Canva. Recorded as loggedOut at the time; a later live check with the same saved login returned botWall true."
+        },
+        {
+          "result": "solari-error",
+          "ok": false,
+          "status": "stream-expired",
+          "note": "Solari editor/save returned HTTP 409 (The editor isn't in a savable state) about 2 minutes before the link expired."
+        },
+        {
+          "result": "solari-error",
+          "ok": false,
+          "note": "Solari's editor token endpoint answered 409 twenty times, so no phone door was minted. Stopped. connect now stops at once in this case instead of handing out Solari's fallback page."
+        }
+      ]
+    }
+  ]
+}

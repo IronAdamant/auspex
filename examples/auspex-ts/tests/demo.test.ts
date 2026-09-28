@@ -233,3 +233,30 @@ test("watch replay ndjson is ConsistencyHub Microsoft wall with emails and passw
   assert.equal(assertNoCredentialLeak(html).length, 0)
   assert.equal(assertNoCredentialLeak(ndjson).length, 0)
 })
+
+test("connect-run receipt is redacted and does not count Canva as a pass", () => {
+  const raw = readFileSync(path.join(demo, "connect-run-2026-09-29.json"), "utf8")
+  for (const secret of ["phone.html", "#v=", "sessionId", "slr_live", "cookieHosts", "eyJ", "runDir"]) {
+    assert.equal(raw.includes(secret), false, `connect-run must not contain ${secret}`)
+  }
+  const run = JSON.parse(raw) as {
+    summary: { apps: number; passed: number; notConfirmed: string[] }
+    apps: Array<{ app: string; attempts: Array<{ result: string; ok: boolean; claimOk?: boolean; claimOkProfile?: boolean }> }>
+  }
+  assert.equal(run.summary.apps, 9)
+  assert.equal(run.summary.passed, 8)
+  assert.deepEqual(run.summary.notConfirmed, ["Canva"])
+  for (const app of run.apps) {
+    for (const attempt of app.attempts) {
+      if (attempt.result === "pass") {
+        assert.equal(attempt.ok, true, app.app)
+        assert.equal(attempt.claimOk, false, app.app)
+        assert.equal(attempt.claimOkProfile, true, app.app)
+      } else {
+        assert.equal(attempt.ok, false, app.app)
+      }
+    }
+  }
+  const canva = run.apps.find((a) => a.app === "Canva")
+  assert.equal(canva?.attempts.some((a) => a.result === "pass"), false)
+})

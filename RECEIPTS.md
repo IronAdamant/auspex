@@ -183,6 +183,36 @@ Live test on 2026-09-28, driven end to end by Claude Code over the Auspex MCP se
 - **[Back4App](examples/auspex-ts/demo/back4app-receipt.json)** (MongoDB / Parse, backend dashboard) — expect `New Backend` on `https://dashboard.back4app.com/apps`
 - **[ConsistencyHub](examples/auspex-ts/demo/consistencyhub-msal-receipt.json)** (Azure + Microsoft MSAL) — expect `Document Editor` on `https://consistencyhub.io`, after `finalize-login` captured the MSAL session. The first door that day landed logged out and the finalize stopped at a Microsoft sign-in wall (`needsHuman`); the second door ("Stay signed in: Yes") passed.
 
+## One-command run with `connect` (2026-09-29)
+
+Receipt: [`connect-run-2026-09-29.json`](examples/auspex-ts/demo/connect-run-2026-09-29.json). Claude Code ran `auspex connect <url> --expect <words>` as the agent. A human signed in on the phone door and tapped Save, then the agent ran `connect --save <profile>`. `connect` runs the usual chain (save, finalize when needed, `check --verify-with-profile`) and ends with one sentence. It says "Logged in" only when `claimOkProfile` is true.
+
+**8 of 9 confirmed.** Canva could not be confirmed.
+
+| App | Sign-in | Result | Attempts |
+| --- | --- | --- | --- |
+| Lorari | Appwrite | Pass | 2. The first was the terminal run where the phone's Save button was tapped instead of Enter. |
+| Good Tape | Supabase | Pass | 1 |
+| Clozemaster | AWS | Pass | 1 |
+| MariaDB Cloud | MySQL | Pass | 1 |
+| Back4App | MongoDB (Parse) | Pass | 1 |
+| Chatwoot | Postgres | Pass | 3. Solari editor/save returned 502, then the phone lost its connection during a password switch. |
+| tldraw | Cloudflare + Clerk | Pass | 1 |
+| ConsistencyHub | Azure + Microsoft (MSAL) | Pass | 3. The first save skipped finalize and checked logged out. The second got a Solari 409. The third passed after the one-time finalize fallback. |
+| Canva | Google | Not confirmed | 3. Cloudflare showed every fresh cloud browser a bot check ("Just a moment..."). The later tries hit Solari 409s. |
+
+Each pass is `ok=true`, `claimOk=false` (anonymous skipped) and **`claimOkProfile=true`** from a second fresh Solari browser seeded only with the saved login.
+
+Canva is not a pass. Its save looked strong (29 app-origin cookies), but the checking browser never reached Canva, so there is nothing to confirm. Auspex reports that as `botWall`, not `loggedOut`, and does not solve bot checks.
+
+What the run changed in the code:
+- `connect` works for agents (`connect --save`).
+- The phone Save text names `connect`.
+- Finalize runs once when a ready-looking save checks logged out (Microsoft MSAL).
+- Solari 502 and 409 are named instead of blamed on the clock.
+- Bot checks are reported as `botWall`.
+- `connect` stops when Solari gives no phone door.
+
 ## Important Notes
 
 ### Marketing Summary vs. Schema v1
