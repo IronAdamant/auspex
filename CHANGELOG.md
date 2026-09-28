@@ -2,7 +2,9 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.9 — 2026-09-28 (published)
+
+npm `auspex-solari@0.1.9` (latest). Agents do not `npm publish`. Founder publishes this release. Everything below was found or confirmed in a live test of eight real sites (Lorari, Good Tape, Clozemaster, tldraw, Chatwoot, MariaDB Cloud, back4app, ConsistencyHub).
 
 - **Refresh-token-only saves point to finalize when needed.** A `local-storage-auth` Save whose only auth key is a refresh token (no access token, no app cookie) now says: run the check, and if it lands loggedOut, finalize-login is next. Live ConsistencyHub (MSAL) needed exactly that; the old advice said never to finalize.
 - **Receipt excerpts mask key-shaped text** (JWTs, `sk-`/`pk_`/`slr_` keys, long letter-and-digit tokens) before truncation. A live back4app overview printed its client key into a local receipt.
@@ -24,7 +26,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.8 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.8` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.8`. Agents do not `npm publish`. Founder publishes this release.
 
 - **Fix (0.1.7 regression):** an npm install wrote an absolute `/Users/<name>/.auspex/…` `screenshotPath`, and sandbox verify rejects home paths, so every verified check returned `ok: false` (`reason: network`) even though the page matched and `claimOk` was true. Receipts now write `~/.auspex/runs/…` (no username), and every reader expands `~/`.
 - The sandbox home-path rule flags only real home directories (`/Users/`, `/home/`, `/root`, `C:\Users\`), so an `AUSPEX_HOME` such as `/srv/auspex` still verifies.
