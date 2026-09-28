@@ -240,8 +240,11 @@ export function noteOperatorUse(state: OperatorState, note: OperatorNote, nowMs:
   const profile = cleanProfile(note.profile)
   if (!profile) return state
   const prev = state.profiles[profile]
+  // The login mint (a busy window) names the site. Later checks keep it rather than the last URL probed.
+  const noted = note.site?.trim() || undefined
+  const minting = note.busyMs !== undefined && note.busyMs > 0
   const next: StoredOperatorProfile = {
-    site: note.site?.trim() || prev?.site,
+    site: minting ? (noted ?? prev?.site) : (prev?.site ?? noted),
     lastUsedMs: nowMs,
   }
   const keep = note.keep ?? prev?.keep
@@ -356,6 +359,8 @@ export async function commitOperatorSession(opts: {
   humanAgree?: boolean
   voluntary?: readonly string[]
   applyWipes?: (names: readonly string[]) => Promise<readonly string[] | OperatorWipeReport>
+  /** false: skip idle wipes; only human-agreed voluntary purges run. Default true. */
+  idleWipe?: boolean
 }): Promise<{ agent: OperatorAgentNotice; wiped: string[]; wipeFailed: WipeFailure[] }> {
   let state = readOperatorState(opts.root)
   if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs)
@@ -374,8 +379,10 @@ export async function commitOperatorSession(opts: {
   })
   let wiped: string[] = []
   let wipeFailed: WipeFailure[] = []
-  if (decision.wipe.length > 0 && opts.applyWipes) {
-    const report = asWipeReport(await opts.applyWipes(decision.wipe))
+  const agreedNames = new Set(agreed.map((name) => name.trim()))
+  const toWipe = opts.idleWipe === false ? decision.wipe.filter((name) => agreedNames.has(name)) : decision.wipe
+  if (toWipe.length > 0 && opts.applyWipes) {
+    const report = asWipeReport(await opts.applyWipes(toWipe))
     wiped = report.wiped
     wipeFailed = report.wipeFailed
     state = forgetOperatorProfiles(state, wiped)

@@ -239,19 +239,31 @@ async function extractPage(
   page: Page,
   selector: string | undefined,
   signal: AbortSignal,
-): Promise<{ title: string; finalUrl: string; raw: string; hasPassword: boolean }> {
+): Promise<{ title: string; finalUrl: string; raw: string; main: string; hasPassword: boolean }> {
   return observeAbort(
     page.evaluate((sel: string | null) => {
       const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
+      // Excerpt only: the page's main region when it has one (menus and promo cards otherwise fill it).
+      const main = sel ? null : (document.querySelector('main, [role="main"]') as HTMLElement | null)
       return {
         title: document.title,
         finalUrl: location.href,
         raw: el?.innerText ?? "",
+        main: main?.innerText ?? "",
         hasPassword: Boolean(document.querySelector('input[type="password"]')),
       }
     }, selector ?? null),
     signal,
   )
+}
+
+/**
+ * Text for the receipt excerpt. Matching always uses the whole page; the excerpt prefers the
+ * page's main region (<main> / role=main) when it holds real content, so menus and promo cards
+ * do not use up the 500 characters.
+ */
+export function excerptRegion(whole: string, main: string): string {
+  return main.trim().length >= 40 ? main : whole
 }
 
 /** A client-side redirect after load destroys the evaluate context. */
@@ -413,6 +425,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (isCancelled()) return
       onProgress("extract")
       let raw = ""
+      let excerptSource = ""
       let hasPassword = false
       let sawPageText = false
       try {
@@ -426,6 +439,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
+        excerptSource = excerptRegion(extracted.raw, extracted.main)
         hasPassword = extracted.hasPassword
         sawPageText = true
         const haystack = normalizeHaystack(raw)
@@ -467,7 +481,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       if (needsHuman) {
         matched = false
         excerpt = prepareCheckExcerpt({
-          raw: raw || excerpt,
+          raw: excerptSource || raw || excerpt,
           needsHuman: true,
           prefix: `needsHuman: password or OTP wall at ${finalUrl || page.url()}.`,
         })
@@ -475,18 +489,18 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         special = "expectMatchedPublicLanding"
         matched = false
         excerpt = prepareCheckExcerpt({
-          raw: raw || excerpt,
+          raw: excerptSource || raw || excerpt,
           prefix: `expectMatchedPublicLanding: expect text is on ${liveUrl}, which is not a persistable app URL. Profile was not saved.`,
         })
       } else if (opts.profile && finalUrl && isLoggedOutLanding(finalUrl, { matched })) {
         special = "loggedOut"
         matched = false
         excerpt = prepareCheckExcerpt({
-          raw: raw || excerpt,
+          raw: excerptSource || raw || excerpt,
           prefix: `loggedOut: landed on ${finalUrl}.`,
         })
       } else {
-        excerpt = prepareCheckExcerpt({ raw: raw || excerpt })
+        excerpt = prepareCheckExcerpt({ raw: excerptSource || raw || excerpt })
       }
       if (!needsHuman) {
         onProgress("screenshot")

@@ -89,6 +89,8 @@ export const AUSPEX_CONTRACT: readonly ContractCommand[] = [
     fields: [
       { json: "purge", flag: "--purge", kind: "string" },
       { json: "humanAgree", flag: "--yes", kind: "boolean" },
+      { json: "keep", flag: "--keep", kind: "string" },
+      { json: "unkeep", flag: "--unkeep", kind: "string" },
     ],
   },
   {

@@ -232,3 +232,37 @@ test("a refresh-token-only localStorage Save says finalize is next if the check 
   assert.equal(refreshTokenOnly(access), false)
   assert.match(cookieSaveGuide({ profile: "p", readiness: access }).text, /Do not finalize to invent sessionStorage/)
 })
+
+test("seed inventory names login cookies on the app's site and lists third-party hosts", async () => {
+  const { cookieInventory } = await import("../src/profile-persist.ts")
+  // Shapes seen live: Supabase chunked token, Appwrite session, Clerk, Rails session, trackers, IdP.
+  const inv = cookieInventory(
+    [
+      { name: "sb-secure-auth-token.0", domain: ".goodtape.io" },
+      { name: "sb-secure-auth-token.1", domain: ".goodtape.io" },
+      { name: "_ga", domain: ".goodtape.io" },
+      { name: "_fbp", domain: ".facebook.com" },
+      { name: "li_sugr", domain: ".linkedin.com" },
+      { name: "ESTSAUTHPERSISTENT", domain: "login.microsoftonline.com" },
+    ],
+    "app.goodtape.io",
+  )
+  assert.deepEqual(inv.authCookieNames, ["sb-secure-auth-token.0", "sb-secure-auth-token.1"])
+  assert.deepEqual(inv.thirdPartyCookieHosts, ["facebook.com", "linkedin.com"])
+  const clerk = cookieInventory(
+    [
+      { name: "__session", domain: "www.tldraw.com" },
+      { name: "__client", domain: "clerk.tldraw.com" },
+      { name: "zero", domain: "production-zero-vs.fly.dev" },
+    ],
+    "www.tldraw.com",
+  )
+  assert.deepEqual(clerk.authCookieNames, ["__client", "__session"])
+  assert.deepEqual(clerk.thirdPartyCookieHosts, ["production-zero-vs.fly.dev"])
+  // Sibling subdomain of the app (Appwrite on appwrite.lorari.com, app on app.lorari.com) is the same site.
+  assert.deepEqual(cookieInventory([{ name: "a_session_abc", domain: "appwrite.lorari.com" }], "app.lorari.com").authCookieNames, ["a_session_abc"])
+  const { registeredDomain } = await import("../src/profile-persist.ts")
+  assert.equal(registeredDomain("app.example.co.uk"), "example.co.uk")
+  assert.equal(registeredDomain("dashboard.back4app.com"), "back4app.com")
+  assert.deepEqual(cookieInventory([{ name: "_clozemaster_session", domain: "www.clozemaster.com" }], "www.clozemaster.com").authCookieNames, ["_clozemaster_session"])
+})

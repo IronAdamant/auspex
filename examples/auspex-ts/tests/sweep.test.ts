@@ -207,3 +207,29 @@ test("operator keep survives a write/read round trip", async () => {
   writeOperatorState(root, noteOperatorUse(emptyOperatorState(), { profile: "kept", keep: true }, 1))
   assert.equal(readOperatorState(root).profiles.kept!.keep, true)
 })
+
+test("a profiles listing never idle-wipes; only a human-agreed purge does", async () => {
+  const { commitOperatorSession, noteOperatorUse, emptyOperatorState, writeOperatorState, OPERATOR_IDLE_MS } = await import("../src/operator-session.ts")
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-list-"))
+  writeOperatorState(root, noteOperatorUse(emptyOperatorState(), { profile: "stale" }, 0))
+  const wiped: string[][] = []
+  const applyWipes = async (names: readonly string[]) => {
+    wiped.push([...names])
+    return [...names]
+  }
+  const now = 10 * OPERATOR_IDLE_MS
+  const listed = await commitOperatorSession({ root, nowMs: now, idleWipe: false, applyWipes })
+  assert.deepEqual(listed.wiped, [])
+  assert.equal(wiped.length, 0)
+  const purged = await commitOperatorSession({ root, nowMs: now, idleWipe: false, humanAgree: true, voluntary: ["stale"], applyWipes })
+  assert.deepEqual(purged.wiped, ["stale"])
+})
+
+test("profiles --keep / --unkeep parse and refuse both at once", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  assert.deepEqual(parseArgv(["profiles", "--keep", "consistencyhub"]), {
+    status: "ok",
+    command: { cmd: "profiles", purge: undefined, humanAgree: false, keep: "consistencyhub", unkeep: undefined },
+  })
+  assert.equal(parseArgv(["profiles", "--keep", "a", "--unkeep", "b"]).status, "error")
+})

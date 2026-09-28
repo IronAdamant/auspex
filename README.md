@@ -163,6 +163,28 @@ A saved login is ready to reuse only when a later check sees the logged-in page.
 - Solari HTTP status codes are a separate list from a logged-out page. See [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
 - A stealth browser applies only when a check opens a session (`auspex check --stealth`). Login mint cannot request it. Do not add `auspex login --stealth`.
 
+## Tested on live apps
+
+In one live session (2026-09-28), a human signed in once per site through the phone door, and an AI agent (Claude Code over MCP) did the rest: collect the Save, run the check, and confirm the saved login from a second fresh browser (`claimOkProfile`). Real accounts, real sites, read-only apart from a few menu clicks.
+
+| Backend / auth | Kind of app | Saved login confirmed on a second browser |
+| --- | --- | --- |
+| Appwrite | Class-booking platform | Yes |
+| Supabase | Audio transcription SaaS | Yes |
+| AWS | Language-learning app | Yes |
+| Cloudflare + Clerk sign-in | Collaborative whiteboard | Yes |
+| Postgres | Customer-support inbox | Yes |
+| MySQL | Managed database console | Yes |
+| MongoDB (Parse) | Backend-as-a-service dashboard | Yes |
+| Azure + Microsoft sign-in (MSAL) | ConsistencyHub (our own SaaS) | Yes, after finalize-login |
+
+Eight of eight reached a verified saved login, on a laptop and on a phone. Where a login was not really saved, Auspex said so instead of guessing: an empty saved profile, a Microsoft app that landed logged out despite a promising Save, and a Microsoft password wall it stopped at rather than typed into. The session also found and fixed Auspex bugs in the door (Clear, the Save paste, honest "Copied", stale page cache) and in checks (late client-side redirects, missed clicks without a screenshot, keys in receipt excerpts).
+
+Two things worth knowing before you point an agent at your own app:
+
+- **Read-only is not side-effect-free.** Opening a logged-in app runs the site's own load behaviour: a live-chat app showed the account online while the check was open, and an app can write to the user's storage on load.
+- **Canvas and live-sync apps can draw after the page looks settled.** Pass `waitFor` with the app's main element.
+
 ## Logged-in evidence
 
 Blurred dashboard from a real logged-in app. The blur hides personal data. The name in the file path is a worked example, not the recipe for every site.

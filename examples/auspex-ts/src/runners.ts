@@ -204,10 +204,14 @@ export async function runFinalizeLoginDoor(opts: {
   return attachMatchedPurgeNext(toAgentReceipt(result), book.agent)
 }
 
-export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boolean }) {
+export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boolean; keep?: string; unkeep?: string }) {
+  const keepName = opts.keep ?? opts.unkeep
   const book = await withOperatorSession({
     humanAgree: opts.humanAgree,
     voluntary: opts.purge ? [opts.purge] : [],
+    note: keepName ? { profile: keepName, keep: Boolean(opts.keep) } : undefined,
+    // A list is a read: it never deletes an idle login. Only a human-agreed purge wipes here.
+    idleWipe: false,
   })
   const profiles = await listProfiles()
   const honesty = voluntaryPurgeHonesty({

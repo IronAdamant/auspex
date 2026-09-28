@@ -339,6 +339,12 @@ export const auspexProfilesInputSchema = z.object({
     .boolean()
     .optional()
     .describe("True only after the human agrees to purge that saved login"),
+  keep: profileNameSchema
+    .optional()
+    .describe("Exempt this saved login from the 30-minute idle wipe (long agent loops). A human-agreed purge still wipes it."),
+  unkeep: profileNameSchema
+    .optional()
+    .describe("Return this saved login to the normal 30-minute idle wipe."),
 })
 
 export const auspexTraceInputSchema = z.object({

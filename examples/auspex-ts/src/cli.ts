@@ -29,7 +29,7 @@ export const USAGE = `Usage:
   npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
   npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
-  npx auspex profiles [--purge <name>] [--yes]
+  npx auspex profiles [--purge <name>] [--yes] [--keep <name>] [--unkeep <name>]
   npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--expect <string>] [--auth-keys <names>]
   npx auspex solari-health
   npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
@@ -73,7 +73,7 @@ export type CliCommand =
   | { cmd: "finalize-login"; profile: string; url?: string; expect?: string; ssoProvider?: SsoProvider }
   | { cmd: "login"; profile: string; url?: string; wait?: boolean; profileDerived?: boolean }
   | { cmd: "await-login"; profile: string; sinceVersion?: number; timeoutMs?: number; saveEditor?: boolean; url?: string; expect?: string; chainFinalize?: boolean; authKeyNames?: string[] }
-  | { cmd: "profiles"; purge?: string; humanAgree?: boolean }
+  | { cmd: "profiles"; purge?: string; humanAgree?: boolean; keep?: string; unkeep?: string }
   | { cmd: "profile-status"; profile?: string; name?: string; url?: string; expect?: string; authKeyNames?: string[] }
   | { cmd: "solari-health" }
   | { cmd: "verify"; runDir?: string }
@@ -386,6 +386,8 @@ export function parseArgv(argv: string[]): ParseResult {
     }
     const purgeRaw = takeOption(args, "--purge")
     const humanAgree = takeFlag(args, "--yes")
+    const keepRaw = takeOption(args, "--keep")
+    const unkeepRaw = takeOption(args, "--unkeep")
     if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
     if (humanAgree && !purgeRaw) {
       return { status: "error", message: "--yes requires --purge <name> after the human agrees" }
@@ -398,7 +400,16 @@ export function parseArgv(argv: string[]): ParseResult {
         return { status: "error", message: err instanceof Error ? err.message : String(err) }
       }
     }
-    return { status: "ok", command: { cmd: "profiles", purge, humanAgree } }
+    let keep: string | undefined
+    let unkeep: string | undefined
+    try {
+      if (keepRaw) keep = requireProfileName(keepRaw)
+      if (unkeepRaw) unkeep = requireProfileName(unkeepRaw)
+    } catch (err) {
+      return { status: "error", message: err instanceof Error ? err.message : String(err) }
+    }
+    if (keep && unkeep) return { status: "error", message: "pass only one of --keep or --unkeep" }
+    return { status: "ok", command: { cmd: "profiles", purge, humanAgree, keep, unkeep } }
   }
   if (cmd === "profile-status") {
     if (args.includes("--help") || args.includes("-h")) {

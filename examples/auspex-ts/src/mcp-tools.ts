@@ -157,10 +157,10 @@ export function registerAuspexTools(server: McpServer): void {
   server.registerTool(
     "auspex_profiles",
     { description: PROFILES_DESCRIPTION, inputSchema: auspexProfilesInputSchema },
-    async ({ purge, humanAgree }) => {
+    async ({ purge, humanAgree, keep, unkeep }) => {
       try {
         const { runProfilesDoor } = await import("./runners.ts")
-        return { content: [{ type: "text" as const, text: toolJson(await runProfilesDoor({ purge, humanAgree })) }] }
+        return { content: [{ type: "text" as const, text: toolJson(await runProfilesDoor({ purge, humanAgree, keep, unkeep })) }] }
       } catch (err) {
         return packToolFailure(err)
       }

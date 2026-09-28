@@ -8,7 +8,8 @@ import {
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { createClient } from "./solari.ts"
-import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
+import { cookieHostIsIdp, loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
+import { hostIs } from "./sso.ts"
 import type { LiveHostChange } from "./live-host-change.ts"
 import { CLAIM_FALSE_STOP, NOT_A_LEASE, NOT_OVERNIGHT_SAFE, OPS_GUIDE } from "./door-await-contract.ts"
 import { awaitRetryNextCall, finalizeLoginNextCall, remintLoginNextCall, type NextCall } from "./next-call.ts"
@@ -96,6 +97,49 @@ export type ProfileSeed = {
   localStorageCount?: number
   /** Allowlisted key names present on the app origin. Never values. */
   localStorageAuthKeyNames?: string[]
+  /** Recognised login-cookie names on the app's site (Supabase sb-*-auth-token, Appwrite a_session_*, Clerk __session, *_session…). Names only. */
+  authCookieNames?: string[]
+  /** Cookie hosts that are neither the app's site nor a Microsoft/Google sign-in host (trackers, widgets, third-party sync). Reported, not dropped. */
+  thirdPartyCookieHosts?: string[]
+}
+
+/** Login-cookie names by convention. Names only; values are never read. */
+export const AUTH_COOKIE_NAME =
+  /^(sb-.+-auth-token(\.\d+)?|a_session_.+|__session(_.+)?|__clerk_db_jwt.*|__client|session|sessionid|session_id|.+_session|connect\.sid|laravel_session|PHPSESSID|JSESSIONID|remember_user_token|auth[_-]?token|access[_-]?token|jwt)$/i
+
+/** Registered domain: last two labels, or three for co.uk / com.au style suffixes. */
+export function registeredDomain(host: string): string {
+  const labels = host.toLowerCase().replace(/^\./, "").split(".").filter(Boolean)
+  if (labels.length <= 2) return labels.join(".")
+  const tld = labels[labels.length - 1]!
+  const second = labels[labels.length - 2]!
+  const take = tld.length === 2 && second.length <= 3 ? 3 : 2
+  return labels.slice(-take).join(".")
+}
+
+/** Cookie domain belongs to the app's site: same registered domain (app.lorari.com ~ appwrite.lorari.com). */
+export function cookieOnSite(cookieDomain: string, appHost: string): boolean {
+  const d = cookieDomain.toLowerCase().replace(/^\./, "")
+  return Boolean(d) && (registeredDomain(d) === registeredDomain(appHost) || hostIs(d, appHost.toLowerCase()))
+}
+
+/** Names of recognised login cookies on the app's site, and hosts of third-party cookies. */
+export function cookieInventory(
+  cookies: Array<{ name?: string; domain?: string }>,
+  appHost: string,
+): { authCookieNames: string[]; thirdPartyCookieHosts: string[] } {
+  const names = new Set<string>()
+  const third = new Set<string>()
+  for (const c of cookies) {
+    const domain = (c?.domain ?? "").toLowerCase().replace(/^\./, "")
+    if (!c?.name || !domain) continue
+    if (cookieOnSite(domain, appHost)) {
+      if (AUTH_COOKIE_NAME.test(c.name)) names.add(c.name)
+    } else if (!cookieHostIsIdp(domain)) {
+      third.add(domain)
+    }
+  }
+  return { authCookieNames: [...names].sort(), thirdPartyCookieHosts: [...third].sort() }
 }
 
 export type ProfileSaveResult = {
@@ -185,6 +229,9 @@ export function seedFromStorageState(
     seed.localStorageCount = counts.localStorage
     seed.localStorageAuthKeyNames = localStorageAuthKeyNames(state, origin, mergeAuthKeyNames(authKeyNames))
     if (isFoldedExpiresOnStale(state, origin)) seed.sessionStorageStale = true
+    const inventory = cookieInventory((state.cookies ?? []) as Array<{ name?: string; domain?: string }>, new URL(origin).hostname)
+    if (inventory.authCookieNames.length) seed.authCookieNames = inventory.authCookieNames
+    if (inventory.thirdPartyCookieHosts.length) seed.thirdPartyCookieHosts = inventory.thirdPartyCookieHosts
   }
   return seed
 }

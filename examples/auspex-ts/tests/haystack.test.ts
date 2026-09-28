@@ -252,3 +252,19 @@ test("receipt excerpts mask key-shaped strings but keep ordinary page text", asy
   const long = `${"word ".repeat(96)}${fakeClientKey}`
   assert.equal(prepareCheckExcerpt({ raw: long }).includes(fakeClientKey.slice(0, 10)), false)
 })
+
+test("check URL guard blocks cloud metadata by name and AWS IPv6, not ordinary hosts", async () => {
+  const { isCheckUrl } = await import("../src/http-url.ts")
+  for (const url of ["http://169.254.169.254/latest", "http://metadata.google.internal/computeMetadata/v1/", "http://[fd00:ec2::254]/", "http://localhost:3000"]) {
+    assert.equal(isCheckUrl(url), false, url)
+  }
+  assert.equal(isCheckUrl("https://example.com/metadata"), true)
+})
+
+test("excerpt prefers the main region when it has real content", async () => {
+  const { excerptRegion } = await import("../src/check.ts")
+  const whole = "Menu Promo Faster macros Read more Dismiss Main text of the page here that matters a lot"
+  assert.equal(excerptRegion(whole, "Main text of the page here that matters a lot to the reader"), "Main text of the page here that matters a lot to the reader")
+  assert.equal(excerptRegion(whole, "tiny"), whole)
+  assert.equal(excerptRegion(whole, ""), whole)
+})

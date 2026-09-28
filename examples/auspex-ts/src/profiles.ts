@@ -611,8 +611,11 @@ export async function withOperatorSession(opts: {
   humanAgree?: boolean
   voluntary?: readonly string[]
   root?: string
+  /** false: only human-agreed purges wipe (auspex profiles is a read). Default true. */
+  idleWipe?: boolean
 }): Promise<{ agent: OperatorAgentNotice; wiped: string[]; wipeFailed: WipeFailure[] }> {
   return commitOperatorSession({
+    idleWipe: opts.idleWipe,
     root: opts.root ?? packageRoot,
     nowMs: opts.nowMs ?? Date.now(),
     note: opts.note,

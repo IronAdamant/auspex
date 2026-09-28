@@ -63,6 +63,8 @@ export function isLoopbackHost(hostname: string): boolean {
 export function isForbiddenCheckHost(hostname: string): boolean {
   const h = stripBrackets(hostname)
   if (h === "localhost" || h.endsWith(".localhost") || h === "localhost.localdomain") return true
+  // Cloud metadata by name (GCP) and AWS's IPv6 endpoint; the IPv4 169.254/16 range is below.
+  if (h === "metadata.google.internal" || h === "metadata" || h === "fd00:ec2::254") return true
   const mapped = ipv4FromMappedIPv6(h)
   if (mapped && ipv4Blocked(mapped)) return true
   const v4 = parseIPv4Loose(h)

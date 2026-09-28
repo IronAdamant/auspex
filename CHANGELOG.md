@@ -2,6 +2,16 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **Receipt excerpts prefer the page's main region** (`<main>` / `role=main`) when it has real content, so menus and promo cards stop filling the 500 characters. Matching still uses the whole page.
+- **`auspex profiles --keep <name>` / `--unkeep <name>`** (MCP `keep` / `unkeep`): exempt a saved login from the 30-minute idle wipe for long agent loops, outside a sweep plan. A human-agreed purge still wipes it.
+- **`auspex profiles` is a read.** A plain listing no longer deletes idle logins; only a human-agreed `--purge` wipes.
+- **Saved-login inventory:** `profileSeed.authCookieNames` names recognised login cookies on the app's site (Supabase `sb-*-auth-token`, Appwrite `a_session_*`, Clerk `__session`, `*_session`), and `thirdPartyCookieHosts` lists trackers and other cross-site cookie hosts. Names only; nothing is dropped. Sibling subdomains of the app (Appwrite on `appwrite.example.com` for `app.example.com`) count as the app's site.
+- **Operator site stays the minted URL.** Later checks no longer overwrite it with the last URL probed.
+- **Check URL guard** also blocks `metadata.google.internal` and AWS's IPv6 metadata address, matching its error message.
+- Docs: canvas / live-sync apps need `waitFor`; read-only checks still run the site's own load behaviour (presence, writes on load). README: results of the live test across eight stacks.
+
 ## 0.1.9 — 2026-09-28 (published)
 
 npm `auspex-solari@0.1.9` (latest). Agents do not `npm publish`. Founder publishes this release. Everything below was found or confirmed in a live test of eight real sites (Lorari, Good Tape, Clozemaster, tldraw, Chatwoot, MariaDB Cloud, back4app, ConsistencyHub).
