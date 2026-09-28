@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
+import { resolveStatePath } from "./paths.ts"
 import { AuspexError, solariFailurePayload } from "./errors.ts"
 import { MAX_IMAGE_BYTES, fitMcpAttach, fitPngUnderCap } from "./png-fit.ts"
 import { stampSchema } from "./schema-version.ts"
@@ -11,10 +11,9 @@ export type ToolTextContent = { type: "text"; text: string }
 export type ToolImageContent = { type: "image"; mimeType: "image/png" | "image/jpeg"; data: string }
 export type ToolContent = ToolTextContent | ToolImageContent
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 export function resolveScreenshotPath(p: string): string {
-  return path.isAbsolute(p) ? p : path.join(packageRoot, p)
+  return resolveStatePath(p)
 }
 
 function pngNote(text: string): ToolTextContent {

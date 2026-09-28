@@ -43,7 +43,7 @@ import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./pr
 import { attachRecordedReplay } from "./solari.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
-import { ensureRunDir, packageRoot, toStatePath } from "./paths.ts"
+import { ensureRunDir, packageRoot, resolveStatePath, toStatePath } from "./paths.ts"
 import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
@@ -230,10 +230,7 @@ export function toReceiptPath(absPath: string): string {
 }
 
 export function runDirFromResult(result: CheckResult): string {
-  const abs = path.isAbsolute(result.screenshotPath)
-    ? result.screenshotPath
-    : path.join(packageRoot, result.screenshotPath)
-  return path.dirname(abs)
+  return path.dirname(resolveStatePath(result.screenshotPath))
 }
 
 async function extractPage(

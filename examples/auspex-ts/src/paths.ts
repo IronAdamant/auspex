@@ -33,11 +33,27 @@ export function stateDirFor(root: string): string {
   return path.resolve(root) === packageRoot ? stateDir : path.join(root, ".auspex")
 }
 
-/** Receipt path: relative inside the package (`.auspex/runs/…` in a clone), absolute otherwise. */
-export function toStatePath(absPath: string): string {
-  const rel = path.relative(packageRoot, absPath)
-  const out = rel.startsWith("..") || path.isAbsolute(rel) ? absPath : rel
-  return out.replaceAll("\\", "/")
+function inside(parent: string, child: string): string | undefined {
+  const rel = path.relative(parent, child)
+  return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : undefined
+}
+
+/**
+ * Receipt path. Relative inside the package (`.auspex/runs/…` in a clone), `~/…` under the
+ * home dir (never the username; sandbox verify rejects home paths), absolute otherwise.
+ */
+export function toStatePath(absPath: string, home: string = homedir()): string {
+  const inPackage = inside(packageRoot, absPath)
+  if (inPackage) return inPackage.replaceAll("\\", "/")
+  const inHome = inside(home, absPath)
+  if (inHome) return `~/${inHome.replaceAll("\\", "/")}`
+  return absPath.replaceAll("\\", "/")
+}
+
+/** Inverse of toStatePath: `~/` expands to the home dir, relative paths are under the package. */
+export function resolveStatePath(p: string, home: string = homedir()): string {
+  if (p.startsWith("~/")) return path.join(home, p.slice(2))
+  return path.isAbsolute(p) ? p : path.join(packageRoot, p)
 }
 
 export async function ensureRunDir(): Promise<string> {

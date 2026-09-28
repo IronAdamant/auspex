@@ -241,7 +241,7 @@ def main(argv):
             msg = str(exc)
             integrity.append(msg if msg.startswith("screenshot") else "screenshot PNG pixels are invalid")
     shot = str(man.get("screenshotPath") or "")
-    if shot.startswith("/Users/") or (shot.startswith("/") and not shot.startswith("/tmp")):
+    if re.match(r"^(/Users/|/home/|/root(/|$)|[A-Za-z]:[\\/]Users[\\/])", shot):
         integrity.append("screenshotPath looks like an operator home path")
     url = str(man.get("finalUrl") or "")
     auth_errs = auth_integrity_errors(url)

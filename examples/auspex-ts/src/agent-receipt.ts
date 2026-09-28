@@ -5,7 +5,7 @@ import { SCHEMA_VERSION, stampSchema } from "./schema-version.ts"
 import { parseReceiptV1, type ReceiptV1 } from "./receipt-schema.ts"
 import type { CheckResult } from "./check.ts"
 import { agentReceiptOk, overlayVerifyReason, type CheckReason } from "./check-reason.ts"
-import { packageRoot } from "./paths.ts"
+import { resolveStatePath } from "./paths.ts"
 import { classifySeedReadiness } from "./cookie-save.ts"
 import { claimOkProfileReuseNext } from "./profile-persist.ts"
 import type { VerifyResult } from "./sandbox.ts"
@@ -112,9 +112,7 @@ export async function persistAgentManifest(
   check: CheckResult,
   extras?: { verify?: VerifyResult },
 ): Promise<void> {
-  const abs = path.isAbsolute(check.screenshotPath)
-    ? check.screenshotPath
-    : path.join(packageRoot, check.screenshotPath)
+  const abs = resolveStatePath(check.screenshotPath)
   const dir = path.dirname(abs)
   if (!existsSync(dir)) return
   const receipt = toAgentReceipt(check, extras)
