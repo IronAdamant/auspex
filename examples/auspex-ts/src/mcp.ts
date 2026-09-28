@@ -4,7 +4,7 @@ import { DualStdioServerTransport } from "./stdio-transport.ts"
 
 const server = new McpServer({
   name: "auspex",
-  version: "0.1.0",
+  version: "0.1.6",
 })
 
 registerAuspexTools(server)

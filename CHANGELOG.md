@@ -2,14 +2,22 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.6 — 2026-09-28 (published)
 
+npm `auspex-solari@0.1.6` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **Fix: the published MCP server now starts.** 0.1.5 shipped without `dist/` because npm applied `examples/auspex-ts/.gitignore` inside the package, so `npx -p auspex-solari auspex-mcp` exited `DistMissing`. `examples/auspex-ts/.npmignore` now ships `dist/` and drops `__pycache__`.
+- **Fix: bundled MCP tools no longer fail with `ENOENT dist/assert_receipt.py`.** The script resolves from `../src` when running from `dist/`.
+- `check --record` with no profile on a public deep link is no longer refused as `recordedLoggedIn`.
+- A single-word expect in a nav menu (`Home` / `Dashboard` / `Settings`) matches again. `One Dashboard` on one line is still refused.
+- `phone.html` stays hidden when framed by another site.
+- MCP `serverInfo.version` reports the package version.
 - One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. Documented ceiling only. Multi-step page actions are not in this change.
 - `auspex solari-health` / `auspex_solari_health`: cheap Solari preflight. `GET /profiles` once, with an 8 second cap. `ok` means the key was accepted. It does not mint a browser, open the phone door, or say the app is logged in.
 
 ## 0.1.5 — 2026-09-27 (published)
 
-npm `auspex-solari@0.1.5` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.5`. Agents do not `npm publish`. Founder publishes this release.
 
 - Phone-only door (#116): a new login opens `phone.html` on a phone or a computer. Old `door.html` and `desktop.html` links redirect to that page and keep the hash. **Clear** empties the whole typing field. Delete is gone.
 - Save stays honest inside the ~5 minute Solari token (#118). Clipboard Save signals a running await, and `editor/save` runs when that signal arrives. A failed save does not claim cookies. Auspex does not extend the JWT.
