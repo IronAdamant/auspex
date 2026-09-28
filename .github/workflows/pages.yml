@@ -48,6 +48,11 @@ jobs:
             examples/auspex-ts/demo/host-changed-receipt.json \
             examples/auspex-ts/demo/dogfood-pack.json \
             _site/demo/
+      - name: Version door scripts per deploy (Pages lets browsers cache ~10 min)
+        run: |
+          v="${GITHUB_SHA::12}"
+          sed -i -E "s#src=\"\./(novnc-rfb|door-stream|door-page)\.js\"#src=\"./\1.js?v=${v}\"#g" _site/phone.html
+          test "$(grep -c "\.js?v=${v}\"" _site/phone.html)" -eq 3
       - id: pages
         uses: actions/configure-pages@v5
         continue-on-error: true

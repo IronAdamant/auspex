@@ -436,3 +436,38 @@ test("filled is set when type lands in innerText of a nested contenteditable", a
   }
 })
 
+
+test("a missed click keeps the check alive: clickMissed is set, clicked is not", async () => {
+  const timeout = "locator.click: Timeout 15000ms exceeded.\n\u001b[2mCall log:\u001b[22m\n  - waiting for locator('header button')"
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => {
+        throw new Error(timeout)
+      },
+    }),
+    evaluate: async () => ({}),
+  }
+  const out = await runPageActions(page as never, { click: "header button" })
+  assert.equal(out.clicked, undefined)
+  assert.equal(out.clickMissed, "locator.click: Timeout 15000ms exceeded.")
+  const { clickMissedNext } = await import("../src/page-actions.ts")
+  assert.match(clickMissedNext("header button", out.clickMissed!), /clicked is unset and ok is false/)
+})
+
+test("an aborted check still throws from the click", async () => {
+  const ac = new AbortController()
+  ac.abort()
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => undefined,
+      click: async () => {
+        throw new Error("aborted")
+      },
+    }),
+    evaluate: async () => ({}),
+  }
+  await assert.rejects(runPageActions(page as never, { click: "a" }, ac.signal), /aborted/)
+})

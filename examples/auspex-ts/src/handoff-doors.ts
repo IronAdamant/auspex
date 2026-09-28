@@ -36,8 +36,15 @@ export function handoffHash(
   return hash.toString()
 }
 
+/**
+ * GitHub Pages caches phone.html for ~10 minutes and a new hash alone is the same cache key.
+ * A per-mint query (`r` = the link's own exp, already public in the hash) makes each link fetch
+ * the current page; the Pages deploy then versions its script URLs.
+ */
 function pageWithHash(page: string, hash: string): string {
-  return hash ? `${page}#${hash}` : ""
+  if (!hash) return ""
+  const exp = new URLSearchParams(hash).get("exp")
+  return exp ? `${page}?r=${exp}#${hash}` : `${page}#${hash}`
 }
 
 export function phoneHandoffUrl(

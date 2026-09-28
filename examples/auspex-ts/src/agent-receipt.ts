@@ -86,6 +86,7 @@ export function toAgentReceipt(
     waitedFor: check.waitedFor,
     filled: check.filled,
     clicked: check.clicked,
+    clickMissed: check.clickMissed,
     needsHuman: check.needsHuman,
     next,
     nextCall,

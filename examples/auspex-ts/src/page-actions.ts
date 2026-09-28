@@ -289,6 +289,23 @@ export type PageActionResult = {
   waitedFor?: string
   filled?: string
   clicked?: string
+  /** The click target was not found or not clickable. The check still screenshots; ok is false. */
+  clickMissed?: string
+}
+
+/** First line of a Playwright click error, without ANSI codes. */
+export function shortClickError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  // eslint-disable-next-line no-control-regex
+  return raw.replace(/\u001b\[[0-9;]*m/g, "").split("\n")[0]!.trim().slice(0, 200)
+}
+
+export function clickMissedNext(selector: string, error: string): string {
+  return (
+    `Click target ${selector} was not clicked (${error}). clicked is unset and ok is false. ` +
+    "The screenshot and excerpt show the page before the click. Pick a selector that exists there " +
+    "(prefer a stable id or role), or open the page's own URL instead of a menu. One check is one click."
+  )
 }
 
 export const PAGE_ACTION_TIMEOUT_MS = 15_000
@@ -384,8 +401,14 @@ export async function runPageActions(
     out.filled = fillSelector
   }
   if (opts.click) {
-    await page.locator(opts.click).click({ timeout, signal })
-    out.clicked = opts.click
+    try {
+      await page.locator(opts.click).click({ timeout, signal })
+      out.clicked = opts.click
+    } catch (err) {
+      if (signal?.aborted) throw err
+      // Keep the check alive: the agent needs the screenshot to choose a better selector.
+      out.clickMissed = shortClickError(err)
+    }
   }
   return out
 }

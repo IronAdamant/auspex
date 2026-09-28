@@ -15,7 +15,7 @@ import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
-import { assertVisibleFillLanded, runPageActions } from "./page-actions.ts"
+import { assertVisibleFillLanded, clickMissedNext, runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import {
   emptyProfileSeedError,
@@ -121,6 +121,8 @@ export type CheckResult = {
   waitedFor?: string
   filled?: string
   clicked?: string
+  /** Click target not found or not clickable; ok is false and the screenshot shows the page. */
+  clickMissed?: string
   needsHuman?: boolean
   next?: string
   nextCall?: import("./next-call.ts").NextCall
@@ -282,6 +284,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let waitedFor: string | undefined
   let filled: string | undefined
   let clicked: string | undefined
+  let clickMissed: string | undefined
   let profileSeed: ProfileSeed | undefined
   let profileSaved: ProfileSaveResult | undefined
   let needsHuman = false
@@ -340,7 +343,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         ...loginTraceSeedExtras(browser.session.storageState, originOf(opts.url)),
       }
       if (opts.profile && !opts.sso && isEmptySeed(profileSeed)) {
-        throw new Error(emptyProfileSeedError(opts.profile))
+        // Structured so the agent goes straight to the login door instead of reasoning about it.
+        throw new AuspexError(emptyProfileSeedError(opts.profile), {
+          issue: {
+            code: "EmptySave",
+            retryable: false,
+            recovery: `Mint the login door: auspex_login --profile ${opts.profile}. A profile listed as populated can still be an empty jar.`,
+            nextCall: remintLoginNextCall(opts.profile),
+          },
+        })
       }
       const page = await pageForSession(browser, deviceContextOptions)
       if (isCancelled()) return
@@ -365,6 +376,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         waitedFor = actions.waitedFor
         filled = actions.filled
         clicked = actions.clicked
+        clickMissed = actions.clickMissed
       }
       onProgress("settle")
       try {
@@ -554,6 +566,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         savedOk &&
         !loggedOut &&
         !blockedHuman &&
+        !clickMissed &&
         special !== "recordedLoggedIn" &&
         special !== "expectMatchedPublicLanding" &&
         special !== "hostChanged",
@@ -592,6 +605,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       next = guided.text
       nextCall = guided.nextCall
     }
+    if (clickMissed && opts.click) {
+      const lead = clickMissedNext(opts.click, clickMissed)
+      next = next ? `${lead} ${next}` : lead
+    }
     
     const diff = await diffAgainstLastReceipt({
       url: opts.url,
@@ -616,6 +633,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       waitedFor,
       filled,
       clicked,
+      clickMissed,
       needsHuman: needsHuman || undefined,
       next,
       nextCall,

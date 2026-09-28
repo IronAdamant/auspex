@@ -209,6 +209,7 @@ Omit or ignore. Never required. Unknown extra fields are also optional.
 | `waitedFor` | string | CSS wait-for that ran |
 | `filled` | string | Fill selector that ran |
 | `clicked` | string | Click selector that ran |
+| `clickMissed` | string | The click target was not found or not clickable (first line of the error). `clicked` is unset, `ok` is false, and the screenshot shows the page before the click. Pick a selector that exists, or open the page's own URL. |
 | `needsHuman` | boolean | Microsoft or Google password/OTP wall |
 | `next` | string | Structured agent guidance for `loggedOut`, `needsHuman`, `expectMatchedPublicLanding`, `hostChanged`, `--verify-with-profile` reuse-gate (`claimOkProfile`), Save-is-not-fold, or a profile/host mismatch (`profileHostMatch` false) |
 | `nextCall` | object | Optional follow-up the `next` prose already names: `{ tool, profile?, saveEditor?, url?, expect?, jobId?, verifyWithProfile? }`. Tools are `auspex_login`, `auspex_await_login`, `auspex_finalize_login`, `auspex_reap`, `auspex_job`, or `auspex_check`. `verifyWithProfile` is set on a cookie or localStorage Save. Never a password, token, cookie, excerpt, or session id. |

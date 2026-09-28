@@ -63,7 +63,7 @@ export const FINALIZE_LOGIN_DESCRIPTION =
 
 export const PROFILES_DESCRIPTION =
   "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. " +
-  "List names, ids, version, and populated. " +
+  "List names, ids, version, and populated. populated means Solari holds a stored file for that name; the file can still be an empty jar (0 cookies, 0 origins). profile-status or a check confirms a login; an empty jar refuses with code EmptySave and nextCall auspex_login. " +
   PROFILES_MAP_LINE +
   " After a saved login has been used and tested, ask whether " +
   "testing is done and the login may be purged. Purge only after the human agrees (purge + humanAgree). " +

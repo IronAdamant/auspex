@@ -219,6 +219,8 @@ export async function runProfilesDoor(opts: { purge?: string; humanAgree?: boole
   return stampSchema({
     ok: honesty.ok,
     profiles,
+    populatedMeans:
+      "Solari holds a stored file for this name. It can still be an empty jar. profile-status or a check confirms a login; an empty jar refuses with code EmptySave and nextCall auspex_login.",
     operator: book.agent,
     wiped: book.wiped,
     ...(honesty.wipeFailed ? { wipeFailed: honesty.wipeFailed } : {}),

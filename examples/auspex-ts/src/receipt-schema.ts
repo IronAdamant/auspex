@@ -25,6 +25,7 @@ export const RECEIPT_V1_OPTIONAL_STRING_KEYS = [
   "waitedFor",
   "filled",
   "clicked",
+  "clickMissed",
   "next",
   "suggestedProfile",
   "suggestedUrl",
@@ -75,6 +76,8 @@ export type ReceiptV1 = {
   waitedFor?: string
   filled?: string
   clicked?: string
+  /** Click target not found or not clickable. ok is false; the screenshot is the page before the click. */
+  clickMissed?: string
   needsHuman?: boolean
   next?: string
   /** Login / await-login / finalize-login host compare. Omitted when there is no URL. */
