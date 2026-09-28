@@ -27,7 +27,7 @@ npx auspex solari-health
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"
 # optional: --verify-with-profile after a live match; do not treat ok alone as reusable.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
-# one command for the whole login (clone only until the next release):
+# one command for the whole login (npm: npx auspex-solari connect …):
 npx auspex connect https://app.example --expect "Workspace ready"
 ```
 

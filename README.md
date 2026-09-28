@@ -56,17 +56,17 @@ npx auspex-solari check https://example.com --expect "Example Domain"
 npx -p auspex-solari auspex-mcp     # the MCP server
 ```
 
-The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.12 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`.
+The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.13 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`.
 
 ## Login door
 
 **Shortest path: `connect`.** One command does the whole login and confirms it:
 
 ```bash
-npx auspex connect https://your.app --expect "Words only shown when logged in"
+npx auspex-solari connect https://your.app --expect "Words only shown when logged in"
 ```
 
-It prints the door link (and a QR code in a wide terminal) and shows the time left. You sign in, then press **Enter** in the terminal. It saves the login, runs the extra finalize step only when an app needs it, and checks with a fresh browser that uses only the saved login. It ends with one sentence. It says "Logged in" only when that second browser saw your words; otherwise it names what happened (the sign-in window closed, a Solari error, a bot check, only the Microsoft or Google sign-in was saved). An AI agent can run the same command: it waits for the human to tap Save on the phone page, then the agent runs `npx auspex connect --save <profile>`. `connect` is on GitHub main and not yet in the published `auspex-solari` 0.1.12; run it from a clone with `npx auspex connect`.
+It prints the door link (and a QR code in a wide terminal) and shows the time left. You sign in, then press **Enter** in the terminal. It saves the login, runs the extra finalize step only when an app needs it, and checks with a fresh browser that uses only the saved login. It ends with one sentence. It says "Logged in" only when that second browser saw your words; otherwise it names what happened (the sign-in window closed, a Solari error, a bot check, only the Microsoft or Google sign-in was saved). An AI agent can run the same command: it waits for the human to tap Save on the phone page, then the agent runs `npx auspex-solari connect --save <profile>`. From a clone the same command is `npx auspex connect`.
 
 The step-by-step path below is what `connect` runs for you.
 

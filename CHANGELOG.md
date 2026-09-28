@@ -2,9 +2,19 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.13 — 2026-09-29
+
+npm `auspex-solari@0.1.13` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **`connect`: one command for the whole login.** `npx auspex-solari connect <https> --expect <words>` shows the phone door link, takes Enter (terminal) or `connect --save <profile>` (agent) as Save, finalizes only when needed, runs `check --verify-with-profile`, and ends in one plain sentence. It says "Logged in" only when `claimOkProfile` is true. Without a terminal the wait ends with Solari's typing window. It stops at once when Solari mints no phone door. CLI only; MCP hosts keep `auspex_job`.
+- **Microsoft MSAL finalize fallback in `job`.** When finalize was skipped because the save looked ready and a fresh browser lands logged out, finalize runs once and the check repeats. Never twice; `--skip-finalize` opts out.
+- **Honest failure names.** A failed Solari editor/save keeps its status on the job (`editorSave`); `connect` names a 502 as Solari's side and a 409 as "not savable" instead of "no Save" or the clock. A Cloudflare-style bot check sets the optional receipt key `botWall` instead of `loggedOut` (frozen `reason` values unchanged) and never triggers the finalize fallback.
+- The phone door's Save line names `connect`.
+- Live run 2026-09-29 through `connect`: 8 of 9 apps confirmed; Canva not confirmed (bot check). [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
+
 ## 0.1.12 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.12` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.12`. Agents do not `npm publish`. Founder publishes this release.
 
 - **README rewritten for humans** (reviewers and operators): about half the length, with the live-test table, the three results, install, the login door, and MCP. Agent detail stays in AGENTS.md and llms.txt, and the README points agents there. No code changes.
 
