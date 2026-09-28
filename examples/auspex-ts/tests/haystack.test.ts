@@ -234,3 +234,21 @@ test("a late client-side redirect during extraction settles and reads once more"
   await assert.rejects(extractPageSettled(async () => { throw new Error("boom") }, async () => undefined), /boom/)
   assert.equal(isNavigationRace(new Error("Timeout 45000ms exceeded")), false)
 })
+
+test("receipt excerpts mask key-shaped strings but keep ordinary page text", async () => {
+  const { maskSecrets, prepareCheckExcerpt } = await import("../src/text.ts")
+  const fakeClientKey = "Zq7Xk2Pw9Lm4Rt8Vb3Nc6Hd1Fg5Js0Ya2Ue7Wi4O"
+  const page = `Overview Keys: Client Key ${fakeClientKey} Connect App Parse Server Version: 7.5.2 Database: MongoDB 3.6`
+  const out = prepareCheckExcerpt({ raw: page })
+  assert.equal(out.includes(fakeClientKey), false)
+  assert.match(out, /Client Key \[redacted-token\] Connect App/)
+  assert.match(out, /Parse Server Version: 7\.5\.2 Database: MongoDB 3\.6/)
+  assert.equal(maskSecrets("token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456"), "token [redacted-jwt]")
+  assert.equal(maskSecrets("key sk-proj-abcdefghijklmnop1234"), "key [redacted-key]")
+  assert.equal(maskSecrets("slr_live_ABCDEFGHIJKLMNOP1234"), "[redacted-key]")
+  const ordinary = "Your Bookings You are not associated with any center. Clozemaster 1 Day streak, 96 to level 1."
+  assert.equal(maskSecrets(ordinary), ordinary)
+  // A key straddling the 500-character cut is still masked (mask runs before truncation).
+  const long = `${"word ".repeat(96)}${fakeClientKey}`
+  assert.equal(prepareCheckExcerpt({ raw: long }).includes(fakeClientKey.slice(0, 10)), false)
+})

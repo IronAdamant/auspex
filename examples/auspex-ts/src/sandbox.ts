@@ -10,7 +10,7 @@ import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY }
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
-import { excerptOf, fenceExcerpt, haystackMatches, stripDigitRuns } from "./text.ts"
+import { excerptOf, fenceExcerpt, haystackMatches, maskSecrets, stripDigitRuns } from "./text.ts"
 import { refuseVerifyWithProfile } from "./vwp-refuse.ts"
 
 export const SANDBOX_ASSERT_TIMEOUT_MS = 60_000
@@ -185,7 +185,7 @@ export async function defaultProfileClaimCheck(opts: {
     const errors = matched ? [] : ["profile-seeded check: page text does not contain expect"]
     if (!matched && raw.trim()) {
       // Logged-in page text: short, fenced as untrusted, digit runs stripped (ids, OTPs, account numbers).
-      errors.push(`sampled: ${fenceExcerpt(stripDigitRuns(excerptOf(raw, 160)))}`)
+      errors.push(`sampled: ${fenceExcerpt(stripDigitRuns(excerptOf(maskSecrets(raw), 160)))}`)
     }
     return {
       claimOk: matched,

@@ -26,12 +26,23 @@ export function fenceExcerpt(text: string): string {
   return `${EXCERPT_FENCE_START}\n${sanitized}\n${EXCERPT_FENCE_END}`
 }
 
+/**
+ * Key-shaped strings a dashboard may show (API keys, JWTs, long tokens). Receipts keep page text
+ * on disk; they must not keep these. Runs before truncation so a key cut at the limit is still masked.
+ */
+export function maskSecrets(text: string): string {
+  return text
+    .replace(/\beyJ[\w-]{8,}\.[\w-]{8,}(?:\.[\w-]+)?/g, "[redacted-jwt]")
+    .replace(/\b(?:sk|pk|rk|sb|slr)[-_](?:(?:live|test|proj)[-_])?[A-Za-z0-9_-]{16,}/g, "[redacted-key]")
+    .replace(/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}\b/g, "[redacted-token]")
+}
+
 export function prepareCheckExcerpt(opts: {
   raw: string
   needsHuman?: boolean
   prefix?: string
 }): string {
-  let inner = excerptOf(opts.raw)
+  let inner = excerptOf(maskSecrets(opts.raw))
   if (opts.needsHuman) inner = stripDigitRuns(inner)
   const fenced = fenceExcerpt(inner)
   if (opts.prefix) return `${opts.prefix} ${fenced}`.trim()
