@@ -449,6 +449,7 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         await persist()
         const posted = await wake("awaiting-save")
         progress(`job:minted ${record.profile}`)
+        opts.onMinted?.({ profile: record.profile, handoff: minted.handoff })
         if (!record.wait) return publicJob(record, { wake: posted })
       } else {
         record.phase = "failed"

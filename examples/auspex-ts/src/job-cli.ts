@@ -2,6 +2,7 @@
 
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { requireJobId } from "./job-store.ts"
+import type { HandoffPacket } from "./profiles.ts"
 import type { ProgressFn } from "./progress.ts"
 import { isNonEmptyExpect } from "./text.ts"
 
@@ -21,6 +22,8 @@ export type JobRunOptions = {
   wakeWebhookUrl?: string
   timeoutMs?: number
   onProgress?: ProgressFn
+  /** Called once when the door is minted, before the await. Not persisted. Used by `connect`. */
+  onMinted?: (minted: { profile: string; handoff: HandoffPacket }) => void
 }
 
 export function parseJobFlags(args: string[]): { ok: true; opts: JobRunOptions } | { ok: false; message: string } {

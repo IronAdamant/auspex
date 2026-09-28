@@ -1,0 +1,301 @@
+/**
+ * `connect`: one command for a person at a terminal. Mint the phone door, show the link,
+ * treat Enter as Save, then run the same job chain (await → finalize when needed →
+ * check --verify-with-profile) and say the outcome in one plain sentence.
+ *
+ * Human-only. Needs a real terminal. Agents and MCP use `job` (same chain, JSON out).
+ */
+
+import { createInterface, type Interface } from "node:readline"
+import QRCode from "qrcode"
+import { isHttpOrHttpsUrl } from "./http-url.ts"
+import { jobFilePath, type JobReceipt } from "./job-store.ts"
+import type { JobRunOptions } from "./job-cli.ts"
+import type { HandoffPacket } from "./profiles.ts"
+import { signalSaveDrain } from "./save-drain.ts"
+import { isNonEmptyExpect } from "./text.ts"
+
+export const CONNECT_NEEDS_TTY =
+  "connect is for a person at a terminal. Agents and scripts use: auspex job --url <https> --expect <words> --wait --verify-with-profile"
+
+export type ConnectOptions = {
+  url: string
+  expect?: string
+  profile?: string
+  verbose?: boolean
+}
+
+export function parseConnectFlags(args: string[]): { ok: true; opts: ConnectOptions } | { ok: false; message: string } {
+  const rest = [...args]
+  const take = (name: string) => {
+    const i = rest.indexOf(name)
+    if (i === -1) return undefined
+    const value = rest[i + 1]
+    if (value === undefined || value.startsWith("--")) return undefined
+    rest.splice(i, 2)
+    return value
+  }
+  const flag = (name: string) => {
+    const i = rest.indexOf(name)
+    if (i === -1) return false
+    rest.splice(i, 1)
+    return true
+  }
+  const expect = take("--expect")
+  const profile = take("--profile")
+  let url = take("--url")
+  const verbose = flag("--verbose")
+  if (!url && rest.length > 0 && !rest[0]!.startsWith("-")) url = rest.shift()
+  if (rest.length > 0) return { ok: false, message: `unexpected arguments: ${rest.join(" ")}` }
+  if (!url) return { ok: false, message: "connect requires the app URL: auspex connect https://app.example" }
+  if (!isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
+  if (expect !== undefined && !isNonEmptyExpect(expect)) return { ok: false, message: "--expect must not be empty" }
+  return { ok: true, opts: { url, expect, profile, verbose: verbose || undefined } }
+}
+
+export type ConnectOutcome = { ok: boolean; headline: string; detail: string[] }
+
+/** Map a finished job to plain words. `ok` only when the second browser confirmed the saved login. */
+export function connectOutcome(job: JobReceipt): ConnectOutcome {
+  const host = hostOf(job.url)
+  const words = job.expect ? `"${job.expect}"` : "your words"
+  const again = "Run the same command again."
+  if (job.phase === "completed" && job.ok && job.claimOkProfile === true) {
+    return {
+      ok: true,
+      headline: `✓ Logged in to ${host}. A second browser, using only the saved login, saw ${words}.`,
+      detail: [
+        `Saved as profile ${job.profile}.`,
+        `Next time: npx auspex-solari check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
+      ],
+    }
+  }
+  if (job.phase === "completed" && job.ok) {
+    return {
+      ok: false,
+      headline: `The live browser saw ${words}, but a second browser using only the saved login did not confirm it.`,
+      detail: [`Do not reuse profile ${job.profile} yet. ${again}`],
+    }
+  }
+  switch (job.status) {
+    case "stream-expired":
+      return {
+        ok: false,
+        headline: "The five-minute sign-in window closed before Save.",
+        detail: ["Solari sets that window and Auspex cannot extend it.", `${again} Press Enter as soon as the app is on screen.`],
+      }
+    case "timeout":
+    case "waiting":
+      return { ok: false, headline: "No Save arrived in time.", detail: [again] }
+    case "empty-save":
+      return {
+        ok: false,
+        headline: "Nothing was saved. The remote browser had no login for this site yet.",
+        detail: [`${again} Press Enter only once the logged-in app is on screen.`],
+      }
+    case "idp-only-save":
+      if (job.idpOnlyKind === "app-visible") {
+        return {
+          ok: false,
+          headline: "The app is on screen, but only your Microsoft or Google sign-in was saved, not the app's own login.",
+          detail: [
+            "Signing in again will not change that for this app, so Auspex stops here instead of guessing.",
+            "Why: https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#two-truths",
+          ],
+        }
+      }
+      return {
+        ok: false,
+        headline: "Save happened while the Microsoft or Google sign-in page was still showing.",
+        detail: [`${again} Finish signing in until the app itself is on screen, then press Enter.`],
+      }
+    case "host-changed":
+      return {
+        ok: false,
+        headline: `The remote browser ended up on a different site${job.suggestedUrl ? ` (${job.suggestedUrl})` : ""}.`,
+        detail: [
+          job.suggestedUrl
+            ? `If that is the app you meant, run: npx auspex-solari connect ${job.suggestedUrl}`
+            : "Run connect again with the app's own address.",
+        ],
+      }
+    case "expectMatchedPublicLanding":
+      return {
+        ok: false,
+        headline: `${words} also appears on a public or login page, so it cannot prove you are logged in.`,
+        detail: ["Run again with words that only appear inside the app (for example a menu item or your workspace name)."],
+      }
+    case "needsHuman":
+      return {
+        ok: false,
+        headline: "The saved login hit a password or code screen. Auspex never types those.",
+        detail: [`${again} Complete every sign-in step (tick "Stay signed in" if offered) before pressing Enter.`],
+      }
+    case "loggedOut":
+      return {
+        ok: false,
+        headline: "A fresh browser with the saved login landed on a logged-out page.",
+        detail: [`${again} Make sure the app is fully loaded before pressing Enter.`],
+      }
+    case "mismatch":
+      return {
+        ok: false,
+        headline: `The saved login opened the app, but ${words} was not on the page.`,
+        detail: ["Check the words (they are case-sensitive) and the URL, then run again."],
+      }
+    case "concurrency-limited":
+      return {
+        ok: false,
+        headline: "Solari says too many browsers are open on this key (HTTP 429).",
+        detail: ["Auspex closed the ones it opened. Wait a minute, then run again."],
+      }
+    case "editor-busy":
+    case "profile-busy":
+    case "editor-save-hung":
+    case "sibling-saved":
+      return {
+        ok: false,
+        headline: "Another Auspex command is already saving this login.",
+        detail: ["Let it finish, then run again."],
+      }
+    case "network":
+      return { ok: false, headline: "Solari or the site did not answer in time.", detail: [again] }
+    default:
+      return {
+        ok: false,
+        headline: `Stopped: ${job.reason || job.status}.`,
+        detail: job.next ? [job.next] : [again],
+      }
+  }
+}
+
+function hostOf(url?: string): string {
+  try {
+    return url ? new URL(url).host : "the app"
+  } catch {
+    return url ?? "the app"
+  }
+}
+
+function quoteArg(value: string): string {
+  return `"${value.replace(/(["\\$`])/g, "\\$1")}"`
+}
+
+const HUMAN_PHASES: Record<string, string> = {
+  "job:mint": "Opening a cloud browser…",
+  "job:await": "",
+  "job:finalize": "Saving the app's own login…",
+  "job:check": "Checking with a fresh browser that uses only the saved login…",
+  "job:reap": "Closing leftover browsers…",
+}
+
+export type ConnectIo = {
+  stdin: NodeJS.ReadableStream & { isTTY?: boolean }
+  stdout: NodeJS.WritableStream & { isTTY?: boolean; columns?: number }
+  now?: () => number
+}
+
+export type ConnectDeps = {
+  runJob: (opts: JobRunOptions) => Promise<JobReceipt>
+  signalSave?: (profile: string) => Promise<void>
+  qr?: (url: string) => Promise<string>
+}
+
+export async function runConnect(
+  opts: ConnectOptions,
+  io: ConnectIo,
+  deps: ConnectDeps,
+): Promise<{ ok: boolean; job?: JobReceipt; outcome?: ConnectOutcome; error?: string }> {
+  if (!io.stdin.isTTY || !io.stdout.isTTY) return { ok: false, error: CONNECT_NEEDS_TTY }
+  const out = (line = "") => io.stdout.write(`${line}\n`)
+  const now = io.now ?? Date.now
+  const signalSave = deps.signalSave ?? ((profile) => signalSaveDrain(profile, undefined, "terminal"))
+  const qr = deps.qr ?? ((url) => QRCode.toString(url, { type: "terminal", small: true }))
+  const rl: Interface = createInterface({ input: io.stdin, terminal: false })
+  const lines: string[] = []
+  const waiters: Array<(line: string) => void> = []
+  rl.on("line", (line) => {
+    const next = waiters.shift()
+    if (next) next(line)
+    else lines.push(line)
+  })
+  const nextLine = () =>
+    new Promise<string>((resolve) => {
+      const queued = lines.shift()
+      if (queued !== undefined) resolve(queued)
+      else waiters.push(resolve)
+    })
+  const timers: NodeJS.Timeout[] = []
+  let saving = false
+
+  try {
+    let expect = opts.expect?.trim()
+    while (!expect) {
+      out("What words only appear once you're logged in? (for example a menu item or your workspace name)")
+      io.stdout.write("› ")
+      expect = (await nextLine()).trim()
+    }
+
+    const onMinted = ({ profile, handoff }: { profile: string; handoff: HandoffPacket }) => {
+      void showDoor(profile, handoff)
+    }
+    const showDoor = async (profile: string, handoff: HandoffPacket) => {
+      const link = handoff.mobileUrl || handoff.url
+      out()
+      out("Sign in on your phone or computer:")
+      const art = await qr(link).catch(() => "")
+      const width = art ? Math.max(...art.split("\n").map((l) => l.length)) : 0
+      if (art && (io.stdout.columns ?? 0) >= width) out(art)
+      else if (handoff.qrPath) out(`QR code image: ${handoff.qrPath}`)
+      out(link)
+      out()
+      const expiresMs = handoff.streamExpiresAt ? Date.parse(handoff.streamExpiresAt) : Number.NaN
+      if (Number.isFinite(expiresMs)) {
+        const left = Math.max(0, Math.round((expiresMs - now()) / 1000))
+        const at = new Date(expiresMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        out(`You have about ${Math.floor(left / 60)} min ${left % 60} s (until ${at}).`)
+        const warnIn = expiresMs - now() - 60_000
+        if (warnIn > 0) {
+          timers.push(
+            setTimeout(() => {
+              if (!saving) out("One minute left. Press Enter as soon as the app is on screen.")
+            }, warnIn),
+          )
+        }
+      }
+      out("When the app itself is on screen, press Enter here. (You don't need the Save button on the phone page.)")
+      await nextLine()
+      saving = true
+      out("Saving…")
+      await signalSave(profile)
+    }
+
+    const job = await deps.runJob({
+      url: opts.url,
+      expect,
+      profile: opts.profile,
+      wait: true,
+      verifyWithProfile: true,
+      onMinted,
+      onProgress: (phase) => {
+        const key = phase.split(" ")[0] ?? phase
+        const human = HUMAN_PHASES[key]
+        if (human) out(human)
+        else if (opts.verbose && human === undefined) out(`  ${phase}`)
+      },
+    })
+    const outcome = connectOutcome(job)
+    out()
+    out(outcome.headline)
+    for (const line of outcome.detail) out(`  ${line}`)
+    try {
+      out(`  Receipt: ${jobFilePath(job.jobId)}`)
+    } catch {
+      // job id invalid only on early input failure; nothing to point at
+    }
+    return { ok: outcome.ok, job, outcome }
+  } finally {
+    for (const t of timers) clearTimeout(t)
+    rl.close()
+  }
+}
