@@ -27,6 +27,8 @@ npx auspex solari-health
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"
 # optional: --verify-with-profile after a live match; do not treat ok alone as reusable.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
+# one command for the whole login (clone only until the next release):
+npx auspex connect https://app.example --expect "Workspace ready"
 ```
 
 `https://app.example` derives `--profile app-example`. Frozen door sequence (not a same-session takeover): [AGENTS.md](../../AGENTS.md#frozen-agent-door-sequence). Expect must be unique to the logged-in app. A text hit on `/`, `/landing`, `/login`, `/signup`, or `/auth` during finalize is `expectMatchedPublicLanding`. `hostChanged` remints. Never commit `.env`, the API key, or `.auspex/`.
@@ -45,6 +47,8 @@ npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex solari-health
 npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
 npx auspex job-status --job-id <id> [--wait-ms <n>]
+npx auspex connect <https> [--expect <string>] [--profile <name>] [--verbose]
+npx auspex connect --save <profile>
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
 npx auspex verify [runDir]

@@ -32,6 +32,8 @@ Seed/handoff door for off-site typing. Not a same-session VNC takeover.
 4. `await-login --save-editor`, then `finalize-login` only when the seed is the app session, not an IdP-only jar (`idp-only-save`, kind `app-visible`). Use `--url` and an expect unique to the logged-in app (absent from public marketing).
 5. Later `check`. Optional `--verify-with-profile`.
 
+Shortest path: `npx auspex connect <https> --expect <words>` runs steps 1–5 in one command and ends in one sentence ("Logged in" only when `claimOkProfile` is true). An agent runs it in the background, then `npx auspex connect --save <profile>` after the human's Save line. Clone only for now: not in `auspex-solari` 0.1.12.
+
 New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
 
 Many profiles: One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes).

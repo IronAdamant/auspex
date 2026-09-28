@@ -44,6 +44,8 @@ In one session (2026-09-28), a human signed in once per site through the phone d
 
 Eight of eight, on a laptop and on a phone. When a login was not really saved, Auspex said so instead of guessing: an empty saved login, a Microsoft app that came back logged out, and a Microsoft password screen it stopped at rather than typed into.
 
+The next day (2026-09-29) the same eight apps plus Canva (Google sign-in) ran again through the one-command `connect`, with Claude Code as the agent: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser a Cloudflare bot check, and Auspex says that instead of guessing. Every attempt, including the Solari errors along the way: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
+
 Before pointing an agent at your own app: opening a logged-in page still runs the site's own behaviour (a chat app showed the account online; an app can write to its storage on load), and canvas apps can draw after the page looks finished.
 
 ## Install
@@ -57,6 +59,16 @@ npx -p auspex-solari auspex-mcp     # the MCP server
 The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.12 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`.
 
 ## Login door
+
+**Shortest path: `connect`.** One command does the whole login and confirms it:
+
+```bash
+npx auspex connect https://your.app --expect "Words only shown when logged in"
+```
+
+It prints the door link (and a QR code in a wide terminal) and shows the time left. You sign in, then press **Enter** in the terminal. It saves the login, runs the extra finalize step only when an app needs it, and checks with a fresh browser that uses only the saved login. It ends with one sentence. It says "Logged in" only when that second browser saw your words; otherwise it names what happened (the sign-in window closed, a Solari error, a bot check, only the Microsoft or Google sign-in was saved). An AI agent can run the same command: it waits for the human to tap Save on the phone page, then the agent runs `npx auspex connect --save <profile>`. `connect` is on GitHub main and not yet in the published `auspex-solari` 0.1.12; run it from a clone with `npx auspex connect`.
+
+The step-by-step path below is what `connect` runs for you.
 
 For a site behind a login, `npx auspex-solari login --url https://your.app` prints a link to the door, `phone.html`. Open it on a phone or a computer, tap the field you want in the remote browser, type in the box at the bottom (it opens the phone keyboard), sign in, then **tap Save** and paste the line it copies into your AI chat. The agent then collects the login with `await-login --save-editor`.
 

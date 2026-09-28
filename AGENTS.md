@@ -29,6 +29,9 @@ npx auspex check --name ironadamant
 npx auspex check https://example.com --expect "Example Domain"
 # any Microsoft-gated host (their URL + expect unless a saved check):
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
+npx auspex connect https://app.example --expect "Workspace ready"
+# one command: door link, Save, finalize when needed, check --verify-with-profile, one sentence.
+# Agent: run it in the background; after the human's Save line, run: npx auspex connect --save app-example
 npx auspex solari-health
 # platform only: GET /profiles. Not a login. Not profile-status. Run before a remint or a long await.
 npx auspex login --url https://app.example
@@ -112,6 +115,8 @@ Do not intern-ping. Do not open Solari noVNC on a phone (`GET editor HTTP 401`).
 **Weekly live coverage:** GitHub Actions `public` job is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked). Observed: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21) — ironadamant + checkpoint `ok: true`. The step still skips if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo files are refreshed by hand.
 
 ## Autonomous agents (job compose)
+
+**Shortest path from a shell: `connect`.** `npx auspex connect <https> --expect <words>` (run it in the background) mints the door, prints the phone link and the time left, and waits. When the human pastes the Save line, run `npx auspex connect --save <profile>`. The running `connect` then saves, finalizes only when needed, runs `check --verify-with-profile`, and prints one plain sentence plus the job receipt path. "Logged in" only when `claimOkProfile` is true. In a real terminal a human presses Enter instead of `--save`. Without a terminal `--expect` is required, and the wait ends with Solari's typing window (never a 30-minute hang). If Solari mints no phone door, it stops at once. `connect` is CLI only (human text, not a JSON receipt; the job file keeps the JSON). MCP hosts use `auspex_job`. Composition over `job`, not a fourth primitive. `connect` is on GitHub main and not yet in the published `auspex-solari` 0.1.12; run it from a clone with `npx auspex connect`.
 
 Prefer **`auspex_job`** for the mint→await→finalize→check path. Step tools remain for debugging. First call mints and returns waiting + `handoff` (profile from the URL host unless `--profile` is set). After the human Saves, resume `--job-id`. Without `AUSPEX_WAKE_WEBHOOK`, use `auspex_job_status` (optional short `--wait-ms`) rather than a blind 30-minute `await-login` poll. On 429 the job reaps the ledger (not account-wide) and `nextCall` resumes the job. `claimOkProfile` only after `--verify-with-profile`. Not a fourth primitive. Not a hosted Solari push API. A finished job is not a 24–48h lease.
 
@@ -211,6 +216,7 @@ Omit or ignore. Never required. Unknown extra fields are also optional.
 | `clicked` | string | Click selector that ran |
 | `clickMissed` | string | The click target was not found or not clickable (first line of the error). `clicked` is unset, `ok` is false, and the screenshot shows the page before the click. Pick a selector that exists, or open the page's own URL. |
 | `needsHuman` | boolean | Microsoft or Google password/OTP wall |
+| `botWall` | boolean | The site served a bot check (for example Cloudflare "Just a moment...") instead of the page. `reason` is unchanged (`mismatch` or similar); this is not `loggedOut`, and it does not prove the login good or bad. Auspex does not solve bot checks. Do not remint or finalize for it. |
 | `next` | string | Structured agent guidance for `loggedOut`, `needsHuman`, `expectMatchedPublicLanding`, `hostChanged`, `--verify-with-profile` reuse-gate (`claimOkProfile`), Save-is-not-fold, or a profile/host mismatch (`profileHostMatch` false) |
 | `nextCall` | object | Optional follow-up the `next` prose already names: `{ tool, profile?, saveEditor?, url?, expect?, jobId?, verifyWithProfile? }`. Tools are `auspex_login`, `auspex_await_login`, `auspex_finalize_login`, `auspex_reap`, `auspex_job`, or `auspex_check`. `verifyWithProfile` is set on a cookie or localStorage Save. Never a password, token, cookie, excerpt, or session id. |
 | `diff` | object | Vs last same-URL receipt (`urlChanged`, `excerptChanged`, `sameUrl`, …) |
@@ -243,6 +249,7 @@ Usage/failure JSON (`error`, `code`) is **not** this receipt; it still has `sche
 - `auspex_job` / `auspex job` — durable compose of mint→await→finalize→check. Prefer this for autonomous agents; step tools remain for debugging. Persist under `.auspex/jobs/` (gitignored). Resume with `--job-id`. Optional `--wake-webhook` / `AUSPEX_WAKE_WEBHOOK` (operator-local POST, not a Solari push API). On 429, ledger reap then `nextCall` resumes the job. `claimOkProfile` only after `--verify-with-profile`. Not a fourth primitive.
 - `auspex_job_status` / `auspex job-status` — read the local job file; optional short `--wait-ms` (max 60s) until phase change. Honest local wake when no webhook is configured. Do not blind-poll `await-login` for 30 minutes.
 - `auspex_sweep` / `auspex sweep --plan <plan.json>` — read-only check over an operator-written plan (`{ name, profile?, keepProfile?, pages: [{ name?, url, expect }] }`, max 12 pages, one site per profile). Each page runs `auspex_check` in order, with `--verify-with-profile` when the plan names a saved login. Each page is **pass** (live matched and, with a profile, `claimOkProfile` true), **fail** (the live browser did not find the text), or **could not tell** (anything else, including a live match the second machine could not confirm). Could-not-tell is never a pass. `ok` only when every page passed. A re-gate (`loggedOut`, `needsHuman`, `stream-expired`, `hostChanged`) or a 429 / plan limit stops the sweep; remaining pages are not-run and `stopped.nextCall` is the one human step. Do not loop. Pages may not set fill, click, record, sso, or save. Writes `report.md` + `report.json` under `.auspex/sweeps/` with no page text. `--notify <url>` or `AUSPEX_WAKE_WEBHOOK` posts a scrubbed summary. `keepProfile: true` exempts that profile from the 30-minute idle wipe; a human-agreed purge still wipes it. Regressions compare only the same URL and the same expect. Composition, not a fourth primitive.
+- `auspex connect` (CLI only) — one command for the whole login: mint → door link → Save (Enter in a terminal, or `connect --save <profile>` from an agent) → await → finalize when needed (including once more when a ready-looking save checks logged out, for Microsoft MSAL) → `check --verify-with-profile` → one plain sentence. Says "Logged in" only when `claimOkProfile` is true. Names Solari 502/409 on save, a bot check, and a missing phone door instead of blaming the sign-in or the clock. The JSON stays in the job file. Composition over `job`, not a fourth primitive.
 
 ## Blame Solari vs Auspex
 
@@ -313,6 +320,8 @@ npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
 npx auspex solari-health
 npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
 npx auspex job-status --job-id <id> [--wait-ms <n>]
+npx auspex connect <https> [--expect <string>] [--profile <name>] [--verbose]
+npx auspex connect --save <profile>
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
 npx auspex trace [--profile <name>] [--limit <n>] [--all]
 npx auspex verify [runDir]
