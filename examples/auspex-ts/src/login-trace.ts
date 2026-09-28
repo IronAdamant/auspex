@@ -2,12 +2,12 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { StorageState } from "@solarisdk/browser"
 import { foldedExpiresOnMs } from "./profile-storage.ts"
-import { packageRoot } from "./paths.ts"
+import { stateDir } from "./paths.ts"
 import { hostIs } from "./sso.ts"
 
 /** Gitignored. Cookie hosts + counts only — never tokens, values, excerpts, or session ids. */
-export const LOGIN_TRACE_PATH = path.join(packageRoot, ".auspex", "trace", "login.jsonl")
-export const LOGIN_TRACE_ACTIVE_PATH = path.join(packageRoot, ".auspex", "trace", "active.json")
+export const LOGIN_TRACE_PATH = path.join(stateDir, "trace", "login.jsonl")
+export const LOGIN_TRACE_ACTIVE_PATH = path.join(stateDir, "trace", "active.json")
 
 export const LOGIN_TRACE_LIMIT_DEFAULT = 50
 export const LOGIN_TRACE_LIMIT_MAX = 200

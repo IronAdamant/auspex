@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto"
 import { open, mkdir, readFile, rename, stat, unlink } from "node:fs/promises"
 import type { FileHandle } from "node:fs/promises"
 import path from "node:path"
-import { packageRoot } from "./paths.ts"
+import { stateDir } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
 
 export const PROFILE_BUSY_CODE = "ProfileBusy"
@@ -21,7 +21,7 @@ export class ProfileBusyError extends Error {
 }
 
 export function defaultLockDir(): string {
-  return path.join(packageRoot, ".auspex", "locks")
+  return path.join(stateDir, "locks")
 }
 
 export function lockFileName(profile: string): string {

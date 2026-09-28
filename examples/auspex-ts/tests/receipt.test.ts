@@ -215,7 +215,7 @@ test("RECEIPT_ASSERT_PY fails leftover-auth URLs and non-PNGs", () => {
 test("assertRunDirUnderRuns rejects paths outside .auspex/runs", () => {
   assert.throws(() => assertRunDirUnderRuns("/etc/passwd"), /under \.auspex\/runs/)
   const ok = assertRunDirUnderRuns(path.join(RUNS_DIR, "stamp"))
-  assert.ok(ok.includes(".auspex"))
+  assert.ok(ok.startsWith(RUNS_DIR))
 })
 
 test("findLatestRun picks the complete newest stamp", async () => {

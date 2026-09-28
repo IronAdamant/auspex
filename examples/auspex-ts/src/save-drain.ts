@@ -2,7 +2,7 @@
 
 import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { packageRoot } from "./paths.ts"
+import { packageRoot, stateDirFor } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
 
 export const SIBLING_SAVED_STATUS = "sibling-saved"
@@ -10,7 +10,7 @@ export const SIBLING_SAVED_STATUS = "sibling-saved"
 export type SaveWaiter = { pid: number; profile: string }
 
 export function saveDrainDir(root = packageRoot): string {
-  return path.join(root, ".auspex", "save-drain")
+  return path.join(stateDirFor(root), "save-drain")
 }
 
 function waiterPath(profile: string, root?: string): string {

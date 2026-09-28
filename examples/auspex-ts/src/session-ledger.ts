@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
+import { stateDir } from "./paths.ts"
 
 export type LiveKind = "browser" | "sandbox" | "desktop"
 
@@ -10,8 +10,7 @@ export type LiveLedger = {
   desktop: string[]
 }
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-export const LIVE_LEDGER_PATH = path.join(packageRoot, ".auspex", "live.json")
+export const LIVE_LEDGER_PATH = path.join(stateDir, "live.json")
 
 function empty(): LiveLedger {
   return { browser: [], sandbox: [], desktop: [] }

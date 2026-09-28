@@ -8,7 +8,7 @@ import { scrubJobValue } from "./scrub.ts"
 import type { JobWakeResult } from "./job-wake.ts"
 import type { SeedReadiness } from "./cookie-save.ts"
 import { resumeJobNextCall, type NextCall } from "./next-call.ts"
-import { packageRoot } from "./paths.ts"
+import { stateDir } from "./paths.ts"
 import { stampSchema } from "./schema-version.ts"
 
 export const JOB_STATUS_MAX_WAIT_MS = 60_000
@@ -87,7 +87,7 @@ export type JobRecord = {
 export type JobReceipt = JobRecord & { wake?: JobWakeResult }
 
 export function jobsDir(override?: string): string {
-  return override ?? (process.env.AUSPEX_JOBS_DIR?.trim() || path.join(packageRoot, ".auspex", "jobs"))
+  return override ?? (process.env.AUSPEX_JOBS_DIR?.trim() || path.join(stateDir, "jobs"))
 }
 
 export function newJobId(now: () => Date = () => new Date()): string {

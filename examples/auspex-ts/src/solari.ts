@@ -13,6 +13,7 @@ import { chromium, type BrowserContextOptions } from "patchright-core"
 import { AuspexError } from "./errors.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { readOperatorKey } from "./operator-session.ts"
+import { stateDir } from "./paths.ts"
 import {
   boundPromise,
   CHROMIUM_CONNECT_TIMEOUT_MS,
@@ -225,7 +226,7 @@ export function loadDotEnv(file = DOTENV_PATH): void {
     }
   }
   if (file !== DOTENV_PATH) return
-  applyOperatorKeyFile(path.join(path.dirname(DOTENV_PATH), ".auspex", "operator-key"))
+  applyOperatorKeyFile(path.join(stateDir, "operator-key"))
 }
 
 export function requireApiKey(): string {

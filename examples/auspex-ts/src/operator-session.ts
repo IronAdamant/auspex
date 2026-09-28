@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { stateDirFor } from "./paths.ts"
 
 /** Desktop saved-login idle life. A use resets this clock. Signup stays in use separately. */
 export const OPERATOR_IDLE_MS = 30 * 60 * 1000
@@ -171,7 +172,7 @@ export function emptyOperatorState(): OperatorState {
 }
 
 export function operatorStatePath(root: string): string {
-  return path.join(root, ".auspex", "operator-session.json")
+  return path.join(stateDirFor(root), "operator-session.json")
 }
 
 export function readOperatorState(root: string): OperatorState {
@@ -370,7 +371,7 @@ export async function commitOperatorSession(opts: {
 }
 
 export function operatorKeyPath(root: string): string {
-  return path.join(root, ".auspex", "operator-key")
+  return path.join(stateDirFor(root), "operator-key")
 }
 
 /** Writes the key under gitignored .auspex/. Returns the file path. Does not return the key. */

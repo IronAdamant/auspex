@@ -66,6 +66,8 @@ npx -p auspex-solari auspex-mcp
 
 npm `auspex` is a different scraper. `auspex-solari` **0.1.6 is published**. Agents do not `npm publish`.
 
+Local state (screenshots, receipts, saved-login handles, jobs) lives in `~/.auspex` for an npm install, or `examples/auspex-ts/.auspex` in a clone. Set `AUSPEX_HOME` to move it.
+
 After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (the server files were not built). Published `npx -p auspex-solari auspex-mcp` includes `dist/`.
 
 ## Pick your path

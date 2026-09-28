@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { SolariClient } from "@solarisdk/sdk"
-import { packageRoot, toReceiptPath } from "./check.ts"
+import { toReceiptPath } from "./check.ts"
+import { stateDir } from "./paths.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { fetchWithIdempotencyKey, requireApiKey } from "./solari.ts"
@@ -301,7 +302,7 @@ export function defaultDesktopDeps(): DesktopDeps {
 
 function newRunDir(): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-  return path.join(packageRoot, ".auspex", "runs", stamp)
+  return path.join(stateDir, "runs", stamp)
 }
 
 async function waitReady(

@@ -43,7 +43,7 @@ import { HANDOFF_PHONE_DOOR_BAN, loadEditorSave, requireProfileName } from "./pr
 import { attachRecordedReplay } from "./solari.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { excerptOf, haystackMatches, normalizeHaystack, prepareCheckExcerpt, requireExpect } from "./text.ts"
-import { ensureRunDir, packageRoot } from "./paths.ts"
+import { ensureRunDir, packageRoot, toStatePath } from "./paths.ts"
 import { diffAgainstLastReceipt, type ReceiptDiff } from "./receipt-diff.ts"
 import { assertRecordNotLoggedIn, assertRecordProfileAllowed } from "./tool-schema.ts"
 import { assertPageActionsAllowed } from "./page-actions.ts"
@@ -226,7 +226,7 @@ export async function runFinalizeLogin(opts: {
 }
 
 export function toReceiptPath(absPath: string): string {
-  return path.relative(packageRoot, absPath).replaceAll("\\", "/")
+  return toStatePath(absPath)
 }
 
 export function runDirFromResult(result: CheckResult): string {

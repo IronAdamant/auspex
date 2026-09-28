@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { SolariClient } from "@solarisdk/sdk"
-import { packageRoot } from "./paths.ts"
+import { stateDir, toStatePath } from "./paths.ts"
 import { listCompleteRunDirs, RUNS_DIR } from "./receipt.ts"
 import { receiptUrlKey } from "./receipt-diff.ts"
 import { BROWSER_API_BASE, fetchWithIdempotencyKey, requireApiKey } from "./solari.ts"
@@ -17,11 +17,11 @@ export type PackedReceipt = {
 }
 
 function relToPackage(abs: string): string {
-  return path.relative(packageRoot, abs).replaceAll("\\", "/")
+  return toStatePath(abs)
 }
 
 export function packDirRoot(): string {
-  return path.join(packageRoot, ".auspex", "pack")
+  return path.join(stateDir, "pack")
 }
 
 /** Copy last complete receipt per URL for an agent to attach to a PR. */

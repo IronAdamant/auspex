@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { readdir, readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { packageRoot } from "./paths.ts"
+import { stateDir } from "./paths.ts"
 
 /** Beside this module under tsx (src/), or ../src from the esbuild bundle (dist/mcp.mjs). */
 export function resolveAssertReceiptPy(moduleDir: string): string {
@@ -15,7 +15,7 @@ export function resolveAssertReceiptPy(moduleDir: string): string {
 
 export const ASSERT_RECEIPT_PY_PATH = resolveAssertReceiptPy(path.dirname(fileURLToPath(import.meta.url)))
 export const RECEIPT_ASSERT_PY = readFileSync(ASSERT_RECEIPT_PY_PATH, "utf8")
-export const RUNS_DIR = path.join(packageRoot, ".auspex", "runs")
+export const RUNS_DIR = path.join(stateDir, "runs")
 
 export function assertRunDirUnderRuns(runDir: string, runsDir = RUNS_DIR): string {
   const dir = path.resolve(runDir)

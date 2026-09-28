@@ -22,7 +22,7 @@ import {
   streamExpiryStamp,
   type PhoneExpirySource,
 } from "./handoff-doors.ts"
-import { packageRoot } from "./paths.ts"
+import { packageRoot, stateDirFor } from "./paths.ts"
 import { clearSaveOwner } from "./save-drain.ts"
 import { BROWSER_API_BASE, createClient, requireApiKey } from "./solari.ts"
 import {
@@ -106,7 +106,7 @@ export type EditorSaveHandle = {
 }
 
 export function editorSavePath(name: string, root = packageRoot): string {
-  return path.join(root, ".auspex", "editor-save", `${requireProfileName(name)}.json`)
+  return path.join(stateDirFor(root), "editor-save", `${requireProfileName(name)}.json`)
 }
 
 export async function persistEditorSave(handle: EditorSaveHandle, root = packageRoot): Promise<void> {
