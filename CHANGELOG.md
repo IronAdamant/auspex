@@ -2,9 +2,15 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.12 — 2026-09-28 (published)
+
+npm `auspex-solari@0.1.12` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **README rewritten for humans** (reviewers and operators): about half the length, with the live-test table, the three results, install, the login door, and MCP. Agent detail stays in AGENTS.md and llms.txt, and the README points agents there. No code changes.
+
 ## 0.1.11 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.11` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.11`. Agents do not `npm publish`. Founder publishes this release.
 
 - **The npm CLI runs prebuilt JavaScript.** `npm run build:mcp` also bundles the CLI to `dist/cli.mjs`; an npm install runs it directly instead of compiling TypeScript with tsx on every call. A clone still runs the source, so an edit never meets a stale bundle.
 - **No nested install for npm users.** Runtime dependencies moved to the root `package.json`. The nested `npm install` under `examples/auspex-ts` now runs only in a git clone (`bin/postinstall.mjs`), so `npm install --ignore-scripts auspex-solari` works (it used to fail with NotInstalled) and installs no TypeScript toolchain.
