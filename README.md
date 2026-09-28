@@ -66,6 +66,7 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 | Door | Open this |
 | --- | --- |
 | **Watch** (no clone, no API key) | [Landing](https://ironadamant.com/auspex/) · [replay player](https://ironadamant.com/auspex/demo/replay.html) (Microsoft login wall; emails and passwords stripped) |
+| **Solari up?** | `npx auspex-solari solari-health` — does Solari answer with this key right now? It lists profiles and stops. It does not log you in, and it does not say your app is logged in. |
 | **Public check** | `npx auspex-solari check --name ironadamant` — does **not** prove logged-in honesty |
 | **Any page** | `npx auspex-solari check https://example.com --expect "Example Domain"` |
 | **Your site — human** | 1. `npx auspex-solari login --url <https>` (override `--profile <yours>`). 2. Open `handoff.url` (`phone.html`). 3. Sign in and tap Save before the countdown hits zero. The agent does not type the password. |
@@ -74,7 +75,7 @@ After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts
 | **Hands-off job** | `npx auspex-solari job --url <https> --expect "<unique logged-in text>"`, then `job-status` |
 | **Do not** | Type passwords · `--record` a logged-in session · commit `SOLARI_API_KEY`, `.env`, or `.auspex/` |
 
-Anonymous verify (the second check with no saved login) is skipped for any attached profile on a non-public-marketing URL. Login, finalize, profile-status, reap, and trace are the auth + hygiene doors. The named Solari sandbox Mousepad demo is not your computer (402 on Free: the free Solari plan answers HTTP 402 and will not start that desktop).
+Anonymous verify (the second check with no saved login) is skipped for any attached profile on a non-public-marketing URL. Login, finalize, profile-status, solari-health, reap, and trace are the auth + hygiene doors. `solari-health` only checks that Solari itself answers. `profile-status` is the check for a saved login. The named Solari sandbox Mousepad demo is not your computer (402 on Free: the free Solari plan answers HTTP 402 and will not start that desktop).
 
 Save is not sessionStorage. `weakSeed` is cookies or site data with a counted `sessionStorage === 0`, or a stale fold, when the jar has no app-origin cookies and no allowlisted localStorage auth key names. App-origin cookies or those key names: run `check --verify-with-profile` and read `claimOkProfile`. `solariSaveReady` is not that gate. `emptySave` means the profile is missing. `--verify-with-profile` is refused on `weakSeed`, `emptySave`, and a dead fold. `ok` ≠ `claimOk` ≠ `claimOkProfile`.
 

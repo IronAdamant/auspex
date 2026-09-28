@@ -5,6 +5,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 ## Unreleased
 
 - One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. Documented ceiling only. Multi-step page actions are not in this change.
+- `auspex solari-health` / `auspex_solari_health`: cheap Solari preflight. `GET /profiles` once, with an 8 second cap. `ok` means the key was accepted. It does not mint a browser, open the phone door, or say the app is logged in.
 
 ## 0.1.5 — 2026-09-27 (published)
 

@@ -377,6 +377,9 @@ export const auspexFinalizeLoginInputSchema = z.object({
     .describe("SSO vendor (structural enum). Default auto tries Microsoft, then Google, then a generic Sign in with button"),
 })
 
+/** No inputs. The probe is always GET /profiles with the process Solari key. */
+export const auspexSolariHealthInputSchema = z.object({})
+
 export const auspexProfileStatusInputSchema = z.object({
   profile: profileNameSchema.optional().describe("Solari profile name"),
   name: z

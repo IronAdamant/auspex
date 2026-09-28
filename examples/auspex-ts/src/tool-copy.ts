@@ -72,6 +72,16 @@ export const PROFILES_DESCRIPTION =
   "No username, password, or Solari key field. Secrets are not included in the agent message. " +
   DOOR
 
+export const SOLARI_HEALTH_DESCRIPTION =
+  "Treating auspex_solari_health as a logged-in app, or as profile-status, is a lie. " +
+  "Preflight: is Solari reachable with this key right now. " +
+  "GET /profiles (one attempt, 8s cap). ok true means the key was accepted and a profile list came back. " +
+  "Does not POST /sessions, open phone.html, type, or set claimOk or claimOkProfile. " +
+  "minted and appLogin stay false. profileCount is a count only. " +
+  "429 → auspex_reap (ledger). 402/403 → plan. 5xx, timeout, or network → wait and retry this command. " +
+  "Missing key → export SOLARI_API_KEY. Not a fourth primitive. " +
+  DOOR
+
 export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. " +
   "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave. " +

@@ -22,6 +22,8 @@ npx auspex login --url https://app.example
 npx auspex await-login --profile app-example --save-editor
 npx auspex finalize-login --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
+npx auspex solari-health
+# Solari up with this key? Not a login. Not profile-status.
 npx auspex check --profile app-example --url https://app.example --expect "Workspace ready"
 # optional: --verify-with-profile after a live match; do not treat ok alone as reusable.
 npm run public-check   # ironadamant.com + checkpointprojects.com; skips if no key
@@ -40,6 +42,7 @@ npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>]
 npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex profiles [--purge <name>] [--yes]
 npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+npx auspex solari-health
 npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
 npx auspex job-status --job-id <id> [--wait-ms <n>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
@@ -63,6 +66,7 @@ Flag behavior, verify defaults, and fail-closed rules are in [AGENTS.md](../../A
 - `--stealth` is on `check` only (`POST /sessions`). `login` has no `--stealth`: the cold login handoff and the profile editor ignore a stealth body (same handoff, no 402). Do not add `auspex login --stealth`.
 - Login trace: one post-handoff row after the handoff is ready. Check rows are not written. Never tokens, passwords, or session ids.
 - **429** is not retryable. Call `auspex_reap`, then retry.
+- `solari-health` asks if Solari answers with this key. It lists profiles and stops. It does not open a browser or say the app is logged in. Run it before a remint or a long await. 429 means run `reap`. A slow or 5xx answer means wait and run it again.
 - Before a long unattended loop, check seed health (`profile-status`, then `claimOkProfile`). `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. On a re-gate, stop. There is no Auspex TTL. See [Long unattended loops](../../AGENTS.md#long-unattended-loops) and [docs/ops-runbook.md](../../docs/ops-runbook.md).
 - One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes).
 
