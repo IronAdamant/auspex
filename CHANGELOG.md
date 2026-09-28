@@ -2,14 +2,16 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.7 — 2026-09-28 (published)
+
+npm `auspex-solari@0.1.7` (latest). Agents do not `npm publish`. Founder publishes this release.
 
 - **State location:** an npm install keeps local state in `~/.auspex` instead of the npx cache, so screenshots are at a path the agent can open and saved-login handles, jobs, and traces survive upgrades. A clone still uses `examples/auspex-ts/.auspex`. `AUSPEX_HOME` overrides both. Receipt `screenshotPath` is relative inside a clone and absolute otherwise.
 - Tests run against a temp state dir. Before this, `npm test` wrote fake run folders and session ids (`s1`, `sbx-1`) into the real `.auspex/`, where `verify` (latest run), receipt `diff`, and `reap` could pick them up.
 
 ## 0.1.6 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.6` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.6`. Agents do not `npm publish`. Founder publishes this release.
 
 - **Fix: the published MCP server now starts.** 0.1.5 shipped without `dist/` because npm applied `examples/auspex-ts/.gitignore` inside the package, so `npx -p auspex-solari auspex-mcp` exited `DistMissing`. `examples/auspex-ts/.npmignore` now ships `dist/` and drops `__pycache__`.
 - **Fix: bundled MCP tools no longer fail with `ENOENT dist/assert_receipt.py`.** The script resolves from `../src` when running from `dist/`.
