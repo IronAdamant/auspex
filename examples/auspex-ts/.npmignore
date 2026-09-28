@@ -1,0 +1,7 @@
+# npm reads this instead of .gitignore in this folder. dist/ is gitignored but must ship in the package.
+node_modules/
+.env
+.env.*
+.auspex/
+__pycache__/
+*.pyc

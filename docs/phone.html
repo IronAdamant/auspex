@@ -6,6 +6,9 @@
   <meta name="referrer" content="no-referrer" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://api.getsolari.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'" />
   <title>Auspex phone login</title>
+  <!-- frame-ancestors is ignored in a meta CSP and Pages cannot send headers: stay hidden when framed. -->
+  <style id="antiFrame">html { display: none !important; }</style>
+  <script>(function () { var s = document.getElementById("antiFrame"); if (window.self === window.top && s && s.parentNode) s.parentNode.removeChild(s) })()</script>
   <style>
     html, body { margin: 0; height: 100%; background: #0b0f14; color: #e8eef4; font: 16px/1.4 -apple-system, system-ui, sans-serif; }
     #wrap { display: flex; flex-direction: column; height: 100%; }

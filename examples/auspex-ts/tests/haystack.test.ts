@@ -177,3 +177,15 @@ test("toPlaywrightStorageState fills required cookie fields", () => {
   const dropped = toPlaywrightStorageState({ cookies: [{ name: "x", value: "y" }] })
   assert.equal(dropped.cookies.length, 0)
 })
+
+test("capitalized nav items on their own lines still match a single-word expect", () => {
+  assert.equal(haystackMatches("Home\nDashboard\nSettings", "Dashboard"), true)
+  assert.equal(haystackMatches("Projects\n  Checkpoint\nLogout", "Checkpoint"), true)
+  assert.equal(haystackMatches("Overview. Dashboard", "Dashboard"), true)
+  assert.equal(haystackMatches("Home | Dashboard | Settings", "Dashboard"), true)
+  // Same-line capitalized phrase stays refused.
+  assert.equal(haystackMatches("Home Dashboard Settings", "Dashboard"), false)
+  assert.equal(haystackMatches("10+ Platforms ,\nOne Dashboard", "Dashboard"), false)
+  // Multi-word expects still span a line break after whitespace collapse.
+  assert.equal(haystackMatches("Document\nEditor", "Document Editor"), true)
+})

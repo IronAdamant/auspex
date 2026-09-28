@@ -120,6 +120,8 @@ Prefer **`auspex_job`** for the mint→await→finalize→check path. Step tools
 <!-- auspex-long-run:begin -->
 A saved profile can keep working after the five-minute typing window dies. How long it lasts is Solari and the site. Auspex does not set a 24–48 hour timer, and it does not send a keepalive.
 
+One local clock does exist: a saved profile that no Auspex command has used for 30 minutes is deleted on the next Auspex command, whichever profile that command names (see `auspex_profiles`). A loop over one site touches its profile every pass. A loop over several sites, or a gap longer than 30 minutes, loses the idle profiles and needs a human door again.
+
 Before you leave a loop running, and again before you treat an older pass as still true:
 
 1. `profile-status` with that profile, the app URL, and the expect. `loggedIn` means the live probe saw the expect. The `next` line on that result says this is not `claimOkProfile` and not overnight-safe. It does not set `nextCall`.

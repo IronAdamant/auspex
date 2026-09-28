@@ -6,6 +6,7 @@ import {
   agentReceiptOk,
   deriveCheckReason,
   expectOnUnpersistableLanding,
+  recordedLoggedInLanding,
   type CheckReason,
   type SpecialCheckReason,
 } from "./check-reason.ts"
@@ -538,7 +539,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     if (liveHostChange) {
       special = "hostChanged"
       matched = false
-    } else if (opts.record && finalUrl && isPersistableAppUrl(finalUrl)) {
+    } else if (recordedLoggedInLanding({ record: opts.record, profile: opts.profile, finalUrl })) {
       special = "recordedLoggedIn"
     } else if (opts.record && sessionId) {
       onProgress("replay")

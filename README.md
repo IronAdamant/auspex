@@ -2,6 +2,13 @@
 
 Auspex checks a live web page in Solari cloud Chrome (a browser Solari runs in their cloud, not on your computer). It looks for the words you asked for, then checks again on a second machine. It tells you whether the page is really logged in, so an agent does not start work on a login screen. It does not click around while you are logged in.
 
+**The 30-second version**
+
+- **Problem:** an AI agent says "the dashboard shows X", but it was looking at a login page, a stale tab, or its own guess.
+- **Auspex:** one call opens the page in Solari cloud Chrome, checks for the exact words, saves a screenshot and a JSON receipt, then confirms on a second Solari machine. CLI and MCP, same contract.
+- **Logged-in sites:** a human signs in once through a phone-friendly door (Solari's remote view cannot open a phone keyboard, [cookbook #80](https://github.com/solari-sdk/solari-cookbook/issues/80)). The agent never sees the password, and Auspex refuses to call a login saved until a fresh browser proves it.
+- **Built around real Solari limits:** status-stripping SDK retries ([#56](https://github.com/solari-sdk/solari-cookbook/issues/56)), the 18-vs-20 concurrency cap ([#57](https://github.com/solari-sdk/solari-cookbook/issues/57)), no session listing ([#61](https://github.com/solari-sdk/solari-cookbook/issues/61)), and sessions that look alive after they end ([#25](https://github.com/solari-sdk/solari-cookbook/issues/25)). Each one has a named failure and a recovery step instead of a silent retry.
+
 ## For Reviewers
 
 Watch with no clone and no API key: https://ironadamant.com/auspex/ — the landing opens on the blurred redacted demo and the three results. The player lower on the page is the stripped Microsoft wall, not logged-in proof. The Pages landing has a short Agent door card beside the phone login door.

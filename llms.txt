@@ -49,7 +49,7 @@ The typing window dies in about five minutes. A saved profile does not die with 
 ## Long run
 
 <!-- auspex-long-run:begin -->
-A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive.
+A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive. One exception: a profile no Auspex command has used for 30 minutes is deleted on the next command. A multi-site loop, or a gap over 30 minutes, needs a human door again.
 
 Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.
 

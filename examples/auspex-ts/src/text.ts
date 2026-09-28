@@ -66,24 +66,40 @@ function boundedExpectAt(hay: string, index: number, length: number): boolean {
   return true
 }
 
-/** Previous word starts with an uppercase letter (Title Case or ALL CAPS). */
-function previousWordStartsUpper(hay: string, index: number): boolean {
+/** Line breaks and sentence punctuation end a capitalized phrase (nav items, "Overview. Dashboard"). */
+const PHRASE_BREAK = /[\n.!?:;|•·]/u
+
+/**
+ * Previous word starts with an uppercase letter (Title Case or ALL CAPS) in the same phrase.
+ * `lines` keeps newlines where `hay` has spaces, index for index.
+ */
+function previousWordStartsUpper(lines: string, index: number): boolean {
   let i = index - 1
-  while (i >= 0 && !isWordChar(hay.charAt(i))) i -= 1
+  while (i >= 0 && !isWordChar(lines.charAt(i))) {
+    if (PHRASE_BREAK.test(lines.charAt(i))) return false
+    i -= 1
+  }
   if (i < 0) return false
-  while (i >= 0 && isWordChar(hay.charAt(i))) i -= 1
-  return isUppercaseLetter(hay.charAt(i + 1))
+  while (i >= 0 && isWordChar(lines.charAt(i))) i -= 1
+  return isUppercaseLetter(lines.charAt(i + 1))
+}
+
+/** Same length and indices as normalizeHaystack(text), but a whitespace run with a newline stays "\n". */
+function lineAwareHaystack(text: string): string {
+  return text.replace(/\s+/g, (run) => (run.includes("\n") ? "\n" : " ")).trim()
 }
 
 /**
  * Case-sensitive expect hit after whitespace collapse.
  * The expect must sit on word boundaries (`Dashboard` does not match `Dashboards`).
  * A single-word expect that starts with an uppercase letter does not match when the
- * previous word also starts with an uppercase letter, so `One Dashboard` does not
- * satisfy `Dashboard`.
+ * previous word in the same phrase also starts with an uppercase letter, so `One Dashboard`
+ * does not satisfy `Dashboard`. A line break or sentence punctuation ends the phrase, so a
+ * nav list (`Home` / `Dashboard` / `Settings`) still matches.
  */
 export function haystackMatches(raw: string, expect: string): boolean {
   const hay = normalizeHaystack(raw)
+  const lines = lineAwareHaystack(raw)
   const needle = normalizeHaystack(expect)
   if (!needle) return false
   const guardTitleCase = !/\s/u.test(needle) && isUppercaseLetter(needle.charAt(0))
@@ -93,7 +109,7 @@ export function haystackMatches(raw: string, expect: string): boolean {
     if (i < 0) return false
     from = i + 1
     if (!boundedExpectAt(hay, i, needle.length)) continue
-    if (guardTitleCase && previousWordStartsUpper(hay, i)) continue
+    if (guardTitleCase && previousWordStartsUpper(lines, i)) continue
     return true
   }
   return false

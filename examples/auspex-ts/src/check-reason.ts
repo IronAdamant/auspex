@@ -38,6 +38,15 @@ export function expectOnUnpersistableLanding(input: {
   return !isPersistableAppUrl(input.finalUrl)
 }
 
+/**
+ * A recorded check landed on an app page while a saved login was attached.
+ * With no profile the session is anonymous, so a public deep link (e.g. /docs) is not logged in.
+ */
+export function recordedLoggedInLanding(input: { record?: boolean; profile?: string; finalUrl: string }): boolean {
+  if (!input.record || !input.profile || !input.finalUrl) return false
+  return isPersistableAppUrl(input.finalUrl)
+}
+
 export function deriveCheckReason(input: {
   special?: SpecialCheckReason
   needsHuman?: boolean

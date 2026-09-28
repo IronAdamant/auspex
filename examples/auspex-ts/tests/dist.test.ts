@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -9,12 +9,19 @@ import {
   LOGIN_DESCRIPTION,
   REAP_DESCRIPTION,
 } from "../src/tool-copy.ts"
+import { resolveAssertReceiptPy } from "../src/receipt.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
+function newestSrcMs(): number {
+  const dir = path.join(root, "src")
+  return Math.max(...readdirSync(dir).map((name) => statSync(path.join(dir, name)).mtimeMs))
+}
+
+/** Build when dist is missing or older than src, so a stale local bundle is not tested. */
 function ensureDist(): string {
   const dest = path.join(root, "dist/mcp.mjs")
-  if (!existsSync(dest)) {
+  if (!existsSync(dest) || statSync(dest).mtimeMs < newestSrcMs()) {
     const built = spawnSync("npm", ["run", "build:mcp"], { cwd: root, encoding: "utf8" })
     assert.equal(built.status, 0, built.stderr || built.stdout)
   }
@@ -88,4 +95,21 @@ test("built dist/mcp.mjs keeps fail-closed gates (CI builds; not committed)", ()
   assert.equal(dist.includes("auspex-operator-key"), false)
   assert.equal(dist.includes("issueOperatorPairingNonce"), false)
   assert.equal(dist.includes("startOperatorKeyListener"), false)
+})
+
+test("bundled dist resolves assert_receipt.py from ../src", () => {
+  const resolved = resolveAssertReceiptPy(path.join(root, "dist"))
+  assert.equal(resolved, path.join(root, "src", "assert_receipt.py"))
+  assert.ok(existsSync(resolved))
+})
+
+test("published tarball ships dist/ and the sandbox assert script", () => {
+  ensureDist()
+  const repo = path.resolve(root, "../..")
+  const packed = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: repo, encoding: "utf8" })
+  assert.equal(packed.status, 0, packed.stderr)
+  const files = (JSON.parse(packed.stdout) as Array<{ files: Array<{ path: string }> }>)[0]!.files.map((f) => f.path)
+  assert.ok(files.includes("examples/auspex-ts/dist/mcp.mjs"), "dist/mcp.mjs must be in the package")
+  assert.ok(files.includes("examples/auspex-ts/src/assert_receipt.py"))
+  assert.equal(files.some((f) => f.includes("__pycache__") || f.endsWith(".pyc")), false)
 })

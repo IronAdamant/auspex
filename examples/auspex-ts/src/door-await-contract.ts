@@ -246,6 +246,8 @@ export function agentsLongRunBlock(): string {
   return [
     "A saved profile can keep working after the five-minute typing window dies. How long it lasts is Solari and the site. Auspex does not set a 24–48 hour timer, and it does not send a keepalive.",
     "",
+    "One local clock does exist: a saved profile that no Auspex command has used for 30 minutes is deleted on the next Auspex command, whichever profile that command names (see `auspex_profiles`). A loop over one site touches its profile every pass. A loop over several sites, or a gap longer than 30 minutes, loses the idle profiles and needs a human door again.",
+    "",
     "Before you leave a loop running, and again before you treat an older pass as still true:",
     "",
     "1. `profile-status` with that profile, the app URL, and the expect. `loggedIn` means the live probe saw the expect. The `next` line on that result says this is not `claimOkProfile` and not overnight-safe. It does not set `nextCall`.",
@@ -266,7 +268,7 @@ export function agentsLongRunBlock(): string {
 /** Stamped into llms.txt. Short door. Same stops as the AGENTS section. */
 export function llmsLongRunBlock(): string {
   return [
-    "A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive.",
+    "A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive. One exception: a profile no Auspex command has used for 30 minutes is deleted on the next command. A multi-site loop, or a gap over 30 minutes, needs a human door again.",
     "",
     "Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.",
     "",
