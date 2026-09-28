@@ -199,7 +199,7 @@ Receipt: [`connect-run-2026-09-29.json`](examples/auspex-ts/demo/connect-run-202
 | Chatwoot | Postgres | Pass | 3. Solari editor/save returned 502, then the phone lost its connection during a password switch. |
 | tldraw | Cloudflare + Clerk | Pass | 1 |
 | ConsistencyHub | Azure + Microsoft (MSAL) | Pass | 3. The first save skipped finalize and checked logged out. The second got a Solari 409. The third passed after the one-time finalize fallback. |
-| Canva | Google | Not confirmed | 3. Cloudflare showed every fresh cloud browser a bot check ("Just a moment..."). The later tries hit Solari 409s. |
+| Canva | Google | Not confirmed | 4. Cloudflare showed every fresh cloud browser a bot check ("Just a moment..."). Two tries hit Solari 409s. The fourth saved fine (30 app-origin cookies), and its check retry hit the same bot check. |
 
 Each pass is `ok=true`, `claimOk=false` (anonymous skipped) and **`claimOkProfile=true`** from a second fresh Solari browser seeded only with the saved login.
 

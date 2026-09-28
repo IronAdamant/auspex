@@ -191,6 +191,12 @@
           "result": "solari-error",
           "ok": false,
           "note": "Solari's editor token endpoint answered 409 twenty times, so no phone door was minted. Stopped. connect now stops at once in this case instead of handing out Solari's fallback page."
+        },
+        {
+          "result": "bot-wall",
+          "ok": false,
+          "status": "failed",
+          "note": "After Solari released the stuck browser: Save worked (cookie-strong, 30 app-origin cookies), then Solari's browser closed mid-check (SDK stripped the status, cookbook #56). The one allowed retry of the check got Cloudflare's 'Just a moment...' page on both the live browser and the saved-login browser: botWall true, claimOkProfile false. Not retried further."
         }
       ]
     }

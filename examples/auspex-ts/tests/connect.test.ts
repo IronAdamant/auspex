@@ -413,3 +413,40 @@ test("connect stops at once when Solari gives no phone door, instead of handing 
   assert.equal(text.includes("console.getsolari.com/handoff"), false, "must not hand out the fallback page")
   assert.match(text, new RegExp(NO_PHONE_DOOR.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
 })
+
+test("connectOutcome: a Solari browser crash after a good save offers the one check retry, not a text wall", () => {
+  const out = connectOutcome(
+    job({
+      phase: "failed",
+      status: "failed",
+      ok: false,
+      claimOkProfile: undefined,
+      profile: "canva-com",
+      url: "https://www.canva.com/",
+      expect: "Templates for you",
+      reason:
+        "page.title: page.evaluate: Target page, context or browser has been closed; session close failed: Solari SDK exhausted retries and stripped the HTTP status (cookbook #56).",
+      next: "x".repeat(900),
+      seedReadiness: {
+        phase: "post-save",
+        shape: "cookie-strong",
+        solariSaveReady: true,
+        appOriginCookies: true,
+        appOriginCookieCount: 30,
+        localStorageCount: 0,
+        localStorageAuthKeyNames: [],
+        sessionStorageCount: 0,
+        sessionStorageMiss: true,
+        idpOnly: false,
+        weakSeed: false,
+      },
+    }),
+  )
+  assert.equal(out.ok, false)
+  assert.match(out.headline, /Solari's browser closed during the check/)
+  assert.match(out.detail.join(" "), /check --profile canva-com .*--verify-with-profile/)
+  assert.equal(out.detail.join(" ").includes("xxxx"), false, "must not dump the long next")
+  const other = connectOutcome(job({ phase: "failed", status: "failed", ok: false, reason: "y".repeat(500), next: "z".repeat(900) }))
+  assert.ok(other.headline.length < 230)
+  assert.equal(other.detail.join(" ").includes("zzzz"), false)
+})

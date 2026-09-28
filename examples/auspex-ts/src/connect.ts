@@ -97,6 +97,9 @@ export async function runConnectSave(
   return { ok: true, message: `Save signaled for ${profile}. The running connect finishes on its own and prints the result.` }
 }
 
+/** Solari closed the browser mid-call or the SDK stripped the status (cookbook #56). Not a login result. */
+const SOLARI_BROWSER_LOST = /exhausted retries|stripped the HTTP status|Target page, context or browser has been closed/i
+
 export type ConnectOutcome = { ok: boolean; headline: string; detail: string[] }
 
 /** Map a finished job to plain words. `ok` only when the second browser confirmed the saved login. */
@@ -238,12 +241,23 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       }
     case "network":
       return { ok: false, headline: "Solari or the site did not answer in time.", detail: [again] }
-    default:
-      return {
-        ok: false,
-        headline: `Stopped: ${job.reason || job.status}.`,
-        detail: job.next ? [job.next] : [again],
+    default: {
+      if (SOLARI_BROWSER_LOST.test(job.reason)) {
+        const saved = job.seedReadiness?.solariSaveReady === true
+        return {
+          ok: false,
+          headline: "Solari's browser closed during the check, and the SDK lost the error status (cookbook #56).",
+          detail: saved
+            ? [
+                "Your login did save. Retry just the check once:",
+                `npx auspex-solari check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
+              ]
+            : [`Nothing was claimed. Wait a moment, then ${again.toLowerCase()}`],
+        }
       }
+      const reason = (job.reason || job.status).slice(0, 200)
+      return { ok: false, headline: `Stopped: ${reason}.`, detail: [again] }
+    }
   }
 }
 
