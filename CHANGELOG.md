@@ -2,7 +2,9 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.10 — 2026-09-28 (published)
+
+npm `auspex-solari@0.1.10` (latest). Agents do not `npm publish`. Founder publishes this release. Closes the open items from the live test.
 
 - **Receipt excerpts prefer the page's main region** (`<main>` / `role=main`) when it has real content, so menus and promo cards stop filling the 500 characters. Matching still uses the whole page.
 - **`auspex profiles --keep <name>` / `--unkeep <name>`** (MCP `keep` / `unkeep`): exempt a saved login from the 30-minute idle wipe for long agent loops, outside a sweep plan. A human-agreed purge still wipes it.
@@ -14,7 +16,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.9 — 2026-09-28 (published)
 
-npm `auspex-solari@0.1.9` (latest). Agents do not `npm publish`. Founder publishes this release. Everything below was found or confirmed in a live test of eight real sites (Lorari, Good Tape, Clozemaster, tldraw, Chatwoot, MariaDB Cloud, back4app, ConsistencyHub).
+npm `auspex-solari@0.1.9`. Agents do not `npm publish`. Founder publishes this release. Everything below was found or confirmed in a live test of eight real sites (Lorari, Good Tape, Clozemaster, tldraw, Chatwoot, MariaDB Cloud, back4app, ConsistencyHub).
 
 - **Refresh-token-only saves point to finalize when needed.** A `local-storage-auth` Save whose only auth key is a refresh token (no access token, no app cookie) now says: run the check, and if it lands loggedOut, finalize-login is next. Live ConsistencyHub (MSAL) needed exactly that; the old advice said never to finalize.
 - **Receipt excerpts mask key-shaped text** (JWTs, `sk-`/`pk_`/`slr_` keys, long letter-and-digit tokens) before truncation. A live back4app overview printed its client key into a local receipt.

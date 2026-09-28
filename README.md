@@ -64,7 +64,7 @@ npx auspex-solari check --name ironadamant
 npx -p auspex-solari auspex-mcp
 ```
 
-npm `auspex` is a different scraper. `auspex-solari` **0.1.9 is published**. Agents do not `npm publish`.
+npm `auspex` is a different scraper. `auspex-solari` **0.1.10 is published**. Agents do not `npm publish`.
 
 Local state (screenshots, receipts, saved-login handles, jobs) lives in `~/.auspex` for an npm install, or `examples/auspex-ts/.auspex` in a clone. Receipts show it as `~/.auspex/…` (never your username). Set `AUSPEX_HOME` to move it.
 
