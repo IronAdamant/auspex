@@ -148,7 +148,8 @@ export function classifySweepReceipt(page: SweepPage, receipt: AgentReceipt, has
   const sameExpect = receipt.diff?.previousExpect === page.expect
   if (previousReason && sameExpect) {
     base.previousReason = previousReason
-    if (previousReason === "matched" && receipt.reason !== "matched") base.regressed = true
+    // A bot check hides the page; it is not evidence the page changed.
+    if (previousReason === "matched" && receipt.reason !== "matched" && !receipt.botWall) base.regressed = true
   }
 
   if (receipt.reason === "matched" && receipt.ok) {
@@ -167,6 +168,13 @@ export function classifySweepReceipt(page: SweepPage, receipt: AgentReceipt, has
     return {
       ...base,
       detail: `live browser matched; the second machine did not confirm (reason ${receipt.reason}, claimOk ${verify?.claimOk ?? "missing"}). Often JS-rendered text an anonymous fetch cannot see. Not a pass, not a fail.`,
+    }
+  }
+  // A bot check also surfaces as mismatch, but the browser never saw the page: could not tell.
+  if (receipt.botWall) {
+    return {
+      ...base,
+      detail: "the site showed the cloud browser a bot check instead of the page. Not a pass, not a fail; Auspex does not solve bot checks.",
     }
   }
   if (receipt.reason === "mismatch") {

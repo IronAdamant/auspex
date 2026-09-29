@@ -77,6 +77,24 @@ test("parseSweepPlan refuses page actions, other hosts, loopback, and oversize p
   assert.throws(() => parseSweepPlan({ pages: [] }), /at least one page/)
 })
 
+test("classifySweepReceipt: a bot check is could-not-tell, never a fail or a regression", () => {
+  const page = { name: "home", url: "https://app.example/", expect: "Workspace ready" }
+  const walled = classifySweepReceipt(
+    page,
+    receipt({
+      ok: false,
+      reason: "mismatch",
+      matched: false,
+      botWall: true,
+      diff: { previousReason: "matched", previousExpect: "Workspace ready" } as AgentReceipt["diff"],
+    }),
+    true,
+  )
+  assert.equal(walled.status, "unknown")
+  assert.match(walled.detail, /bot check/)
+  assert.equal(walled.regressed, undefined)
+})
+
 test("classifySweepReceipt: only a confirmed match is pass", () => {
   const page: SweepPage = { name: "Projects", url: "https://app.example.com/projects", expect: "Your projects" }
   assert.equal(classifySweepReceipt(page, receipt(), true).status, "pass")
