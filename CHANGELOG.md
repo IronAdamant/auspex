@@ -2,9 +2,15 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.18 — 2026-09-30
+
+npm `auspex-solari@0.1.18` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **`reap` leaves another running command's browsers open.** The ledger records which process opened each session and when. `reap` (including a job's own reap after a 429) skips a browser or VM whose process is alive and that was opened less than 10 minutes ago, and lists it in `inUse`. A crashed command's sessions, anything older (a leak in a long-running MCP server), and entries from an older ledger are still released. `--session` / `--vm` always release the named id. Before, `reap` closed every ledger browser, including a parallel check's mid-run.
+
 ## 0.1.17 — 2026-09-30
 
-npm `auspex-solari@0.1.17` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.17`. Agents do not `npm publish`. Founder publishes this release.
 
 Second pass of the review. Each fix has a test.
 
