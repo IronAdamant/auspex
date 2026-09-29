@@ -16,7 +16,7 @@ import { stillOnAuth } from "./sso.ts"
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts"
 import { isPublicMarketingUrl, resolveSavedCheck, savedCheckForProfile, type SavedCheck } from "./saved-checks.ts"
 
-export type ProfileStatusReason = "loggedIn" | "loggedOut" | "needsHuman" | "weakSeed" | "emptySave"
+export type ProfileStatusReason = "loggedIn" | "loggedOut" | "needsHuman" | "weakSeed" | "emptySave" | "botWall"
 
 export type ProfileStatusResult = {
   ok: boolean
@@ -26,6 +26,8 @@ export type ProfileStatusResult = {
   populated?: boolean
   live: boolean
   skippedLive?: boolean
+  /** The site showed the probe a bot check. Says nothing about the login; no nextCall. */
+  botWall?: boolean
   skipReason?: string
   /** Set on loggedIn. Live probe hint. Not a nextCall and not a lease. */
   next?: string
@@ -251,6 +253,26 @@ export async function profileStatus(
         "password/OTP wall. Skip live. Call auspex_login and show handoff.url (phone.html, the only login door). handoff.mobileUrl is that same page, with a real text field. " +
         HANDOFF_PHONE_DOOR_BAN +
         ` Agent never types a password. ${RE_GATE_STOP}`,
+      finalUrl: result.finalUrl,
+      excerpt: result.excerpt,
+      screenshotPath: result.screenshotPath,
+      ...seedCounts(seed, url, profile, opts.name),
+    }
+  }
+  if (result.botWall) {
+    // The probe never saw the app, so this is neither loggedIn nor loggedOut. Finalizing or
+    // reminting cannot get past a bot check.
+    return {
+      ok: false,
+      reason: "botWall",
+      botWall: true,
+      profile,
+      url,
+      populated: true,
+      live: true,
+      skipReason:
+        "The site showed the cloud browser a bot check (for example Cloudflare \"Just a moment...\") instead of the app. " +
+        "This does not say whether the saved login is good or bad. Do not remint or finalize for it; Auspex does not solve bot checks.",
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
       screenshotPath: result.screenshotPath,

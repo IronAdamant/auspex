@@ -350,6 +350,37 @@ test("profileStatus stamps nextCall beside skipReason", async () => {
   assert.equal(fold.nextCall?.profile, "consistencyhub")
 })
 
+test("profileStatus: a bot check is botWall with no nextCall, never loggedOut or finalize", async () => {
+  const status = await profileStatus(
+    { profile: "app-example", url: "https://app.example/dash", expect: "Workspace ready" },
+    {
+      listProfiles: async () => [{ id: "p1", name: "app-example", populated: true }],
+      savedForProfile: () => undefined,
+      inspectSeed: async () => ({ cookies: 4, origins: 1, sessionStorage: 2 }),
+      runCheck: async () =>
+        ({
+          ok: false,
+          reason: "mismatch",
+          url: "https://app.example/dash",
+          expect: "Workspace ready",
+          screenshotPath: ".auspex/runs/x/screenshot.png",
+          title: "Just a moment...",
+          finalUrl: "https://app.example/dash",
+          matched: false,
+          excerpt: "",
+          sessionId: "s",
+          networkIdle: true,
+          botWall: true,
+        }) as import("../src/check.ts").CheckResult,
+    },
+  )
+  assert.equal(status.reason, "botWall")
+  assert.equal(status.botWall, true)
+  assert.equal(status.ok, false)
+  assert.equal(status.nextCall, undefined)
+  assert.match(status.skipReason ?? "", /Do not remint or finalize/)
+})
+
 test("login with no handoff url points nextCall at auspex_login", () => {
   const missed = loginInstructions({ id: "prof_1", name: "app-example" })
   assert.match(missed.next, /Remint with auspex_login/)

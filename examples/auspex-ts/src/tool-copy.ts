@@ -84,7 +84,8 @@ export const SOLARI_HEALTH_DESCRIPTION =
 
 export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. " +
-  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave. " +
+  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave vs botWall. " +
+  "botWall means the site showed a bot check: not a logout; do not remint or finalize. " +
   "loggedIn means the live probe saw expect. " +
   "weakSeed is cookies/origins with a counted sessionStorage of 0, or stale folded expiresOn, when the jar is not cookie-strong or local-storage-auth. " +
   "App-origin cookies or allowlisted localStorage auth key names are a Solari Save. seedReadiness reports counts and names only. solariSaveReady is not claimOkProfile. " +
