@@ -31,6 +31,7 @@ export type NextCallKind =
   | "finalize"
   | "reap"
   | "job-resume"
+  | "job-new"
   | "check-verify"
 
 export type NextCallOpts = {
@@ -86,6 +87,13 @@ export function nextCallFor(kind: NextCallKind, opts: NextCallOpts = {}): NextCa
       if (profile) nextCall.profile = profile
       return nextCall
     }
+    case "job-new": {
+      const nextCall: NextCall = { tool: "auspex_job" }
+      if (profile) nextCall.profile = profile
+      if (url) nextCall.url = url
+      if (expect) nextCall.expect = expect
+      return nextCall
+    }
     case "check-verify": {
       const nextCall: NextCall = { tool: "auspex_check", verifyWithProfile: true }
       if (profile) nextCall.profile = profile
@@ -122,6 +130,11 @@ export function reapNextCall(): NextCall {
 
 export function resumeJobNextCall(jobId: string, profile?: string): NextCall {
   return nextCallFor("job-resume", { jobId, profile })
+}
+
+/** A fresh job with the same inputs. A failed job does not resume, so its nextCall is never its own jobId. */
+export function newJobNextCall(profile?: string, opts: { url?: string; expect?: string } = {}): NextCall {
+  return nextCallFor("job-new", { profile, url: opts.url, expect: opts.expect })
 }
 
 export function checkVerifyNextCall(profile?: string, opts: { url?: string; expect?: string } = {}): NextCall {

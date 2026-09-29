@@ -182,6 +182,54 @@ test("connect asks for the logged-in words when --expect is missing", async () =
   assert.match(io.text(), /What words only appear once you're logged in/)
 })
 
+test("connect stops asking for words when input closes, instead of hanging", async () => {
+  const io = tty()
+  let ran = false
+  setTimeout(() => io.stdin.end(), 10)
+  const result = await runConnect({ url: "https://app.example" }, { stdin: io.stdin, stdout: io.stdout }, {
+    runJob: async () => {
+      ran = true
+      return job()
+    },
+  })
+  assert.equal(ran, false)
+  assert.equal(result.ok, false)
+  assert.equal(result.error, CONNECT_NEEDS_EXPECT)
+})
+
+test("connect survives a failed Save signal and a closed input while the job waits", async () => {
+  for (const mode of ["signal-throws", "stdin-closed"] as const) {
+    const io = tty()
+    const rejections: unknown[] = []
+    const onRejection = (err: unknown) => rejections.push(err)
+    process.on("unhandledRejection", onRejection)
+    try {
+      const result = await runConnect(
+        { url: "https://app.example/dash", expect: "Workspace ready" },
+        { stdin: io.stdin, stdout: io.stdout },
+        {
+          qr: async () => "QR",
+          signalSave: async () => {
+            throw new Error("disk full")
+          },
+          runJob: async (opts) => {
+            opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR } })
+            if (mode === "signal-throws") io.stdin.write("\n")
+            else io.stdin.end()
+            await new Promise((r) => setTimeout(r, 30))
+            return job()
+          },
+        },
+      )
+      assert.equal(result.ok, true)
+      assert.equal(rejections.length, 0)
+      assert.match(io.text(), /Tap Save on the phone page instead/)
+    } finally {
+      process.off("unhandledRejection", onRejection)
+    }
+  }
+})
+
 test("connectOutcome: ok only with claimOkProfile, and fail-closed rows stay honest", () => {
   assert.equal(connectOutcome(job()).ok, true)
   const unconfirmed = connectOutcome(job({ claimOkProfile: false }))

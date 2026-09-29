@@ -394,6 +394,46 @@ test("429 reaps ledger and nextCall resumes the job", async () => {
   assert.equal(result.nextCall?.jobId, result.jobId)
 })
 
+test("a failed job never points nextCall back at its own jobId", async () => {
+  const dir = await tmpJobs()
+  const failed = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true },
+    deps({
+      jobsDir: dir,
+      awaitLogin: async () => {
+        throw new Error("editor exploded")
+      },
+    }),
+  )
+  assert.equal(failed.phase, "failed")
+  assert.equal(failed.nextCall?.tool, "auspex_job")
+  assert.equal(failed.nextCall?.jobId, undefined)
+  assert.equal(failed.nextCall?.url, "https://app.example")
+  assert.equal(failed.nextCall?.expect, "Workspace ready")
+  assert.match(failed.next ?? "", /Start a new job/)
+  // Resuming really does return the same failure, so the old nextCall was a dead end.
+  const resumed = await runJob({ jobId: failed.jobId }, deps({ jobsDir: dir }))
+  assert.equal(resumed.phase, "failed")
+})
+
+test("a check that throws after Save retries only the check", async () => {
+  const dir = await tmpJobs()
+  const failed = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true, verifyWithProfile: true },
+    deps({
+      jobsDir: dir,
+      check: async () => {
+        throw new Error("Target page, context or browser has been closed")
+      },
+    }),
+  )
+  assert.equal(failed.phase, "failed")
+  assert.equal(failed.nextCall?.tool, "auspex_check")
+  assert.equal(failed.nextCall?.verifyWithProfile, true)
+  assert.equal(failed.nextCall?.url, "https://app.example")
+  assert.match(failed.next ?? "", /retry only the check/)
+})
+
 test("webhook without URL is skipped; invalid URL fails closed", async () => {
   const skipped = await postJobWake({ schemaVersion: 1, event: "completed" }, { env: {} })
   assert.equal(skipped.ok, true)

@@ -316,16 +316,23 @@ export async function runConnect(
   const qr = deps.qr ?? ((url) => QRCode.toString(url, { type: "terminal", small: true }))
   const rl: Interface | undefined = interactive ? createInterface({ input: io.stdin, terminal: false }) : undefined
   const lines: string[] = []
-  const waiters: Array<(line: string) => void> = []
+  const waiters: Array<(line: string | null) => void> = []
+  let inputClosed = false
   rl?.on("line", (line) => {
     const next = waiters.shift()
     if (next) next(line)
     else lines.push(line)
   })
+  // Ctrl-D or a closed pipe: answer every pending and future read with null instead of hanging.
+  rl?.on("close", () => {
+    inputClosed = true
+    for (const w of waiters.splice(0)) w(null)
+  })
   const nextLine = () =>
-    new Promise<string>((resolve) => {
+    new Promise<string | null>((resolve) => {
       const queued = lines.shift()
       if (queued !== undefined) resolve(queued)
+      else if (inputClosed) resolve(null)
       else waiters.push(resolve)
     })
   const timers: NodeJS.Timeout[] = []
@@ -336,14 +343,21 @@ export async function runConnect(
     while (!expect) {
       out("What words only appear once you're logged in? (for example a menu item or your workspace name)")
       io.stdout.write("› ")
-      expect = (await nextLine()).trim()
+      const answer = await nextLine()
+      if (answer === null) return { ok: false, error: CONNECT_NEEDS_EXPECT }
+      expect = answer.trim()
     }
 
     const onMinted = ({ profile, handoff }: { profile: string; handoff: HandoffPacket }) => {
       // Solari's fallback handoff page is a picture of Chrome with no phone keyboard. Stop now
       // instead of handing it out and waiting up to 30 minutes on it.
       if (!isPhoneDoor(handoff.mobileUrl || handoff.url)) throw new Error(NO_PHONE_DOOR)
-      void showDoor(profile, handoff)
+      // Not awaited: the job waits for Save meanwhile. A failure here must not become an
+      // unhandled rejection, which would end the process before any outcome is printed.
+      void showDoor(profile, handoff).catch((err) => {
+        out(`Could not signal Save from this terminal (${err instanceof Error ? err.message : String(err)}).`)
+        out("Tap Save on the phone page instead; this command is still waiting for it.")
+      })
     }
     const showDoor = async (profile: string, handoff: HandoffPacket) => {
       const link = handoff.mobileUrl || handoff.url
@@ -380,7 +394,10 @@ export async function runConnect(
         return
       }
       out("When the app itself is on screen, press Enter here. (You don't need the Save button on the phone page.)")
-      await nextLine()
+      if ((await nextLine()) === null) {
+        out("Input closed. Tap Save on the phone page instead; this command is still waiting for it.")
+        return
+      }
       saving = true
       out("Saving…")
       await signalSave(profile)

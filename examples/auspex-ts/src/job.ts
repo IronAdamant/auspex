@@ -17,7 +17,7 @@ import {
   type JobReceipt,
   type JobRecord,
 } from "./job-store.ts"
-import { remintLoginNextCall } from "./next-call.ts"
+import { checkVerifyNextCall, newJobNextCall, remintLoginNextCall } from "./next-call.ts"
 import { postJobWake, resolveWakeWebhookUrl, type JobWakeEvent, type JobWakeResult } from "./job-wake.ts"
 import { preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost } from "./profile-host-advice.ts"
@@ -569,11 +569,21 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
     return publicJob(record)
   } catch (err) {
     if (isConcurrency(err)) return fail429(err)
+    // A failed job does not resume (only 429 does), so never point back at this jobId.
+    // In the check phase the save already happened: retry only the check once.
+    const failedAt = record.phase
     record.phase = "failed"
     record.status = "failed"
     record.ok = false
     record.reason = classifySolariError(err).message
-    record.nextCall = record.nextCall ?? resumeJobNextCall(record.jobId, record.profile)
+    const target = { url: record.url, expect: record.expect }
+    if (failedAt === "check") {
+      record.nextCall = checkVerifyNextCall(record.profile, target)
+      record.next = `The check failed before it finished (${record.reason.slice(0, 160)}). The save already happened: retry only the check once. Do not remint for this.`
+    } else {
+      record.nextCall = newJobNextCall(record.profile, target)
+      record.next = `This job failed during ${failedAt} (${record.reason.slice(0, 160)}). Resuming it returns the same failure. Start a new job.`
+    }
     await persist()
     return publicJob(record, { wake: await wake("failed") })
   }
