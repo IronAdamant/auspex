@@ -4,7 +4,8 @@ export const REDACTED_EMAIL = "[redacted-email]"
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
 
-const SENSITIVE_TYPES = new Set(["password", "email", "tel"])
+// hidden: sign-in pages keep flow tokens and anti-forgery canaries in hidden fields.
+const SENSITIVE_TYPES = new Set(["password", "email", "tel", "hidden"])
 const SENSITIVE_NAMES = new Set([
   "passwd",
   "password",
@@ -49,6 +50,11 @@ function redactHref(href: string): string {
     for (const key of [...url.searchParams.keys()]) {
       if (/email|login_hint|username|hint|login/i.test(key)) {
         url.searchParams.set(key, REDACTED_EMAIL)
+        continue
+      }
+      // Sign-in flow and session ids (Microsoft epctrc/uaid/ctx, OAuth state/nonce, tokens).
+      if (/token|canary|epctrc|uaid|ctx|state|nonce|session|code_challenge|sft/i.test(key)) {
+        url.searchParams.set(key, "redacted")
         continue
       }
       const current = url.searchParams.get(key) ?? ""
@@ -102,7 +108,8 @@ function redactIncremental(data: Record<string, unknown>): void {
       // arrive without its type. Blank every value change; replays are public pages only.
       if ("value" in attrs) attrs.value = ""
       for (const [key, raw] of Object.entries(attrs)) {
-        if (typeof raw === "string") attrs[key] = redactEmailsInString(raw)
+        if (typeof raw !== "string") continue
+        attrs[key] = key === "href" || key === "src" ? redactHref(raw) : redactEmailsInString(raw)
       }
     }
   }
