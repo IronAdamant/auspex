@@ -20,11 +20,6 @@
     #ttl.dead { color: #f88; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
     #status:empty { display: none; }
-    #idpWall {
-      margin: 6px 12px 0; padding: 8px 10px; border-radius: 8px;
-      background: #3a2a10; color: #fc6; font-size: 13px; line-height: 1.35;
-    }
-    #idpWall.hidden { display: none; }
     #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; }
     #screen { position: absolute; inset: 0; overflow: hidden; touch-action: manipulation; }
     #boot {
@@ -101,7 +96,6 @@
       <p id="howTo">You're controlling Solari's remote Chrome. Sign in on the site there.</p>
       <div id="ttl">Save before this dies.</div>
       <div id="status"></div>
-      <p id="idpWall" role="status">Still on Microsoft or Google? Finish sign-in, reach the app, then Save.</p>
     </header>
     <div id="stage">
       <div id="boot" aria-live="polite">

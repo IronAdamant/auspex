@@ -11,7 +11,6 @@ import {
   imeAutocomplete,
   imeInputType,
 } from "../src/handoff-doors.ts"
-import { cookieHostIsIdp } from "../src/login-trace.ts"
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 
@@ -29,12 +28,6 @@ function loadDoorStream() {
       attempts?: number,
       maxAttempts?: number,
     ) => string
-    pageHostIsIdp: (host: string) => boolean
-    idpWallVisible: (text: string, session?: { leftIdp?: boolean; expired?: boolean; streamExpired?: boolean }) => boolean
-    createIdpWallSession: () => { leftIdp: boolean; expired: boolean }
-    noteIdpSurface: (session: { leftIdp?: boolean; expired?: boolean }, text: string) => boolean
-    expireIdpWall: (session: { leftIdp?: boolean; expired?: boolean; streamExpired?: boolean }) => boolean
-    IDP_WALL_TEXT: string
     imeAutocomplete: (bulletsOn: boolean, otpOn?: boolean) => string
     imeInputType: (bulletsOn: boolean) => string
     DOOR_QUALITY_LEVEL: number
@@ -72,56 +65,17 @@ test("docs/door-stream.js matches the TypeScript door helpers", () => {
   assert.equal(Door.imeInputType(true), imeInputType(true))
   assert.equal(JSON.stringify(Door).includes("off"), false)
   assert.equal("bindPreviewZoom" in Door, false)
-  assert.match(Door.IDP_WALL_TEXT, /Finish sign-in, reach the app, then Save/)
-  assert.equal(Door.IDP_WALL_TEXT.includes("logged in"), false)
 })
 
-test("door IdP host list matches cookieHostIsIdp and hides only off the wall", () => {
-  const Door = loadDoorStream()
-  const hosts = [
-    "live.com",
-    "login.live.com",
-    "login.microsoft.com",
-    "login.microsoftonline.com",
-    "accounts.google.com",
-    "onedrive.live.com",
-    "consistencyhub.io",
-  ]
-  for (const host of hosts) {
-    assert.equal(Door.pageHostIsIdp(host), cookieHostIsIdp(host), host)
+test("phone door has no sign-in banner (the stream never reports the remote URL)", () => {
+  const Door = loadDoorStream() as unknown as Record<string, unknown>
+  for (const gone of ["IDP_WALL_TEXT", "pageHostIsIdp", "httpsHost", "idpWallVisible", "noteIdpSurface", "expireIdpWall"]) {
+    assert.equal(gone in Door, false, gone)
   }
-  assert.equal(cookieHostIsIdp("google.com"), true)
-  assert.equal(cookieHostIsIdp("www.google.com"), true)
-  assert.equal(Door.pageHostIsIdp("google.com"), false)
-  assert.equal(Door.pageHostIsIdp("www.google.com"), false)
-  assert.equal(Door.idpWallVisible(""), true)
-  assert.equal(Door.idpWallVisible("https://login.microsoftonline.com/common"), true)
-  assert.equal(Door.idpWallVisible("https://accounts.google.com/o/oauth2/v2/auth"), true)
-  assert.equal(Door.idpWallVisible("https://onedrive.live.com/"), false)
-  assert.equal(Door.idpWallVisible("https://consistencyhub.io/app"), false)
-  assert.equal(Door.idpWallVisible("", { expired: true }), false)
-  assert.equal(Door.idpWallVisible("https://login.microsoftonline.com/common", { streamExpired: true }), false)
-  assert.equal(Door.idpWallVisible("https://accounts.google.com/o/oauth2/v2/auth", { expired: true }), false)
-  const session = Door.createIdpWallSession()
-  assert.equal(Door.noteIdpSurface(session, ""), true)
-  assert.equal(Door.noteIdpSurface(session, "https://consistencyhub.io/app"), false)
-  assert.equal(session.leftIdp, true)
-  assert.equal(Door.noteIdpSurface(session, ""), false)
-  assert.equal(Door.idpWallVisible("", session), false)
-  assert.equal(Door.noteIdpSurface(session, "https://login.microsoftonline.com/common"), true)
-  assert.equal(Door.expireIdpWall(session), false)
-  assert.equal(session.expired, true)
-  assert.equal(Door.noteIdpSurface(session, "https://login.microsoftonline.com/common"), false)
-  assert.equal(Door.idpWallVisible("https://consistencyhub.io/app", session), false)
   const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
   const phone = `${readFileSync(path.join(repo, "docs", "phone.html"), "utf8")}\n${page}`
-  assert.match(phone, /id="idpWall"/)
-  assert.match(phone, /Finish sign-in, reach the app, then Save/)
-  assert.match(phone, /noteRemoteSurface/)
+  assert.doesNotMatch(phone, /idpWall|Still on Microsoft or Google/)
   assert.match(phone, /if \(fromHash\) return fromHash/)
-  assert.match(phone, /expireIdpWall/)
-  assert.match(phone, /noteIdpSurface/)
-  assert.match(phone, /applyIdpWall\(false\)/)
 })
 
 test("framebufferPoint uses the rendered canvas, not a stale scale", () => {

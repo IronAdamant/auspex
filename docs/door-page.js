@@ -136,7 +136,6 @@
     var reconnecting = false
     var ignoreDisconnect = false
     var reconnectAttempts = 0
-    var idpSession = { leftIdp: false, expired: false }
     var Door = (root.AuspexDoorStream) || {
       MAX_RECONNECT: 3,
       RECONNECT_GRACE_MS: 400,
@@ -155,24 +154,6 @@
     function setStatus(text, err) {
       status.textContent = text
       status.className = err ? "err" : ""
-    }
-
-    function applyIdpWall(show) {
-      var wall = document.getElementById("idpWall")
-      if (!wall) return
-      if (show) wall.classList.remove("hidden")
-      else wall.classList.add("hidden")
-    }
-
-    function noteRemoteSurface(text) {
-      if (locked || idpSession.expired) {
-        applyIdpWall(false)
-        return
-      }
-      var show = true
-      if (typeof Door.noteIdpSurface === "function") show = Door.noteIdpSurface(idpSession, text)
-      else if (typeof Door.idpWallVisible === "function") show = Door.idpWallVisible(text, idpSession)
-      applyIdpWall(show)
     }
 
     function setBoot(text, hide) {
@@ -240,9 +221,6 @@
       }
       rfb = null
       streamConnected = false
-      if (typeof Door.expireIdpWall === "function") Door.expireIdpWall(idpSession)
-      else idpSession.expired = true
-      applyIdpWall(false)
     }
 
     // Report the copy honestly. A silent failure left an old line on the clipboard, and the
@@ -598,14 +576,6 @@
           rfb.resizeSession = false
         }
         rfb.background = "#0b0f14"
-        rfb.addEventListener("clipboard", function (ev) {
-          noteRemoteSurface(ev && ev.detail && ev.detail.text)
-        })
-        rfb.addEventListener("desktopname", function (ev) {
-          var detail = ev && ev.detail
-          var name = detail && (detail.name || detail)
-          noteRemoteSurface(typeof name === "string" ? name : "")
-        })
         rfb.addEventListener("connect", function () {
           if (locked) {
             closeRfb()
