@@ -373,7 +373,7 @@ test("docs/phone.html has a real text field and loads the local noVNC client", (
   assert.match(html, /params\.get\("exp"\)/)
   assert.match(html, /if \(fromHash\) return fromHash/)
   assert.match(html, /parts\.length < 2 \? parts\.length : 2/)
-  assert.match(html, /VNC ~5 min/)
+  assert.equal(html.includes("VNC ~5 min"), false)
   assert.equal(html.includes("short-lived"), false)
   assert.match(html, /body\.classList\.add\("locked"\)/)
   assert.match(html, /autocomplete="current-password"/)

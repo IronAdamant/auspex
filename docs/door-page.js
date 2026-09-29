@@ -287,6 +287,15 @@
       )
     }
 
+    // The link ran out after the tap, but Solari never closed the stream: no proof the agent's save landed.
+    function finishExpiredAfterTap() {
+      lockUi(
+        "Link ended. Your agent confirms whether the login was saved.",
+        "The tap copied the Save line. Solari's save runs from your agent, and this page cannot see whether it worked. You can close this page.",
+        true
+      )
+    }
+
     var expSec = resolveExpirySeconds()
     if (!expSec) {
       lockUi("Link expiry unknown — remint", remintLine())
@@ -297,20 +306,21 @@
       if (locked) return
       var left = expSec - Math.floor(Date.now() / 1000)
       if (left <= 0) {
-        if (savedAt) finishSaved()
+        if (savedAt) finishExpiredAfterTap()
         else lockUi("This login link has expired", remintLine())
         return
       }
       if (savedAt) {
-        ttl.textContent = "Saved · link ends in " + formatRemain(left)
+        // Copied, not saved: the agent's editor/save has not answered yet.
+        ttl.textContent = "Copied · your agent saves next · link ends in " + formatRemain(left)
         ttl.className = "done"
         return
       }
       if (left <= 90) {
-        ttl.textContent = "Save now. This link dies in " + formatRemain(left) + " · VNC ~5 min"
+        ttl.textContent = "Save once the app has loaded. This link dies in " + formatRemain(left)
         ttl.className = "warn"
       } else {
-        ttl.textContent = "Save before this dies · " + formatRemain(left) + " left · VNC ~5 min"
+        ttl.textContent = "Sign in, wait for the app to load, then Save · " + formatRemain(left) + " left"
         ttl.className = ""
       }
     }

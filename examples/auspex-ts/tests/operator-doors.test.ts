@@ -571,8 +571,8 @@ test("door scripts run in a browser-like page and keep secrets off the chat past
       { intervals, timeouts, clients },
     )
     live.byId.get("ime")!.value = PASSWORD
-    assert.match(live.byId.get("ttl")?.textContent ?? "", /Save before this dies/)
-    assert.match(live.byId.get("ttl")?.textContent ?? "", /VNC ~5 min/)
+    assert.match(live.byId.get("ttl")?.textContent ?? "", /wait for the app to load, then Save/)
+    assert.equal(/VNC ~5 min/.test(live.byId.get("ttl")?.textContent ?? ""), false)
     assert.ok(clients[0])
     clients[0].fire("disconnect")
     live.flushTimeouts()
@@ -635,7 +635,7 @@ test("door does not call stream-expired on a live timer, and does when the stamp
       readDoor(name),
       `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 30}&n=app-example`,
     )
-    assert.match(soon.byId.get("ttl")?.textContent ?? "", /Save now\. This link dies in/)
+    assert.match(soon.byId.get("ttl")?.textContent ?? "", /Save once the app has loaded\. This link dies in/)
     assert.match(soon.byId.get("ttl")?.className ?? "", /warn/)
 
     const otpClients: Array<{ fire: (type: string) => void }> = []
@@ -952,8 +952,9 @@ test("after Save, a closed stream is a calm finish, not a reconnect loop or a re
   drain(live)
   await new Promise((resolve) => setImmediate(resolve))
   const ttlAfterSave = live.byId.get("ttl")?.textContent ?? ""
-  assert.match(ttlAfterSave, /^Saved · link ends in/)
-  assert.equal(/Save now|Save before this dies/.test(ttlAfterSave), false)
+  assert.match(ttlAfterSave, /^Copied · your agent saves next · link ends in/)
+  assert.equal(/^Saved/.test(ttlAfterSave), false)
+  assert.equal(/Save once|then Save/.test(ttlAfterSave), false)
   assert.match(live.byId.get("status")?.textContent ?? "", /just say "saved"/)
   assert.match(live.byId.get("status")?.textContent ?? "", /Press Enter there/)
 
@@ -966,6 +967,26 @@ test("after Save, a closed stream is a calm finish, not a reconnect loop or a re
   assert.match(live.byId.get("ttl")?.textContent ?? "", /^Saved\. Your agent takes it from here\./)
   assert.equal(live.byId.get("ttl")?.className, "done")
   assert.equal(live.byId.get("ime")?.disabled, true)
+})
+
+test("after Save, a link that runs out without Solari closing the stream does not claim Saved", async () => {
+  const clients: Array<{ fire: (type: string) => void }> = []
+  const intervals = new Map<number, () => void>()
+  const live = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 2}&n=consistencyhub`,
+    { clients, intervals },
+  )
+  assert.ok(clients[0])
+  clients[0].fire("connect")
+  click(live.byId.get("save"))
+  drain(live)
+  await new Promise((resolve) => setTimeout(resolve, 2600))
+  for (const fn of intervals.values()) fn()
+  const ttl = live.byId.get("ttl")?.textContent ?? ""
+  assert.match(ttl, /^Link ended\. Your agent confirms whether the login was saved\./)
+  assert.equal(/^Saved/.test(ttl), false)
+  assert.equal(/Solari closed the remote Chrome/.test(live.byId.get("status")?.textContent ?? ""), false)
 })
 
 test("before Save, a closed stream still reconnects", () => {
