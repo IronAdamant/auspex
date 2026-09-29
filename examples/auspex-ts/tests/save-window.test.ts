@@ -668,3 +668,23 @@ test("line buffer flushes a newline and tolerates a missing handle", () => {
   writeLiveLine(bare as unknown as NodeJS.WritableStream, "ok")
   assert.equal(chunks.at(-1), "ok\n")
 })
+
+test("claimSaveOwner does not take a save lock whose owner is still writing it", async () => {
+  const { claimSaveOwner } = await import("../src/save-drain.ts")
+  const { utimes } = await import("node:fs/promises")
+  const root = await mkdtemp(path.join(tmpdir(), "auspex-save-lock-"))
+  const dir = saveDrainDir(root)
+  await mkdir(dir, { recursive: true })
+  const lock = path.join(dir, "app-example.save.lock")
+  // Another process created the lock but has not written its PID yet.
+  await writeFile(lock, "")
+  const claim = await claimSaveOwner("app-example", root)
+  assert.equal(claim.ok, false)
+  // Left behind long ago: taken over.
+  const old = new Date(Date.now() - 60_000)
+  await utimes(lock, old, old)
+  const later = await claimSaveOwner("app-example", root)
+  assert.equal(later.ok, true)
+  if (later.ok) await later.release()
+  await rm(root, { recursive: true, force: true })
+})

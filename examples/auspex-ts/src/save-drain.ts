@@ -1,6 +1,6 @@
 /** One owner for editor/save. A second waiter is sibling-saved, not stream-expired. */
 
-import { mkdir, open, readFile, unlink, writeFile } from "node:fs/promises"
+import { mkdir, open, readFile, stat, unlink, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { packageRoot, stateDirFor } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
@@ -188,6 +188,17 @@ async function writeOwner(file: string, profile: string, phase: SaveOwnerPhase, 
   await writeFile(file, JSON.stringify(body), "utf8")
 }
 
+/** How long a just-created lock file may go without its PID before it counts as abandoned. */
+const LOCK_WRITE_GRACE_MS = 10_000
+
+async function lockIsYoung(file: string): Promise<boolean> {
+  try {
+    return Date.now() - (await stat(file)).mtimeMs < LOCK_WRITE_GRACE_MS
+  } catch {
+    return false
+  }
+}
+
 async function acquireSaveLock(file: string): Promise<boolean> {
   await mkdir(path.dirname(file), { recursive: true })
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -204,6 +215,8 @@ async function acquireSaveLock(file: string): Promise<boolean> {
       if (code !== "EEXIST") throw err
       const pid = await readLockPid(file)
       if (pidAlive(pid)) return false
+      // Created but its PID not yet written: a lock being taken right now, not a dead owner.
+      if (pid === 0 && (await lockIsYoung(file))) return false
       await unlink(file).catch(() => undefined)
     }
   }
