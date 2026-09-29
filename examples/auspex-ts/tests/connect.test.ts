@@ -450,3 +450,12 @@ test("connectOutcome: a Solari browser crash after a good save offers the one ch
   assert.ok(other.headline.length < 230)
   assert.equal(other.detail.join(" ").includes("zzzz"), false)
 })
+
+test("tildePath hides the account folder in printed paths", async () => {
+  const { tildePath } = await import("../src/connect.ts")
+  assert.equal(tildePath("/Users/alice/.auspex/jobs/job-1.json", "/Users/alice"), "~/.auspex/jobs/job-1.json")
+  assert.equal(tildePath("/Users/alice", "/Users/alice/"), "~")
+  assert.equal(tildePath("/Users/alicewonder/x.json", "/Users/alice"), "/Users/alicewonder/x.json", "only a whole folder match")
+  assert.equal(tildePath("/tmp/job.json", "/Users/alice"), "/tmp/job.json")
+  assert.equal(tildePath("/x/y", "/"), "/x/y")
+})

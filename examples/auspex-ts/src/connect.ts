@@ -7,6 +7,7 @@
  * waits for `connect --save <profile>` instead; the wait ends with Solari's typing window.
  */
 
+import { homedir } from "node:os"
 import { createInterface, type Interface } from "node:readline"
 import QRCode from "qrcode"
 import { isHttpOrHttpsUrl } from "./http-url.ts"
@@ -26,6 +27,14 @@ export const NO_PHONE_DOOR =
 
 export function isPhoneDoor(link: string | undefined): boolean {
   return Boolean(link && /\/auspex\/phone\.html/.test(link))
+}
+
+/** Show a path with the home folder as `~`, so pasted output does not name the user's account. */
+export function tildePath(file: string, home: string = homedir()): string {
+  if (!home || home === "/") return file
+  const root = home.replace(/\/+$/, "")
+  if (file === root) return "~"
+  return file.startsWith(`${root}/`) ? `~${file.slice(root.length)}` : file
 }
 
 export type ConnectOptions = {
@@ -397,7 +406,7 @@ export async function runConnect(
     out(outcome.headline)
     for (const line of outcome.detail) out(`  ${line}`)
     try {
-      out(`  Receipt: ${jobFilePath(job.jobId)}`)
+      out(`  Receipt: ${tildePath(jobFilePath(job.jobId))}`)
     } catch {
       // job id invalid only on early input failure; nothing to point at
     }
