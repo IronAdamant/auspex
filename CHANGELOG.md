@@ -2,9 +2,19 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.19 — 2026-09-30
+
+npm `auspex-solari@0.1.19` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+From an end-to-end trace of `connect` → `job` → `check --verify-with-profile`. Each fix has a test that fails on 0.1.18.
+
+- **A refused second browser is named for what it is.** When `--verify-with-profile` is refused (`weakSeed`, `emptySave`, or an IdP-only save), the words had matched, but `job` reported `mismatch` and `connect` told the human their words were not on the page. `job` now reports `weak-seed` (new), `empty-save`, or `idp-only-save` (with the IdP-only kind), and `connect` words each one.
+- **`connect` ignores an Enter typed before the login link appears.** A spare Enter at the words prompt was taken as Save the moment the link showed, before anyone had signed in.
+- **Replay redaction blanks one-time codes and value changes that arrive without a field type** (public `--record` replays only).
+
 ## 0.1.18 — 2026-09-30
 
-npm `auspex-solari@0.1.18` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.18`. Agents do not `npm publish`. Founder publishes this release.
 
 - **`reap` leaves another running command's browsers open.** The ledger records which process opened each session and when. `reap` (including a job's own reap after a 429) skips a browser or VM whose process is alive and that was opened less than 10 minutes ago, and lists it in `inUse`. A crashed command's sessions, anything older (a leak in a long-running MCP server), and entries from an older ledger are still released. `--session` / `--vm` always release the named id. Before, `reap` closed every ledger browser, including a parallel check's mid-run.
 
