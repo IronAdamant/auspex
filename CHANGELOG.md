@@ -2,9 +2,23 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.20 — 2026-09-30
+
+npm `auspex-solari@0.1.20` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+From a second wide review and two live `connect` runs (Lorari on 0.1.19, Clozemaster on this code). Each fix has a test.
+
+- **One stray line no longer shuts the MCP server down.** A line that was not JSON closed the stdio transport for good; it is now reported and skipped, like the MCP SDK's own transport. `Content-Length` framing errors still close the connection.
+- **`connect --save` reaches a waiting `connect` from either install.** A clone keeps its state inside the clone, so the phone's Save line (`npx auspex-solari connect --save`) could not reach a `connect` started from a clone. A waiting `connect` now leaves a pointer in `~/.auspex/save-drain`. `connect`'s own hint names the command for its install.
+- **The anonymous check reads page text only.** Words that appear only in the `<title>` (or an inert `<template>`) no longer count as seen. example.com's redesign keeps "Example Domain" only in its title; the first-run example now expects `documentation examples`.
+- **Nothing is kept from a page that redirects to loopback, link-local or cloud metadata**: no page text, a blank screenshot, no saved login. The anonymous check never fetches such an address.
+- **Lock races.** A save lock, or the editor/save owner lock, is no longer taken in the instant between its file being created and its PID being written.
+- **Replay redaction** blanks hidden form fields (sign-in flow tokens) and token-like link parameters; the committed demo replay is re-redacted and no longer carries a real name.
+- Docs: the anonymous check is an HTTP fetch of the page text (OCR only where Tesseract is installed, which Solari's base sandbox is not); live evidence cites Actions run 36638435165; the reviewer five-minute page is current.
+
 ## 0.1.19 — 2026-09-30
 
-npm `auspex-solari@0.1.19` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.19`. Agents do not `npm publish`. Founder publishes this release.
 
 From an end-to-end trace of `connect` → `job` → `check --verify-with-profile`. Each fix has a test that fails on 0.1.18.
 
