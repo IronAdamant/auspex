@@ -1,4 +1,5 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { randomBytes } from "node:crypto"
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { stateDirFor } from "./paths.ts"
 
@@ -180,7 +181,7 @@ export function operatorStatePath(root: string): string {
   return path.join(stateDirFor(root), "operator-session.json")
 }
 
-export function readOperatorState(root: string): OperatorState {
+export function readOperatorState(root: string, nowMs: number = Date.now()): OperatorState {
   const file = operatorStatePath(root)
   if (!existsSync(file)) return emptyOperatorState()
   try {
@@ -193,7 +194,9 @@ export function readOperatorState(root: string): OperatorState {
       const profile = cleanProfile(name)
       if (!profile || !raw || typeof raw !== "object") continue
       const row = raw as { site?: unknown; lastUsedMs?: unknown; busyUntilMs?: unknown; keep?: unknown }
-      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0
+      // A row with no readable clock counts as used now: an unreadable timestamp must never read as
+      // "idle since 1970", which would delete that saved login on this very command.
+      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : nowMs
       const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : undefined
       const busyUntilMs =
         typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : undefined
@@ -224,8 +227,11 @@ export function writeOperatorState(root: string, state: OperatorState): void {
       ...(row.keep === true ? { keep: true } : {}),
     }
   }
-  writeFileSync(file, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 0o600 })
-  chmodSync(file, 0o600)
+  // Temp file then rename: a torn read would parse as empty and the next write would drop every row.
+  const tmp = `${file}.${randomBytes(3).toString("hex")}.tmp`
+  writeFileSync(tmp, JSON.stringify({ profiles }, null, 2) + "\n", { mode: 0o600 })
+  chmodSync(tmp, 0o600)
+  renameSync(tmp, file)
 }
 
 /** Signup ends only when the wait stored cookies. Timeout and empty-save keep the busy window. */
@@ -362,7 +368,7 @@ export async function commitOperatorSession(opts: {
   /** false: skip idle wipes; only human-agreed voluntary purges run. Default true. */
   idleWipe?: boolean
 }): Promise<{ agent: OperatorAgentNotice; wiped: string[]; wipeFailed: WipeFailure[] }> {
-  let state = readOperatorState(opts.root)
+  let state = readOperatorState(opts.root, opts.nowMs)
   if (opts.note?.profile.trim()) state = noteOperatorUse(state, opts.note, opts.nowMs)
   const known = profilesFromState(state, opts.nowMs)
   const seen = new Set(known.map((row) => row.profile))

@@ -208,6 +208,27 @@ test("operator keep survives a write/read round trip", async () => {
   assert.equal(readOperatorState(root).profiles.kept!.keep, true)
 })
 
+test("an unreadable lastUsedMs never idle-wipes that saved login", async () => {
+  const { commitOperatorSession, operatorStatePath, OPERATOR_IDLE_MS } = await import("../src/operator-session.ts")
+  const { writeFileSync, mkdirSync } = await import("node:fs")
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-op-bad-"))
+  const file = operatorStatePath(root)
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFileSync(file, JSON.stringify({ profiles: { hand: { site: "app.example" }, old: { lastUsedMs: 0 } } }))
+  const wiped: string[] = []
+  const now = 10 * OPERATOR_IDLE_MS
+  await commitOperatorSession({
+    root,
+    nowMs: now,
+    applyWipes: async (names) => {
+      wiped.push(...names)
+      return [...names]
+    },
+  })
+  // A real old timestamp is still idle; a missing one is treated as used now.
+  assert.deepEqual(wiped, ["old"])
+})
+
 test("a profiles listing never idle-wipes; only a human-agreed purge does", async () => {
   const { commitOperatorSession, noteOperatorUse, emptyOperatorState, writeOperatorState, OPERATOR_IDLE_MS } = await import("../src/operator-session.ts")
   const root = mkdtempSync(path.join(tmpdir(), "auspex-list-"))
