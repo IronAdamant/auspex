@@ -39,12 +39,19 @@ function pidAlive(pid: number): boolean {
   }
 }
 
+/** How long a just-created lock file may go without its PID before it counts as abandoned. */
+const LOCK_WRITE_GRACE_MS = 10_000
+
 async function stealIfDead(lockPath: string): Promise<boolean> {
   try {
     const st1 = await stat(lockPath)
     const raw = await readFile(lockPath, "utf8")
-    const pid = Number((raw.split("\n")[0] ?? "").trim())
+    const pidText = (raw.split("\n")[0] ?? "").trim()
+    const pid = Number(pidText)
     if (pidAlive(pid)) return false
+    // The owner creates the file, then writes its PID. An empty or unreadable PID in a young file
+    // is a lock still being written, not a dead owner.
+    if (!/^\d+$/.test(pidText) && Date.now() - st1.mtimeMs < LOCK_WRITE_GRACE_MS) return false
     const st2 = await stat(lockPath)
     if (st1.ino !== st2.ino || st1.mtimeMs !== st2.mtimeMs || st1.size !== st2.size) {
       return false

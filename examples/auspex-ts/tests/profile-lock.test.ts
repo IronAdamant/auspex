@@ -53,3 +53,15 @@ test("withProfileLock steals a lock whose PID is dead", async () => {
   const value = await withProfileLock("stale", async () => "ok", { lockDir: dir })
   assert.equal(value, "ok")
 })
+
+test("withProfileLock does not steal a lock that is still being written", async () => {
+  const { utimesSync } = await import("node:fs")
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-lock-"))
+  // Another process has created the lock file but not yet written its PID.
+  writeFileSync(path.join(dir, "fresh.lock"), "")
+  await assert.rejects(() => withProfileLock("fresh", async () => "stolen", { lockDir: dir }), ProfileBusyError)
+  // An empty lock left behind long ago (a crash between create and write) is still stolen.
+  const old = new Date(Date.now() - 60_000)
+  utimesSync(path.join(dir, "fresh.lock"), old, old)
+  assert.equal(await withProfileLock("fresh", async () => "ok", { lockDir: dir }), "ok")
+})
