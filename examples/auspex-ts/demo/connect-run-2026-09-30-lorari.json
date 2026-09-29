@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "kind": "connect-run",
+  "date": "2026-09-30",
+  "package": "auspex-solari@0.1.19",
+  "note": "Live run of the published package from an empty folder (npx -y auspex-solari@0.1.19), driven by Claude Code as the agent: connect in the background, the human signs in on the phone door and taps Save, the agent runs `connect --save <profile>`. First real sign-in on the 0.1.16-0.1.19 fixes. A pass means ok true and claimOkProfile true from a second fresh Solari browser seeded only with the saved login; claimOk stays false on purpose (anonymous claim skipped). Redacted: no door links, tokens, session ids, cookie hosts, page text, or screenshots. Evidence, not the default recipe.",
+  "summary": {
+    "apps": 1,
+    "passed": 1,
+    "notConfirmed": []
+  },
+  "apps": [
+    {
+      "app": "Lorari",
+      "signIn": "Appwrite",
+      "url": "https://app.lorari.com/member/",
+      "expect": "Your Bookings",
+      "attempts": [
+        {
+          "result": "pass",
+          "ok": true,
+          "claimOk": false,
+          "anonymousClaimSkipped": true,
+          "claimOkProfile": true,
+          "seedShape": "cookie-strong",
+          "finalize": "skipped (save already cookie-strong)",
+          "sessionsLeft": 0
+        }
+      ]
+    }
+  ]
+}

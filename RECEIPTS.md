@@ -213,6 +213,16 @@ What the run changed in the code:
 - Bot checks are reported as `botWall`.
 - `connect` stops when Solari gives no phone door.
 
+## Published 0.1.19 on a real sign-in (2026-09-30)
+
+Receipt: [`connect-run-2026-09-30-lorari.json`](examples/auspex-ts/demo/connect-run-2026-09-30-lorari.json). After a day of bug fixes (0.1.16 to 0.1.19), the published package ran from an empty folder (`npx -y auspex-solari@0.1.19 connect https://app.lorari.com/member/ --expect "Your Bookings"`), with Claude Code as the agent. A human signed in on the phone door and tapped Save; the agent ran `connect --save app-lorari-com`.
+
+```
+✓ Logged in to app.lorari.com. A second browser, using only the saved login, saw "Your Bookings".
+```
+
+`ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`**. The save was cookie-strong, so finalize was skipped. No sessions were left open.
+
 ## Important Notes
 
 ### Marketing Summary vs. Schema v1

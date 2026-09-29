@@ -260,3 +260,23 @@ test("connect-run receipt is redacted and does not count Canva as a pass", () =>
   const canva = run.apps.find((a) => a.app === "Canva")
   assert.equal(canva?.attempts.some((a) => a.result === "pass"), false)
 })
+
+test("published 0.1.19 connect run receipt is redacted and every pass holds the triad", () => {
+  const raw = readFileSync(path.join(demo, "connect-run-2026-09-30-lorari.json"), "utf8")
+  for (const secret of ["phone.html", "#v=", "sessionId", "slr_live", "cookieHosts", "eyJ", "runDir", "/Users/"]) {
+    assert.equal(raw.includes(secret), false, `connect-run must not contain ${secret}`)
+  }
+  const run = JSON.parse(raw) as {
+    package: string
+    summary: { apps: number; passed: number }
+    apps: Array<{ attempts: Array<{ result: string; ok: boolean; claimOk?: boolean; claimOkProfile?: boolean }> }>
+  }
+  assert.equal(run.package, "auspex-solari@0.1.19")
+  assert.equal(run.summary.passed, run.summary.apps)
+  for (const attempt of run.apps.flatMap((a) => a.attempts)) {
+    assert.equal(attempt.result, "pass")
+    assert.equal(attempt.ok, true)
+    assert.equal(attempt.claimOk, false)
+    assert.equal(attempt.claimOkProfile, true)
+  }
+})
