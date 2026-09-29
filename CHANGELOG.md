@@ -2,9 +2,19 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.17 — 2026-09-30
+
+npm `auspex-solari@0.1.17` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Second pass of the review. Each fix has a test.
+
+- **`claimOkProfile` is never true on a sign-in page.** The second browser used to match text only, so a dead saved login that bounced to `/login` (or a Microsoft or Google sign-in host) could pass the reuse gate if the words were on that page. It now fails closed there, as `check` already did.
+- **`--fill` refuses a shown password and a one-time-code box.** Besides `type=password`, a field marked `autocomplete` `current-password`, `new-password` or `one-time-code` is refused.
+- **A Microsoft account tile that will not click no longer fails `finalize-login`** with a raw timeout; the page is probed and the receipt says what it shows, as with Google.
+
 ## 0.1.16 — 2026-09-30
 
-npm `auspex-solari@0.1.16` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.16`. Agents do not `npm publish`. Founder publishes this release.
 
 Fixes from a wide review. Each has a test that fails on 0.1.15.
 
