@@ -62,7 +62,9 @@ Worth knowing before pointing it at your own app: opening a logged-in page still
 
 Auspex gives you a link to its login page. Open it on your phone or computer: it shows the cloud browser, and the typing box at the bottom opens your phone keyboard. Sign in to the site as usual, wait for the app to load, then **tap Save** and tell your AI agent "saved" (or paste the short line it copies). The agent does the rest.
 
-![The phone login page: the cloud browser, a countdown, and a typing box](examples/auspex-ts/demo/door-phone.gif)
+<a href="https://ironadamant.com/auspex/video/auspex-phone-door.mp4"><img src="docs/video/auspex-phone-door.jpg" alt="Watch: typing on the phone login page (14 seconds)" width="300"></a>
+
+*14 seconds on a real phone: typing in the box at the bottom drives the cloud browser above it. (Recorded on an earlier version of the page.)*
 
 The sign-in window lasts about five minutes (Solari's limit), so save as soon as the app appears. The saved login lasts much longer. Your password goes only to the cloud browser and the site, never to the agent, the chat, or ironadamant.com.
 
