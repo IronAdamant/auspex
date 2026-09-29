@@ -100,6 +100,7 @@ test("exhaustion without status is SolariSdkExhausted and not a login failure", 
   assert.match(issue.recovery ?? "", /not loggedOut or needsHuman/)
   assert.equal(issue.message.includes("loggedOut"), false)
   assert.equal(issue.message.includes("needsHuman"), false)
+  assert.match(issue.message, /exhausted retries on POST \/sessions and stripped/)
   const payload = solariFailurePayload(err)
   assert.equal(payload.ok, false)
   assert.equal(payload.code, "SolariSdkExhausted")

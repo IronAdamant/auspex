@@ -5,6 +5,7 @@ import {
   type CaptureEditorFoldOpts,
   type EditorFoldResult,
 } from "./editor-fold.ts"
+import { AuspexError, classifySolariError } from "./errors.ts"
 import { ProfileBusyError, withProfileLock } from "./profile-lock.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { createClient } from "./solari.ts"
@@ -510,6 +511,48 @@ export async function persistProfileState(opts: {
   }
 }
 
+/** Pause before the one retry of a jar read that failed after editor/save 200. */
+export const JAR_READ_RETRY_MS = 5_000
+
+/**
+ * editor/save already returned 200, so Solari holds the Save. A Solari hiccup on the jar read
+ * after that is not a failed login: wait once, read once more. A second miss still keeps the
+ * 200 in the error and says not to remint.
+ */
+export async function readJarAfterSave<T>(
+  read: () => Promise<T>,
+  name: string,
+  onProgress?: (phase: string) => void,
+  retryMs = JAR_READ_RETRY_MS,
+): Promise<T> {
+  try {
+    return await read()
+  } catch (first) {
+    if (first instanceof ProfileBusyError) throw first
+    onProgress?.(`await: editor/save 200, but the jar read failed. One retry in ${Math.round(retryMs / 1000)} s.`)
+    await new Promise((r) => setTimeout(r, retryMs))
+    try {
+      return await read()
+    } catch (second) {
+      if (second instanceof ProfileBusyError) throw second
+      const issue = classifySolariError(second)
+      throw new AuspexError(
+        `Solari editor/save returned 200, so the Save is held on Solari. Reading the saved login back failed twice: ${issue.message}`,
+        {
+          issue: {
+            code: "JarReadAfterSave",
+            retryable: false,
+            ...(issue.status !== undefined ? { status: issue.status } : {}),
+            ...(issue.solariBlame ? { solariBlame: issue.solariBlame } : {}),
+            recovery: `Do not remint and do not tap Save again. Run profile-status --profile ${name} with the app URL and expect, then take the door-table row it returns.`,
+          },
+          cause: second,
+        },
+      )
+    }
+  }
+}
+
 export async function inspectProfileSeed(
   solari: Solari,
   profileId: string,
@@ -965,7 +1008,7 @@ export async function liveAwaitLogin(
         editorSave?.ok === false &&
         typeof editorSave.status === "number" &&
         editorSave.status >= 400)
-    const waited = await waitForProfileSave(name, {
+    const readJar = () => waitForProfileSave(name, {
       sinceVersion: opts.sinceVersion ?? handle?.sinceVersion,
       timeoutMs: profileSaveWaitTimeoutMs({
         timeoutMs: opts.timeoutMs,
@@ -993,6 +1036,7 @@ export async function liveAwaitLogin(
         inspect: bindInspectProfileSeed(inspectProfileSeed, solari, opts.authKeyNames),
       },
     })
+    const waited = editorSave?.ok === true ? await readJarAfterSave(readJar, name, onProgress) : await readJar()
     if (waited.status === "stream-expired") streamExpired = true
     let steered = waited
     const host = await import("./live-host-change.ts")

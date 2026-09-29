@@ -126,10 +126,16 @@ function infraExhaustedIssue(status: number): SolariIssue {
   }
 }
 
-function unknownExhaustedIssue(): SolariIssue {
+/** The SDK names the call it gave up on ("Solari POST /sessions: exhausted 3 attempts"). Keep that name. */
+export function exhaustedCallName(text: string): string | undefined {
+  const m = text.match(/Solari\s+(GET|POST|PUT|PATCH|DELETE)\s+(\/[^\s:?#]*)/i)
+  return m ? `${m[1]!.toUpperCase()} ${m[2]}` : undefined
+}
+
+function unknownExhaustedIssue(call?: string): SolariIssue {
   return {
     message: redactSecrets(
-      "Solari SDK exhausted retries and stripped the HTTP status (cookbook #56).",
+      `Solari SDK exhausted retries${call ? ` on ${call}` : ""} and stripped the HTTP status (cookbook #56).`,
     ),
     code: "SolariSdkExhausted",
     retryable: false,
@@ -250,7 +256,7 @@ export function classifySolariError(err: unknown): SolariIssue {
         }
       }
       if (status === 502 || status === 503 || status === 504) return infraExhaustedIssue(status)
-      return unknownExhaustedIssue()
+      return unknownExhaustedIssue(exhaustedCallName(text))
     }
     return {
       message: redactSecrets(err.message),

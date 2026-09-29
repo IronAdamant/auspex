@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { SolariError } from "@solarisdk/browser"
+import { AuspexError } from "../src/errors.ts"
 import { pageForSession, toPlaywrightStorageState } from "../src/solari.ts"
 import {
   AWAIT_LOGIN_DEFAULT_MS,
@@ -7,6 +9,7 @@ import {
   EMPTY_ORIGIN_SAVE_ERROR,
   EMPTY_PROFILE_SAVE_ERROR,
   bindInspectProfileSeed,
+  readJarAfterSave,
   clampAwaitLoginTimeoutMs,
   inspectOriginForAwait,
   isWeakSeed,
@@ -697,4 +700,48 @@ test("runPublicChecks skips without a key and fails closed on a miss", async () 
   assert.equal(ran.results[0]?.matched, true)
   assert.equal(ran.results[1]?.matched, false)
   assert.equal(publicCheckExitCode(ran), 1)
+})
+
+test("readJarAfterSave retries a jar read once after editor/save 200", async () => {
+  let calls = 0
+  const lines: string[] = []
+  const got = await readJarAfterSave(
+    async () => {
+      calls++
+      if (calls === 1) throw new SolariError("Solari POST /sessions: exhausted 3 attempts")
+      return "jar"
+    },
+    "consistencyhub",
+    (line) => lines.push(line),
+    0,
+  )
+  assert.equal(got, "jar")
+  assert.equal(calls, 2)
+  assert.match(lines[0] ?? "", /editor\/save 200/)
+})
+
+test("readJarAfterSave keeps the 200 and never says remint after a second miss", async () => {
+  let calls = 0
+  await assert.rejects(
+    readJarAfterSave(
+      async () => {
+        calls++
+        throw new SolariError("Solari POST /sessions: exhausted 3 attempts")
+      },
+      "consistencyhub",
+      undefined,
+      0,
+    ),
+    (err: unknown) => {
+      assert.ok(err instanceof AuspexError)
+      assert.equal(err.issue.code, "JarReadAfterSave")
+      assert.equal(err.issue.nextCall, undefined)
+      assert.match(err.message, /editor\/save returned 200/)
+      assert.match(err.message, /POST \/sessions/)
+      assert.match(err.issue.recovery ?? "", /Do not remint/)
+      assert.match(err.issue.recovery ?? "", /profile-status --profile consistencyhub/)
+      return true
+    },
+  )
+  assert.equal(calls, 2)
 })
