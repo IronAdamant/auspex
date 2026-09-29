@@ -14,7 +14,7 @@ AI agents can say "the dashboard loaded" when the page is really still a login s
 
 1. **Opens the website in a separate browser in the cloud** (run by [Solari](https://getsolari.com)), not on your computer.
 2. **Looks for the exact words you expect** on the page, and keeps a screenshot and a record of what it found (a "receipt").
-3. **Checks a second time with a second browser**, so one lucky look is not enough.
+3. **Can check a second time with a second browser**, so one lucky look is not enough. A public page gets that second look by default. For a logged-in page you ask for it (`--verify-with-profile`); `connect` always does.
 4. **For sites that need a login, you sign in once yourself**, on a simple web page that works on your phone or computer. The AI never sees your password. A fresh browser then proves the saved login really works before Auspex calls it reusable.
 
 Auspex never types passwords and never records a logged-in session. It does not claim to spot the wrong account (Alice-vs-Bob): a saved login can belong to the wrong person and still show the words you asked for.
@@ -71,7 +71,7 @@ The sign-in window lasts about five minutes (Solari's limit), so save as soon as
 ## Two truths about Save
 
 1. **A saved login is ready to reuse only when a later check proves it.** A second fresh browser opens the app with the saved login and sees your words.
-2. **What is on screen can be ahead of what was saved.** Some apps (especially Microsoft sign-in) show the app while Save captured only the sign-in provider's part. Auspex says so instead of pretending, and the fix is one extra step, not a new login.
+2. **What is on screen can be ahead of what was saved.** Some apps (especially Microsoft sign-in) show the app before Save has all of the login. When only the app's own session is missing, one extra step captures it (that was ConsistencyHub). When Save holds only the Microsoft or Google sign-in, there is no extra step: Auspex stops and says so instead of pretending.
 
 ## What one check can do
 
