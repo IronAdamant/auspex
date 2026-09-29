@@ -290,7 +290,7 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361) (Mon 2026-09-21 schedule) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165) (2026-09-29, `workflow_dispatch`) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`; the same run's daily `live` job also passed the example.com check and the published-package smoke. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
 
 ## Fail-closed: hostChanged
 

@@ -27,7 +27,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Logged-in evidence:** the redacted receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json), and the live test of real apps [below](#tested-on-live-apps).
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
-- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [35605123361](https://github.com/IronAdamant/auspex/actions/runs/35605123361): `ok: true`). Every push also installs the packed package and runs it end to end.
+- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165): `ok: true`). Every push also installs the packed package and runs it end to end.
 
 ## Three answers on every receipt
 
