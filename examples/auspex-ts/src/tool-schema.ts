@@ -167,7 +167,7 @@ export const auspexCheckInputObject = z.object({
     .boolean()
     .optional()
     .describe(
-      "Anonymous sandbox verify (HTTP fetch + OCR). Default true except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (anonymous fetch cannot see auth-gated UI). Public marketing still verifies with a leftover profile. No profile still verifies. Pass true / --verify to force anonymous verify — that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
+      "Anonymous sandbox verify (HTTP fetch of the page text; OCR only where Tesseract is installed). Default true except name=consistencyhub, profile=consistencyhub, or an attached profile on a non-public-marketing URL (anonymous fetch cannot see auth-gated UI). Public marketing still verifies with a leftover profile. No profile still verifies. Pass true / --verify to force anonymous verify — that poisons ok on auth-gated pages (claimOk false). Not the same as verifyWithProfile. Pass false / --no-verify to skip. Do not also call auspex_verify when this runs.",
     ),
   verifyWithProfile: z
     .boolean()

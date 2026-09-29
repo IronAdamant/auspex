@@ -23,7 +23,7 @@ Do not invent that any host works without dogfood. The generic path is the recip
 Three distinct booleans in the receipt, each telling you something different:
 
 - **`ok`** — Agent success: did the live browser match **and** did verify pass (when it ran)?
-- **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch + OCR see the expect string?
+- **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch of the page text see the expect string? (OCR of the screenshot is added only where Tesseract is installed; Solari's base sandbox does not have it.)
 - **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a second Solari browser with the profile see the expect string in page text?
 
 **For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
@@ -156,7 +156,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 **Result:** ✅ Claim matched. Profile-seeded sandbox verify passed (`ok=true`, `claimOkProfile=true`).
 
-**Auth-gated SaaS pages** require `--verify-with-profile` to run profile-seeded claim verification. Anonymous verify cannot see logged-in UI (would fail with `claimOk=false` and login-page OCR). The blur proves the page is not blank; the schema-v1 triad proves the verification signals remain honest.
+**Auth-gated SaaS pages** require `--verify-with-profile` to run profile-seeded claim verification. Anonymous verify cannot see logged-in UI (would fail with `claimOk=false`). The blur proves the page is not blank; the schema-v1 triad proves the verification signals remain honest.
 
 ## Redacted OneDrive receipt (same Microsoft seed)
 
@@ -260,13 +260,13 @@ For golden examples of actual schema v1 receipts, see the committed receipts in 
 
 Auspex defaults to **anonymous sandbox verification** for public marketing pages (`--verify` is default, not `--no-verify`). **`name=consistencyhub`**, **`profile=consistencyhub`**, or **any attached profile on a non-public-marketing URL** defaults to **no** sandbox. Public marketing still verifies with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is anonymous and will poison `ok`. `--verify-with-profile` is the dogfood claim recheck. Here's how anonymous verify works when it runs:
 
-1. Re-fetches the target URL via HTTP (no cookies/auth)
-2. OCRs the committed PNG
-3. Confirms the expect string appears in both
-4. Writes `verify.claimOk: true` and `verify.ok: true`
+1. Re-fetches the target URL over HTTP (no cookies/auth) and reads the page text (not the tab title, scripts, or styles)
+2. Also OCRs the screenshot when Tesseract is installed. Solari's base sandbox does not have it, so in practice the fetch decides.
+3. Passes when either finds the expect string (the same case-sensitive, word-bounded match as the live check)
+4. Writes `verify.claimOk` and, from the screenshot and URL integrity checks, `verify.ok`
 5. Tears down the VM
 
-This is **claim verification**, not just echo — the sandbox independently checks the expect string against live HTTP and OCR, rather than parroting the browser session's `matched` value.
+This is **claim verification**, not just echo — the sandbox independently fetches the page and checks the expect string, rather than parroting the browser session's `matched` value.
 
 ### Anonymous vs. Profile-Seeded Verify
 

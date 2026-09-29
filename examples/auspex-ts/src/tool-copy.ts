@@ -17,7 +17,7 @@ export const CHECK_DESCRIPTION =
   "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. " +
   "Live Solari check + schema v1 receipt (schemaVersion 1 is frozen; required schemaVersion, ok, " +
   "reason matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged|stream-expired, " +
-  "url, expect, screenshotPath). Default verify is HTTP fetch + OCR except name=consistencyhub / " +
+  "url, expect, screenshotPath). Default verify is an anonymous HTTP fetch of the page text except name=consistencyhub / " +
   "profile=consistencyhub / attached profile on a non-public-marketing URL (defaults to verify=false). " +
   "verify=true is anonymous and poisons ok on auth-gated pages. verifyWithProfile adds claimOkProfile " +
   "(reuse gate — ok is not enough to treat the profile as reusable). They are not equivalent. " +
@@ -31,7 +31,7 @@ export const CHECK_DESCRIPTION =
 
 export const VERIFY_DESCRIPTION =
   "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. " +
-  "Only after auspex_check with verify=false: sandbox integrity ok vs claim claimOk (fetch/OCR, not JSON echo). " +
+  "Only after auspex_check with verify=false: sandbox integrity ok vs claim claimOk (an independent fetch, not JSON echo). " +
   "429: auspex_reap first. " +
   DOOR
 

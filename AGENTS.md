@@ -71,7 +71,7 @@ Three primitives: browser check, sandbox verify, named sandbox desktop demo. Log
 Each receipt keeps three answers apart:
 
 - **`ok`** — agent success: the live browser matched **and** the second check passed when it ran.
-- **`verify.claimOk`** — an anonymous second machine (HTTP fetch + OCR, no saved login) saw the words.
+- **`verify.claimOk`** — an anonymous second machine (a fresh HTTP fetch of the page text, no saved login) saw the words.
 - **`verify.claimOkProfile`** — a second fresh Solari browser, seeded only with the saved login, saw the words.
 
 **`ok` ≠ `claimOk` ≠ `claimOkProfile`.** After `--verify-with-profile`, `claimOkProfile` is the reuse gate: `ok` alone is not enough to treat the profile as reusable. Do not invent `claimOkProfile=true`, and do not fold `claimOkProfile` into `ok`.
