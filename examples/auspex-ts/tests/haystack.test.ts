@@ -284,3 +284,17 @@ test("landedOnForbiddenHost flags a redirect to loopback, link-local or metadata
   assert.match(src, /page\.goto\("about:blank"/)
   assert.match(src, /!needsHuman && !forbiddenLanding\) \{/)
 })
+
+test("installInfo names the install, its state folder and its command, never the account", async () => {
+  const { installInfo } = await import("../src/paths.ts")
+  const clone = installInfo({}, "/Users/someone/code/auspex/examples/auspex-ts", "/Users/someone")
+  assert.equal(clone.install, "clone")
+  assert.equal(clone.command, "npx auspex")
+  const npm = installInfo({}, "/Users/someone/.npm/_npx/abc/node_modules/auspex-solari/examples/auspex-ts", "/Users/someone")
+  assert.equal(npm.install, "npm")
+  assert.equal(npm.command, "npx auspex-solari")
+  assert.equal(installInfo({ AUSPEX_HOME: "/tmp/x" }, "/any").install, "AUSPEX_HOME")
+  assert.equal(clone.stateDir, "~/code/auspex/examples/auspex-ts/.auspex")
+  assert.equal(npm.stateDir, "~/.auspex")
+  for (const info of [clone, npm]) assert.equal(info.stateDir.includes("someone"), false, info.stateDir)
+})

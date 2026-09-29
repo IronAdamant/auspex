@@ -4,6 +4,7 @@
  * This command does not POST /sessions, so it does not mint, and it does not
  * say the app is logged in. profile-status is that jar probe.
  */
+import { installInfo } from "./paths.ts"
 import { Solari, SolariError, type SolariOptions } from "@solarisdk/browser"
 import { AuspexError, classifySolariError, redactSecrets, type SolariBlame, type SolariIssue } from "./errors.ts"
 import { reapNextCall, type NextCall } from "./next-call.ts"
@@ -52,6 +53,10 @@ export type SolariHealthReceipt = {
   solariBlame?: SolariBlame
   nextCall?: NextCall
   error?: string
+  /** npm, clone or AUSPEX_HOME; where local state lives; and the shell command for this install. */
+  install?: string
+  stateDir?: string
+  command?: string
 }
 
 export type SolariHealthResponse = {
@@ -281,8 +286,8 @@ export async function solariHealth(
       })
     }
     const receipt = baseReceipt("reachable", true, elapsed())
-    return stampSchema({ ...receipt, profileCount: count })
+    return stampSchema({ ...receipt, profileCount: count, ...installInfo() })
   } catch (err) {
-    return stampSchema(healthReceiptFromError(err, elapsed()))
+    return stampSchema({ ...healthReceiptFromError(err, elapsed()), ...installInfo() })
   }
 }

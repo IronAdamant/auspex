@@ -28,6 +28,22 @@ export function resolveStateDir(
 
 export const stateDir = resolveStateDir()
 
+/**
+ * Which install this is and where its state lives, so an agent can see its environment instead of
+ * assuming it. stateDir is a display path (`~/…` or relative), never the account name.
+ */
+export function installInfo(
+  env: NodeJS.ProcessEnv = process.env,
+  root: string = packageRoot,
+  home: string = homedir(),
+): { install: "npm" | "clone" | "AUSPEX_HOME"; stateDir: string; command: string } {
+  const install = env.AUSPEX_HOME?.trim() ? "AUSPEX_HOME" : root.split(path.sep).includes("node_modules") ? "npm" : "clone"
+  // A full path (a clone's .auspex is not in the current folder), with the home folder as ~.
+  const abs = resolveStateDir({ ...env, NODE_TEST_CONTEXT: "" }, root, home)
+  const inHome = inside(home, abs)
+  return { install, stateDir: inHome ? `~/${inHome.replaceAll("\\", "/")}` : abs, command: cliCommand(root) }
+}
+
 /** How to run this install from a shell: npm (`npx auspex-solari`) or a clone (`npx auspex`). */
 export function cliCommand(root: string = packageRoot): string {
   return root.split(path.sep).includes("node_modules") ? "npx auspex-solari" : "npx auspex"

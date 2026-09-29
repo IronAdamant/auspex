@@ -73,6 +73,7 @@ export const PROFILES_DESCRIPTION =
   DOOR
 
 export const SOLARI_HEALTH_DESCRIPTION =
+  "Also reports install (npm, clone or AUSPEX_HOME), stateDir (where jobs, receipts and the Save folder live) and command (npx auspex-solari or npx auspex). " +
   "Treating auspex_solari_health as a logged-in app, or as profile-status, is a lie. " +
   "Preflight: is Solari reachable with this key right now. " +
   "GET /profiles (one attempt, 8s cap). ok true means the key was accepted and a profile list came back. " +
