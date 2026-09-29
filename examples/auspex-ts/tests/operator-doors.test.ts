@@ -908,20 +908,8 @@ test("phone door fits the picture and does not keep resizing the remote", () => 
   assert.ok(clients[0])
   assert.equal(clients[0].rfb.scaleViewport, true)
   assert.equal(clients[0].rfb.resizeSession, false)
-  // Faster preset by default (a far or mobile link); the Sharper box switches live.
-  assert.equal(clients[0].rfb.qualityLevel, 2)
-  assert.equal(clients[0].rfb.compressionLevel, 9)
-  const sharp = loaded.byId.get("sharp")
-  assert.ok(sharp, "Sharper picture box")
-  assert.equal(sharp.checked, false)
-  sharp.checked = true
-  emit(sharp, "change")
-  assert.equal(clients[0].rfb.qualityLevel, 6, "Sharper switches the live stream")
-  assert.equal(clients[0].rfb.compressionLevel, 2)
-  sharp.checked = false
-  emit(sharp, "change")
-  assert.equal(clients[0].rfb.qualityLevel, 2, "unticking returns to Faster")
-  assert.equal(clients[0].rfb.compressionLevel, 9)
+  assert.equal(clients[0].rfb.qualityLevel, 4)
+  assert.equal(clients[0].rfb.compressionLevel, 6)
   assert.match(readDoor("phone.html"), /touch-action: manipulation/)
   assert.match(readDoor("phone.html"), /stays still while you tap/)
   assert.equal(loaded.byId.get("ime")?.disabled, false)

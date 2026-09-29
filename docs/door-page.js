@@ -120,7 +120,6 @@
     var enter = document.getElementById("enter")
     var bullets = document.getElementById("bullets")
     var otpMode = document.getElementById("otpMode")
-    var sharp = document.getElementById("sharp")
     var imeUser = document.getElementById("imeUser")
     var imeForm = document.getElementById("imeForm")
     var rfb = null
@@ -151,9 +150,6 @@
         return "current-password"
       },
       imeInputType: function (bulletsOn) { return bulletsOn ? "password" : "text" },
-    }
-    function streamMode() {
-      return typeof Door.doorStreamMode === "function" ? Door.doorStreamMode(Boolean(sharp && sharp.checked)) : "fast"
     }
 
     function setStatus(text, err) {
@@ -457,11 +453,6 @@
         if (ime && !ime.disabled) ime.focus()
       })
     }
-    if (sharp) {
-      sharp.addEventListener("change", function () {
-        if (rfb && typeof Door.applyDoorQuality === "function") Door.applyDoorQuality(rfb, streamMode())
-      })
-    }
     if (otpMode) {
       otpMode.addEventListener("change", function () {
         if (locked) return
@@ -601,7 +592,7 @@
     function openRfb() {
       try {
         rfb = new RFB(screen, ws)
-        if (typeof Door.applyDoorView === "function") Door.applyDoorView(rfb, streamMode())
+        if (typeof Door.applyDoorView === "function") Door.applyDoorView(rfb)
         else {
           rfb.scaleViewport = true
           rfb.resizeSession = false
