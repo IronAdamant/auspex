@@ -10,6 +10,7 @@ import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY }
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
+import { shouldFailClosedAuth } from "./sso.ts"
 import { excerptOf, fenceExcerpt, haystackMatches, maskSecrets, stripDigitRuns } from "./text.ts"
 import { refuseVerifyWithProfile } from "./vwp-refuse.ts"
 
@@ -125,6 +126,36 @@ export function defaultVerifyDeps(): VerifyDeps {
   }
 }
 
+/**
+ * claimOkProfile verdict. As strict as check: a saved-login browser that ends on a sign-in page
+ * (/login, /auth, or a Microsoft or Google sign-in host) is not a confirmed login, even when the
+ * expect text is on that page.
+ */
+export function profileClaimVerdict(opts: { raw: string; expect: string; landedUrl: string }): {
+  claimOk: boolean
+  claimErrors: string[]
+} {
+  let onSignIn = false
+  try {
+    onSignIn = shouldFailClosedAuth(new URL(opts.landedUrl), { profile: "saved" })
+  } catch {
+    onSignIn = false
+  }
+  if (onSignIn) {
+    return {
+      claimOk: false,
+      claimErrors: [`profile-seeded check landed on a sign-in page (${new URL(opts.landedUrl).origin}${new URL(opts.landedUrl).pathname}); the saved login did not open the app`],
+    }
+  }
+  const matched = haystackMatches(opts.raw, opts.expect)
+  const errors = matched ? [] : ["profile-seeded check: page text does not contain expect"]
+  if (!matched && opts.raw.trim()) {
+    // Logged-in page text: short, fenced as untrusted, digit runs stripped (ids, OTPs, account numbers).
+    errors.push(`sampled: ${fenceExcerpt(stripDigitRuns(excerptOf(maskSecrets(opts.raw), 160)))}`)
+  }
+  return { claimOk: matched, claimErrors: errors }
+}
+
 /** Fresh POST /sessions from the saved profile. Does not touch the handoff editor or its JWT. */
 export async function defaultProfileClaimCheck(opts: {
   finalUrl: string
@@ -178,20 +209,11 @@ export async function defaultProfileClaimCheck(opts: {
         if (haystackMatches(raw, opts.expect)) break
       }
     }
-    const matched = haystackMatches(raw, opts.expect)
+    const verdict = profileClaimVerdict({ raw, expect: opts.expect, landedUrl: page.url() })
     closer.skip()
     await closer.release()
     await forgetLive("browser", sessionId).catch(() => undefined)
-    const errors = matched ? [] : ["profile-seeded check: page text does not contain expect"]
-    if (!matched && raw.trim()) {
-      // Logged-in page text: short, fenced as untrusted, digit runs stripped (ids, OTPs, account numbers).
-      errors.push(`sampled: ${fenceExcerpt(stripDigitRuns(excerptOf(maskSecrets(raw), 160)))}`)
-    }
-    return {
-      claimOk: matched,
-      claimErrors: errors,
-      sessionId,
-    }
+    return { ...verdict, sessionId }
   } catch (err) {
     try {
       closer.skip()

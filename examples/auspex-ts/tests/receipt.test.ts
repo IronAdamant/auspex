@@ -669,3 +669,23 @@ test("verifyReceipt passes the verify-race signal into profileClaimCheck", async
   assert.equal(result.ok, true)
   assert.equal(result.anonymousClaimSkipped, true)
 })
+
+test("profileClaimVerdict: a sign-in page never confirms the saved login, even with the words on it", async () => {
+  const { profileClaimVerdict } = await import("../src/sandbox.ts")
+  const words = "Welcome back to Workspace ready"
+  assert.equal(profileClaimVerdict({ raw: words, expect: "Workspace ready", landedUrl: "https://app.example/dash" }).claimOk, true)
+  for (const landedUrl of [
+    "https://app.example/login?next=/dash",
+    "https://app.example/auth/callback",
+    "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+    "https://accounts.google.com/o/oauth2/v2/auth",
+  ]) {
+    const v = profileClaimVerdict({ raw: words, expect: "Workspace ready", landedUrl })
+    assert.equal(v.claimOk, false, landedUrl)
+    assert.match(v.claimErrors[0] ?? "", /sign-in page/)
+    assert.equal((v.claimErrors[0] ?? "").includes("next="), false)
+  }
+  const miss = profileClaimVerdict({ raw: "Something else", expect: "Workspace ready", landedUrl: "https://app.example/dash" })
+  assert.equal(miss.claimOk, false)
+  assert.match(miss.claimErrors[0] ?? "", /does not contain expect/)
+})
