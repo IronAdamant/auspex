@@ -54,6 +54,8 @@ export type VerifyResult = {
   skipReason?: string
   /** Set when verify-with-profile was refused before a claim session. */
   vwpRefused?: "weakSeed" | "emptySave" | "dead-fold"
+  /** With vwpRefused dead-fold: which IdP-only shape it was. */
+  vwpIdpOnlyKind?: "sign-in-wall" | "app-visible"
 }
 
 export type SandboxHandle = {
@@ -490,6 +492,7 @@ export async function checkThenVerify(
         claimOkProfile: false,
         claimErrorsProfile: [ban.next],
         vwpRefused: ban.kind,
+        ...(ban.idpOnlyKind ? { vwpIdpOnlyKind: ban.idpOnlyKind } : {}),
       }
       const refused = { ...check, ok: false, protocolOk: false, next: ban.next, nextCall: ban.nextCall }
       await persistAgentManifest(refused, { verify }).catch(() => undefined)

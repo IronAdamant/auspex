@@ -10,6 +10,8 @@ export type VwpRefuse = {
   kind: VwpRefuseKind
   next: string
   nextCall?: NextCall
+  /** dead-fold only: app on screen (app-visible) or still on the sign-in page (sign-in-wall). */
+  idpOnlyKind?: "sign-in-wall" | "app-visible"
 }
 
 /**
@@ -49,6 +51,7 @@ export function refuseVerifyWithProfile(opts: {
       kind: "dead-fold",
       next: `verify-with-profile refused: ${guide.text} Save is not sessionStorage.`,
       nextCall: guide.nextCall,
+      idpOnlyKind: guide.idpOnlyKind,
     }
   }
   if (

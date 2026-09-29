@@ -46,6 +46,8 @@ export type JobStatus =
   | "concurrency-limited"
   | "mismatch"
   | "network"
+  /** verify-with-profile refused: the save has cookies but not the app's session storage. */
+  | "weak-seed"
 
 export type JobHandoff = { url?: string; mobileUrl?: string }
 

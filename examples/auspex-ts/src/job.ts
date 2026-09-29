@@ -195,9 +195,22 @@ function applyFailClosedReceipt(record: JobRecord, receipt: AgentReceipt): boole
   return false
 }
 
+/** verify-with-profile refused before a second browser ran: the save is the problem, not the words. */
+const VWP_REFUSED_STATUS = { weakSeed: "weak-seed", emptySave: "empty-save", "dead-fold": "idp-only-save" } as const
+
 function applyCheckOutcome(record: JobRecord, receipt: AgentReceipt): JobRecord {
   if (applyFailClosedReceipt(record, receipt)) return record
   copyReceiptMeta(record, receipt)
+  const verifyRow = receipt.verify as { vwpRefused?: keyof typeof VWP_REFUSED_STATUS; vwpIdpOnlyKind?: JobRecord["idpOnlyKind"] } | undefined
+  const refused = verifyRow?.vwpRefused
+  if (refused && refused in VWP_REFUSED_STATUS) {
+    record.phase = "failed"
+    record.status = VWP_REFUSED_STATUS[refused]
+    record.ok = false
+    record.claimOkProfile = false
+    if (refused === "dead-fold" && verifyRow?.vwpIdpOnlyKind) record.idpOnlyKind = verifyRow.vwpIdpOnlyKind
+    return record
+  }
   const claim = receipt.verify?.claimOkProfile
   if (claim !== undefined) record.claimOkProfile = claim
   record.ok = receipt.ok === true && receipt.reason === "matched"

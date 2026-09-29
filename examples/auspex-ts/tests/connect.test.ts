@@ -507,3 +507,60 @@ test("tildePath hides the account folder in printed paths", async () => {
   assert.equal(tildePath("/tmp/job.json", "/Users/alice"), "/tmp/job.json")
   assert.equal(tildePath("/x/y", "/"), "/x/y")
 })
+
+test("a refused second browser is named for what it is, never 'your words were not on the page'", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "auspex-vwp-"))
+  const cases = [
+    { kind: "weakSeed", status: "weak-seed" },
+    { kind: "emptySave", status: "empty-save" },
+    { kind: "dead-fold", status: "idp-only-save" },
+  ] as const
+  for (const c of cases) {
+    const done = await runJob(
+      { url: "https://app.example/dash", expect: "Workspace ready", wait: true, verifyWithProfile: true },
+      {
+        jobsDir: dir,
+        login: async () => ({
+          profileId: "p1",
+          name: "app-example",
+          consoleUrl: "https://console.getsolari.com/profiles",
+          next: "Open handoff.url",
+          sinceVersion: 3,
+          handoff: { url: DOOR, mobileUrl: DOOR },
+        }) as LoginResult,
+        awaitLogin: async () => ({
+          status: "completed",
+          profileId: "p1",
+          name: "app-example",
+          version: 4,
+          cookies: 4,
+          origins: 1,
+          sessionStorage: 0,
+          next: "Run finalize-login",
+        }),
+        finalize: async () =>
+          ({ ok: true, reason: "matched", url: "https://app.example/dash", expect: "Workspace ready", screenshotPath: "x.png", title: "", finalUrl: "https://app.example/dash", matched: true, excerpt: "", sessionId: "s", networkIdle: true }) as never,
+        check: async () => ({
+          verified: true,
+          receipt: {
+            schemaVersion: 1,
+            ok: false,
+            reason: "matched",
+            url: "https://app.example/dash",
+            expect: "Workspace ready",
+            screenshotPath: "x.png",
+            matched: true,
+            next: `verify-with-profile refused: ${c.kind}`,
+            verify: { ok: false, claimOk: false, claimOkProfile: false, vwpRefused: c.kind },
+          } as never,
+        }),
+        wake: async () => ({ ok: true, skipped: true }),
+      },
+    )
+    assert.equal(done.status, c.status, c.kind)
+    assert.equal(done.ok, false)
+    const outcome = connectOutcome(done)
+    assert.equal(outcome.ok, false)
+    assert.doesNotMatch(outcome.headline, /was not on the page/, c.kind)
+  }
+})

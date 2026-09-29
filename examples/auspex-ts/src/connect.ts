@@ -221,6 +221,12 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
         headline: "The saved login hit a password or code screen. Auspex never types those.",
         detail: [`${again} Complete every sign-in step (tick "Stay signed in" if offered) before saving.`],
       }
+    case "weak-seed":
+      return {
+        ok: false,
+        headline: `The live browser saw ${words}, but the save is missing part of the app's login, so a second browser could not be asked to confirm it.`,
+        detail: [`Nothing was claimed. ${again} Save once the app is fully loaded.`],
+      }
     case "loggedOut":
       return {
         ok: false,
