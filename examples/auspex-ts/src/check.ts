@@ -13,7 +13,7 @@ import {
 import { persistAgentManifest } from "./agent-receipt.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
-import { requireCheckUrl } from "./http-url.ts"
+import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, requireCheckUrl } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { assertVisibleFillLanded, clickMissedNext, runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
@@ -327,6 +327,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let liveHostChange: LiveHostChange | undefined
   let workError: unknown
   let refusedDeadStream = false
+  let forbiddenLanding = false
 
   const work = async (isCancelled: () => boolean, signal: AbortSignal) => {
     try {
@@ -459,7 +460,18 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           throw extractErr
         }
       }
-      if (sawPageText && filled && opts.fill && opts.value !== undefined) {
+      if (landedOnForbiddenHost(finalUrl || page.url())) {
+        // Redirected to loopback / link-local / cloud metadata: keep nothing from that page.
+        forbiddenLanding = true
+        matched = false
+        raw = ""
+        excerptSource = ""
+        hasPassword = false
+        title = ""
+        excerpt = "forbiddenLanding: the page redirected to a loopback, link-local or cloud-metadata address. Nothing from it was kept."
+        await page.goto("about:blank", { timeout: 10_000 }).catch(() => undefined)
+      }
+      if (sawPageText && filled && opts.fill && opts.value !== undefined && !forbiddenLanding) {
         await assertVisibleFillLanded(page, opts.fill, opts.value, raw)
       }
       if (finalUrl && shouldFailClosedAuth(new URL(finalUrl), opts)) {
@@ -522,7 +534,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         })
         await writeFittedScreenshot(screenshotAbs)
       }
-      if (opts.saveProfile && profileId && !isCancelled() && !needsHuman) {
+      if (opts.saveProfile && profileId && !isCancelled() && !needsHuman && !forbiddenLanding) {
         onProgress("save-profile")
         const state = await captureStorageState(browser)
         const gate = decideLiveHostPersist({
@@ -632,7 +644,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     
     let next: string | undefined
     let nextCall: CheckResult["nextCall"]
-    if (liveHostChange) {
+    if (forbiddenLanding) {
+      next = FORBIDDEN_LANDING_NEXT
+    } else if (liveHostChange) {
       next = liveHostChange.nextLead
       nextCall = liveHostChange.nextCall
     } else if (botWall) {

@@ -207,6 +207,18 @@ def validate_url_origin(requested_url, final_url):
     return errors
 
 
+def forbidden_host(url):
+    """Link-local and cloud-metadata hosts: never fetched, even after a redirect.
+    Loopback is the sandbox itself here, not the cloud's infrastructure, so it is not listed."""
+    host = (urlparse(url).hostname or "").lower().strip("[]")
+    if host in ("metadata", "metadata.google.internal", "fd00:ec2::254") or host.startswith("fe80:"):
+        return True
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        return int(parts[0]) == 169 and int(parts[1]) == 254
+    return False
+
+
 def audit_claim(man, work, skip_fetch, skip_all):
     if skip_all:
         return ["anonymous claim skipped"]
@@ -218,7 +230,9 @@ def audit_claim(man, work, skip_fetch, skip_all):
     url = str(man.get("finalUrl") or "")
     if not skip_fetch:
         parsed = urlparse(url)
-        if parsed.scheme in ("http", "https"):
+        if forbidden_host(url):
+            notes.append("finalUrl is a link-local or cloud-metadata address; not fetched")
+        elif parsed.scheme in ("http", "https"):
             try:
                 text = html_to_text(fetch_url(url))
                 if haystack_matches(text, expect):

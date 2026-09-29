@@ -51,3 +51,27 @@ test("anonymous claim reads page text, not the <title> or a <template>", () => {
   assert.equal(text.includes("Hidden Words"), false)
   assert.match(text, /documentation examples/)
 })
+
+test("forbidden_host covers link-local and cloud metadata, not public or loopback hosts", () => {
+  const py = `
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("assert_receipt", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+urls = sys.argv[2:]
+print(json.dumps([mod.forbidden_host(u) for u in urls]))
+`
+  const urls = [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://metadata.google.internal/computeMetadata/v1/",
+    "http://127.0.0.1:8080/",
+    "http://localhost/",
+    "http://[::1]/",
+    "http://[fd00:ec2::254]/",
+    "https://example.com/",
+    "https://app.lorari.com/member/",
+  ]
+  const out = spawnSync("python3", ["-c", py, ASSERT_RECEIPT_PY_PATH, ...urls], { encoding: "utf8" })
+  assert.equal(out.status, 0, out.stderr)
+  assert.deepEqual(JSON.parse(out.stdout), [true, true, false, false, false, true, false, false])
+})

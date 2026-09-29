@@ -268,3 +268,19 @@ test("excerpt prefers the main region when it has real content", async () => {
   assert.equal(excerptRegion(whole, "tiny"), whole)
   assert.equal(excerptRegion(whole, ""), whole)
 })
+
+test("landedOnForbiddenHost flags a redirect to loopback, link-local or metadata", async () => {
+  const { landedOnForbiddenHost } = await import("../src/http-url.ts")
+  assert.equal(landedOnForbiddenHost("http://169.254.169.254/latest/meta-data/"), true)
+  assert.equal(landedOnForbiddenHost("http://metadata.google.internal/"), true)
+  assert.equal(landedOnForbiddenHost("http://localhost:3000/"), true)
+  assert.equal(landedOnForbiddenHost("https://example.com/"), false)
+  assert.equal(landedOnForbiddenHost("about:blank"), false)
+  assert.equal(landedOnForbiddenHost(""), false)
+  // check.ts blanks the page and keeps no text on such a landing.
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  assert.match(src, /landedOnForbiddenHost\(finalUrl \|\| page\.url\(\)\)/)
+  assert.match(src, /page\.goto\("about:blank"/)
+  assert.match(src, /!needsHuman && !forbiddenLanding\) \{/)
+})

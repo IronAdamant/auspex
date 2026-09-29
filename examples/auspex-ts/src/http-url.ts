@@ -78,6 +78,24 @@ export function isForbiddenCheckHost(hostname: string): boolean {
   return false
 }
 
+/**
+ * The page a check ended on (after redirects) is loopback, link-local or a cloud-metadata address.
+ * The requested URL passed the guard, so this is a redirect or DNS pointing there.
+ */
+export function landedOnForbiddenHost(finalUrl: string | undefined): boolean {
+  if (!finalUrl) return false
+  try {
+    const url = new URL(finalUrl)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false
+    return isForbiddenCheckHost(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+export const FORBIDDEN_LANDING_NEXT =
+  "The page redirected to a loopback, link-local or cloud-metadata address. Auspex kept nothing from it: no page text, and the screenshot is blank. Check the URL you passed; do not retry it."
+
 export function isHttpOrHttpsUrl(value: string): boolean {
   try {
     const u = new URL(value)
