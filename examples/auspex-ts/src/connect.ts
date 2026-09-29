@@ -375,7 +375,7 @@ export async function runConnect(
       const art = await qr(link).catch(() => "")
       const width = art ? Math.max(...art.split("\n").map((l) => l.length)) : 0
       if (art && (io.stdout.columns ?? 0) >= width) out(art)
-      else if (handoff.qrPath) out(`QR code image: ${handoff.qrPath}`)
+      else if (handoff.qrPath) out(`QR code image (scan it, or open it for the human): ${tildePath(handoff.qrPath)}`)
       out(link)
       out()
       const expiresMs = handoff.streamExpiresAt ? Date.parse(handoff.streamExpiresAt) : Number.NaN

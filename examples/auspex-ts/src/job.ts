@@ -23,7 +23,9 @@ import { preserveAwaitLiveHost } from "./live-host-change.ts"
 import { stampAwaitLoginHost, stampLoginHost } from "./profile-host-advice.ts"
 import { liveAwaitLogin, type AwaitLoginResult } from "./profile-persist.ts"
 import { presentSiblingSaved } from "./save-drain.ts"
-import { loginProfile, requireProfileName, type LoginResult } from "./profiles.ts"
+import { loginProfile, qrPayloadForHandoff, requireProfileName, type LoginResult } from "./profiles.ts"
+import { generateQRCode } from "./qr-gen.ts"
+import { ensureRunDir, toStatePath } from "./paths.ts"
 import { resolveLoginProfile } from "./profile-slug.ts"
 import { reapLeftovers, type ReapResult } from "./reap.ts"
 import { applySavedCheckName, savedCheckForProfile } from "./saved-checks.ts"
@@ -81,6 +83,13 @@ export type JobDeps = {
   }) => Promise<JobCheckResult>
   reap?: () => Promise<ReapResult>
   wake?: (payload: object, url?: string) => Promise<JobWakeResult>
+  /** Writes a PNG QR of the door link and returns its path ("" when it could not). */
+  qr?: (doorUrl: string) => Promise<string>
+}
+
+/** The door as a QR image, so an agent running in the background can hand the human something to scan. */
+async function defaultJobQr(doorUrl: string): Promise<string> {
+  return (await generateQRCode(doorUrl, await ensureRunDir())).qrPath
 }
 
 function isConcurrency(err: unknown): boolean {
@@ -456,9 +465,12 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
         return publicJob(record, { wake: await wake("failed") })
       }
       if (minted.handoff && (minted.handoff.url || minted.handoff.mobileUrl)) {
+        const qrAbs = await (deps.qr ?? defaultJobQr)(qrPayloadForHandoff(minted.handoff)).catch(() => "")
+        if (qrAbs) minted.handoff.qrPath = qrAbs
         record.handoff = {
           url: minted.handoff.url,
           mobileUrl: minted.handoff.mobileUrl,
+          ...(qrAbs ? { qrPath: toStatePath(qrAbs) } : {}),
         }
         record.phase = "await"
         record.status = "waiting"

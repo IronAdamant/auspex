@@ -588,3 +588,21 @@ test("an Enter typed before the link appears is not taken as Save", async () => 
   })
   assert.equal(signaled.length, 1)
 })
+
+test("agent mode prints the QR image path for the human to scan", async () => {
+  const out = new PassThrough()
+  let text = ""
+  out.on("data", (c) => (text += String(c)))
+  await runConnect(
+    { url: "https://app.example/dash", expect: "Workspace ready" },
+    { stdin: new PassThrough(), stdout: out },
+    {
+      runJob: async (opts) => {
+        opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR, qrPath: "/tmp/auspex-x/.auspex/runs/r1/handoff-qr.png" } })
+        await new Promise((r) => setTimeout(r, 20))
+        return job()
+      },
+    },
+  )
+  assert.match(text, /QR code image \(scan it, or open it for the human\): \/tmp\/auspex-x\/\.auspex\/runs\/r1\/handoff-qr\.png/)
+})

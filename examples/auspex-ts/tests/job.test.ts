@@ -738,3 +738,32 @@ test("job: --skip-finalize never triggers the finalize fallback", async () => {
   assert.equal(finalized, 0)
   assert.equal(done.status, "loggedOut")
 })
+
+test("minting a job writes a scannable QR of the door and records its path", async () => {
+  const { existsSync, readFileSync } = await import("node:fs")
+  const { resolveStatePath } = await import("../src/paths.ts")
+  const dir = await tmpJobs()
+  let encoded = ""
+  const minted = await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({ jobsDir: dir, qr: undefined }),
+  )
+  const qrPath = minted.handoff?.qrPath
+  assert.ok(qrPath, "handoff.qrPath is set")
+  assert.equal(qrPath!.includes("/Users/"), false)
+  const abs = resolveStatePath(qrPath!)
+  assert.equal(existsSync(abs), true)
+  assert.equal(readFileSync(abs).subarray(1, 4).toString(), "PNG")
+  // An injected QR writer receives the phone door link.
+  await runJob(
+    { url: "https://app.example", expect: "Workspace ready" },
+    deps({
+      jobsDir: dir,
+      qr: async (url) => {
+        encoded = url
+        return ""
+      },
+    }),
+  )
+  assert.match(encoded, /phone\.html#v=/)
+})

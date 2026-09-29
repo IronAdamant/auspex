@@ -49,7 +49,8 @@ export type JobStatus =
   /** verify-with-profile refused: the save has cookies but not the app's session storage. */
   | "weak-seed"
 
-export type JobHandoff = { url?: string; mobileUrl?: string }
+/** qrPath is a state path (relative in a clone, ~/ for npm) to a PNG of the door link, for the human to scan. */
+export type JobHandoff = { url?: string; mobileUrl?: string; qrPath?: string }
 
 export type JobRecord = {
   schemaVersion: 1

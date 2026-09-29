@@ -269,7 +269,13 @@ export function registerAuspexTools(server: McpServer): void {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_job")
         const { runJobDoor } = await import("./runners.ts")
-        return { content: [{ type: "text" as const, text: toolJson(await runJobDoor({ ...args, onProgress })) }] }
+        const job = await runJobDoor({ ...args, onProgress })
+        // While the job waits for the human, attach the door QR so the host can show it to scan.
+        const qrPath = (job as { phase?: string; handoff?: { qrPath?: string } }).phase === "await"
+          ? (job as { handoff?: { qrPath?: string } }).handoff?.qrPath
+          : undefined
+        if (qrPath) return buildReceiptToolContent(stampSchema(job), qrPath)
+        return { content: [{ type: "text" as const, text: toolJson(job) }] }
       } catch (err) {
         return packToolFailure(err)
       }
