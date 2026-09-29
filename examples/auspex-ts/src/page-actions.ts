@@ -35,7 +35,7 @@ export const PAGE_ACTIONS_PROFILE_ERROR =
   "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click."
 
 export const PASSWORD_FILL_ERROR =
-  "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman."
+  "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]), and on any field marked autocomplete current-password, new-password, or one-time-code (a shown password or an OTP box). Agents must never type passwords or one-time codes. SSO IdP password walls are detected and returned as needsHuman."
 
 export const FILL_NOT_LANDED_ERROR =
   "check --fill did not land: the visible document text does not contain --value. filled was not set."

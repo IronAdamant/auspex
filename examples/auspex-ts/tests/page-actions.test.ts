@@ -277,6 +277,16 @@ test("probeVisibleControl reads input value and blanks a password", () => {
     input.type = "password"
     input.value = "secret"
     assert.deepEqual(probeVisibleControl("#pwd"), { password: true, contentEditable: false, text: "", present: true })
+    // A password shown as text, and a one-time-code box, are still secret fields.
+    for (const autocomplete of ["current-password", "new-password", "one-time-code", "username one-time-code"]) {
+      const field = { tagName: "INPUT", type: "text", value: "123456", innerText: "", getAttribute: (n: string) => (n === "autocomplete" ? autocomplete : null) }
+      ;(globalThis as { document: unknown }).document = { querySelector: () => field }
+      assert.equal(probeVisibleControl("#code").password, true, autocomplete)
+      assert.equal(probeVisibleControl("#code").text, "")
+    }
+    const email = { tagName: "INPUT", type: "text", value: "a", innerText: "", getAttribute: () => "email" }
+    ;(globalThis as { document: unknown }).document = { querySelector: () => email }
+    assert.equal(probeVisibleControl("#email").password, false)
   } finally {
     ;(globalThis as { document?: unknown }).document = prev
   }

@@ -33,7 +33,12 @@ const PROBE_VISIBLE_CONTROL_SOURCE = `function probeVisibleControl(selector) {
     const el = doc.querySelector(selector)
     if (!el || typeof el.tagName !== "string") return blank
     const tag = el.tagName.toUpperCase()
-    const password = tag === "INPUT" && String(el.type ?? "").toLowerCase() === "password"
+    // Secret fields: a password box, the same box after a "show password" toggle (type text,
+    // autocomplete still current/new-password), and a one-time-code box. Agents never type these.
+    // (No regex escapes here: this source is a template literal, where a backslash-b is a backspace.)
+    const tokens = String(el.getAttribute?.("autocomplete") ?? el.autocomplete ?? "").toLowerCase().split(" ")
+    const secretHint = tokens.some((t) => t === "current-password" || t === "new-password" || t === "one-time-code")
+    const password = (tag === "INPUT" && String(el.type ?? "").toLowerCase() === "password") || secretHint
     let contentEditable = el.isContentEditable === true
     if (!contentEditable && typeof el.querySelector === "function") {
       const nested = el.querySelector("[contenteditable]")
