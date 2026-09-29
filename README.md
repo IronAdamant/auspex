@@ -2,9 +2,9 @@
 
 **Proof that an AI agent really saw a web page, including pages behind a login.**
 
-[![Watch: an AI agent logs in to a real app (31 seconds)](docs/video/auspex-demo-31s.jpg)](https://ironadamant.com/auspex/video/auspex-demo-31s.mp4)
+[![31-second demo: an AI agent logs in to a real app](docs/video/auspex-demo-31s.gif)](https://ironadamant.com/auspex/video/auspex-demo-31s.mp4)
 
-*31-second demo: an AI agent logs in to a real app. A person signs in once; the agent never sees the password. Sped-up parts are marked on screen.*
+*31-second demo: an AI agent logs in to a real app. A person signs in once; the agent never sees the password. Sped-up parts are marked on screen. Click it for the sharper video.*
 
 ## The problem
 
@@ -62,7 +62,7 @@ Worth knowing before pointing it at your own app: opening a logged-in page still
 
 Auspex gives you a link to its login page. Open it on your phone or computer: it shows the cloud browser, and the typing box at the bottom opens your phone keyboard. Sign in to the site as usual, wait for the app to load, then **tap Save** and tell your AI agent "saved" (or paste the short line it copies). The agent does the rest.
 
-<a href="https://ironadamant.com/auspex/video/auspex-phone-door.mp4"><img src="docs/video/auspex-phone-door.jpg" alt="Watch: typing on the phone login page (14 seconds)" width="300"></a>
+<a href="https://ironadamant.com/auspex/video/auspex-phone-door.mp4"><img src="docs/video/auspex-phone-door.gif" alt="Typing on the phone login page (14 seconds)" width="300"></a>
 
 *14 seconds on a real phone: typing in the box at the bottom drives the cloud browser above it. (Recorded on an earlier version of the page.)*
 
