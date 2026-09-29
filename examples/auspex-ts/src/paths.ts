@@ -28,6 +28,11 @@ export function resolveStateDir(
 
 export const stateDir = resolveStateDir()
 
+/** How to run this install from a shell: npm (`npx auspex-solari`) or a clone (`npx auspex`). */
+export function cliCommand(root: string = packageRoot): string {
+  return root.split(path.sep).includes("node_modules") ? "npx auspex-solari" : "npx auspex"
+}
+
 /** State dir for a caller-supplied root. The package root maps to `stateDir`; any other root keeps `<root>/.auspex`. */
 export function stateDirFor(root: string): string {
   return path.resolve(root) === packageRoot ? stateDir : path.join(root, ".auspex")

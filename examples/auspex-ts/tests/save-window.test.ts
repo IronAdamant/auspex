@@ -688,3 +688,55 @@ test("claimSaveOwner does not take a save lock whose owner is still writing it",
   if (later.ok) await later.release()
   await rm(root, { recursive: true, force: true })
 })
+
+async function holdWaiter(root: string, shared: string, profile: string) {
+  // A separate process: a waiter in this same process is deliberately not "someone else waiting".
+  const saveDrain = path.resolve("src/save-drain.ts")
+  const child = spawn(
+    "npx",
+    ["tsx", "-e", `import("${saveDrain}").then(async (m) => { const c = await m.registerSaveWaiter("${profile}", ${JSON.stringify(root)}); console.log(c.ok ? "ready" : "busy"); setTimeout(async () => { if (c.ok) await c.release(); process.exit(0) }, 20000) })`],
+    { env: { ...process.env, AUSPEX_SHARED_DRAIN: shared, NODE_TEST_CONTEXT: "" }, stdio: ["ignore", "pipe", "inherit"] },
+  )
+  await new Promise<void>((resolve, reject) => {
+    child.stdout.on("data", (d) => (String(d).includes("ready") ? resolve() : reject(new Error(String(d)))))
+    child.on("exit", () => reject(new Error("waiter exited")))
+  })
+  return child
+}
+
+test("connect --save finds a waiting connect in the other install (clone waiter, npm command)", async () => {
+  const { findWaitingDrain } = await import("../src/save-drain.ts")
+  const cloneRoot = await mkdtemp(path.join(tmpdir(), "auspex-clone-"))
+  const npmRoot = await mkdtemp(path.join(tmpdir(), "auspex-npm-"))
+  const shared = saveDrainDir(npmRoot)
+  const child = await holdWaiter(cloneRoot, shared, "app-example")
+  try {
+    // The npm install looks in its own folder (the shared one) and follows the clone's pointer.
+    assert.equal(await findWaitingDrain("app-example", npmRoot, shared), saveDrainDir(cloneRoot))
+    assert.equal(await findWaitingDrain("other-app", npmRoot, shared), undefined)
+  } finally {
+    child.kill()
+  }
+})
+
+test("connect --save from a clone finds a waiting npm connect", async () => {
+  const { findWaitingDrain } = await import("../src/save-drain.ts")
+  const cloneRoot = await mkdtemp(path.join(tmpdir(), "auspex-clone-"))
+  const npmRoot = await mkdtemp(path.join(tmpdir(), "auspex-npm-"))
+  const shared = saveDrainDir(npmRoot)
+  const child = await holdWaiter(npmRoot, shared, "app-example")
+  try {
+    assert.equal(await findWaitingDrain("app-example", cloneRoot, shared), shared)
+  } finally {
+    child.kill()
+  }
+  // Once that process is gone nothing is waiting, pointer or not.
+  await new Promise((r) => setTimeout(r, 300))
+  assert.equal(await findWaitingDrain("app-example", cloneRoot, shared), undefined)
+})
+
+test("connect prints the command for this install (clone: npx auspex)", async () => {
+  const { cliCommand } = await import("../src/paths.ts")
+  assert.equal(cliCommand("/Users/x/code/auspex/examples/auspex-ts"), "npx auspex")
+  assert.equal(cliCommand("/Users/x/.npm/_npx/abc/node_modules/auspex-solari/examples/auspex-ts"), "npx auspex-solari")
+})

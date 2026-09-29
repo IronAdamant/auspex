@@ -4,13 +4,13 @@ import { isStreamExpired } from "./handoff-doors.ts"
 import {
   claimSaveOwner,
   consumeSaveDrain,
-  readSaveWaiter,
   registerSaveWaiter,
   saveSignaledNext,
   siblingOwnsSave,
   siblingSavedNext,
+  findWaitingDrain,
   signalSaveDrain,
-  waiterIsOtherProcess,
+  signalSaveDrainIn,
 } from "./save-drain.ts"
 import {
   saveEditorWithNotSavableReuse,
@@ -96,9 +96,10 @@ export async function postEditorSaveWhenSignaled(opts: {
   }
   if (await siblingOwnsSave(opts.profile, opts.drainRoot)) return siblingNext()
 
-  const other = await readSaveWaiter(opts.profile, opts.drainRoot)
-  if (waiterIsOtherProcess(other)) {
-    await signalSaveDrain(opts.profile, opts.drainRoot, "paste")
+  // A waiter in this install or the other one (npm vs clone): the phone's Save line names npm.
+  const waitingDir = await findWaitingDrain(opts.profile, opts.drainRoot)
+  if (waitingDir) {
+    await signalSaveDrainIn(waitingDir, opts.profile, "paste")
     opts.onProgress?.("await: signaled the running Save. Do not kill that process.")
     return { mode: "signaled-waiter", next: saveSignaledNext(opts.profile) }
   }

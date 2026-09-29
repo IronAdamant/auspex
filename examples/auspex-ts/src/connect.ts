@@ -14,7 +14,8 @@ import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { jobFilePath, type JobReceipt } from "./job-store.ts"
 import type { JobRunOptions } from "./job-cli.ts"
 import type { HandoffPacket } from "./profiles.ts"
-import { readSaveWaiter, signalSaveDrain, waiterIsOtherProcess } from "./save-drain.ts"
+import { cliCommand } from "./paths.ts"
+import { findWaitingDrain, signalSaveDrain, signalSaveDrainIn } from "./save-drain.ts"
 import { requireProfileName } from "./profile-slug.ts"
 import { isNonEmptyExpect } from "./text.ts"
 
@@ -94,8 +95,10 @@ export async function runConnectSave(
     signalSave?: (profile: string) => Promise<void>
   } = {},
 ): Promise<{ ok: boolean; message: string }> {
-  const isWaiting = deps.isWaiting ?? (async (name) => waiterIsOtherProcess(await readSaveWaiter(name)))
-  const signalSave = deps.signalSave ?? ((name) => signalSaveDrain(name, undefined, "connect --save"))
+  // The waiting connect may be this install's or the other one's (npm vs clone).
+  let waitingDir: string | undefined
+  const isWaiting = deps.isWaiting ?? (async (name) => Boolean((waitingDir = await findWaitingDrain(name))))
+  const signalSave = deps.signalSave ?? ((name) => signalSaveDrainIn(waitingDir!, name, "connect --save"))
   if (!(await isWaiting(profile))) {
     return {
       ok: false,
@@ -396,7 +399,7 @@ export async function runConnect(
       }
       if (!interactive) {
         out("When the app itself is on screen, tap Save on the phone page, then paste the line to your agent or just say \"saved\".")
-        out(`Agent: npx auspex-solari connect --save ${profile}`)
+        out(`Agent: ${cliCommand()} connect --save ${profile}`)
         return
       }
       out("When the app itself is on screen, press Enter here. (You don't need the Save button on the phone page.)")

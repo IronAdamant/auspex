@@ -1,6 +1,7 @@
 /** One owner for editor/save. A second waiter is sibling-saved, not stream-expired. */
 
 import { mkdir, open, readFile, stat, unlink, writeFile } from "node:fs/promises"
+import { homedir } from "node:os"
 import path from "node:path"
 import { packageRoot, stateDirFor } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
@@ -19,6 +20,89 @@ function waiterPath(profile: string, root?: string): string {
 
 function signalPath(profile: string, root?: string): string {
   return path.join(saveDrainDir(root), `${requireProfileName(profile)}.signal.json`)
+}
+
+/**
+ * The Save folder every install can find: an npm install's own (`~/.auspex/save-drain`). A clone
+ * keeps its state inside the clone, so its waiting connect leaves a pointer here too; the phone
+ * page's Save line names the npm command, and a clone's `connect --save` must reach an npm connect.
+ * Tests never touch the real home unless AUSPEX_SHARED_DRAIN says where.
+ */
+export function sharedDrainDir(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string | undefined {
+  const explicit = env.AUSPEX_SHARED_DRAIN?.trim()
+  if (explicit) return path.resolve(explicit)
+  if (env.NODE_TEST_CONTEXT) return undefined
+  return path.join(home, ".auspex", "save-drain")
+}
+
+function beaconPath(dir: string, profile: string): string {
+  return path.join(dir, `${requireProfileName(profile)}.beacon.json`)
+}
+
+async function readWaiterIn(dir: string, profile: string): Promise<SaveWaiter | undefined> {
+  try {
+    const raw = JSON.parse(await readFile(path.join(dir, `${requireProfileName(profile)}.waiter.json`), "utf8")) as {
+      pid?: unknown
+    }
+    const pid = typeof raw.pid === "number" ? raw.pid : 0
+    return pidAlive(pid) ? { pid, profile: requireProfileName(profile) } : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The Save folder of a connect/await that is waiting for this profile in another process, in this
+ * install or the other one (npm vs clone). Undefined when nothing is waiting.
+ */
+export async function findWaitingDrain(profile: string, root?: string, shared = sharedDrainDir()): Promise<string | undefined> {
+  const own = saveDrainDir(root)
+  const other = (w: SaveWaiter | undefined) => Boolean(w && w.pid !== process.pid)
+  if (other(await readWaiterIn(own, profile))) return own
+  if (!shared) return undefined
+  const sharedIsOwn = path.resolve(shared) === path.resolve(own)
+  if (!sharedIsOwn && other(await readWaiterIn(shared, profile))) return shared
+  // An npm install's own folder is the shared one, so the pointer is read either way.
+  try {
+    const beacon = JSON.parse(await readFile(beaconPath(shared, profile), "utf8")) as { pid?: unknown; drainDir?: unknown }
+    const pid = typeof beacon.pid === "number" ? beacon.pid : 0
+    const dir = typeof beacon.drainDir === "string" ? beacon.drainDir : ""
+    if (dir && pid !== process.pid && pidAlive(pid) && other(await readWaiterIn(dir, profile))) return dir
+  } catch {
+    /* no pointer */
+  }
+  return undefined
+}
+
+/** Signal the waiter in a given Save folder (see findWaitingDrain). */
+export async function signalSaveDrainIn(dir: string, profile: string, source = "paste"): Promise<void> {
+  await mkdir(dir, { recursive: true })
+  await writeFile(
+    path.join(dir, `${requireProfileName(profile)}.signal.json`),
+    JSON.stringify({ at: new Date().toISOString(), source }),
+    "utf8",
+  )
+}
+
+/** Leave a pointer in the shared folder so the other install's `connect --save` can find this waiter. */
+async function writeBeacon(profile: string, root: string | undefined, shared = sharedDrainDir()): Promise<() => Promise<void>> {
+  const own = saveDrainDir(root)
+  if (!shared || path.resolve(shared) === path.resolve(own)) return async () => undefined
+  const file = beaconPath(shared, profile)
+  try {
+    await mkdir(shared, { recursive: true })
+    await writeFile(file, JSON.stringify({ pid: process.pid, drainDir: own }), "utf8")
+  } catch {
+    return async () => undefined
+  }
+  return async () => {
+    try {
+      const raw = JSON.parse(await readFile(file, "utf8")) as { pid?: unknown }
+      if (raw.pid === process.pid) await unlink(file)
+    } catch {
+      /* already gone */
+    }
+  }
 }
 
 function pidAlive(pid: number): boolean {
@@ -68,11 +152,19 @@ export async function registerSaveWaiter(
   const name = requireProfileName(profile)
   const file = waiterPath(name, root)
   await mkdir(path.dirname(file), { recursive: true })
+  const claimed = async () => {
+    const dropBeacon = await writeBeacon(name, root)
+    return {
+      ok: true as const,
+      release: async () => {
+        await unlink(file).catch(() => undefined)
+        await dropBeacon()
+      },
+    }
+  }
   const existing = await readSaveWaiter(name, root)
   if (waiterIsOtherProcess(existing)) return { ok: false }
-  if (existing && existing.pid === process.pid) {
-    return { ok: true, release: async () => unlink(file).catch(() => undefined) }
-  }
+  if (existing && existing.pid === process.pid) return claimed()
   try {
     await writeWaiterFile(file, name)
   } catch (err) {
@@ -80,13 +172,11 @@ export async function registerSaveWaiter(
     if (code !== "EEXIST") throw err
     const again = await readSaveWaiter(name, root)
     if (waiterIsOtherProcess(again)) return { ok: false }
-    if (again && again.pid === process.pid) {
-      return { ok: true, release: async () => unlink(file).catch(() => undefined) }
-    }
+    if (again && again.pid === process.pid) return claimed()
     await unlink(file).catch(() => undefined)
     await writeWaiterFile(file, name)
   }
-  return { ok: true, release: async () => unlink(file).catch(() => undefined) }
+  return claimed()
 }
 
 /** Tell the waiter to POST editor/save. Overwrites a previous signal. Does not signal the waiter pid. */
