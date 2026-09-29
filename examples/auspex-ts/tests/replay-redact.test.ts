@@ -73,3 +73,25 @@ test("redactRrwebNdjson round-trips and keeps event count", () => {
   assert.equal(events.length, 1)
   assert.equal(events[0]?.type, 4)
 })
+
+test("redactRrwebEvents blanks one-time codes and value changes that arrive without a type", async () => {
+  const { redactRrwebEvents } = await import("../src/replay-redact.ts")
+  const events = [
+    {
+      type: 2,
+      data: {
+        node: {
+          childNodes: [
+            { tagName: "input", attributes: { autocomplete: "one-time-code", value: "482913" } },
+            { tagName: "input", attributes: { type: "search", value: "shoes" } },
+          ],
+        },
+      },
+    },
+    { type: 3, data: { source: 0, attributes: [{ id: 7, attributes: { value: "hunter2" } }] } },
+  ]
+  const out = JSON.stringify(redactRrwebEvents(events))
+  assert.equal(out.includes("482913"), false)
+  assert.equal(out.includes("hunter2"), false)
+  assert.equal(out.includes("shoes"), true)
+})

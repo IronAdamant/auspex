@@ -36,7 +36,9 @@ function sensitiveInputAttrs(attrs: Record<string, unknown> | undefined): boolea
   const id = String(attrs.id ?? "").toLowerCase()
   if (SENSITIVE_TYPES.has(type)) return true
   if (SENSITIVE_NAMES.has(name)) return true
-  if (auto.includes("password") || auto.includes("email") || auto.includes("username")) return true
+  if (auto.includes("password") || auto.includes("email") || auto.includes("username") || auto.includes("one-time-code")) {
+    return true
+  }
   if (id === "i0116" || id === "i0118") return true
   return false
 }
@@ -96,7 +98,9 @@ function redactIncremental(data: Record<string, unknown>): void {
     for (const row of attributes) {
       if (!isRecord(row) || !isRecord(row.attributes)) continue
       const attrs = row.attributes
-      if (sensitiveInputAttrs(attrs) && "value" in attrs) attrs.value = ""
+      // A change row carries only the attributes that changed, so a password box's value can
+      // arrive without its type. Blank every value change; replays are public pages only.
+      if ("value" in attrs) attrs.value = ""
       for (const [key, raw] of Object.entries(attrs)) {
         if (typeof raw === "string") attrs[key] = redactEmailsInString(raw)
       }
