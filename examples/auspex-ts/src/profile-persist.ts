@@ -108,20 +108,33 @@ export type ProfileSeed = {
 export const AUTH_COOKIE_NAME =
   /^(sb-.+-auth-token(\.\d+)?|a_session_.+|__session(_.+)?|__clerk_db_jwt.*|__client|session|sessionid|session_id|.+_session|connect\.sid|laravel_session|PHPSESSID|JSESSIONID|remember_user_token|auth[_-]?token|access[_-]?token|jwt)$/i
 
-/** Registered domain: last two labels, or three for co.uk / com.au style suffixes. */
+/** Second-level labels under a country code that are suffixes themselves (co.uk, com.au, ac.jp…). */
+const COUNTRY_SECOND_LEVEL = new Set(["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "mil", "ltd", "plc", "sch", "nhs", "gob", "gv"])
+
+/**
+ * Registered domain: last two labels, or three for co.uk / com.au style suffixes. Only a known
+ * second-level suffix takes three, so x.ai and cal.io stay two labels (not grok.x.ai, app.cal.io).
+ */
 export function registeredDomain(host: string): string {
   const labels = host.toLowerCase().replace(/^\./, "").split(".").filter(Boolean)
   if (labels.length <= 2) return labels.join(".")
   const tld = labels[labels.length - 1]!
   const second = labels[labels.length - 2]!
-  const take = tld.length === 2 && second.length <= 3 ? 3 : 2
+  const take = tld.length === 2 && COUNTRY_SECOND_LEVEL.has(second) ? 3 : 2
   return labels.slice(-take).join(".")
 }
 
-/** Cookie domain belongs to the app's site: same registered domain (app.lorari.com ~ appwrite.lorari.com). */
+/**
+ * Cookie domain belongs to the app's site: same registered domain (app.lorari.com ~ appwrite.lorari.com),
+ * or a parent the browser sends it to (.x.ai reaches grok.x.ai).
+ */
 export function cookieOnSite(cookieDomain: string, appHost: string): boolean {
   const d = cookieDomain.toLowerCase().replace(/^\./, "")
-  return Boolean(d) && (registeredDomain(d) === registeredDomain(appHost) || hostIs(d, appHost.toLowerCase()))
+  const app = appHost.toLowerCase()
+  return (
+    Boolean(d) &&
+    (registeredDomain(d) === registeredDomain(app) || hostIs(d, app) || (d.includes(".") && hostIs(app, d)))
+  )
 }
 
 /** Names of recognised login cookies on the app's site, and hosts of third-party cookies. */
