@@ -954,7 +954,8 @@ test("after Save, a closed stream is a calm finish, not a reconnect loop or a re
   const ttlAfterSave = live.byId.get("ttl")?.textContent ?? ""
   assert.match(ttlAfterSave, /^Saved · link ends in/)
   assert.equal(/Save now|Save before this dies/.test(ttlAfterSave), false)
-  assert.match(live.byId.get("status")?.textContent ?? "", /Your agent takes it from here/)
+  assert.match(live.byId.get("status")?.textContent ?? "", /just say "saved"/)
+  assert.match(live.byId.get("status")?.textContent ?? "", /Press Enter there/)
 
   clients[0].fire("disconnect")
   live.flushTimeouts()

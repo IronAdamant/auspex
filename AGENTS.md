@@ -11,7 +11,7 @@ Use Auspex when you need **evidence from a live web page**: it drives a Solari c
 | You want to | Run |
 | --- | --- |
 | Check a public page | `check <url> --expect <words>` |
-| Sign in to a site for the first time (shell) | `connect <url> --expect <words>`, then `connect --save <profile>` after the human's Save line |
+| Sign in to a site for the first time (shell) | `connect <url> --expect <words>`, then `connect --save <profile>` when the human pastes the Save line or says "saved" |
 | Sign in to a site for the first time (MCP) | `auspex_job` with `url`, `expect`, `wait`, then `auspex_job_status` |
 | Check a logged-in page again | `check <url> --expect <words> --profile <name> --verify-with-profile`, then read `claimOkProfile` |
 | Check up to 12 pages | `sweep --plan <plan.json>` |
@@ -48,7 +48,7 @@ npx auspex check https://example.com --expect "Example Domain"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex connect https://app.example --expect "Workspace ready"
 # One command: door link, Save, finalize when needed, check --verify-with-profile, one sentence.
-# Agent: run it in the background; after the human's Save line, run: npx auspex connect --save app-example
+# Agent: run it in the background; when the human pastes the Save line or says "saved", run: npx auspex connect --save app-example
 npx auspex solari-health            # Solari reachable with this key? Not a login check.
 # The same login, step by step:
 npx auspex login --url https://app.example
@@ -89,7 +89,7 @@ The **one** login sequence. It is a seed/handoff door for off-site typing — **
 
 1. **Mint** `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). The door is `handoff.url` (`phone.html`), on a phone or a computer.
 2. **Human signs in** on the door. Secrets never reach the agent, chat, MCP, or receipts.
-3. **Human taps Save** and pastes the copied line.
+3. **Human taps Save**, then pastes the short Save line or just says "saved". In a terminal running `connect`, Enter is Save.
 4. **`await-login --save-editor`**, then **`finalize-login`** with `--url` and an expect unique to the logged-in app.
 5. Later **`check`**, optionally with `--verify-with-profile`. Triad stays honest: **`ok` ≠ `claimOk` ≠ `claimOkProfile`**.
 
@@ -137,7 +137,7 @@ A jar that omits the app host is `idp-only-save` when session storage is empty o
 
 ## Autonomous agents (job compose)
 
-**From a shell, use `connect`.** `npx auspex-solari connect <https> --expect <words>` (run it in the background) mints the door, prints the phone link and the time left, and waits. When the human pastes the Save line, run `npx auspex-solari connect --save <profile>`. The running `connect` then saves, finalizes only when needed, runs `check --verify-with-profile`, and prints one sentence plus the job receipt path. It says "Logged in" only when `claimOkProfile` is true. Without a terminal `--expect` is required and the wait ends with Solari's typing window. If Solari mints no phone door, it stops at once. CLI only; the JSON stays in the job file.
+**From a shell, use `connect`.** `npx auspex-solari connect <https> --expect <words>` (run it in the background) mints the door, prints the phone link and the time left, and waits. When the human pastes the Save line or just says "saved", run `npx auspex-solari connect --save <profile>`. If nothing is waiting it says so; then follow the step-by-step path. The running `connect` then saves, finalizes only when needed, runs `check --verify-with-profile`, and prints one sentence plus the job receipt path. It says "Logged in" only when `claimOkProfile` is true. Without a terminal `--expect` is required and the wait ends with Solari's typing window. If Solari mints no phone door, it stops at once. CLI only; the JSON stays in the job file.
 
 **Over MCP, use `auspex_job`.** The first call mints and returns `waiting` plus `handoff`. After the human Saves, resume with `--job-id` (or pass `wait`). Without `AUSPEX_WAKE_WEBHOOK`, poll `auspex_job_status` with a short `--wait-ms`, not a 30-minute `await-login`. On 429 the job reaps its own ledger and `nextCall` resumes it. `claimOkProfile` only after `--verify-with-profile`. A finished job is not a 24–48h lease. Step tools remain for debugging.
 

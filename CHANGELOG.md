@@ -2,6 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **Phone door: a calm finish after Save.** Once Save is tapped, the countdown reads "Saved · link ends in m:ss", and when Solari closes the remote Chrome for the save (or the timer runs out) the page shows "Saved. Your agent takes it from here" instead of a reconnect spinner, "Save now", and "expired". Before Save, a dropped stream still reconnects. Live on Pages.
+- **A two-line Save line, and "saved" is enough.** The copied line is now "I tapped Save … for profile X" plus the one command to run (`connect --save X`, or `await-login --save-editor`). The door-table guidance it used to repeat lives in AGENTS.md and the `await-login` `next`. In an agent chat the human can just say "saved"; in a terminal running `connect`, Enter is Save. No relay or third-party service. The door page is live on Pages; `connect`'s own wording ships in the next release.
+
 ## 0.1.13 — 2026-09-29
 
 npm `auspex-solari@0.1.13` (latest). Agents do not `npm publish`. Founder publishes this release.

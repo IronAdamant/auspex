@@ -5,16 +5,7 @@
   function savePasteLine(name) {
     name = String(name || "").trim() || "<yours>"
     return "I tapped Save on the Auspex phone page for profile " + name + ".\n" +
-      "Ran auspex connect? Press Enter in that terminal instead (pasting this there also works), or have your agent run: npx auspex-solari connect --save " + name + "\n" +
-      "Run: npx auspex-solari await-login --profile " + name + " --save-editor\n" +
-      "(MCP: auspex_await_login with saveEditor true).\n" +
-      "Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.\n" +
-      "Save before the phone countdown hits zero. A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. Auspex cannot lengthen the Solari token.\n" +
-      "Then: npx auspex-solari finalize-login --profile " + name + " --url <the URL the logged-in app lands on> --expect \"<unique logged-in text>\".\n" +
-      "Never open Solari's editor on a phone (GET editor HTTP 401).\n" +
-      "editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.\n" +
-      "A different product is hostChanged → remint. A same-product rebrand is adopted (SkySQL and MariaDB).\n" +
-      "Console Save stores cookies only. It cannot read sessionStorage (the handoff editor has no Playwright attach). An app already on screen is not saved by this button, and finalize-login cannot recover an IdP-only jar. Expect must be unique to the logged-in app surface, not marketing."
+      "Agent: run npx auspex-solari connect --save " + name + " (connect is waiting), or npx auspex-solari await-login --profile " + name + " --save-editor."
   }
 
   function liveSiteUrl() {
@@ -258,7 +249,7 @@
         copied.textContent = "Copied. Paste it in your AI chat."
         save.textContent = "Copied"
         save.classList.add("copied")
-        setStatus("Copied. Paste it in your AI chat. Your agent takes it from here.")
+        setStatus("Copied. Paste it in your AI chat, or just say \"saved\". Running connect in a terminal? Press Enter there.")
         return
       }
       copied.textContent = "Copy did not work in this browser. Copy the line below by hand, then paste it in your AI chat."

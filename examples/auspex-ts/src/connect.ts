@@ -375,7 +375,7 @@ export async function runConnect(
         }
       }
       if (!interactive) {
-        out("When the app itself is on screen, tap Save on the phone page and paste the line to your agent.")
+        out("When the app itself is on screen, tap Save on the phone page, then paste the line to your agent or just say \"saved\".")
         out(`Agent: npx auspex-solari connect --save ${profile}`)
         return
       }

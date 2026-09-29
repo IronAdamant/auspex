@@ -189,16 +189,7 @@ export function phoneSavePaste(profileName?: string): string {
   const name = (profileName ?? "").trim() || "<yours>"
   return [
     `I tapped Save on the Auspex phone page for profile ${name}.`,
-    `Ran auspex connect? Press Enter in that terminal instead (pasting this there also works), or have your agent run: npx auspex-solari connect --save ${name}`,
-    `Run: npx auspex-solari await-login --profile ${name} --save-editor`,
-    `(MCP: auspex_await_login with saveEditor true).`,
-    `Clipboard Save is not the jar. That command POSTs Solari editor/save. If an await is already running, do not kill it; this line signals that process.`,
-    `Save before the phone countdown hits zero. A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. Auspex cannot lengthen the Solari token.`,
-    `Then: npx auspex-solari finalize-login --profile ${name} --url <the URL the logged-in app lands on> --expect "<unique logged-in text>".`,
-    `Never open Solari's editor on a phone (GET editor HTTP 401).`,
-    `editorSave 200 with editorFold no-cdp → finalize-login NOW, even if the VNC JWT is past. --save-editor does not refresh folded sessionStorage unless editorFold.ok. Do not --verify-with-profile on that fold.`,
-    `A different product is hostChanged → remint. A same-product rebrand is adopted (SkySQL and MariaDB).`,
-    `Console Save stores cookies only. It cannot read sessionStorage (the handoff editor has no Playwright attach). An app already on screen is not saved by this button, and finalize-login cannot recover an IdP-only jar. Expect must be unique to the logged-in app surface, not marketing.`,
+    `Agent: run npx auspex-solari connect --save ${name} (connect is waiting), or npx auspex-solari await-login --profile ${name} --save-editor.`,
   ].join("\n")
 }
 

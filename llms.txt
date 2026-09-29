@@ -28,11 +28,11 @@ Seed/handoff door for off-site typing. Not a same-session VNC takeover.
 
 1. Mint `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). The door is `handoff.url` (`phone.html`). `handoff.mobileUrl` is that same page, on a phone or a computer. Clear empties the whole field.
 2. Human logs in. Secrets stay off agent chat, MCP, and receipts.
-3. Human Save. Paste the copied line. The local field is cleared.
+3. Human Save. Paste the short Save line or just say "saved" (in a terminal running `connect`, press Enter). The local field is cleared.
 4. `await-login --save-editor`, then `finalize-login` only when the seed is the app session, not an IdP-only jar (`idp-only-save`, kind `app-visible`). Use `--url` and an expect unique to the logged-in app (absent from public marketing).
 5. Later `check`. Optional `--verify-with-profile`.
 
-Shortest path: `npx auspex-solari connect <https> --expect <words>` runs steps 1–5 in one command and ends in one sentence ("Logged in" only when `claimOkProfile` is true). An agent runs it in the background, then `npx auspex-solari connect --save <profile>` after the human's Save line (clone: `npx auspex connect`).
+Shortest path: `npx auspex-solari connect <https> --expect <words>` runs steps 1–5 in one command and ends in one sentence ("Logged in" only when `claimOkProfile` is true). An agent runs it in the background, then `npx auspex-solari connect --save <profile>` when the human pastes the Save line or says "saved" (clone: `npx auspex connect`).
 
 New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
 
