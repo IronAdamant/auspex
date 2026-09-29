@@ -108,6 +108,37 @@ test("launchBrowser aborts sessions.create and still releases a late session", a
   assert.ok(Date.now() - start < 500)
 })
 
+test("launchBrowser: a failed sessions.create under a signal is thrown once, never left unhandled", async () => {
+  const { launchBrowser } = await import("../src/solari.ts")
+  const rejections: unknown[] = []
+  const onrej = (reason: unknown) => {
+    rejections.push(reason)
+  }
+  process.on("unhandledRejection", onrej)
+  try {
+    const fake = {} as import("@solarisdk/browser").Solari
+    const deps = (delayMs: number) => ({
+      create: async () => {
+        await new Promise((r) => setTimeout(r, delayMs))
+        throw new Error("429 ConcurrencyLimitExceeded")
+      },
+      connect: async () => ({}),
+      wrap: () => ({ close: async () => undefined }),
+      releaseAndWait: async () => undefined,
+      closeTimeoutMs: 40,
+    })
+    // A plain create failure (the 429 case), and a create that fails after the abort already fired.
+    await assert.rejects(() => launchBrowser(fake, {}, new AbortController().signal, deps(5)), /429/)
+    const ac = new AbortController()
+    setTimeout(() => ac.abort(), 5)
+    await assert.rejects(() => launchBrowser(fake, {}, ac.signal, deps(30)), /aborted/)
+    await new Promise((r) => setTimeout(r, 80))
+    assert.deepEqual(rejections, [])
+  } finally {
+    process.off("unhandledRejection", onrej)
+  }
+})
+
 test("launchBrowser passes timeout>0 to connect and releases on connect throw", async () => {
   const { launchBrowser } = await import("../src/solari.ts")
   let connectOpts: { timeout: number } | undefined

@@ -280,13 +280,18 @@ export async function launchBrowser(
     try {
       session = await observeAbort(createP, signal)
     } catch (err) {
-      void createP.then((s) => {
-        void rememberLive("browser", s.id).catch(() => undefined)
-        return deps.releaseAndWait(s.id).then(
-          () => forgetLive("browser", s.id).catch(() => undefined),
-          () => undefined,
-        )
-      })
+      // A late session is released. A failed create was already thrown above; the second
+      // handler stops that same rejection from also surfacing as unhandled (which ends the process).
+      void createP.then(
+        (s) => {
+          void rememberLive("browser", s.id).catch(() => undefined)
+          return deps.releaseAndWait(s.id).then(
+            () => forgetLive("browser", s.id).catch(() => undefined),
+            () => undefined,
+          )
+        },
+        () => undefined,
+      )
       throw err
     }
   } else {

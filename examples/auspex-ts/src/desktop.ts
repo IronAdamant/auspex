@@ -344,7 +344,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         try {
           desktop = await observeAbort(createP, signal)
         } catch (err) {
-          void createP.then((d) => d.kill().catch(() => undefined))
+          void createP.then((d) => d.kill().catch(() => undefined), () => undefined)
           throw err
         }
         await rememberLive("desktop", desktop.sessionId).catch(() => undefined)
@@ -442,7 +442,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         /* original error wins */
       }
     } else {
-      void createP.then((d) => d.kill().catch(() => undefined))
+      void createP.then((d) => d.kill().catch(() => undefined), () => undefined)
     }
     tui.close()
     throw new AuspexError(explainSolariError(err), {

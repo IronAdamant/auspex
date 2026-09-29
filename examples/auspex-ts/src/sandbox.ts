@@ -339,7 +339,7 @@ export async function verifyReceipt(
         try {
           sandbox = await observeAbort(createP, signal)
         } catch (err) {
-          void createP.then((s) => s.kill().catch(() => undefined))
+          void createP.then((s) => s.kill().catch(() => undefined), () => undefined)
           throw err
         }
         if (isCancelled()) {
