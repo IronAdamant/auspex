@@ -53,6 +53,19 @@
       font-size: 0.88rem;
       color: var(--fg);
     }
+    .copy-wrap { position: relative; }
+    .copy-wrap pre { padding-right: 56px; }
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px;
+      width: 34px; height: 34px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--muted);
+      border: 1px solid var(--border); border-radius: 6px;
+      cursor: pointer;
+    }
+    .copy-btn:hover, .copy-btn:focus-visible { color: var(--fg); border-color: var(--muted); outline: none; }
+    .copy-btn.copied { color: #7fd48a; border-color: #7fd48a; }
+    .copy-btn svg { width: 16px; height: 16px; }
     .signals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; max-width: 1100px; margin: 0.75rem 0 0; }
     .signals div {
       margin: 0;
@@ -125,6 +138,8 @@
       table.apps td:last-child { white-space: normal; }
       .hero img { max-height: 220px; object-fit: cover; object-position: top; }
       .watch { min-height: 420px; }
+      /* Long lines scroll sideways on a phone, so the button gets its own row above the first line. */
+      .copy-wrap pre { padding-top: 50px; padding-right: 14px; }
     }
   </style>
 </head>
@@ -368,5 +383,57 @@ npx auspex-solari check --profile app-example --url https://app.example --expect
   <footer>
     <p>Agents: the contract is on GitHub. Never commit <code>SOLARI_API_KEY</code>, <code>.env</code>, or <code>.auspex/</code>.</p>
   </footer>
+  <script>
+    // A copy button on each command block. The diagram block (.key-paths) is not a command.
+    // No trailing newline is copied, so a paste into a terminal never runs the last line by itself.
+    (() => {
+      const icon = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>'
+      const copyIcon = icon('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>')
+      const doneIcon = icon('<path d="M20 6 9 17l-5-5"/>')
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text)
+          return true
+        } catch {
+          const ta = document.createElement("textarea")
+          ta.value = text
+          ta.setAttribute("readonly", "")
+          ta.style.position = "fixed"
+          ta.style.opacity = "0"
+          document.body.appendChild(ta)
+          ta.select()
+          let ok = false
+          try { ok = document.execCommand("copy") } catch { ok = false }
+          ta.remove()
+          return ok
+        }
+      }
+      function show(btn, state) {
+        const label = state === "done" ? "Copied" : state === "fail" ? "Copy failed; select the text instead" : "Copy these commands"
+        btn.innerHTML = state === "done" ? doneIcon : copyIcon
+        btn.classList.toggle("copied", state === "done")
+        btn.setAttribute("aria-label", label)
+        btn.title = state === "idle" ? "Copy" : label
+      }
+      for (const pre of document.querySelectorAll("pre:not(.key-paths)")) {
+        const text = pre.textContent.replace(/\s+$/, "")
+        const wrap = document.createElement("div")
+        wrap.className = "copy-wrap"
+        pre.before(wrap)
+        wrap.appendChild(pre)
+        const btn = document.createElement("button")
+        btn.type = "button"
+        btn.className = "copy-btn"
+        show(btn, "idle")
+        let timer
+        btn.addEventListener("click", async () => {
+          show(btn, (await copyText(text)) ? "done" : "fail")
+          clearTimeout(timer)
+          timer = setTimeout(() => show(btn, "idle"), 1600)
+        })
+        wrap.appendChild(btn)
+      }
+    })()
+  </script>
 </body>
 </html>
