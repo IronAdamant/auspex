@@ -2,14 +2,20 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.14 — 2026-09-29
 
-- **Phone door: a calm finish after Save.** Once Save is tapped, the countdown reads "Saved · link ends in m:ss", and when Solari closes the remote Chrome for the save (or the timer runs out) the page shows "Saved. Your agent takes it from here" instead of a reconnect spinner, "Save now", and "expired". Before Save, a dropped stream still reconnects. Live on Pages.
-- **A two-line Save line, and "saved" is enough.** The copied line is now "I tapped Save … for profile X" plus the one command to run (`connect --save X`, or `await-login --save-editor`). The door-table guidance it used to repeat lives in AGENTS.md and the `await-login` `next`. In an agent chat the human can just say "saved"; in a terminal running `connect`, Enter is Save. No relay or third-party service. The door page is live on Pages; `connect`'s own wording ships in the next release.
+npm `auspex-solari@0.1.14` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **A two-line Save line, and "saved" is enough.** The copied line is now "I tapped Save … for profile X" plus the one command to run (`connect --save X`, or `await-login --save-editor`). In an agent chat the human can just say "saved"; in a terminal running `connect`, Enter is Save. `connect`'s agent-mode instruction says so. No relay or third-party service.
+- **Phone door: a calm finish after Save.** The countdown reads "Saved · link ends in m:ss", and when Solari closes the remote Chrome for the save (or the timer runs out) the page shows "Saved. Your agent takes it from here" instead of a reconnect spinner, "Save now", and "expired". Before Save, a dropped stream still reconnects.
+- **Phone door: the Microsoft/Google banner is gone.** It could not tell when the human had reached the app (the stream never carries the page URL), so it stayed up on the logged-in app and after Save.
+- **`await-login` keeps a successful save when the jar read hiccups.** A Solari error reading the saved login after an editor/save 200 used to discard the 200 and say remint; the read is retried once after 5 s, and a second miss is `JarReadAfterSave` (run `profile-status`). Exhausted SDK errors name the call (for example `POST /sessions`).
+- **`connect` prints the receipt path with `~`** instead of the home folder, so pasted output does not name the account.
+- **AGENTS.md is about 40% shorter** (9,209 → 5,661 words), with a "Which command" table, one copy of each rule, and Solari 409/502, no-phone-door, and `botWall` rows. `CLAUDE.md` loads it again with `@AGENTS.md`.
 
 ## 0.1.13 — 2026-09-29
 
-npm `auspex-solari@0.1.13` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.13`. Agents do not `npm publish`. Founder publishes this release.
 
 - **`connect`: one command for the whole login.** `npx auspex-solari connect <https> --expect <words>` shows the phone door link, takes Enter (terminal) or `connect --save <profile>` (agent) as Save, finalizes only when needed, runs `check --verify-with-profile`, and ends in one plain sentence. It says "Logged in" only when `claimOkProfile` is true. Without a terminal the wait ends with Solari's typing window. It stops at once when Solari mints no phone door. CLI only; MCP hosts keep `auspex_job`.
 - **Microsoft MSAL finalize fallback in `job`.** When finalize was skipped because the save looked ready and a fresh browser lands logged out, finalize runs once and the check repeats. Never twice; `--skip-finalize` opts out.

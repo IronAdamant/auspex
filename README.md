@@ -56,7 +56,7 @@ npx auspex-solari check https://example.com --expect "Example Domain"
 npx -p auspex-solari auspex-mcp     # the MCP server
 ```
 
-The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.13 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`.
+The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.14 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`.
 
 ## Login door
 
