@@ -161,7 +161,7 @@ test("AGENTS first calls lead with login --url / derived slug; CH lives under Wo
     const firstCalls = text.split("## First calls")[1]?.split("\n## ")[0] ?? ""
     const worked = text.split("## Worked example (dogfood)")[1] ?? ""
     const iron = firstCalls.indexOf("check --name ironadamant")
-    const anyHost = firstCalls.indexOf('check https://example.com --expect "Example Domain"')
+    const anyHost = firstCalls.indexOf('check https://example.com --expect "documentation examples"')
     const genericStatus = firstCalls.indexOf("profile-status --profile app-example --url")
     const genericLogin = firstCalls.indexOf("login --url https://app.example")
     const genericFinalize = firstCalls.indexOf("finalize-login --profile app-example --url")

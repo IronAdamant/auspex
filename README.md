@@ -87,7 +87,7 @@ A saved login is ready to reuse only when a later check sees the logged-in page.
 
 ```bash
 export SOLARI_API_KEY=slr_live_…   # https://console.getsolari.com. Keep it in the environment; never commit it.
-npx auspex-solari check https://example.com --expect "Example Domain"
+npx auspex-solari check https://example.com --expect "documentation examples"
 npx auspex-solari connect https://your.app --expect "Words only shown when logged in"
 ```
 

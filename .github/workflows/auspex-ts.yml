@@ -68,7 +68,7 @@ jobs:
             echo "Skipping live smoke: SOLARI_API_KEY secret is not set"
             exit 0
           fi
-          npx tsx src/cli.ts check https://example.com --expect "Example Domain"
+          npx tsx src/cli.ts check https://example.com --expect "documentation examples"
       - name: Published-package MCP smoke (npm release, live verify)
         env:
           SMOKE_SPEC: ${{ github.event.inputs.spec || 'auspex-solari@latest' }}

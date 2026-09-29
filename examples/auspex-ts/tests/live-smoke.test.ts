@@ -7,8 +7,9 @@ import { createClient, launchBrowser, pageForSession } from "../src/solari.ts"
 
 const live = process.env.AUSPEX_LIVE === "1" && Boolean(process.env.SOLARI_API_KEY?.trim())
 
+// example.com's redesign keeps "Example Domain" only in <title>; match words in the page text.
 test("live Solari smoke is opt-in via AUSPEX_LIVE=1", { skip: !live }, async () => {
-  const parsed = parseArgv(["check", "https://example.com", "--expect", "Example Domain"])
+  const parsed = parseArgv(["check", "https://example.com", "--expect", "documentation examples"])
   assert.equal(parsed.status, "ok")
   const { runCheck } = await import("../src/check.ts")
   if (parsed.status !== "ok" || parsed.command.cmd !== "check") throw new Error("parse")

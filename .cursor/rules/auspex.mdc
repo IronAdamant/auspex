@@ -13,7 +13,7 @@ Default recipe for a stranger's site: `login --url <https>` (derives `--profile`
 
 ```bash
 npx auspex check --name ironadamant
-npx auspex check https://example.com --expect "Example Domain"
+npx auspex check https://example.com --expect "documentation examples"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex solari-health
 # platform only: GET /profiles. Not a login. Not profile-status. Run before a remint or a long await.

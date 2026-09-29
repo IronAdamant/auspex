@@ -44,7 +44,7 @@ After `export SOLARI_API_KEY` (clone MCP also needs `npm run build:mcp`; `dist/`
 
 ```bash
 npx auspex check --name ironadamant
-npx auspex check https://example.com --expect "Example Domain"
+npx auspex check https://example.com --expect "documentation examples"
 npx auspex profile-status --profile app-example --url https://app.example --expect "Workspace ready"
 npx auspex connect https://app.example --expect "Workspace ready"
 # One command: door link, Save, finalize when needed, check --verify-with-profile, one sentence.
