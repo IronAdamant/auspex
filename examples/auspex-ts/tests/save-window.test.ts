@@ -694,14 +694,28 @@ async function holdWaiter(root: string, shared: string, profile: string) {
   const saveDrain = path.resolve("src/save-drain.ts")
   const child = spawn(
     "npx",
-    ["tsx", "-e", `import("${saveDrain}").then(async (m) => { const c = await m.registerSaveWaiter("${profile}", ${JSON.stringify(root)}); console.log(c.ok ? "ready" : "busy"); setTimeout(async () => { if (c.ok) await c.release(); process.exit(0) }, 20000) })`],
+    ["tsx", "-e", `import("${saveDrain}").then(async (m) => { const c = await m.registerSaveWaiter("${profile}", ${JSON.stringify(root)}); console.log(c.ok ? "ready " + process.pid : "busy"); setTimeout(async () => { if (c.ok) await c.release(); process.exit(0) }, 20000) })`],
     { env: { ...process.env, AUSPEX_SHARED_DRAIN: shared, NODE_TEST_CONTEXT: "" }, stdio: ["ignore", "pipe", "inherit"] },
   )
-  await new Promise<void>((resolve, reject) => {
-    child.stdout.on("data", (d) => (String(d).includes("ready") ? resolve() : reject(new Error(String(d)))))
+  const waiterPid = await new Promise<number>((resolve, reject) => {
+    child.stdout.on("data", (d) => {
+      const m = /ready (\d+)/.exec(String(d))
+      if (m) resolve(Number(m[1]))
+      else reject(new Error(String(d)))
+    })
     child.on("exit", () => reject(new Error("waiter exited")))
   })
-  return child
+  // Kill the process that holds the waiter, not only npx: on Linux, killing npx leaves its node child running.
+  return {
+    kill: () => {
+      try {
+        process.kill(waiterPid)
+      } catch {
+        /* already gone */
+      }
+      child.kill()
+    },
+  }
 }
 
 test("connect --save finds a waiting connect in the other install (clone waiter, npm command)", async () => {
