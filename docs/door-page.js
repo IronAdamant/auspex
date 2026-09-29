@@ -130,6 +130,9 @@
     var tickTimer = null
     var reconnectTimer = null
     var locked = false
+    // Set when the human taps Save. After that, a closed stream means Solari ended the editor
+    // for the save, not a failure: show a calm finish, never a reconnect loop or a remint.
+    var savedAt = 0
     var streamConnected = false
     var streamPaused = false
     var sawConnect = false
@@ -190,7 +193,7 @@
       clearing = false
     }
 
-    function lockUi(title, message) {
+    function lockUi(title, message, done) {
       if (locked) return
       locked = true
       if (imeOut) imeOut.cancel()
@@ -207,10 +210,11 @@
       expiredTitle.textContent = title
       expiredText.textContent = message
       expired.classList.add("show")
+      if (done) expired.classList.add("done")
       reconnecting = false
       ttl.textContent = title
-      ttl.className = "dead"
-      setStatus(message, true)
+      ttl.className = done ? "done" : "dead"
+      setStatus(message, !done)
       setBoot(title, false)
       if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
       if (bootTimer) { clearInterval(bootTimer); bootTimer = null }
@@ -254,7 +258,7 @@
         copied.textContent = "Copied. Paste it in your AI chat."
         save.textContent = "Copied"
         save.classList.add("copied")
-        setStatus("Copied. Paste it in your AI chat, then stay on this page.")
+        setStatus("Copied. Paste it in your AI chat. Your agent takes it from here.")
         return
       }
       copied.textContent = "Copy did not work in this browser. Copy the line below by hand, then paste it in your AI chat."
@@ -280,7 +284,17 @@
       paste.value = line
       paste.classList.add("show")
       copyOnTap(line, showCopied)
+      savedAt = Date.now()
+      if (typeof tick === "function") tick()
     })
+
+    function finishSaved() {
+      lockUi(
+        "Saved. Your agent takes it from here.",
+        "Solari closed the remote Chrome after your Save. Your agent confirms whether the login worked. You can close this page.",
+        true
+      )
+    }
 
     var expSec = resolveExpirySeconds()
     if (!expSec) {
@@ -292,7 +306,13 @@
       if (locked) return
       var left = expSec - Math.floor(Date.now() / 1000)
       if (left <= 0) {
-        lockUi("This login link has expired", remintLine())
+        if (savedAt) finishSaved()
+        else lockUi("This login link has expired", remintLine())
+        return
+      }
+      if (savedAt) {
+        ttl.textContent = "Saved · link ends in " + formatRemain(left)
+        ttl.className = "done"
         return
       }
       if (left <= 90) {
@@ -481,6 +501,10 @@
     }
 
     function remintClosed() {
+      if (savedAt) {
+        finishSaved()
+        return
+      }
       lockUi(
         "Solari's remote Chrome closed. A new login link is required.",
         "Solari's remote Chrome closed. A new login link is required. " + remintLine()
@@ -596,6 +620,10 @@
         rfb.addEventListener("disconnect", function () {
           if (locked || ignoreDisconnect) return
           streamConnected = false
+          if (savedAt) {
+            finishSaved()
+            return
+          }
           scheduleDisconnectFollowup()
         })
       } catch (err) {

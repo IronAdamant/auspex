@@ -938,3 +938,45 @@ test("Save says Copied only when the copy is confirmed; otherwise it asks for a 
   await settle()
   assert.equal(none.byId.get("save")?.textContent, "Copy by hand")
 })
+
+test("after Save, a closed stream is a calm finish, not a reconnect loop or a remint", async () => {
+  const clients: Array<{ fire: (type: string) => void }> = []
+  const live = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=consistencyhub`,
+    { clients },
+  )
+  assert.ok(clients[0])
+  clients[0].fire("connect")
+  click(live.byId.get("save"))
+  drain(live)
+  await new Promise((resolve) => setImmediate(resolve))
+  const ttlAfterSave = live.byId.get("ttl")?.textContent ?? ""
+  assert.match(ttlAfterSave, /^Saved · link ends in/)
+  assert.equal(/Save now|Save before this dies/.test(ttlAfterSave), false)
+  assert.match(live.byId.get("status")?.textContent ?? "", /Your agent takes it from here/)
+
+  clients[0].fire("disconnect")
+  live.flushTimeouts()
+  assert.equal(clients.length, 1, "no reconnect after Save")
+  const status = live.byId.get("status")?.textContent ?? ""
+  assert.match(status, /Your agent confirms whether the login worked/)
+  assert.equal(/remint|new login link|Reconnecting/i.test(status), false)
+  assert.match(live.byId.get("ttl")?.textContent ?? "", /^Saved\. Your agent takes it from here\./)
+  assert.equal(live.byId.get("ttl")?.className, "done")
+  assert.equal(live.byId.get("ime")?.disabled, true)
+})
+
+test("before Save, a closed stream still reconnects", () => {
+  const clients: Array<{ fire: (type: string) => void }> = []
+  const live = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=consistencyhub`,
+    { clients },
+  )
+  clients[0]!.fire("connect")
+  clients[0]!.fire("disconnect")
+  live.flushTimeouts()
+  assert.ok(clients.length >= 2, "reconnect opens a new stream")
+  assert.match(live.byId.get("status")?.textContent ?? "", /Reconnecting/)
+})

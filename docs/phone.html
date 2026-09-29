@@ -18,6 +18,7 @@
     #ttl { margin-top: 4px; font-size: 13px; font-variant-numeric: tabular-nums; color: #cde; }
     #ttl.warn { color: #fc6; }
     #ttl.dead { color: #f88; }
+    #ttl.done { color: #8d9; }
     #status { color: #9ab; font-size: 13px; margin-top: 4px; }
     #status:empty { display: none; }
     #stage { flex: 1; min-height: 220px; position: relative; background: #0b0f14; }
@@ -47,6 +48,8 @@
       padding: 18px 16px; text-align: center;
     }
     #expiredBox strong { display: block; font-size: 18px; margin-bottom: 8px; color: #f88; }
+    #expired.done #expiredBox { border-color: #3a7; }
+    #expired.done #expiredBox strong { color: #8d9; }
     #bar { padding: 8px 12px calc(10px + env(safe-area-inset-bottom)); background: #121821; border-top: 1px solid #243044; }
     #imeWrap { position: relative; }
     #ime, #paste {
