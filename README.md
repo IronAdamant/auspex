@@ -54,7 +54,7 @@ On 2026-09-28 a person signed in once per site on the login page, and an AI agen
 
 Eight of eight, on a laptop and on a phone. When a login was not really saved, Auspex said so instead of guessing.
 
-The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser a "are you a robot?" check, and Auspex reports that honestly. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
+The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex reports that honestly. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
 
 Worth knowing before pointing it at your own app: opening a logged-in page still runs the site as normal (a chat app showed the account as online), and some drawing apps finish drawing after the page looks ready.
 
