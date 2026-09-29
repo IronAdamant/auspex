@@ -88,9 +88,20 @@ function streamExpiredNotLine(editorSaveStatus?: number): string {
 
 export function streamExpiredGuide(
   profile: string,
-  opts?: { editorSaveStatus?: number },
+  opts?: { editorSaveStatus?: number; editorRefusedSave?: boolean; tokenStatus?: number },
 ): { text: string; nextCall: NextCall } {
   const name = profile.trim() || "<name>"
+  if (opts?.editorRefusedSave) {
+    const token = typeof opts.tokenStatus === "number" ? `, and editor/token returned ${opts.tokenStatus}` : ""
+    return {
+      text:
+        `status stream-expired (editorRefusedSave): Solari refused editor/save (${opts.editorSaveStatus ?? "409"} not in a savable state) ` +
+        `while the phone stream still had time left${token}. The clock did not cause this. ` +
+        `This is not loggedOut or needsHuman, and nothing was saved. ` +
+        `Remint once: npx auspex login --profile ${name} (MCP: auspex_login). If it repeats, report editorSave and tokenStatus to Solari. ${OPS_GUIDE}`,
+      nextCall: remintLoginNextCall(name === "<name>" ? "" : name),
+    }
+  }
   return {
     text:
       `status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. ` +

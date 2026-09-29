@@ -58,6 +58,11 @@ export type LoginTraceEvent = {
   /** Post-handoff outcome. Not a check row. */
   status?: string
   foldReason?: string
+  /** Post-handoff HTTP statuses and seconds. Never tokens or bodies. */
+  editorSaveStatus?: number
+  tokenStatus?: number
+  editorRefusedSave?: boolean
+  streamLeftSec?: number
 }
 
 export type LoginTraceAttach = {
@@ -238,7 +243,10 @@ export function summarizeLoginTrace(events: LoginTraceEvent[]): string {
   const last = events.at(-1)!
   const prefix = `Episode ${last.episodeId ?? "ungrouped"} (${profile}): remint ${remints}.`
   if (last.event === "post-handoff") {
-    return `${prefix} Mint was ready. Post-handoff status ${last.status ?? "unknown"} (fold ${last.foldReason ?? "unknown"}). One redacted row. Check rows are not written.`
+    const refused = last.editorRefusedSave
+      ? ` Solari refused editor/save ${last.editorSaveStatus ?? "409"} with ${last.streamLeftSec ?? "?"}s left on the stream; editor/token ${last.tokenStatus ?? "unknown"}. The clock did not cause this.`
+      : ""
+    return `${prefix} Mint was ready. Post-handoff status ${last.status ?? "unknown"} (fold ${last.foldReason ?? "unknown"}).${refused} One redacted row. Check rows are not written.`
   }
   if (last.solariCode === "MissingApiKey" || last.mintStage === "key-check") {
     return `${prefix} Mint stopped at key-check: SOLARI_API_KEY is not set. Export it in the process that runs Auspex. Do not remint until the key is present.`
@@ -340,6 +348,17 @@ function cleanTraceText(value: string): string | undefined {
 }
 
 /** After a ready handoff, append one redacted outcome row. A second call for the same episode is a no-op. Check events are never written. */
+/** HTTP statuses and seconds only. Never tokens, bodies, or cookies. */
+function postHandoffDetail(raw: Record<string, unknown>): Record<string, number | boolean> {
+  const out: Record<string, number | boolean> = {}
+  for (const key of ["editorSaveStatus", "tokenStatus", "streamLeftSec"] as const) {
+    const v = raw[key]
+    if (typeof v === "number" && Number.isFinite(v)) out[key] = Math.round(v)
+  }
+  if (raw.editorRefusedSave === true) out.editorRefusedSave = true
+  return out
+}
+
 export async function recordPostHandoffTrace(
   raw: {
     profile: string
@@ -374,6 +393,7 @@ export async function recordPostHandoffTrace(
       episodeId,
       status,
       foldReason,
+      ...postHandoffDetail(raw),
     },
     file,
   )

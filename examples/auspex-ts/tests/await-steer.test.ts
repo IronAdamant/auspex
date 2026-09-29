@@ -247,6 +247,25 @@ test("not-savable exhaustion is stream-expired and does not claim a cookie Save"
   assert.match(exhausted.guided.text, /or a Solari 502/)
 })
 
+test("a 409 with stream time left says Solari refused, not the clock", () => {
+  const refused = steerAwaitLogin({
+    steered: seed({ status: "completed", cookies: 0, origins: 0, next: "saved" }),
+    editorSave: { ok: false, status: 409, error: "not in a savable state", tokenStatus: 409 } as never,
+    streamExpired: true,
+    editorHung: false,
+    profileBusy: false,
+    notSavableExhausted: true,
+    editorRefusedSave: true,
+    siteHost: "app.example",
+  })
+  assert.equal(refused.failClosed?.status, "stream-expired")
+  assert.equal(refused.guided.nextCall?.tool, "auspex_login")
+  assert.match(refused.guided.text, /editorRefusedSave/)
+  assert.match(refused.guided.text, /editor\/token returned 409/)
+  assert.match(refused.guided.text, /The clock did not cause this/)
+  assert.doesNotMatch(refused.guided.text, /stream is past/)
+})
+
 test("empty jar after a completed non-2xx names the status and does not finalize", () => {
   const empty = steerAwaitLogin({
     steered: seed({

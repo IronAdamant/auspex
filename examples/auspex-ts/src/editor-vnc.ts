@@ -192,21 +192,22 @@ export async function fetchEditorVncToken(
 }
 
 /**
- * One live POST /editor/token. True only when Solari returns a token.
+ * One live POST /editor/token. `live` only when Solari returns a token.
+ * `status` is Solari's HTTP status (0 when the call threw), kept for the receipt and trace.
  * Does not store the token, does not lengthen it, and does not DELETE the editor.
  */
-export async function editorTokenStillLive(
+export async function editorTokenProbe(
   profileId: string,
   handoffToken: string,
   opts?: { post?: EditorPost },
-): Promise<boolean> {
+): Promise<{ live: boolean; status: number }> {
   const id = profileId.trim()
   const token = handoffToken.trim()
-  if (!id || !token) return false
+  if (!id || !token) return { live: false, status: 0 }
   const post = opts?.post ?? (await editorHandoffCall(token, "POST"))
   const got = await post(editorApiPath(id, "/token"))
   const vnc = typeof got.json.token === "string" ? got.json.token.trim() : ""
-  return got.status === 200 && vnc.length > 0
+  return { live: got.status === 200 && vnc.length > 0, status: got.status }
 }
 
 /** Handoff-auth DELETE /api/profiles/:id/editor. 404 means no editor is running. */

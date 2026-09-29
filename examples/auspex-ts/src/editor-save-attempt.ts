@@ -17,7 +17,12 @@ export type EditorSaveOutcome = EditorSaveSnap & {
   notSavableExhausted?: boolean
   /** True when /editor/token returned a token and a second save was attempted. */
   tokenReuse?: boolean
+  /** Solari HTTP status of that one /editor/token check (0 when it threw). */
+  tokenStatus?: number
 }
+
+/** A boolean, or the token probe with Solari's status. */
+export type EditorLiveProbe = boolean | { live: boolean; status: number }
 
 /** Await receipt slice. Counts no cookies. Omits the Solari JSON body. */
 export type EditorSaveReceipt = {
@@ -26,6 +31,7 @@ export type EditorSaveReceipt = {
   error?: string
   notSavableExhausted?: boolean
   tokenReuse?: boolean
+  tokenStatus?: number
 }
 
 export function editorSaveForReceipt(saved: EditorSaveOutcome): EditorSaveReceipt {
@@ -36,6 +42,7 @@ export function editorSaveForReceipt(saved: EditorSaveOutcome): EditorSaveReceip
   }
   if (saved.notSavableExhausted === true) receipt.notSavableExhausted = true
   if (typeof saved.tokenReuse === "boolean") receipt.tokenReuse = saved.tokenReuse
+  if (typeof saved.tokenStatus === "number") receipt.tokenStatus = saved.tokenStatus
   return receipt
 }
 
@@ -71,7 +78,7 @@ export function editorSaveHttpProgress(saved: EditorSaveSnap): string | undefine
  */
 export async function saveEditorWithNotSavableReuse(opts: {
   save: () => Promise<EditorSaveSnap>
-  editorStillLive: () => Promise<boolean>
+  editorStillLive: () => Promise<EditorLiveProbe>
   onProgress?: (phase: string) => void
 }): Promise<EditorSaveOutcome> {
   const first = await opts.save()
@@ -82,21 +89,27 @@ export async function saveEditorWithNotSavableReuse(opts: {
   }
   opts.onProgress?.("await: editor/save 409 not in a savable state. One live editor/token check.")
   let live = false
+  let tokenStatus: number | undefined
   try {
-    live = await opts.editorStillLive()
+    const probe = await opts.editorStillLive()
+    live = typeof probe === "boolean" ? probe : probe.live
+    if (typeof probe !== "boolean") tokenStatus = probe.status
   } catch {
     live = false
+    tokenStatus = 0
   }
+  const token = tokenStatus !== undefined ? { tokenStatus } : {}
   if (!live) {
-    opts.onProgress?.("await: editor token is gone. stream-expired. Not claiming cookies.")
-    return { ...first, ok: false, notSavableExhausted: true, tokenReuse: false }
+    const seen = tokenStatus !== undefined ? ` (editor/token ${tokenStatus})` : ""
+    opts.onProgress?.(`await: editor token is gone${seen}. stream-expired. Not claiming cookies.`)
+    return { ...first, ok: false, notSavableExhausted: true, tokenReuse: false, ...token }
   }
   opts.onProgress?.("await: editor still live. POST editor/save once more.")
   const second = await opts.save()
-  if (second.hung) return { ...second, ok: false, tokenReuse: true }
+  if (second.hung) return { ...second, ok: false, tokenReuse: true, ...token }
   if (!second.ok) {
     opts.onProgress?.("await: editor/save failed after the token check. stream-expired. Not claiming cookies.")
-    return { ...second, ok: false, notSavableExhausted: true, tokenReuse: true }
+    return { ...second, ok: false, notSavableExhausted: true, tokenReuse: true, ...token }
   }
-  return { ...second, tokenReuse: true }
+  return { ...second, tokenReuse: true, ...token }
 }

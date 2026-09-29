@@ -66,6 +66,24 @@ test("Solari 409 isn't in a savable state reuses one live token then saves again
   assert.equal(phases[1], "await: editor still live. POST editor/save once more.")
 })
 
+test("Solari 409 keeps the editor/token status on the receipt", async () => {
+  const refused = await saveEditorWithNotSavableReuse({
+    save: async () => ({ ok: false, status: 409, error: SOLARI_NOT_SAVABLE }),
+    editorStillLive: async () => ({ live: false, status: 409 }),
+  })
+  assert.equal(refused.notSavableExhausted, true)
+  assert.equal(refused.tokenReuse, false)
+  assert.equal(editorSaveForReceipt(refused).tokenStatus, 409)
+
+  const threw = await saveEditorWithNotSavableReuse({
+    save: async () => ({ ok: false, status: 409, error: SOLARI_NOT_SAVABLE }),
+    editorStillLive: async () => {
+      throw new Error("socket")
+    },
+  })
+  assert.equal(editorSaveForReceipt(threw).tokenStatus, 0)
+})
+
 test("Solari 409 isn't stays fail-closed when the token is gone or the retry fails", async () => {
   let goneSaves = 0
   const gone = await saveEditorWithNotSavableReuse({

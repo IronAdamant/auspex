@@ -79,6 +79,8 @@ export function steerAwaitLogin(input: {
   profileBusy: boolean
   /** 409 not-savable, and the one live token check did not end in a successful save. */
   notSavableExhausted?: boolean
+  /** That 409 came while the stream JWT still had time left: Solari refused, the clock did not run out. */
+  editorRefusedSave?: boolean
   siteHost?: string
   guideUrl?: string
   guideExpect?: string
@@ -111,7 +113,11 @@ export function steerAwaitLogin(input: {
     input.notSavableExhausted === true && !patch
       ? {
           status: "stream-expired" as const,
-          ...streamExpiredGuide(steered.name, { editorSaveStatus: input.editorSave?.status }),
+          ...streamExpiredGuide(steered.name, {
+            editorSaveStatus: input.editorSave?.status,
+            editorRefusedSave: input.editorRefusedSave,
+            tokenStatus: (input.editorSave as { tokenStatus?: number } | undefined)?.tokenStatus,
+          }),
         }
       : undefined
   const cookieLead =

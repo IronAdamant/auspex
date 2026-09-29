@@ -43,7 +43,7 @@ import {
   streamExpiredGuide,
 } from "./await-fail.ts"
 import { editorSaveForReceipt, type EditorSaveReceipt } from "./editor-save-attempt.ts"
-import { editorTokenStillLive } from "./editor-vnc.ts"
+import { editorTokenProbe } from "./editor-vnc.ts"
 import { enableLiveLineBuffer, writeLiveLine } from "./line-buffer.ts"
 import { postEditorSaveWhenSignaled } from "./signaled-editor-save.ts"
 import { saveSignaledNext, siblingOwnsSave, siblingSavedNext } from "./save-drain.ts"
@@ -193,6 +193,10 @@ export type AwaitLoginResult = {
   next: string
   nextCall?: NextCall
   editorSave?: EditorSaveReceipt
+  /** stream-expired only because Solari refused editor/save (409) while the stream JWT still had time left. */
+  editorRefusedSave?: boolean
+  /** Seconds left on the stream JWT when that save was refused. */
+  streamLeftSec?: number
   /** Present after --save-editor. ok only when live editor CDP fold persisted. */
   editorFold?: EditorFoldResult
   /** Door should call finalize-login now. Set only when url and expect are known. */
@@ -851,6 +855,7 @@ export async function liveAwaitLogin(
     let editorHung = false
     let profileBusy = false
     let notSavableExhausted = false
+    let streamLeftSec: number | undefined
     let editorSaveAttempted = false
     let signaledWaiter = false
     let siblingSaved = false
@@ -902,7 +907,7 @@ export async function liveAwaitLogin(
             const row = rows.find((p) => p.name.trim() === name.trim())
             return asFiniteNumber((row as { version?: unknown } | undefined)?.version) ?? sinceVersion
           },
-          editorStillLive: () => editorTokenStillLive(handle.profileId, handle.handoffToken),
+          editorStillLive: () => editorTokenProbe(handle.profileId, handle.handoffToken),
           save: async () => {
             const savedBound = await boundEditorWork(
               () => saveProfileEditor(handle),
@@ -929,7 +934,11 @@ export async function liveAwaitLogin(
           const saved = outcome.editorSave
           editorSaveAttempted = true
           notSavableExhausted = saved.notSavableExhausted === true
-          if (notSavableExhausted) streamExpired = true
+          if (notSavableExhausted) {
+            streamExpired = true
+            const expMs = Date.parse(handle.streamExpiresAt ?? "")
+            if (Number.isFinite(expMs) && expMs > Date.now()) streamLeftSec = Math.round((expMs - Date.now()) / 1000)
+          }
           const hungSave = Boolean(saved.hung) || isBoundTimeoutMessage(saved.error ?? "")
           if (hungSave) editorHung = true
           const receipt = editorSaveForReceipt(saved)
@@ -1120,6 +1129,7 @@ export async function liveAwaitLogin(
       editorHung,
       profileBusy,
       notSavableExhausted,
+      editorRefusedSave: streamLeftSec !== undefined,
       siteHost: siteHostFromUrl(guideUrl),
       guideUrl,
       guideExpect: opts.expect ?? savedCheckForProfile(steered.name)?.expect,
@@ -1157,10 +1167,19 @@ export async function liveAwaitLogin(
       delete result.localStorageAuthKeyNames
       delete result.sessionStorage
       delete result.foldMiss
+      if (streamLeftSec !== undefined) {
+        result.editorRefusedSave = true
+        result.streamLeftSec = streamLeftSec
+      }
     }
     const outcome = postHandoffOutcome(result)
     if (outcome) {
-      await recordPostHandoffTrace({ profile: result.name, ...outcome }).catch(() => undefined)
+      const detail = {
+        ...(typeof result.editorSave?.status === "number" ? { editorSaveStatus: result.editorSave.status } : {}),
+        ...(typeof result.editorSave?.tokenStatus === "number" ? { tokenStatus: result.editorSave.tokenStatus } : {}),
+        ...(result.editorRefusedSave ? { editorRefusedSave: true, streamLeftSec: result.streamLeftSec } : {}),
+      }
+      await recordPostHandoffTrace({ profile: result.name, ...outcome, ...detail }).catch(() => undefined)
     }
     return result
   } finally {

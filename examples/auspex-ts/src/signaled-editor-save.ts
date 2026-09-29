@@ -14,6 +14,7 @@ import {
 } from "./save-drain.ts"
 import {
   saveEditorWithNotSavableReuse,
+  type EditorLiveProbe,
   type EditorSaveOutcome,
   type EditorSaveSnap,
 } from "./editor-save-attempt.ts"
@@ -82,7 +83,7 @@ export async function postEditorSaveWhenSignaled(opts: {
   sleep?: (ms: number) => Promise<void>
   readVersion: () => Promise<number>
   save: () => Promise<EditorSaveSnap>
-  editorStillLive: () => Promise<boolean>
+  editorStillLive: () => Promise<EditorLiveProbe>
   onProgress?: (phase: string) => void
   drainRoot?: string
   pollMs?: number
