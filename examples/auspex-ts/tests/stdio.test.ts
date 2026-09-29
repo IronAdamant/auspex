@@ -108,3 +108,16 @@ test("send rejects when stdout errors under backpressure", async () => {
   await assert.rejects(pending, /broken pipe/)
   await t.close()
 })
+
+test("a line that is not JSON is reported and skipped; the server keeps listening", async () => {
+  const { stdin, t, messages, errOf } = transport()
+  await t.start()
+  stdin.write('not json at all\n{"jsonrpc":"2.0","id":1,"method":"ping"}\n')
+  await new Promise((r) => setTimeout(r, 20))
+  assert.ok(errOf())
+  assert.equal(messages.length, 1)
+  stdin.write('{"jsonrpc":"2.0","id":2,"method":"ping"}\n')
+  await new Promise((r) => setTimeout(r, 20))
+  assert.equal(messages.length, 2)
+  await t.close()
+})
