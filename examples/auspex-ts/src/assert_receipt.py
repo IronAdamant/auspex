@@ -114,6 +114,11 @@ def haystack_matches(raw, expect):
     return False
 
 
+# Not page text: code, styles, the tab title (example.com keeps "Example Domain" only there),
+# and inert <template> content.
+SKIP_TAGS = ("script", "style", "noscript", "title", "template")
+
+
 class VisibleText(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -121,11 +126,11 @@ class VisibleText(HTMLParser):
         self.parts = []
 
     def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript"):
+        if tag in SKIP_TAGS:
             self._skip += 1
 
     def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript") and self._skip:
+        if tag in SKIP_TAGS and self._skip:
             self._skip -= 1
 
     def handle_data(self, data):
