@@ -113,6 +113,9 @@
       padding: 4px 0;
     }
     details.later > summary .hint { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
+    .demo-video { width: 100%; max-width: 1100px; border: 1px solid var(--border); border-radius: 8px; background: #000; display: block; margin: 0.75rem 0 0; }
+    .demo-caption { color: var(--muted); font-size: 0.9rem; margin: 0.4rem 0 0; }
+    .phone-video { width: 100%; max-width: 280px; border: 1px solid var(--border); border-radius: 16px; background: #000; display: block; margin: 0.75rem 0 0; }
     h2.later { margin-top: 2.6rem; border-top: 1px solid var(--border); padding-top: 1.2rem; }
     @media (max-width: 800px) {
       .signals { grid-template-columns: 1fr; }
@@ -128,9 +131,16 @@
 <body>
   <header>
     <h1>Auspex</h1>
+    <p><strong>Proof that an AI agent really saw a web page, including pages behind a login.</strong></p>
+    <video class="demo-video" src="video/auspex-demo-31s.mp4" autoplay muted loop playsinline controls preload="metadata"
+      aria-label="31-second demo: an AI agent logs in to a real app. Sped-up parts are marked on screen."></video>
+    <p class="demo-caption">
+      31 seconds: an AI agent logs in to our own app. A person signs in once; the agent never sees the password.
+      Sped-up parts are marked on screen. Names and the test email are blurred.
+    </p>
     <p>
       An agent can say a dashboard loaded when the page is still the login screen.
-      Auspex opens cloud Chrome, reads the page, and can have a second machine check that claim again.
+      Auspex opens the page in a separate browser in the cloud, looks for the exact words you expect, and can have a second browser check that claim again.
       A person signs in once. The agent never sees the password, and Auspex never types one.
     </p>
 
@@ -180,6 +190,11 @@
       a Microsoft app that came back logged out, and a Microsoft password screen it stopped at rather than typed into.
       Redacted receipts for every row: <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#other-sign-in-receipts-receipt-only">RECEIPTS.md</a>.
     </p>
+    <p>
+      The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command <code>connect</code>:
+      eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex says so instead of guessing.
+      <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#one-command-run-with-connect-2026-09-29">Every attempt</a>.
+    </p>
 
     <figure class="hero">
       <img
@@ -210,6 +225,8 @@ npx auspex-solari check --name ironadamant</pre>
       This is a public page with no login, so it does not prove the logged-in path; the table above does.
       No key? Clone the repo and run <code>npm install &amp;&amp; npm test</code>.
     </p>
+    <p>Your own site, whole login in one command (you sign in, then press Enter; it ends with one sentence):</p>
+    <pre>npx auspex-solari connect https://your.app --expect "Words only shown when logged in"</pre>
     <p class="proof">
       <a href="https://www.npmjs.com/package/auspex-solari">npm auspex-solari@0.1.14</a>.
       Install <code>auspex-solari</code> (not npm <code>auspex</code>). Repo is <a href="https://github.com/IronAdamant/auspex">IronAdamant/auspex</a>.
@@ -227,6 +244,15 @@ npx auspex-solari check --name ironadamant</pre>
         <a href="demo/ironadamant-receipt.json">Receipt</a>
       </figcaption>
     </figure>
+
+    <h2 class="later">How signing in works</h2>
+    <p>
+      Auspex gives you a link to its login page. Open it on your phone or computer: it shows the cloud browser, and the typing box at the bottom opens your phone keyboard.
+      Sign in to the site as usual, wait for the app to load, then tap <strong>Save</strong> and tell your AI agent "saved". The agent does the rest.
+    </p>
+    <video class="phone-video" src="video/auspex-phone-door.mp4" autoplay muted loop playsinline controls preload="metadata"
+      aria-label="14 seconds on a real phone: typing in the box drives the cloud browser above it"></video>
+    <p class="demo-caption">14 seconds on a real phone: typing in the box at the bottom drives the cloud browser above it. (Recorded on an earlier version of the page.)</p>
 
     <details class="later">
       <summary>How the login works <span class="hint">(phone door, agent steps)</span></summary>
@@ -255,8 +281,8 @@ npx auspex-solari check --name ironadamant</pre>
       ironadamant.com does not see the password or any keystrokes.
       If cookies or cache are cleared, or the saved Solari profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets.
       They stay off the AI chat, MCP, and receipts.
-      Tap Save (it copies a line that does not include what you typed). Paste that line, then
-      <code>await-login --save-editor</code>.
+      Tap Save (it copies a short line that does not include what you typed), then tell your agent "saved" or paste the line;
+      the agent runs <code>connect --save</code> or <code>await-login --save-editor</code>.
       This is a seed/handoff door for off-site typing (IME + Save paste),
       not a same-session HITL takeover of the live check.
       Solari's picture of Chrome will not open the phone keyboard.
@@ -264,7 +290,6 @@ npx auspex-solari check --name ironadamant</pre>
       An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
       not a live timer on this field. Purge a used login only after the human agrees.
       Door pages do not collect the Solari API key.
-      <!-- Live phone still: insert the tested screenshot here. Do not add it before that test. -->
     </div>
     <div class="card">
       <strong>Agent door.</strong>
