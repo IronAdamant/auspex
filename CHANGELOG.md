@@ -2,9 +2,25 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.16 — 2026-09-30
+
+npm `auspex-solari@0.1.16` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Fixes from a wide review. Each has a test that fails on 0.1.15.
+
+- **A 429 or 502 no longer ends the process.** When Solari refused to create a browser during a check with a timeout, the error was reported, but a cleanup promise also rejected unhandled and Node exited, taking the MCP server with it. Same fix in sandbox verify and desktop.
+- **`profile-status` reports a bot check as `botWall`**, with no `nextCall`. It used to say `loggedOut` (or `weakSeed`) and point at finalize-login, which cannot get past a bot check.
+- **`sweep` reports a bot check as could-not-tell**, not a fail, and no longer flags it as a regression.
+- **The session ledger keeps every id under parallel calls.** Updates run one at a time and write atomically, so `reap` can find every browser this machine opened.
+- **An unreadable idle timestamp no longer deletes a saved login.** It counts as used now; the operator state file is written atomically.
+- **A failed job's `nextCall` makes progress.** It used to resume the same job id, which returns the same failure. Now it is a new job, or one check retry when the save already happened.
+- **`connect` survives a failed Save signal and a closed terminal** (Ctrl-D) instead of crashing or waiting forever.
+- **Cookie inventory on short `.ai` / `.io` names.** A login cookie on a parent domain (`.x.ai` for `grok.x.ai`) is the app's own, not third-party. Receipt fields only.
+- Lockfile: `fast-uri` security update (npm audit). README: the second browser is the default only on public pages, and a Save that holds only the Microsoft or Google sign-in stops with no extra step.
+
 ## 0.1.15 — 2026-09-30
 
-npm `auspex-solari@0.1.15` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.15`. Agents do not `npm publish`. Founder publishes this release.
 
 - **README rewritten in plain language** for non-technical readers, with the 31-second demo and the phone-door recording playing inline (GIFs that link to sharper videos). Commands and MCP setup move under "For developers"; the last line points AI agents to AGENTS.md.
 - **`await-login` names a refused save.** When Solari refuses the save (409) while the phone stream still has time left, `next` says Solari refused it instead of blaming the clock, and the receipt and trace carry `tokenStatus`, `editorSaveStatus`, and `streamLeftSec`. Status stays `stream-expired` (frozen enum).
