@@ -400,6 +400,9 @@ export async function runConnect(
         return
       }
       out("When the app itself is on screen, press Enter here. (You don't need the Save button on the phone page.)")
+      // Only an Enter pressed after the link is shown means Save. A spare Enter typed earlier
+      // (at the words prompt) would otherwise save before the human has signed in.
+      lines.length = 0
       if ((await nextLine()) === null) {
         out("Input closed. Tap Save on the phone page instead; this command is still waiting for it.")
         return

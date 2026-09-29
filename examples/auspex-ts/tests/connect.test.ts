@@ -564,3 +564,27 @@ test("a refused second browser is named for what it is, never 'your words were n
     assert.doesNotMatch(outcome.headline, /was not on the page/, c.kind)
   }
 })
+
+test("an Enter typed before the link appears is not taken as Save", async () => {
+  const io = tty()
+  const signaled: number[] = []
+  const start = Date.now()
+  // The words, then a stray extra Enter, all before the door is shown.
+  io.stdin.write("Workspace ready\n\n")
+  await runConnect({ url: "https://app.example/dash" }, { stdin: io.stdin, stdout: io.stdout }, {
+    qr: async () => "QR",
+    signalSave: async () => {
+      signaled.push(Date.now() - start)
+    },
+    runJob: async (opts) => {
+      await new Promise((r) => setTimeout(r, 20))
+      opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR } })
+      await new Promise((r) => setTimeout(r, 40))
+      assert.deepEqual(signaled, [], "the stray Enter must not signal Save")
+      io.stdin.write("\n")
+      while (signaled.length === 0) await new Promise((r) => setTimeout(r, 5))
+      return job()
+    },
+  })
+  assert.equal(signaled.length, 1)
+})
