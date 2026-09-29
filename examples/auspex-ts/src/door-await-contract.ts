@@ -159,19 +159,11 @@ export function agentsDoorAwaitBlock(): string {
     (row) => `| ${row.status} | ${row.doThis} | ${row.dont} | ${row.nextCall} |`,
   )
   const note =
-    "Rows stay separate. Do not merge an IdP row with a fold row. " +
-    "A jar that omits the app host is `idp-only-save` when sessionStorage is empty or stale and the cookie hosts are only Microsoft or Google sign-in hosts (including exact `google.com` and `www.google.com`), or when cookies are present and liveHost is already the app. " +
-    "A `stream-expired` or timeout from that drain is not rewritten to finalize. " +
+    "A jar that omits the app host is `idp-only-save` when session storage is empty or stale and its cookie hosts are only Microsoft or Google sign-in hosts (including exact `google.com` and `www.google.com`), or when cookies are present and the live host is already the app. " +
     "Finalize on an `app-visible` jar opens a new session and returns `needsHuman`. There is no `nextCall`. " +
     "The fold-miss row sets `status` to `completed` and `foldMiss` true. " +
-    "After finalize writes the profile store, `--verify-with-profile` boots a fresh `POST /sessions` from that store (no editor JWT, no fold CDP). " +
     "Default `--save-editor` chains finalize when url and expect are known (`--no-chain-finalize` opts out). " +
-    "A `cookie-strong` or `local-storage-auth` jar already has app-origin cookies or allowlisted localStorage auth key names. Counted sessionStorage 0 is expected on editor Save. `nextCall` is `auspex_check`. `solariSaveReady` is not `claimOkProfile`. Do not finalize to invent sessionStorage."
-  const longRunNote =
-    "Seed health and re-gate are their own rows at the end of this table. They do not replace the rows above. " +
-    "`loggedIn` is a live probe, not `claimOkProfile`, and not overnight-safe. " +
-    "A long loop has no Auspex TTL and no keepalive. On re-gate, stop and take the matching row once. " +
-    "`app-visible` stays (none). `editorFold` `no-cdp` with the app host in the jar stays finalize now when the jar is not cookie-strong or local-storage-auth. A cookie-strong or local-storage-auth Save runs check --verify-with-profile. solariSaveReady is not claimOkProfile."
+    "After finalize writes the profile, `--verify-with-profile` boots a fresh browser from it (no editor token)."
   return [
     "Decision table. Opposite rows stay adjacent. Do not merge an IdP row with a fold row.",
     "",
@@ -180,27 +172,20 @@ export function agentsDoorAwaitBlock(): string {
     ...lines,
     "",
     note,
-    "",
-    longRunNote,
   ].join("\n")
 }
 
 export function agentsAwaitLoginBullet(): string {
   return (
-    "- `auspex_await_login` / `auspex await-login` — wait until Save stored cookies or origins (default **30 minutes**, matching the cold login-handoff). " +
-    "Returns status: **`completed`**, **`timeout`**, **`empty-save`** (a version bump with no cookies or origins is not success), " +
-    "**`idp-only-save`**, **`waiting`**, **`host-changed`** (remint; do not save into the old profile), " +
-    "**`stream-expired`**, **`editor-save-hung`** (do not finalize in parallel), **`profile-busy`** (retry await after that save ends), " +
-    "**`save-signaled`** (told a running await to POST editor/save; do not kill that process). " +
-    "**`sibling-saved`** (another path already owns editor/save, posted or in flight; do not POST again, do not read the jar, do not report `stream-expired`, do not remint). " +
-    "IdP, fold-miss, bare `stream-expired`, `cookie-strong`, `local-storage-auth`, `weakSeed`, `emptySave`, seed health, and re-gate actions are the decision table in the frozen door-await block. Do not merge those rows and do not restate them here. " +
-    "Do not merge seed health or re-gate into `app-visible` or into finalize-now. " +
-    "**`--save-editor` does not refresh folded sessionStorage** unless `editorFold.ok` (Solari editor is noVNC today; leftover count is not a fresh capture). " +
-    "If `editorSave` fails (e.g. 401), remint — cookies are not proof of login. Remint if finalize-login returns `needsHuman`. " +
-    "SPAs that keep tokens in sessionStorage still need `finalize-login` while the token is valid. Live inspect **forwards origin** so that sessionStorage warning can fire. " +
-    "Clipboard Save is not the jar. `--save-editor` POSTs Solari editor/save when Save is signaled. A second call signals a running await; do not kill it. Progress is live on stderr. " +
-    "A 409 not in a savable state gets one live editor/token check and one more save, then `stream-expired`, unless another path already owns that Save (`sibling-saved`). A failed save does not claim cookies. POST /editor/token has no TTL. " +
-    "A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window."
+    "- `auspex_await_login` / `auspex await-login` — wait until Save stored cookies or origins (default **30 minutes**). " +
+    "Statuses: `completed`, `timeout`, `empty-save` (a version bump with no cookies or origins is not success), `idp-only-save`, `waiting`, " +
+    "`host-changed` (remint; do not save into the old profile), `stream-expired`, `editor-save-hung` (do not finalize in parallel), " +
+    "`profile-busy` (retry after that save ends), `save-signaled` (a running await was told to POST editor/save; do not kill it), " +
+    "`sibling-saved` (another path owns editor/save; do not POST again, do not remint). The next step for each is the door table. " +
+    "`--save-editor` POSTs Solari editor/save when Save is signaled; a second call signals the running await. " +
+    "It does not refresh folded sessionStorage unless `editorFold.ok`. " +
+    "A 409 not in a savable state gets one token check and one more save, then `stream-expired`. A failed save never claims cookies. " +
+    "A sign-in longer than about 5 minutes needs a fresh login for the final Save window."
   )
 }
 
@@ -261,7 +246,7 @@ export function agentsLongRunBlock(): string {
     "",
     "If the loop hits a sign-in wall, a fresh challenge (a new password, code, or challenge page), a dead typing window with no cookies (bare `stream-expired`), or a seed you cannot reuse: stop. The clear status is the matching row in the door table. Take that row's `nextCall` once. The human door is `auspex_login` only when that nextCall is `auspex_login`. Do not type a password, OTP, or CAPTCHA answer. Do not claim the challenge is solved. Do not keep the loop running for hours.",
     "",
-    "`app-visible` still has no `nextCall`. Do not mint again to finish Microsoft. `editorFold` `no-cdp` with the app host in the jar is still finalize now, even if the window already died, when that jar is not cookie-strong or local-storage-auth. A cookie-strong or local-storage-auth Save is check --verify-with-profile. solariSaveReady is not claimOkProfile. A counted `sessionStorage === 0` with no app-origin cookies and no allowlisted localStorage auth key names, while the token is live, is still finalize-login, not a remint. Those rows stay separate from each other.",
+    "The door table still applies inside a loop: `app-visible` has no `nextCall`, and `editorFold` `no-cdp` with the app host in the jar is still finalize now.",
   ].join("\n")
 }
 
