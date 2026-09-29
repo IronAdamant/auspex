@@ -108,6 +108,7 @@ export const REAP_DESCRIPTION =
   "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. " +
   "Default kills Auspex live-ledger ids only (accountWide stays false). Solari has no GET /sessions (cookbook #61). " +
   "Use after 429. dryRun lists. packReceipts copies last receipts per URL into .auspex/pack. " +
+  "A browser or VM another running Auspex command opened in the last 10 minutes is left open and listed in inUse; sessionId releases one anyway. " +
   DOOR
 
 export const TRACE_DESCRIPTION =

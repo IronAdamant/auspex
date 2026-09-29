@@ -5,7 +5,7 @@ import { stateDir, toStatePath } from "./paths.ts"
 import { listCompleteRunDirs, RUNS_DIR } from "./receipt.ts"
 import { receiptUrlKey } from "./receipt-diff.ts"
 import { BROWSER_API_BASE, fetchWithIdempotencyKey, requireApiKey } from "./solari.ts"
-import { forgetLive, readLiveLedger, type LiveLedger } from "./session-ledger.ts"
+import { forgetLive, IN_USE_MAX_MS, isInUse, readLiveLedger, type LiveLedger } from "./session-ledger.ts"
 
 export type PackedReceipt = {
   url: string
@@ -101,6 +101,8 @@ export type ReapResult = {
   packDir?: string
   accountWide?: boolean
   ledgerCount?: number
+  /** Ledger ids another running Auspex command opened in the last 10 minutes. Left open. */
+  inUse?: string[]
   note?: string
 }
 
@@ -118,6 +120,8 @@ export type ReapDeps = {
   releaseBrowser: (id: string) => Promise<void>
   ledger?: () => Promise<LiveLedger>
   packReceipts?: () => Promise<{ packDir: string; packed: PackedReceipt[] }>
+  /** Test seam. Default: owner process alive and opened under IN_USE_MAX_MS ago. */
+  inUse?: (ledger: LiveLedger, id: string) => boolean
 }
 
 export async function defaultReapDeps(): Promise<ReapDeps> {
@@ -167,7 +171,12 @@ export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promi
   const released: string[] = []
   const killed: string[] = []
   const ledger = d.ledger ? await d.ledger() : { browser: [], sandbox: [], desktop: [] }
-  const browsers = [...new Set([...(opts.sessionId ? [opts.sessionId] : []), ...ledger.browser])]
+  // Another running command's browser or VM is not a leftover. An id named with --session or --vm
+  // is always released: the caller asked for that one.
+  const busy = (id: string) => id !== opts.sessionId && id !== opts.vmId && (d.inUse ?? isInUse)(ledger, id)
+  const inUse = new Set<string>()
+  const ledgerBrowsers = ledger.browser.filter((id) => (busy(id) ? (inUse.add(id), false) : true))
+  const browsers = [...new Set([...(opts.sessionId ? [opts.sessionId] : []), ...ledgerBrowsers])]
   let vms: VmRow[]
   if (accountWide) {
     vms = await d.listVms()
@@ -179,6 +188,7 @@ export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promi
   } else {
     vms = ledgerVms(ledger, opts.vmId)
   }
+  vms = vms.filter((v) => (busy(v.id) ? (inUse.add(v.id), false) : true))
   if (!dryRun) {
     for (const id of browsers) {
       try {
@@ -210,7 +220,10 @@ export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promi
     errors,
     accountWide,
     ledgerCount: ledger.browser.length + ledger.sandbox.length + ledger.desktop.length,
-    note: REAP_LEDGER_NOTE,
+    ...(inUse.size ? { inUse: [...inUse] } : {}),
+    note: inUse.size
+      ? `${REAP_LEDGER_NOTE} Left open: ${inUse.size} session(s) another running Auspex command opened in the last ${IN_USE_MAX_MS / 60_000} minutes (inUse). Pass --session <id> to release one anyway.`
+      : REAP_LEDGER_NOTE,
   }
   if (opts.packReceipts) {
     try {
