@@ -94,10 +94,16 @@
     return bulletsOn ? "password" : "text"
   }
 
-  /* noVNC defaults are quality 6 and compression 2. 4/6 is a lighter login
-     picture that still shows buttons. This build exposes both setters (0–9). */
-  var DOOR_QUALITY_LEVEL = 4
-  var DOOR_COMPRESSION_LEVEL = 6
+  /* Two stream presets (noVNC setters, 0–9). Faster is the default: small frames
+     for a far or mobile link (Solari's browsers answer from the US). Sharper is
+     noVNC's own default. The phone page switches live, no reconnect. Nothing is
+     stored: the typing door keeps no local storage, so every door opens on Faster. */
+  var DOOR_STREAM_MODES = {
+    fast: { qualityLevel: 2, compressionLevel: 9 },
+    sharp: { qualityLevel: 6, compressionLevel: 2 },
+  }
+  var DOOR_QUALITY_LEVEL = DOOR_STREAM_MODES.fast.qualityLevel
+  var DOOR_COMPRESSION_LEVEL = DOOR_STREAM_MODES.fast.compressionLevel
   var DOOR_RESIZE_MIN_PX = 64
   /* 50ms folds a burst into the latest field text. 30ms spaces the keys that
      remain so a slow link does not take a whole paste in one turn.
@@ -178,11 +184,23 @@
     return true
   }
 
-  function applyDoorView(rfb) {
+  function doorStreamMode(sharp) {
+    return sharp ? "sharp" : "fast"
+  }
+
+  /** Set the picture preset on a live stream. Unknown modes fall back to fast. */
+  function applyDoorQuality(rfb, mode) {
+    if (!rfb) return "fast"
+    var name = DOOR_STREAM_MODES[mode] ? mode : "fast"
+    rfb.qualityLevel = DOOR_STREAM_MODES[name].qualityLevel
+    rfb.compressionLevel = DOOR_STREAM_MODES[name].compressionLevel
+    return name
+  }
+
+  function applyDoorView(rfb, mode) {
     if (!rfb) return { mapped: false, resizeGated: false }
     rfb.scaleViewport = true
-    rfb.qualityLevel = DOOR_QUALITY_LEVEL
-    rfb.compressionLevel = DOOR_COMPRESSION_LEVEL
+    applyDoorQuality(rfb, mode)
     var mapped = installPointerMap(rfb)
     settleDoorChrome(rfb)
     return { mapped: mapped, resizeGated: gateResizeSession(rfb) }
@@ -344,6 +362,9 @@
     imeInputType: imeInputType,
     DOOR_QUALITY_LEVEL: DOOR_QUALITY_LEVEL,
     DOOR_COMPRESSION_LEVEL: DOOR_COMPRESSION_LEVEL,
+    DOOR_STREAM_MODES: DOOR_STREAM_MODES,
+    doorStreamMode: doorStreamMode,
+    applyDoorQuality: applyDoorQuality,
     DOOR_RESIZE_MIN_PX: DOOR_RESIZE_MIN_PX,
     IME_COALESCE_MS: IME_COALESCE_MS,
     IME_KEY_GAP_MS: IME_KEY_GAP_MS,

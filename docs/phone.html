@@ -60,11 +60,11 @@
     }
     #imeHint { margin: 4px 0 0; font-size: 12px; color: #6a7a90; line-height: 1.35; }
     #checks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; }
-    #bulletsLabel, #otpLabel {
+    #bulletsLabel, #otpLabel, #sharpLabel {
       display: flex; align-items: center; gap: 8px;
       margin: 0; font-size: 14px; color: #cde;
     }
-    #bullets, #otpMode { width: 1.15rem; height: 1.15rem; margin: 0; }
+    #bullets, #otpMode, #sharp { width: 1.15rem; height: 1.15rem; margin: 0; }
     #paste { display: none; margin-top: 8px; min-height: 4.5em; font-size: 14px; }
     #paste.show { display: block; }
     #copied {
@@ -127,6 +127,7 @@
         <div id="checks">
           <label id="bulletsLabel"><input id="bullets" type="checkbox" /> Show as bullets</label>
           <label id="otpLabel"><input id="otpMode" type="checkbox" /> SMS / email code</label>
+          <label id="sharpLabel" title="Off is faster on a far or slow link. Switches live. Not remembered."><input id="sharp" type="checkbox" /> Sharper picture</label>
         </div>
       </div>
       <textarea id="copyScratch" readonly tabindex="-1" aria-hidden="true"></textarea>

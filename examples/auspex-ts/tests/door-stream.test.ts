@@ -39,6 +39,9 @@ function loadDoorStream() {
     imeInputType: (bulletsOn: boolean) => string
     DOOR_QUALITY_LEVEL: number
     DOOR_COMPRESSION_LEVEL: number
+    DOOR_STREAM_MODES: Record<"fast" | "sharp", { qualityLevel: number; compressionLevel: number }>
+    doorStreamMode: (sharp: boolean) => "fast" | "sharp"
+    applyDoorQuality: (rfb: Record<string, unknown> | null, mode?: string) => string
     framebufferPoint: (local: number, rendered: number, bitmap: number) => number
     planImeSteps: (prev: string, next: string) => Array<{ keysym: number; code: string; remote: string }>
     applyDoorView: (rfb: Record<string, unknown>) => { mapped: boolean; resizeGated: boolean }
@@ -197,8 +200,9 @@ test("applyDoorView fits once, maps the live canvas, and lightens the stream", (
   assert.equal(rfb.scaleViewport, true)
   assert.equal(rfb.qualityLevel, Door.DOOR_QUALITY_LEVEL)
   assert.equal(rfb.compressionLevel, Door.DOOR_COMPRESSION_LEVEL)
-  assert.equal(Door.DOOR_QUALITY_LEVEL, 4)
-  assert.equal(Door.DOOR_COMPRESSION_LEVEL, 6)
+  // Faster is the default: small frames for a far or mobile link.
+  assert.equal(Door.DOOR_QUALITY_LEVEL, 2)
+  assert.equal(Door.DOOR_COMPRESSION_LEVEL, 9)
   assert.equal((rfb._screen as { style: { overflow: string; touchAction: string } }).style.overflow, "hidden")
   assert.equal((rfb._screen as { style: { touchAction: string } }).style.touchAction, "manipulation")
   assert.equal(canvas.style.touchAction, "manipulation")
@@ -353,4 +357,35 @@ test("IME coalescer folds a burst, paces keys, and still commits on Enter and Cl
   assert.match(phone, /touch-action: manipulation/)
   assert.match(phone, /stays still while you tap/)
   assert.match(phone, /Tap a field in Solari's Chrome, then type here/)
+})
+
+test("stream presets: Faster by default, Sharper switches live", () => {
+  const Door = loadDoorStream()
+  // Loaded in a vm context, so compare fields rather than object identity.
+  assert.equal(Door.DOOR_STREAM_MODES.fast.qualityLevel, 2)
+  assert.equal(Door.DOOR_STREAM_MODES.fast.compressionLevel, 9)
+  assert.equal(Door.DOOR_STREAM_MODES.sharp.qualityLevel, 6)
+  assert.equal(Door.DOOR_STREAM_MODES.sharp.compressionLevel, 2)
+  assert.equal(Door.doorStreamMode(false), "fast")
+  assert.equal(Door.doorStreamMode(true), "sharp")
+
+  const rfb: Record<string, unknown> = {}
+  assert.equal(Door.applyDoorQuality(rfb, "sharp"), "sharp")
+  assert.equal(rfb.qualityLevel, 6)
+  assert.equal(rfb.compressionLevel, 2)
+  assert.equal(Door.applyDoorQuality(rfb, "fast"), "fast")
+  assert.equal(rfb.qualityLevel, 2)
+  assert.equal(Door.applyDoorQuality(rfb, "ultra"), "fast", "unknown mode falls back to fast")
+  assert.equal(Door.applyDoorQuality(null, "sharp"), "fast")
+
+})
+
+test("phone.html offers the Sharper picture switch and door-page applies it", () => {
+  const phone = readFileSync(path.join(repo, "docs", "phone.html"), "utf8")
+  const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+  assert.match(phone, /id="sharp" type="checkbox"/)
+  assert.match(phone, /Sharper picture/)
+  assert.match(page, /applyDoorView\(rfb, streamMode\(\)\)/)
+  assert.match(page, /applyDoorQuality\(rfb, streamMode\(\)\)/)
+  assert.equal(/<input id="sharp"[^>]*\schecked/.test(phone), false, "Faster is the default")
 })

@@ -2,6 +2,10 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **Faster stream by default on the phone door, with a "Sharper picture" switch.** The door now asks noVNC for quality 2 / compression 9 (was 4 / 6): smaller frames for a far or mobile link (Solari's browsers answer from the US). Ticking "Sharper picture" switches the live stream to noVNC's own 6 / 2 with no reconnect. Nothing is stored; every door opens on Faster. The door is GitHub Pages, so this is live without an npm release.
+
 ## 0.1.13 — 2026-09-29
 
 npm `auspex-solari@0.1.13` (latest). Agents do not `npm publish`. Founder publishes this release.
