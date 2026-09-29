@@ -2,9 +2,18 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.15 — 2026-09-30
+
+npm `auspex-solari@0.1.15` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+- **README rewritten in plain language** for non-technical readers, with the 31-second demo and the phone-door recording playing inline (GIFs that link to sharper videos). Commands and MCP setup move under "For developers"; the last line points AI agents to AGENTS.md.
+- **`await-login` names a refused save.** When Solari refuses the save (409) while the phone stream still has time left, `next` says Solari refused it instead of blaming the clock, and the receipt and trace carry `tokenStatus`, `editorSaveStatus`, and `streamLeftSec`. Status stays `stream-expired` (frozen enum).
+- **Phone door: wait for the app, and "Copied" until the save is real.** The countdown tells the human to wait for the app before Save, the line after the tap says Copied (not Saved), and a link that runs out after the tap no longer claims Solari saved. The calm "Saved" finish stays for a real close after Save. (Live on GitHub Pages already.)
+- The landing page plays both recordings and notes the 2026-09-29 one-command run (8 of 9; Canva stopped by a bot check).
+
 ## 0.1.14 — 2026-09-29
 
-npm `auspex-solari@0.1.14` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.14`. Agents do not `npm publish`. Founder publishes this release.
 
 - **A two-line Save line, and "saved" is enough.** The copied line is now "I tapped Save … for profile X" plus the one command to run (`connect --save X`, or `await-login --save-editor`). In an agent chat the human can just say "saved"; in a terminal running `connect`, Enter is Save. `connect`'s agent-mode instruction says so. No relay or third-party service.
 - **Phone door: a calm finish after Save.** The countdown reads "Saved · link ends in m:ss", and when Solari closes the remote Chrome for the save (or the timer runs out) the page shows "Saved. Your agent takes it from here" instead of a reconnect spinner, "Save now", and "expired". Before Save, a dropped stream still reconnects.
