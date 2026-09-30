@@ -8,6 +8,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **After a click, the receipt excerpt shows the dialog the click opened.** Clicking Good Tape's "Explore plans" opened a "Choose your plan" dialog, but the excerpt kept showing the page underneath, so an agent reading the receipt could not see what its click did. Without a click, an open dialog is usually a cookie banner, so the page stays the excerpt there. Matching still reads the whole page.
 
+- **A missed click says why.** Exploring Clozemaster, `--click "text=Collections"` failed because two elements matched (one hidden, for mobile), and the advice said to "pick a selector that exists there". The receipt now says how many elements matched and suggests `>> visible=true`, `>> nth=N`, or a role selector; a hidden first match gets `>> visible=true`; a timeout says nothing matching became visible.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

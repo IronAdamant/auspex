@@ -487,3 +487,24 @@ test("an aborted check still throws from the click", async () => {
   }
   await assert.rejects(runPageActions(page as never, { click: "a" }, ac.signal), /aborted/)
 })
+
+test("a click miss says why: several matches need a unique selector; a timeout means not found", async () => {
+  const { clickMissedNext } = await import("../src/page-actions.ts")
+  const several = clickMissedNext(
+    "text=Collections",
+    "locator.click: Error: strict mode violation: locator('text=Collections') resolved to 2 elements: waiting for locator('text=Collections')",
+  )
+  assert.match(several, /matched 2 elements and a click needs exactly one/)
+  assert.match(several, />> visible=true/)
+  const stillSeveral = clickMissedNext("text=View >> visible=true", "locator.click: Error: strict mode violation: locator('text=View').filter({ visible: true }) resolved to 6 elements: wait")
+  assert.match(stillSeveral, /matched 6 elements/)
+  assert.equal(stillSeveral.includes('add " >> visible=true"'), false, "no advice to add what the selector already has")
+  assert.match(stillSeveral, />> nth=N/)
+  const hidden = clickMissedNext("text=Collections >> nth=0", "locator.click: Timeout 15000ms exceeded. element is not visible")
+  assert.match(hidden, /The first match is hidden/)
+  assert.match(hidden, />> visible=true/)
+  assert.equal(several.includes("Pick a selector that exists there"), false)
+  const missing = clickMissedNext("header button", "locator.click: Timeout 15000ms exceeded. waiting for locator('header button')")
+  assert.match(missing, /Nothing matching that selector became visible and clickable/)
+  assert.match(missing, /One check is one click/)
+})

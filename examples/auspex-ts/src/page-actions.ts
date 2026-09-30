@@ -305,11 +305,17 @@ export function shortClickError(err: unknown): string {
 }
 
 export function clickMissedNext(selector: string, error: string): string {
-  return (
-    `Click target ${selector} was not clicked (${error}). clicked is unset and ok is false. ` +
-    "The screenshot and excerpt show the page before the click. Pick a selector that exists there " +
-    "(prefer a stable id or role), or open the page's own URL instead of a menu. One check is one click."
-  )
+  const lead = `Click target ${selector} was not clicked (${error}). clicked is unset and ok is false. The screenshot and excerpt show the page before the click. `
+  const several = /strict mode violation[^\n]*resolved to (\d+) elements/i.exec(error)
+  const visibleHint = /visible=true/.test(selector) ? "" : ' " >> visible=true" (a page often keeps a hidden copy for mobile),'
+  const fix = several
+    ? `The selector matched ${several[1]} elements and a click needs exactly one. Make it unique: add${visibleHint} " >> nth=N", or use a role selector such as role=link[name="…"].`
+    : /element is not visible/i.test(error)
+      ? 'The first match is hidden (a page often keeps a hidden copy for mobile). Add " >> visible=true" to click the visible one.'
+      : /waiting for locator|timeout \d+ms exceeded/i.test(error)
+        ? "Nothing matching that selector became visible and clickable. Pick a selector that exists there (prefer a stable id or role)."
+        : "Pick a selector that exists there (prefer a stable id or role)."
+  return `${lead}${fix} Or open the page's own URL instead of a menu. One check is one click.`
 }
 
 export const PAGE_ACTION_TIMEOUT_MS = 15_000
