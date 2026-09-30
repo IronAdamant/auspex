@@ -43,15 +43,16 @@ export function idpAuthHost(hostname: string): boolean {
   return microsoftAuthHost(hostname) || googleAuthHost(hostname)
 }
 
+/** A path segment that names a sign-in page: /login, /signin, /sign-in, /users/sign_in, /account/login… */
+const SIGN_IN_SEGMENT = /^(log-?in|sign-?in|sign_in|log_in)$/
+
 export function stillOnAuth(url: URL): boolean {
   if (idpAuthHost(url.hostname)) {
     return true
   }
   const path = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase()
-  if (path === "/login" || path.startsWith("/login/") || path === "/auth" || path.startsWith("/auth/")) {
-    return true
-  }
-  return false
+  if (path === "/auth" || path.startsWith("/auth/")) return true
+  return path.split("/").some((segment) => SIGN_IN_SEGMENT.test(segment))
 }
 
 /**

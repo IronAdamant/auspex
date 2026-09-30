@@ -103,3 +103,28 @@ test("completeSso: a Microsoft account tile that will not click is probed, not t
   const result = await completeSso(page as never, { provider: "microsoft", signal: ac.signal })
   assert.equal(result.needsHuman, false)
 })
+
+test("sign-in pages are recognised by any sign-in path segment, not only /login and /auth", async () => {
+  const { stillOnAuth } = await import("../src/sso.ts")
+  for (const url of [
+    "https://app.example/login",
+    "https://app.example/login/sso",
+    "https://app.example/auth/callback",
+    "https://app.example/signin",
+    "https://app.example/sign-in?next=/dash",
+    "https://gitlab.example/users/sign_in",
+    "https://app.example/account/login",
+    "https://app.example/accounts/log-in/",
+  ]) {
+    assert.equal(stillOnAuth(new URL(url)), true, url)
+  }
+  for (const url of [
+    "https://app.example/dashboard",
+    "https://app.example/settings/login-history",
+    "https://app.example/signing-keys",
+    "https://app.example/api/authors",
+    "https://www.tldraw.com/f/abc",
+  ]) {
+    assert.equal(stillOnAuth(new URL(url)), false, url)
+  }
+})

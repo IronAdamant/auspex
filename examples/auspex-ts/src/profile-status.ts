@@ -409,7 +409,10 @@ export async function profileStatus(
     url,
     populated: true,
     live: true,
-    next: LOGGED_IN_SEED_HEALTH,
+    // Without words to look for, the probe only saw that the page was not a sign-in or public page.
+    next: claim
+      ? LOGGED_IN_SEED_HEALTH
+      : `No expect was given, so loggedIn only means the page did not land on a sign-in, landing, or public page. Pass --expect with words only the logged-in app shows. ${LOGGED_IN_SEED_HEALTH}`,
     finalUrl: landed,
     excerpt: result.excerpt,
     screenshotPath: result.screenshotPath,

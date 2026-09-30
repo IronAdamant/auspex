@@ -523,3 +523,31 @@ test("loggedOut check next names finalize-login not remint sso save-profile", ()
   assert.match(unknown, /finalize-login --profile acme --url <url> --expect <string>/)
   assert.equal(unknown.includes("Document Editor"), false)
 })
+
+test("profileStatus without an expect says loggedIn only means 'not a sign-in page'; a sign-in path is loggedOut", async () => {
+  const deps = (finalUrl: string) => ({
+    listProfiles: async () => [{ id: "p1", name: "app-example", populated: true }],
+    savedForProfile: () => undefined,
+    inspectSeed: async () => ({ cookies: 5, origins: 1 }),
+    runCheck: async (opts: { url: string; expect: string }) =>
+      ({
+        ok: false,
+        reason: "mismatch",
+        url: opts.url,
+        expect: opts.expect,
+        screenshotPath: ".auspex/runs/x/screenshot.png",
+        title: "App",
+        finalUrl,
+        matched: false,
+        excerpt: "page",
+        sessionId: "s",
+        networkIdle: true,
+      }) satisfies CheckResult,
+  })
+  const open = await profileStatus({ profile: "app-example", url: "https://app.example/home" }, deps("https://app.example/home"))
+  assert.equal(open.reason, "loggedIn")
+  assert.match(open.next ?? "", /No expect was given/)
+  const wall = await profileStatus({ profile: "app-example", url: "https://app.example/home" }, deps("https://app.example/users/sign_in"))
+  assert.equal(wall.reason, "loggedOut")
+  assert.equal(wall.ok, false)
+})
