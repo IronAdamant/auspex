@@ -272,3 +272,24 @@ test("profiles --keep / --unkeep parse and refuse both at once", async () => {
   })
   assert.equal(parseArgv(["profiles", "--keep", "a", "--unkeep", "b"]).status, "error")
 })
+
+test("CLI and MCP read a sweep plan the same way: from the caller's folder, with a plain error", async () => {
+  const { readSweepPlanFile } = await import("../src/runners.ts")
+  const { mkdtemp, writeFile } = await import("node:fs/promises")
+  const { tmpdir } = await import("node:os")
+  const dir = await mkdtemp(path.join(tmpdir(), "auspex-plan-"))
+  await writeFile(path.join(dir, "plan.json"), JSON.stringify({ pages: [{ url: "https://example.com", expect: "x" }] }))
+  await writeFile(path.join(dir, "bad.json"), "{ nope")
+  const before = process.env.AUSPEX_CALLER_CWD
+  process.env.AUSPEX_CALLER_CWD = dir
+  try {
+    assert.deepEqual(await readSweepPlanFile("plan.json"), { pages: [{ url: "https://example.com", expect: "x" }] })
+    await assert.rejects(readSweepPlanFile("bad.json"), /sweep --plan bad\.json is not readable JSON/)
+    await assert.rejects(readSweepPlanFile("missing.json"), /sweep --plan missing\.json is not readable JSON/)
+  } finally {
+    if (before === undefined) delete process.env.AUSPEX_CALLER_CWD
+    else process.env.AUSPEX_CALLER_CWD = before
+  }
+  const tools = readFileSync(path.resolve("src", "mcp-tools.ts"), "utf8")
+  assert.match(tools, /readSweepPlanFile\(planPath\)/)
+})

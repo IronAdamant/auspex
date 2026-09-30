@@ -1,5 +1,7 @@
 /** Shared CLI/MCP runners. MCP loads this via dynamic import() so light tools stay light. */
 
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { toAgentReceipt } from "./agent-receipt.ts"
 import { runCheck, runFinalizeLogin, type CheckOptions, type CheckResult } from "./check.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
@@ -296,6 +298,16 @@ export async function runJobDoor(opts: JobRunOptions) {
   })
   const result = await runJob(opts)
   return stampSchema({ ...result, operator: book.agent })
+}
+
+/** The plan file, resolved from the caller's folder (the launcher runs Auspex from its package root). */
+export async function readSweepPlanFile(planPath: string): Promise<unknown> {
+  const file = path.resolve(process.env.AUSPEX_CALLER_CWD || process.cwd(), planPath)
+  try {
+    return JSON.parse(await readFile(file, "utf8")) as unknown
+  } catch (err) {
+    throw new Error(`sweep --plan ${planPath} is not readable JSON: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 /** Read-only sweep over an operator-written plan. One check per page, in order, then one report. */

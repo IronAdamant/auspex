@@ -304,11 +304,8 @@ export function registerAuspexTools(server: McpServer): void {
       try {
         const onProgress = progressFromExtra(extra)
         onProgress("auspex_sweep")
-        const { readFile } = await import("node:fs/promises")
-        const path = await import("node:path")
-        const file = path.resolve(process.env.AUSPEX_CALLER_CWD || process.cwd(), planPath)
-        const plan = JSON.parse(await readFile(file, "utf8")) as unknown
-        const { runSweepDoor } = await import("./runners.ts")
+        const { readSweepPlanFile, runSweepDoor } = await import("./runners.ts")
+        const plan = await readSweepPlanFile(planPath)
         return { content: [{ type: "text" as const, text: toolJson(await runSweepDoor({ plan, notify, onProgress })) }] }
       } catch (err) {
         return packToolFailure(err)

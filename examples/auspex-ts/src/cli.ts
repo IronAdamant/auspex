@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { type CheckOptions } from "./check.ts"
@@ -486,12 +485,7 @@ export async function main(argv: string[]): Promise<number> {
       return exitFromOk(result.ok)
     }
     if (cmd.cmd === "sweep") {
-      let plan: unknown
-      try {
-        plan = JSON.parse(await readFile(path.resolve(process.env.AUSPEX_CALLER_CWD || process.cwd(), cmd.planPath), "utf8"))
-      } catch (err) {
-        throw new Error(`sweep --plan ${cmd.planPath} is not readable JSON: ${err instanceof Error ? err.message : String(err)}`)
-      }
+      const plan = await runners.readSweepPlanFile(cmd.planPath)
       const result = await runners.runSweepDoor({ plan, notify: cmd.notify, onProgress: createProgress() })
       process.stderr.write(`${result.next}\n`)
       writeStdoutJson(result)
