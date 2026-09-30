@@ -535,6 +535,22 @@ test("job-status reads the file and waitMs returns after a phase change", async 
   assert.equal(seen.phase, "finalize")
 })
 
+test("job-status waitMs returns at once for a finished job", async () => {
+  const dir = await tmpJobs()
+  const minted = await runJob({ url: "https://app.example", expect: "Workspace ready" }, deps({ jobsDir: dir }))
+  const rec = await readJobRecord(minted.jobId, dir)
+  for (const phase of ["completed", "failed"] as const) {
+    await writeJobRecord({ ...rec, phase, status: phase, updatedAt: new Date().toISOString() }, dir)
+    let sleeps = 0
+    const read = await readJobStatus(
+      { jobId: minted.jobId, waitMs: 60_000 },
+      { jobsDir: dir, sleep: async () => void (sleeps += 1) },
+    )
+    assert.equal(read.phase, phase)
+    assert.equal(sleeps, 0, `${phase} job must not be polled`)
+  }
+})
+
 test("cookie-strong await skips finalize and checks with verifyWithProfile", async () => {
   const dir = await tmpJobs()
   const minted = await runJob(

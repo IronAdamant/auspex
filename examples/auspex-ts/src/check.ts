@@ -54,8 +54,8 @@ import {
   GOTO_TIMEOUT_MS,
   launchBrowser,
   NETWORKIDLE_TIMEOUT_MS,
+  findProfileId,
   pageForSession,
-  resolveProfileId,
   waitUntilReleased,
 } from "./solari.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
@@ -333,14 +333,15 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
     try {
       const deviceContextOptions = parseDeviceOptions({ mobile: opts.mobile, device: opts.device })
       onProgress("launching")
-      const profileId = opts.profile ? await resolveProfileId(solari, opts.profile) : undefined
+      // One GET /profiles serves both the profile id and the dead-stream check below.
+      const rows = opts.profile ? await solari.profiles.list() : []
+      const profileId = opts.profile ? findProfileId(rows, opts.profile) : undefined
       const mintHandle = opts.profile ? await loadEditorSave(opts.profile).catch(() => undefined) : undefined
       const marker =
         mintHandle?.hostChanged && mintHandle.suggestedProfile && mintHandle.suggestedUrl
           ? { suggestedProfile: mintHandle.suggestedProfile, suggestedUrl: mintHandle.suggestedUrl }
           : undefined
       if (opts.profile && mintHandle?.streamExpiresAt) {
-        const rows = await solari.profiles.list()
         const row = rows.find((p) => p.name.trim() === opts.profile)
         const raw = row as { sizeBytes?: unknown; storageStateS3Key?: unknown } | undefined
         const sizeBytes = typeof raw?.sizeBytes === "number" ? raw.sizeBytes : undefined

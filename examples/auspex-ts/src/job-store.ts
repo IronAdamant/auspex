@@ -208,7 +208,8 @@ export async function readJobStatus(opts: JobStatusOptions, deps: JobStatusDeps 
       updatedAt: new Date().toISOString(),
     })
   }
-  if (waitMs <= 0) return publicJob(current)
+  // A completed or failed job never changes on its own (a 429 resumes only through auspex_job), so waiting is idle time.
+  if (waitMs <= 0 || current.phase === "completed" || current.phase === "failed") return publicJob(current)
   const startPhase = current.phase
   const startStatus = current.status
   const deadline = Date.now() + waitMs

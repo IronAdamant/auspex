@@ -226,6 +226,12 @@ test("MCP progress sends nothing when the client did not ask for it", async () =
   assert.equal(sent, 0)
 })
 
+test("runCheck asks Solari for the profile list once (profile id and dead-stream check share it)", () => {
+  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
+  assert.equal(src.match(/profiles\.list\(\)/g)?.length, 1)
+  assert.equal(src.includes("resolveProfileId("), false)
+})
+
 test("the MCP server reports the published package version", () => {
   const pkg = JSON.parse(readFileSync(path.join(root, "..", "..", "package.json"), "utf8")) as { version: string }
   const src = readFileSync(path.join(root, "src", "mcp.ts"), "utf8")
