@@ -18,6 +18,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **Excerpts skip cookie-consent banners.** A fresh cloud browser sees one on most sites; Atlassian's took 290 of the excerpt's 500 characters, and Trello's new card fell off the end. The excerpt now drops a visible consent banner outside `<main>` (unless the click opened it, such as Preferences). Matching still reads the whole page.
 
+- **After a click, the excerpt shows what the click opened even when the page does not mark it as a dialog.** Clicking a Trello card opened its window (not `role="dialog"`), and the excerpt was the board behind it; the window had also not been drawn yet when the page was read (the screenshot a moment later had it). After a click the check now waits, bounded at 3 s, for the page to stop changing, and when no marked dialog opened, the excerpt is the text that appeared since the click. The card's excerpt then read "Auspex test card … Made by an AI agent through Auspex … Comments and activity". A click that navigates shows the new page's own content, without the header and sidebar it shares with the old one.
+
 ## 0.1.28 — 2026-10-01
 
 npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.

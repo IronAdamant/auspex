@@ -15,7 +15,7 @@ import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
 import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, LOOPBACK_URL_ERROR, requireCheckUrl, resolvesToForbiddenHost } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
-import { assertVisibleFillLanded, clickMissedNext, runPageActions } from "./page-actions.ts"
+import { assertVisibleFillLanded, clickMissedNext, runPageActions, waitForSurfaceQuiet } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
 import {
   emptyProfileSeedError,
@@ -78,6 +78,10 @@ type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
 
 /** Each bounded wait for the page to settle before a fill or click. */
 export const PRE_ACTION_IDLE_MS = 8_000
+/** After a click: the page counts as settled after this long with no DOM change… */
+export const POST_CLICK_QUIET_MS = 500
+/** …or after this long in all, for a page that never stops changing. */
+export const POST_CLICK_QUIET_TIMEOUT_MS = 3_000
 
 /**
  * How long the live check keeps re-reading for the expect before it calls a miss. The same budget as
@@ -358,15 +362,37 @@ export function overlayOpenedByClick(after: string[], before: string[]): string 
   return opened.length ? opened[opened.length - 1] : ""
 }
 
+/** Non-empty trimmed lines of page text. */
+export function pageLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+/**
+ * The page text that appeared since the click, in page order: lines that were not on the page
+ * before it. Trello's card window is not marked as a dialog, so this is how the excerpt shows it.
+ */
+export function textAppearedSince(after: string, linesBefore: string[]): string {
+  if (!linesBefore.length) return ""
+  const seen = new Set(linesBefore)
+  return pageLines(after)
+    .filter((line) => !seen.has(line))
+    .join("\n")
+}
+
 /**
  * Text for the receipt excerpt. Matching always uses the whole page; the excerpt prefers the
  * page's main region (<main> / role=main) when it holds real content, so menus and promo cards
- * do not use up the 500 characters. After a click, an open dialog or menu popup is what the click
- * showed, so it wins (without a click, an open dialog is usually a cookie banner and <main> stays
- * the excerpt).
+ * do not use up the 500 characters. After a click, a dialog or menu popup the click opened is what
+ * it showed, so it wins; failing that, the text that appeared since the click (an unmarked window,
+ * or a new page's own content). Without a click, an open dialog is usually a cookie banner and
+ * <main> stays the excerpt.
  */
-export function excerptRegion(whole: string, main: string, dialog = "", clicked = false): string {
+export function excerptRegion(whole: string, main: string, dialog = "", clicked = false, appeared = ""): string {
   if (clicked && dialog.trim().length >= 20) return dialog
+  if (clicked && appeared.trim().length >= 40) return appeared
   return main.trim().length >= 40 ? main : whole
 }
 
@@ -428,6 +454,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let clicked: string | undefined
   /** Overlay text already open before the click (a cookie banner): not what the click showed. */
   let overlaysBefore: string[] = []
+  /** Page text lines before the click; lines that appear after it are what the click showed. */
+  let linesBefore: string[] = []
   let clickMissed: string | undefined
   let profileSeed: ProfileSeed | undefined
   let profileSaved: ProfileSaveResult | undefined
@@ -530,10 +558,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           }
         }
         if (opts.click) {
-          overlaysBefore = await extractPage(page, opts.selector, signal).then(
-            (before) => before.dialogs,
-            () => [],
-          )
+          const before = await extractPage(page, opts.selector, signal).catch(() => undefined)
+          overlaysBefore = before?.dialogs ?? []
+          linesBefore = before ? pageLines(before.raw) : []
         }
         const actions = await runPageActions(page, opts, signal)
         waitedFor = actions.waitedFor
@@ -548,6 +575,14 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         networkIdle = true
       } catch {
         networkIdle = false
+      }
+      if (clicked) {
+        // What the click opened can draw after the network is idle (Trello's card window did: the
+        // read had the board, the screenshot a moment later had the card). Wait, bounded, for the
+        // page to stop changing.
+        await page
+          .evaluate(waitForSurfaceQuiet, { selector: "body", quietMs: POST_CLICK_QUIET_MS, timeoutMs: POST_CLICK_QUIET_TIMEOUT_MS })
+          .catch(() => undefined)
       }
       if (opts.profile && !needsHuman) {
         await page
@@ -586,7 +621,13 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
         const opened = overlayOpenedByClick(extracted.dialogs, overlaysBefore)
-        excerptSource = excerptRegion(extracted.raw, extracted.main, opened, Boolean(clicked))
+        excerptSource = excerptRegion(
+          extracted.raw,
+          extracted.main,
+          opened,
+          Boolean(clicked),
+          textAppearedSince(extracted.raw, linesBefore),
+        )
         // A consent dialog the click itself opened (Preferences) is what the click showed; keep it.
         if (excerptSource !== opened) excerptSource = withoutConsentBanners(excerptSource, extracted.consent)
         hasPassword = extracted.hasPassword

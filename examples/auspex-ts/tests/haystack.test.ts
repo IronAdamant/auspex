@@ -412,7 +412,7 @@ test("after a click the excerpt is an overlay the click opened, not a cookie ban
   assert.equal(excerptRegion(`${banner} ${main}`, main, overlayOpenedByClick([banner], [banner]), true), main)
   const { readFileSync } = await import("node:fs")
   const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  const snapshot = src.indexOf("overlaysBefore = await extractPage(page, opts.selector, signal)")
+  const snapshot = src.indexOf("const before = await extractPage(page, opts.selector, signal)")
   assert.ok(snapshot > 0 && snapshot < src.indexOf("const actions = await runPageActions(page, opts, signal)"), "snapshot before the click")
 })
 
@@ -430,4 +430,31 @@ test("the excerpt drops a cookie-consent banner so its 500 characters show the p
   const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
   assert.match(src, /\.filter\(\(node\) => !node\.closest\('main, \[role="main"\]'\)\)/, "a cookie policy page's own <main> is never cut")
   assert.match(src, /if \(excerptSource !== opened\) excerptSource = withoutConsentBanners/)
+})
+
+test("after a click with no marked dialog, the excerpt is the text that appeared since the click", async () => {
+  // Live, Trello: clicking a card opened its window (not role=dialog), and the excerpt was the board.
+  const { textAppearedSince, excerptRegion, pageLines } = await import("../src/check.ts")
+  const board = "Create\nMy Trello board\nToday\nStart using Trello\nAuspex test card\nAdd a card"
+  const withCard = `${board}\nToday\nAuspex test card\nAdd\nLabels\nDescription\nMade by an AI agent through Auspex\nComments and activity\nAron added this card to Today`
+  const appeared = textAppearedSince(withCard, pageLines(board))
+  assert.equal(appeared, "Add\nLabels\nDescription\nMade by an AI agent through Auspex\nComments and activity\nAron added this card to Today")
+  assert.equal(excerptRegion(withCard, "", "", true, appeared), appeared)
+  // A marked dialog the click opened still wins; no click, or too little new text, keeps the page.
+  assert.equal(excerptRegion(withCard, "", "Choose your plan Pro Business Custom", true, appeared), "Choose your plan Pro Business Custom")
+  assert.equal(excerptRegion(withCard, "", "", false, appeared), withCard)
+  assert.equal(excerptRegion(withCard, "", "", true, "5 minutes ago"), withCard)
+  assert.equal(textAppearedSince(withCard, []), "", "no snapshot means no claim about what appeared")
+})
+
+test("after a click the check waits, bounded, for the page to stop changing before it reads", async () => {
+  const { POST_CLICK_QUIET_MS, POST_CLICK_QUIET_TIMEOUT_MS } = await import("../src/check.ts")
+  assert.equal(POST_CLICK_QUIET_MS, 500)
+  assert.ok(POST_CLICK_QUIET_TIMEOUT_MS <= 3_000, "a page that never goes quiet costs at most 3 s")
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const idle = src.indexOf('await page.waitForLoadState("networkidle", { timeout: NETWORKIDLE_TIMEOUT_MS, signal })')
+  const quiet = src.indexOf("evaluate(waitForSurfaceQuiet, { selector: \"body\"")
+  const read = src.indexOf("let extracted = await readPage()")
+  assert.ok(idle > 0 && quiet > idle && read > quiet, "network idle, then quiet, then read")
 })
