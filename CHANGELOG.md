@@ -2,7 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.28 — 2026-10-01
+
+npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+tldraw retried live (it logged in first time; the earlier Save 502 was Solari's and transient) and explored with connect, check clicks and fills, sweep, the MCP check, profile-status, and trace. Two privacy fixes (receipts and trace named the home folder; a click error quoted a capability link), a Save retry on a Solari 5xx, and clearer click, fill, and sweep results. Each fix has a test; the release smoke now scans every receipt field for home-folder paths.
 
 - **A Solari 502 on Save gets one retry before the human is sent back to sign in.** Live on tldraw, Solari's editor/save answered 502 "Failed to export storageState" with over two minutes of the sign-in window left, and Auspex asked for a whole new sign-in; the same save worked the next morning. On a 502, 503 or 504, Auspex now waits 5 s, checks the remote browser is still live (the same token check the 409 path uses), and saves once more. `editorSave.retriedAfter` records it. If the browser is gone or the retry fails too, the Solari status stands exactly as before: nothing saved, not `stream-expired`, and `connect` says a retry was tried.
 
@@ -24,7 +28,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.27 — 2026-10-01
 
-npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.27`. Agents do not `npm publish`. Founder publishes this release.
 
 Live test on eight apps. Seven logged in and were explored by clicking (Lorari, Good Tape, Clozemaster, Chatwoot, MariaDB Cloud, Back4App, ConsistencyHub); tldraw's save hit a Solari 502 and nothing was saved. Two privacy fixes (email addresses in excerpts, an OAuth code in a click error), one fill fix, and robustness and clarity fixes found on real pages. Each fix has a test.
 

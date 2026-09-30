@@ -93,7 +93,7 @@ npx auspex-solari check https://example.com --expect "documentation examples"
 npx auspex-solari connect https://your.app --expect "Words only shown when logged in"
 ```
 
-The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.27 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`. CLI and MCP share one contract; it works with Claude Code, Cursor, Grok and other MCP hosts.
+The npm package is **`auspex-solari`** (npm `auspex` is a different project). `auspex-solari` **0.1.28 is published**. From a clone: `npm install && npm run build:mcp`, then `npx auspex …`. CLI and MCP share one contract; it works with Claude Code, Cursor, Grok and other MCP hosts.
 
 `connect` runs the whole login in one command: it prints the login link and time left, you press **Enter** in the terminal after signing in (an agent runs `connect --save <profile>` instead), and it ends with one sentence that says "Logged in" only when a second browser confirmed it. Step by step it is `login --url` → sign in and Save → `await-login --save-editor` → `finalize-login` → `check --verify-with-profile` ([frozen door sequence](AGENTS.md#frozen-agent-door-sequence)). The login page is a seed/handoff door for typing off-site, not a same-session VNC takeover of the agent's browser.
 
