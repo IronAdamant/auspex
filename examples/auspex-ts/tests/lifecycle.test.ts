@@ -198,6 +198,42 @@ test("createProgress emits a heartbeat line before return", () => {
   assert.match(chunks.join(""), /:: launching/)
 })
 
+test("MCP progress uses the client's progressToken with a rising count", async () => {
+  const sent: Array<{ method: string; params: Record<string, unknown> }> = []
+  const stream = { write: () => true } as unknown as NodeJS.WritableStream
+  const p = createProgress({
+    stream,
+    extra: { _meta: { progressToken: 7 }, sendNotification: async (n) => void sent.push(n) },
+  })
+  p("launching")
+  p("goto")
+  await new Promise((r) => setImmediate(r))
+  assert.deepEqual(
+    sent.map((n) => [n.method, n.params.progressToken, n.params.progress, n.params.message]),
+    [
+      ["notifications/progress", 7, 1, "launching"],
+      ["notifications/progress", 7, 2, "goto"],
+    ],
+  )
+})
+
+test("MCP progress sends nothing when the client did not ask for it", async () => {
+  let sent = 0
+  const stream = { write: () => true } as unknown as NodeJS.WritableStream
+  const p = createProgress({ stream, extra: { sendNotification: async () => void (sent += 1) } })
+  p("launching")
+  await new Promise((r) => setImmediate(r))
+  assert.equal(sent, 0)
+})
+
+test("the MCP server reports the published package version", () => {
+  const pkg = JSON.parse(readFileSync(path.join(root, "..", "..", "package.json"), "utf8")) as { version: string }
+  const src = readFileSync(path.join(root, "src", "mcp.ts"), "utf8")
+  assert.match(src, /import pkg from "\.\.\/\.\.\/\.\.\/package\.json" with \{ type: "json" \}/)
+  assert.match(src, /version: pkg\.version/)
+  assert.ok(pkg.version)
+})
+
 test("replay poll window is within documented 1–3s", async () => {
   const { REPLAY_ATTEMPTS, REPLAY_DELAY_MS } = await import("../src/solari.ts")
   assert.ok(REPLAY_ATTEMPTS * REPLAY_DELAY_MS <= 4_000)
