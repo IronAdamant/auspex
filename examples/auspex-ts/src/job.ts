@@ -92,6 +92,9 @@ async function defaultJobQr(doorUrl: string): Promise<string> {
   return (await generateQRCode(doorUrl, await ensureRunDir())).qrPath
 }
 
+/** Failures only the operator can fix (key, plan). Retrying or starting a new job cannot help. */
+const NEEDS_OPERATOR = new Set(["MissingApiKey", "FeatureRequiresPlan", "PlanLimitExceeded"])
+
 function isConcurrency(err: unknown): boolean {
   const issue = classifySolariError(err)
   return issue.code === "ConcurrencyLimitExceeded" || issue.status === 429
@@ -600,9 +603,14 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
     record.phase = "failed"
     record.status = "failed"
     record.ok = false
-    record.reason = classifySolariError(err).message
+    const issue = classifySolariError(err)
+    record.reason = issue.message
     const target = { url: record.url, expect: record.expect }
-    if (failedAt === "check") {
+    if (NEEDS_OPERATOR.has(issue.code)) {
+      // No key, or the plan refuses it: a new job fails the same way, so there is no call to take.
+      delete record.nextCall
+      record.next = `This job failed during ${failedAt} (${record.reason.slice(0, 160)}). A new job fails the same way until the operator fixes this. Stop and tell the human.`
+    } else if (failedAt === "check") {
       record.nextCall = checkVerifyNextCall(record.profile, target)
       record.next = `The check failed before it finished (${record.reason.slice(0, 160)}). The save already happened: retry only the check once. Do not remint for this.`
     } else {

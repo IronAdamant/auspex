@@ -416,6 +416,29 @@ test("a failed job never points nextCall back at its own jobId", async () => {
   assert.equal(resumed.phase, "failed")
 })
 
+test("a job that fails on the key or the plan has no nextCall: a new job fails the same way", async () => {
+  const { AuspexError } = await import("../src/errors.ts")
+  const dir = await tmpJobs()
+  const failures = [
+    new AuspexError("SOLARI_API_KEY is not set.", { issue: { code: "MissingApiKey", retryable: false } }),
+    new SolariError("Solari POST /sessions failed: 402", 402, undefined, "FeatureRequiresPlan"),
+  ]
+  for (const err of failures) {
+    const failed = await runJob(
+      { url: "https://app.example", expect: "Workspace ready" },
+      deps({
+        jobsDir: dir,
+        login: async () => {
+          throw err
+        },
+      }),
+    )
+    assert.equal(failed.phase, "failed")
+    assert.equal(failed.nextCall, undefined, err.message)
+    assert.match(failed.next ?? "", /Stop and tell the human/)
+  }
+})
+
 test("a check that throws after Save retries only the check", async () => {
   const dir = await tmpJobs()
   const failed = await runJob(

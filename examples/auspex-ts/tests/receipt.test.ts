@@ -230,6 +230,16 @@ test("findLatestRun picks the complete newest stamp", async () => {
   assert.equal(found, newest)
 })
 
+test("findLatestRun names an empty runs folder with ~, never the account's home path", async () => {
+  const { homedir } = await import("node:os")
+  const runs = path.join(homedir(), ".auspex-test-never-created", "runs")
+  await assert.rejects(findLatestRun(runs), (err: Error) => {
+    assert.match(err.message, /in ~\/\.auspex-test-never-created\/runs$/)
+    assert.equal(err.message.includes(homedir()), false)
+    return true
+  })
+})
+
 test("parseAssertStdout uses the last JSON line and rejects garbage", () => {
   const ok = parseAssertStdout('noise\n{"ok":true,"errors":[],"claimOk":true,"claimErrors":[]}\n')
   assert.equal(ok.ok, true)

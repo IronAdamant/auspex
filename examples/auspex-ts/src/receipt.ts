@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { readdir, readFile, stat } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { stateDir } from "./paths.ts"
+import { stateDir, toStatePath } from "./paths.ts"
 
 /** Beside this module under tsx (src/), or ../src from the esbuild bundle (dist/mcp.mjs). */
 export function resolveAssertReceiptPy(moduleDir: string): string {
@@ -53,7 +53,7 @@ export async function listCompleteRunDirs(runsDir = RUNS_DIR): Promise<string[]>
 export async function findLatestRun(runsDir = RUNS_DIR): Promise<string> {
   const dirs = await listCompleteRunDirs(runsDir)
   const latest = dirs[0]
-  if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`)
+  if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${toStatePath(runsDir)}`)
   return latest
 }
 
