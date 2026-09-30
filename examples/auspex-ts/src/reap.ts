@@ -163,6 +163,39 @@ function ledgerVms(ledger: LiveLedger, extraVmId?: string): VmRow[] {
   return rows
 }
 
+/**
+ * Release only the browsers and VMs process `pid` opened (its ledger rows), all at once. Used when
+ * this process is stopped by a signal. Needs no API key when the process owns nothing. A row that
+ * fails stays in the ledger; its owner is gone by then, so a later reap releases it.
+ */
+export async function releaseOwnSessions(
+  pid: number = process.pid,
+  deps?: Pick<ReapDeps, "releaseBrowser" | "deleteVm" | "ledger">,
+): Promise<string[]> {
+  const ledger = await (deps?.ledger ?? readLiveLedger)()
+  const mine = (id: string) => ledger.owners?.[id]?.pid === pid
+  const rows = [
+    ...ledger.browser.filter(mine).map((id) => ({ id, kind: "browser" as const })),
+    ...ledger.sandbox.filter(mine).map((id) => ({ id, kind: "sandbox" as const })),
+    ...ledger.desktop.filter(mine).map((id) => ({ id, kind: "desktop" as const })),
+  ]
+  if (rows.length === 0) return []
+  const d = deps ?? (await defaultReapDeps())
+  const released: string[] = []
+  await Promise.all(
+    rows.map(async ({ id, kind }) => {
+      try {
+        await (kind === "browser" ? d.releaseBrowser(id) : d.deleteVm(id))
+        released.push(id)
+        await forgetLive(kind, id).catch(() => undefined)
+      } catch {
+        /* left in the ledger for reap */
+      }
+    }),
+  )
+  return released
+}
+
 export async function reapLeftovers(opts: ReapOpts = {}, deps?: ReapDeps): Promise<ReapResult> {
   const d = deps ?? (await defaultReapDeps())
   const dryRun = opts.dryRun === true

@@ -25,6 +25,7 @@ import { ONE_CHECK_PAGE_ACTIONS } from "./contract.ts"
 import { KEY_ENV_REFUSE, LONG_RUN_CLI_LINE, PROFILES_MAP_LINE } from "./door-await-contract.ts"
 import { createProgress } from "./progress.ts"
 import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
+import { releaseOwnSessionsOnSignal } from "./shutdown.ts"
 
 export const USAGE = `Usage:
   npx auspex login --url <https> [--profile <name>] [--wait]
@@ -380,6 +381,7 @@ export async function main(argv: string[]): Promise<number> {
     await import("./mcp.ts")
     return 0
   }
+  releaseOwnSessionsOnSignal()
   try {
     const runners = await import("./runners.ts")
     const cmd = parsed.command
@@ -387,12 +389,13 @@ export async function main(argv: string[]): Promise<number> {
       const receipt = await runners.runCheckDoor({
         ...cmd.opts,
         verify: cmd.verify,
+        onProgress: createProgress(),
       })
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }
     if (cmd.cmd === "finalize-login") {
-      const receipt = await runners.runFinalizeLoginDoor(cmd)
+      const receipt = await runners.runFinalizeLoginDoor({ ...cmd, onProgress: createProgress() })
       writeStdoutJson(receipt)
       return exitFromOk(receipt.ok)
     }

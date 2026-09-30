@@ -25,7 +25,21 @@ function writeFailClosed(payload) {
   process.stderr.write(`${payload.error}\nnext: ${payload.next}\n`)
 }
 
+/**
+ * Pass stop signals on and exit with the child's code. Dying on SIGTERM would orphan the child; the
+ * child itself closes the Solari sessions it opened before it exits.
+ */
 function inheritChild(child) {
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.on(signal, () => {
+      if (child.exitCode !== null || child.signalCode !== null) return
+      try {
+        child.kill(signal)
+      } catch {
+        /* already gone */
+      }
+    })
+  }
   child.on("exit", (code, signal) => {
     if (signal) process.exit(1)
     process.exit(code ?? 1)
