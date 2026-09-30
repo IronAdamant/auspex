@@ -20,6 +20,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **After a click, the excerpt also shows a menu the click opened.** MariaDB's Manage menu is not a dialog, so the excerpt showed the dashboard underneath and the click looked like it did nothing. A popup named by an expanded menu button (`aria-haspopup`, `aria-expanded`, `aria-controls`) now counts like a dialog.
 
+- **A saved-login check no longer crashes when the app redirects right after load.** MariaDB Cloud refreshes its sign-in just after the page loads. When that landed during Auspex's session-storage read after `goto`, the whole check failed with "Execution context was destroyed", `retryable: false` and no receipt (Billing and AI Agents did, 3 of 3 for Billing). That read is now skipped on a navigation race (the new page already ran the restore script), and the page read retries up to three times for an app that redirects twice. Billing then opened 3 of 3, and `claimOkProfile` stayed true.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

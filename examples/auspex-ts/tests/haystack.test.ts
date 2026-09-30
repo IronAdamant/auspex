@@ -214,7 +214,7 @@ for hay, needle in [("Your Dashboards", "Dashboard"), ("MyDashboard", "Dashboard
   assert.deepEqual(ran.stdout.trim().split("\n"), expected)
 })
 
-test("a late client-side redirect during extraction settles and reads once more", async () => {
+test("a late client-side redirect during extraction settles and reads again, a bounded number of times", async () => {
   const { extractPageSettled, isNavigationRace } = await import("../src/check.ts")
   let reads = 0
   let settled = 0
@@ -231,6 +231,30 @@ test("a late client-side redirect during extraction settles and reads once more"
   assert.equal(out, "second read")
   assert.equal(reads, 2)
   assert.equal(settled, 1)
+  // Two redirects in a row (MariaDB's Billing page): a third read still lands.
+  let twice = 0
+  const third = await extractPageSettled(
+    async () => {
+      twice += 1
+      if (twice < 3) throw new Error("page.evaluate: Execution context was destroyed, most likely because of a navigation.")
+      return "third read"
+    },
+    async () => undefined,
+  )
+  assert.equal(third, "third read")
+  // A page that never stops navigating still fails, after a bounded number of reads.
+  let endless = 0
+  await assert.rejects(
+    extractPageSettled(
+      async () => {
+        endless += 1
+        throw new Error("Execution context was destroyed")
+      },
+      async () => undefined,
+    ),
+    /Execution context was destroyed/,
+  )
+  assert.equal(endless, 3)
   await assert.rejects(extractPageSettled(async () => { throw new Error("boom") }, async () => undefined), /boom/)
   assert.equal(isNavigationRace(new Error("Timeout 45000ms exceeded")), false)
 })

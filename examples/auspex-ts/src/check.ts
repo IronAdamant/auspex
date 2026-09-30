@@ -52,6 +52,7 @@ import {
   checkOverallTimeoutMs,
   gotoWithSessionRestore,
   GOTO_TIMEOUT_MS,
+  isNavigationRace,
   launchBrowser,
   NETWORKIDLE_TIMEOUT_MS,
   findProfileId,
@@ -295,23 +296,26 @@ export function excerptRegion(whole: string, main: string, dialog = "", clicked 
   return main.trim().length >= 40 ? main : whole
 }
 
-/** A client-side redirect after load destroys the evaluate context. */
-export function isNavigationRace(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err)
-  return /Execution context was destroyed|Cannot find context with specified id/i.test(msg)
-}
+export { isNavigationRace }
 
-/** Read the page; if a late client-side redirect replaced it mid-read, settle on the new page and read once more. */
+/** Reads of one page, in all, when client-side redirects keep replacing it mid-read. */
+export const EXTRACT_READ_ATTEMPTS = 3
+
+/**
+ * Read the page; if a late client-side redirect replaced it mid-read, settle on the new page and
+ * read again. An app can redirect twice (MariaDB's Billing did), so this tries a few times.
+ */
 export async function extractPageSettled<T>(
   read: () => Promise<T>,
   settle: () => Promise<void>,
 ): Promise<T> {
-  try {
-    return await read()
-  } catch (err) {
-    if (!isNavigationRace(err)) throw err
-    await settle().catch(() => undefined)
-    return read()
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await read()
+    } catch (err) {
+      if (!isNavigationRace(err) || attempt >= EXTRACT_READ_ATTEMPTS) throw err
+      await settle().catch(() => undefined)
+    }
   }
 }
 

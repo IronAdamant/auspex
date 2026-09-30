@@ -80,3 +80,21 @@ test("gotoWithSessionRestore drops the persistable-url re-goto guard", () => {
   assert.match(src, /if \(opts\.profile && restored > 0\)/)
   assert.equal(src.includes("!isPersistableAppUrl(page.url())"), false)
 })
+
+test("gotoWithSessionRestore survives an app that redirects right after load (MariaDB sign-in refresh)", async () => {
+  const gotos: string[] = []
+  const page = {
+    goto: async (url: string) => {
+      gotos.push(url)
+    },
+    url: () => "https://cloud.example/dashboard",
+    evaluate: async () => {
+      throw new Error("page.evaluate: Execution context was destroyed, most likely because of a navigation.")
+    },
+  }
+  const restored = await gotoWithSessionRestore(page as never, { url: "https://cloud.example/dashboard", profile: true })
+  assert.equal(restored, 0)
+  assert.deepEqual(gotos, ["https://cloud.example/dashboard"], "no re-goto that would cut the app's own redirect short")
+  const broken = { ...page, evaluate: async () => { throw new Error("Target closed") } }
+  await assert.rejects(gotoWithSessionRestore(broken as never, { url: "https://cloud.example/dashboard", profile: true }), /Target closed/)
+})

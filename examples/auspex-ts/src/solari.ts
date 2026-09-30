@@ -387,6 +387,12 @@ export type GotoWithSessionRestoreOpts = {
   profile?: boolean
 }
 
+/** A client-side redirect after load destroys the evaluate context. */
+export function isNavigationRace(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /Execution context was destroyed|Cannot find context with specified id/i.test(msg)
+}
+
 /**
  * Navigate + hydrate sessionStorage + re-goto when a profile restored keys.
  * Init script does not populate sessionStorage before first paint; re-goto
@@ -402,7 +408,13 @@ export async function gotoWithSessionRestore(
     waitUntil: opts.waitUntil ?? "domcontentloaded",
     signal: opts.signal,
   })
-  const restored = await hydrateSessionStorage(page)
+  // An app that redirects right after load (MariaDB refreshes its sign-in) replaces the page under
+  // this read. The new page already ran the session-storage init script, and a re-goto would cut
+  // the app's own redirect short, so that race restores nothing here instead of failing the check.
+  const restored = await hydrateSessionStorage(page).catch((err: unknown) => {
+    if (isNavigationRace(err)) return 0
+    throw err
+  })
   if (opts.profile && restored > 0) {
     await page.goto(opts.url, {
       timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
