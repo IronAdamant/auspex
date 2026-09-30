@@ -2,9 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.24 — 2026-09-30
 
-Third review pass. Each fix has a test.
+npm `auspex-solari@0.1.24` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Third review pass, plus fixes from live tldraw testing on 0.1.23 (connect login, repeat check, profile-status, a four-page sweep, MCP, the published package, and a logged-out check; all passed once `check --url` was fixed). Each fix has a test.
 
 - **An npm install audits clean.** The published package listed Solari's own MCP server (`@solarisdk/mcp`) as a dependency, though only the clone's contributor path uses it. It pulled `puppeteer-core` and a vulnerable `extract-zip` into every install: `npm audit` reported 5 high findings, and `node_modules` was 99 MB. Now 0 findings and 41 MB. The clone keeps it; its lockfile also takes `ip-address` 10.7.2.
 - **One saved-login idle clock for both installs.** Each install kept its own 30-minute clock, but Solari shares saved logins across installs, so a login used a minute ago from a clone could read as idle to the npm install and be deleted by its next command. A clone now also records uses in `~/.auspex`, and both read the latest use.
@@ -16,7 +18,7 @@ Third review pass. Each fix has a test.
 
 ## 0.1.23 — 2026-09-30
 
-npm `auspex-solari@0.1.23` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.23`. Agents do not `npm publish`. Founder publishes this release.
 
 Second review round, mostly from probing the published 0.1.22 CLI and MCP server with bad input, plus two items the freeze had held back (run-folder pruning, smaller MCP tool text). Each fix has a test.
 
