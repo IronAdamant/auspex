@@ -81,7 +81,7 @@ jobs:
 
   public:
     # Repo secret SOLARI_API_KEY is present; weekly public runs live
-    # (observed Actions 36638435165, 2026-09-29). If it were unset the step
+    # (observed Actions 36678582381, 2026-09-30). If it were unset the step
     # skips (exit 0) so pull requests are not blocked. Do not remove it.
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '42 6 * * 1'
     runs-on: ubuntu-latest

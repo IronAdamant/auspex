@@ -223,6 +223,15 @@ Receipt: [`connect-run-2026-09-30-lorari.json`](examples/auspex-ts/demo/connect-
 
 `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`**. The save was cookie-strong, so finalize was skipped. No sessions were left open.
 
+## Rechecked on the current release (2026-09-30)
+
+Two more sign-ins with `connect` after the day's review rounds, Claude Code as the agent, a human on the phone door. Job receipts stayed local because they name private files; both saved logins were purged afterwards.
+
+- **ConsistencyHub (Microsoft sign-in)**, on the code released as 0.1.22: `connect https://consistencyhub.io --expect "Document Editor"`. The first fresh browser landed logged out (Microsoft keeps part of the login in session storage), so `connect` captured the app's session once and checked again: `✓ Logged in`, **`claimOkProfile=true`**.
+- **tldraw (Cloudflare + Clerk)**, on the code released as 0.1.24: `connect https://www.tldraw.com --expect "My workspace"`. The save was cookie-strong, finalize was skipped: `✓ Logged in`, **`claimOkProfile=true`**. The same saved login then passed a repeat `check --verify-with-profile`, `profile-status` (`loggedIn`), a four-page `sweep` (three pass; a deliberately wrong expect was reported as a fail), MCP `auspex_check` with `waitFor: ".tl-canvas"` (the canvas painted), and a check from the published npm package. Running the "Next time" command that `connect` printed exposed one bug, fixed in 0.1.24: `check` did not accept `--url`.
+
+No sessions were left open after any run.
+
 ## Important Notes
 
 ### Marketing Summary vs. Schema v1
@@ -290,7 +299,7 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165) (2026-09-29, `workflow_dispatch`) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`; the same run's daily `live` job also passed the example.com check and the published-package smoke. The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381) (2026-09-30, `workflow_dispatch`) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`; the same run's daily `live` job also passed the example.com check and the published-package smoke on `auspex-solari@0.1.24` (8/8). Earlier: run 36638435165 (2026-09-29). The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
 
 ## Fail-closed: hostChanged
 

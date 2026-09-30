@@ -176,7 +176,7 @@ npx auspex-mcp                      # stdio MCP, same contract as the CLI
 
 CLI and MCP are the **same contract**: every MCP tool is a CLI command; every flag is a JSON field (`--wait-for` ↔ `waitFor`, `--no-verify` ↔ `verify: false`). Stdout is **one JSON object** with `schemaVersion`; exit `0` only when `ok` is true. `--help` and `connect` print human text.
 
-Weekly live coverage: the GitHub Actions `public` job runs Mondays; repo secret `SOLARI_API_KEY` is **present** (run [36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165), ironadamant + checkpoint `ok: true`). It skips when the secret is unset, so PRs are not blocked.
+Weekly live coverage: the GitHub Actions `public` job runs Mondays; repo secret `SOLARI_API_KEY` is **present** (run [36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381), 2026-09-30, ironadamant + checkpoint `ok: true`). It skips when the secret is unset, so PRs are not blocked.
 
 ## Receipt schema v1 (frozen)
 

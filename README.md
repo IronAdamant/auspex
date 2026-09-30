@@ -27,7 +27,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
-- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165): `ok: true`). Every push also installs the packed package and runs it end to end.
+- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381), 30 September: the public checks and the published 0.1.24 package, `ok: true`). Every push also installs the packed package and runs it end to end.
 
 ## Three answers on every receipt
 
@@ -55,6 +55,8 @@ On 2026-09-28 a person signed in once per site on the login page, and an AI agen
 Eight of eight, on a laptop and on a phone. When a login was not really saved, Auspex said so instead of guessing.
 
 The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex reports that honestly. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
+
+On 2026-09-30, on the current release, ConsistencyHub and tldraw logged in end to end again, and the tldraw login then passed a repeat check, a four-page sweep, and the MCP tool ([RECEIPTS.md](RECEIPTS.md#rechecked-on-the-current-release-2026-09-30)).
 
 Worth knowing before pointing it at your own app: opening a logged-in page still runs the site as normal (a chat app showed the account as online), and some drawing apps finish drawing after the page looks ready.
 
