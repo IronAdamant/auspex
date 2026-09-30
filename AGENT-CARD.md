@@ -2,7 +2,7 @@
 
 One page for any AI agent (Claude, Grok, Cursor, Codex). The full contract is [AGENTS.md](AGENTS.md): read it before changing door, receipt, or login code, or when you meet a status this card does not list.
 
-Auspex drives a Solari cloud Chrome (not the human's browser), checks a page for exact words, keeps a screenshot and a JSON receipt, and has a second browser confirm. It never types passwords. Use it for evidence from a live page, not for pages you can curl.
+Auspex drives a Solari cloud Chrome (not the human's browser), checks a page for exact words, keeps a screenshot and a JSON receipt, and confirms with a second, independent check: a plain fetch of the page text for a public page, or a fresh browser using only the saved login for a logged-in one. It never types passwords. Use it for evidence from a live page, not for pages you can curl.
 
 ## 1. Know your install first
 

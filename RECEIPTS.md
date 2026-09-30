@@ -23,8 +23,8 @@ Do not invent that any host works without dogfood. The generic path is the recip
 Three distinct booleans in the receipt, each telling you something different:
 
 - **`ok`** — Agent success: did the live browser match **and** did verify pass (when it ran)?
-- **`verify.claimOk`** — Anonymous sandbox claim: did an unauthenticated HTTP fetch of the page text see the expect string? (OCR of the screenshot is added only where Tesseract is installed; Solari's base sandbox does not have it.)
-- **`verify.claimOkProfile`** — Profile-seeded sandbox claim: did a second Solari browser with the profile see the expect string in page text?
+- **`verify.claimOk`** — Anonymous claim: did a plain HTTP fetch of the page text, with no login, see the expect string? (OCR of the screenshot is added only where Tesseract is installed; Solari's base sandbox does not have it.)
+- **`verify.claimOkProfile`** — Saved-login claim: did a second, fresh Solari browser using only the saved login see the expect string in page text?
 
 **For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
 
