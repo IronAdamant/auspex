@@ -191,7 +191,8 @@ export function findProfileId(profiles: { id: string; name: string }[], name: st
   return existing.id
 }
 
-function readSolariKeyFromFile(file: string): string | undefined {
+/** SOLARI_API_KEY from a dotenv file (BOM, comments, `export`, and quotes allowed), or undefined. */
+export function readSolariKeyFromFile(file: string): string | undefined {
   if (!existsSync(file)) return undefined
   for (const raw of readFileSync(file, "utf8").split("\n")) {
     let line = raw
