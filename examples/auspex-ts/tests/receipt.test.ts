@@ -699,3 +699,17 @@ test("profileClaimVerdict: a sign-in page never confirms the saved login, even w
   assert.equal(miss.claimOk, false)
   assert.match(miss.claimErrors[0] ?? "", /does not contain expect/)
 })
+
+test("profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample", async () => {
+  const { profileClaimVerdict } = await import("../src/sandbox.ts")
+  const verdict = profileClaimVerdict({
+    raw: "ami-id instance-id iam security-credentials",
+    expect: "Workspace ready",
+    landedUrl: "http://169.254.169.254/latest/meta-data/",
+  })
+  assert.equal(verdict.claimOk, false)
+  assert.equal(verdict.claimErrors.join(" ").includes("security-credentials"), false)
+  assert.match(verdict.claimErrors[0] ?? "", /cloud-metadata address; nothing from it was kept/)
+  // And a sign-in page on the wider rule (/users/sign_in) still never confirms.
+  assert.equal(profileClaimVerdict({ raw: "Workspace ready", expect: "Workspace ready", landedUrl: "https://app.example/users/sign_in" }).claimOk, false)
+})

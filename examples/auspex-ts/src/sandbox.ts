@@ -10,6 +10,7 @@ import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY }
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
+import { landedOnForbiddenHost } from "./http-url.ts"
 import { shouldFailClosedAuth } from "./sso.ts"
 import { excerptOf, fenceExcerpt, haystackMatches, maskSecrets, stripDigitRuns } from "./text.ts"
 import { refuseVerifyWithProfile } from "./vwp-refuse.ts"
@@ -137,6 +138,13 @@ export function profileClaimVerdict(opts: { raw: string; expect: string; landedU
   claimOk: boolean
   claimErrors: string[]
 } {
+  // Like the first browser: a landing on loopback, link-local or metadata keeps nothing, not even a sample.
+  if (landedOnForbiddenHost(opts.landedUrl)) {
+    return {
+      claimOk: false,
+      claimErrors: ["profile-seeded check landed on a loopback, link-local or cloud-metadata address; nothing from it was kept"],
+    }
+  }
   let onSignIn = false
   try {
     onSignIn = shouldFailClosedAuth(new URL(opts.landedUrl), { profile: "saved" })
