@@ -2,6 +2,17 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+Second review round, mostly from probing the published 0.1.22 CLI and MCP server with bad input. Each fix has a test.
+
+- **A profile name can no longer be a path.** The name becomes a local file name (`.auspex/editor-save/<name>.json`, the Save signal files), and `../../package` resolved to the clone's own `package.json`. Names with `/`, `\` or control characters are now refused (CLI and MCP); normal names are unchanged.
+- **`login`, `job` and `connect` refuse loopback and cloud-metadata URLs up front**, like `check` always did. `connect http://localhost:3000` used to send the human through the sign-in and fail only at the final check.
+- **A job that fails on a missing key or a plan refusal (402, 403) has no `nextCall`.** It pointed at "start a new job", which fails the same way.
+- **`desktop` refuses a password-like `--type` before booting a VM**, not after a paid desktop had started (about a minute later).
+- **One process-alive check.** The profile lock and the Save folder treated a live process of another user as dead, so such a lock could be stolen.
+- `verify` with no run names the folder as `~/.auspex/runs`, not the account's home path.
+
 ## 0.1.22 — 2026-09-30
 
 npm `auspex-solari@0.1.22` (latest). Agents do not `npm publish`. Founder publishes this release.
