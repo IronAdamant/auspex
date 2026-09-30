@@ -1,5 +1,6 @@
 /** CLI flags for auspex_job / auspex_job_status. Copy lives in tool-copy.ts. */
 
+import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { requireJobId } from "./job-store.ts"
 import type { HandoffPacket } from "./profiles.ts"
@@ -28,31 +29,18 @@ export type JobRunOptions = {
 
 export function parseJobFlags(args: string[]): { ok: true; opts: JobRunOptions } | { ok: false; message: string } {
   const rest = [...args]
-  const takeFlag = (name: string) => {
-    const i = rest.indexOf(name)
-    if (i === -1) return false
-    rest.splice(i, 1)
-    return true
-  }
-  const takeOption = (name: string) => {
-    const i = rest.indexOf(name)
-    if (i === -1) return undefined
-    const value = rest[i + 1]
-    if (value === undefined || (value.length > 0 && value.startsWith("-"))) return undefined
-    rest.splice(i, 2)
-    return value
-  }
-  const jobId = takeOption("--job-id")
-  const name = takeOption("--name")
-  const profile = takeOption("--profile")
-  const url = takeOption("--url")
-  const expect = takeOption("--expect")
-  const wakeWebhookUrl = takeOption("--wake-webhook")
-  const timeoutRaw = takeOption("--timeout-ms")
-  const skipFinalize = takeFlag("--skip-finalize")
-  const verifyWithProfile = takeFlag("--verify-with-profile")
-  const wait = takeFlag("--wait")
-  if (rest.length > 0) return { ok: false, message: `unexpected arguments: ${rest.join(" ")}` }
+  const jobId = takeOption(rest, "--job-id")
+  const name = takeOption(rest, "--name")
+  const profile = takeOption(rest, "--profile")
+  const url = takeOption(rest, "--url")
+  const expect = takeOption(rest, "--expect")
+  const wakeWebhookUrl = takeOption(rest, "--wake-webhook")
+  const timeoutRaw = takeOption(rest, "--timeout-ms")
+  const skipFinalize = takeFlag(rest, "--skip-finalize")
+  const verifyWithProfile = takeFlag(rest, "--verify-with-profile")
+  const wait = takeFlag(rest, "--wait")
+  const extra = unexpectedArgs(rest)
+  if (extra) return { ok: false, message: extra }
   if (url !== undefined && !isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
   if (wakeWebhookUrl !== undefined && !isHttpOrHttpsUrl(wakeWebhookUrl)) {
     return { ok: false, message: "wakeWebhookUrl must be an http or https URL (no userinfo)" }
@@ -87,17 +75,10 @@ export function parseJobStatusFlags(
   args: string[],
 ): { ok: true; jobId: string; waitMs?: number } | { ok: false; message: string } {
   const rest = [...args]
-  const takeOption = (name: string) => {
-    const i = rest.indexOf(name)
-    if (i === -1) return undefined
-    const value = rest[i + 1]
-    if (value === undefined || (value.length > 0 && value.startsWith("-"))) return undefined
-    rest.splice(i, 2)
-    return value
-  }
-  const jobId = takeOption("--job-id")
-  const waitRaw = takeOption("--wait-ms")
-  if (rest.length > 0) return { ok: false, message: `unexpected arguments: ${rest.join(" ")}` }
+  const jobId = takeOption(rest, "--job-id")
+  const waitRaw = takeOption(rest, "--wait-ms")
+  const extra = unexpectedArgs(rest)
+  if (extra) return { ok: false, message: extra }
   if (!jobId) return { ok: false, message: "job-status requires --job-id <id>" }
   let waitMs: number | undefined
   if (waitRaw !== undefined) {

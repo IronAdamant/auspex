@@ -613,6 +613,29 @@ test("option values may start with a dash; a following flag is still not a value
   assert.equal(missing.status, "error")
 })
 
+test("job and connect read a dash-leading value the same way check does", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  const job = parseArgv(["job", "--url", "https://app.example", "--expect", "-20% off"])
+  assert.equal(job.status, "ok")
+  if (job.status === "ok" && job.command.cmd === "job") assert.equal(job.command.opts.expect, "-20% off")
+  const connect = parseArgv(["connect", "https://app.example", "--expect", "-20% off"])
+  assert.equal(connect.status, "ok")
+  if (connect.status === "ok" && connect.command.cmd === "connect" && connect.command.connect.mode === "run") {
+    assert.equal(connect.command.connect.opts.expect, "-20% off")
+  }
+  // A flag in the value's place is still not a value, in every command.
+  assert.equal(parseArgv(["job", "--url", "https://app.example", "--expect", "-v"]).status, "error")
+  assert.equal(parseArgv(["connect", "https://app.example", "--expect", "-v"]).status, "error")
+})
+
+test("every command's --help prints help, wherever it sits", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  for (const cmd of ["check", "login", "await-login", "finalize-login", "profiles", "profile-status", "solari-health", "reap", "desktop", "trace", "verify", "job", "job-status", "connect", "sweep", "mcp"]) {
+    assert.deepEqual(parseArgv([cmd, "--help"]), { status: "ok", command: { cmd: "help" } }, cmd)
+    assert.deepEqual(parseArgv([cmd, "--bogus", "-h"]), { status: "ok", command: { cmd: "help" } }, cmd)
+  }
+})
+
 test("sweep parses --plan and --notify and refuses a non-http notify", async () => {
   const { parseArgv } = await import("../src/cli.ts")
   assert.deepEqual(parseArgv(["sweep", "--plan", "plan.json"]), { status: "ok", command: { cmd: "sweep", planPath: "plan.json", notify: undefined } })

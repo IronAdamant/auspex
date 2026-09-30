@@ -24,6 +24,7 @@ import { parseAuthKeyNames } from "./cookie-save.ts"
 import { ONE_CHECK_PAGE_ACTIONS } from "./contract.ts"
 import { KEY_ENV_REFUSE, LONG_RUN_CLI_LINE, PROFILES_MAP_LINE } from "./door-await-contract.ts"
 import { createProgress } from "./progress.ts"
+import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
 
 export const USAGE = `Usage:
   npx auspex login --url <https> [--profile <name>] [--wait]
@@ -93,32 +94,6 @@ export type ParseResult =
   | { status: "ok"; command: CliCommand }
   | { status: "error"; message: string }
 
-function takeFlag(args: string[], name: string): boolean {
-  const i = args.indexOf(name)
-  if (i === -1) return false
-  args.splice(i, 1)
-  return true
-}
-
-/** `--flag` or `-x` is the next option, not a value. `-20% off` and `-1` are values. */
-function looksLikeFlag(value: string): boolean {
-  return /^--/.test(value) || /^-[A-Za-z]/.test(value)
-}
-
-function takeOption(
-  args: string[],
-  name: string,
-  opts: { rejectHttp?: boolean } = {},
-): string | undefined {
-  const i = args.indexOf(name)
-  if (i === -1) return undefined
-  const value = args[i + 1]
-  if (value === undefined || looksLikeFlag(value)) return undefined
-  if (opts.rejectHttp && /^https?:\/\//i.test(value)) return undefined
-  args.splice(i, 2)
-  return value
-}
-
 function parseSsoProvider(raw: string | undefined): SsoProvider | undefined {
   if (!raw) return undefined
   const v = raw.trim().toLowerCase()
@@ -126,215 +101,79 @@ function parseSsoProvider(raw: string | undefined): SsoProvider | undefined {
   return undefined
 }
 
+/** A usage error: parseArgv returns its message as `{ status: "error" }`. */
+function fail(message: string): never {
+  throw new Error(message)
+}
+
+function noExtraArgs(args: readonly string[]): void {
+  const extra = unexpectedArgs(args)
+  if (extra) fail(extra)
+}
+
+function numberOption(raw: string | undefined, flag: string): number | undefined {
+  if (raw === undefined) return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n)) fail(`${flag} must be a number`)
+  return n
+}
+
+function httpUrlOption(url: string | undefined): void {
+  if (url !== undefined && !isHttpOrHttpsUrl(url)) fail("url must be an http or https URL")
+}
+
+function ssoProviderOption(raw: string | undefined): SsoProvider | undefined {
+  const provider = parseSsoProvider(raw)
+  if (raw && !provider) fail("--sso-provider must be microsoft, google, or auto")
+  return provider
+}
+
+function authKeysOption(args: string[]): string[] | undefined {
+  const raw = takeOption(args, "--auth-keys", { rejectHttp: true })
+  return raw === undefined ? undefined : parseAuthKeyNames(raw)
+}
+
 export function parseArgv(argv: string[]): ParseResult {
   const args = [...argv]
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     return { status: "ok", command: { cmd: "help" } }
   }
-  const cmd = args.shift()
+  const cmd = args.shift()!
+  try {
+    return { status: "ok", command: parseCommand(cmd, args) }
+  } catch (err) {
+    return { status: "error", message: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+function parseCommand(cmd: string, args: string[]): CliCommand {
   if (cmd === "mcp") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "mcp" } }
+    noExtraArgs(args)
+    return { cmd: "mcp" }
   }
-  if (cmd === "check") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
-    const expectOpt = takeOption(args, "--expect", { rejectHttp: true })
-    const name = takeOption(args, "--name", { rejectHttp: true })
-    const selector = takeOption(args, "--selector", { rejectHttp: true })
-    const profile = takeOption(args, "--profile", { rejectHttp: true })
-    const profileIdx = args.indexOf("--profile")
-    const profileTok = profileIdx >= 0 ? args[profileIdx + 1] : undefined
-    if (profileTok && /^https?:\/\//i.test(profileTok)) {
-      return { status: "error", message: "--profile value must not be a URL" }
-    }
-    const stealth = takeFlag(args, "--stealth")
-    const record = takeFlag(args, "--record")
-    const allowRecordProfile = takeFlag(args, "--allow-record-profile")
-    const allowPageActions = takeFlag(args, "--allow-page-actions")
-    const sso = takeFlag(args, "--sso")
-    const ssoProviderRaw = takeOption(args, "--sso-provider")
-    const waitFor = takeOption(args, "--wait-for", { rejectHttp: true })
-    const fill = takeOption(args, "--fill", { rejectHttp: true })
-    const value = takeOption(args, "--value")
-    const click = takeOption(args, "--click", { rejectHttp: true })
-    const proxy = takeOption(args, "--proxy", { rejectHttp: true })
-    const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
-    const captcha = takeFlag(args, "--captcha")
-    const saveProfile = takeFlag(args, "--save-profile")
-    const verifyWithProfile = takeFlag(args, "--verify-with-profile")
-    const noVerify = takeFlag(args, "--no-verify")
-    const verifyFlag = takeFlag(args, "--verify")
-    const mobile = takeFlag(args, "--mobile")
-    const device = takeOption(args, "--device", { rejectHttp: true })
-    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
-    let authKeyNames: string[] | undefined
-    if (authRaw !== undefined) {
-      try {
-        authKeyNames = parseAuthKeyNames(authRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    if (noVerify && verifyFlag) {
-      return { status: "error", message: "pass only one of --verify or --no-verify" }
-    }
-    let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    let expect = expectOpt
-    let profileName = profile
-    if (profileName !== undefined) {
-      try {
-        profileName = requireProfileName(profileName)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    if (name) {
-      try {
-        const merged = applySavedCheckName({
-          name,
-          url,
-          expect,
-          profile: profileName,
-        })
-        url = merged.url
-        expect = merged.expect
-        profileName = merged.profile
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    const verifyAfter = shouldVerifyCheck({
-      name,
-      profile: profileName,
-      url,
-      verify: noVerify ? false : verifyFlag ? true : undefined,
-      verifyWithProfile,
-    })
-    if (!url || url.startsWith("-")) return { status: "error", message: "check requires a URL or --name" }
-    if (!isHttpOrHttpsUrl(url)) return { status: "error", message: "url must be an http or https URL" }
-    if (!isCheckUrl(url)) return { status: "error", message: LOOPBACK_URL_ERROR }
-    if (!expect || !isNonEmptyExpect(expect)) {
-      return { status: "error", message: "check requires --expect <string> or --name" }
-    }
-    const ssoProvider = parseSsoProvider(ssoProviderRaw)
-    if (ssoProviderRaw && !ssoProvider) {
-      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
-    }
-    if (record && (sso || Boolean(ssoProvider) || saveProfile || isDashboardLandingUrl(url))) {
-      return { status: "error", message: RECORD_LOGGED_IN_ERROR }
-    }
-    try {
-      parseProxyFlag(proxy, proxySticky)
-      assertPageActionsAllowed({
-        profile: profileName,
-        name,
-        fill,
-        value,
-        click,
-        allowPageActions,
-      })
-      assertRecordProfileAllowed({
-        record,
-        profile: profileName,
-        name,
-        url,
-        allowRecordProfile,
-        fill,
-        click,
-      })
-    } catch (err) {
-      return { status: "error", message: err instanceof Error ? err.message : String(err) }
-    }
-    return {
-      status: "ok",
-      command: {
-        cmd: "check",
-        opts: {
-          url,
-          expect,
-          selector,
-          profile: profileName,
-          stealth,
-          record,
-          sso: sso || Boolean(ssoProvider),
-          ssoProvider,
-          allowRecordProfile,
-          allowPageActions,
-          waitFor,
-          fill,
-          value,
-          click,
-          proxy,
-          proxySticky,
-          captcha,
-          saveProfile,
-          verifyWithProfile,
-          mobile,
-          device,
-          authKeyNames,
-        },
-        verifyAfter,
-        verify: noVerify ? false : verifyFlag ? true : undefined,
-      },
-    }
-  }
+  if (cmd === "check") return parseCheck(args)
   if (cmd === "finalize-login") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const profile = takeOption(args, "--profile")
     const url = takeOption(args, "--url")
     const expect = takeOption(args, "--expect", { rejectHttp: true })
     const ssoProviderRaw = takeOption(args, "--sso-provider")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (!profile) return { status: "error", message: "finalize-login requires --profile <name>" }
-    let profileName: string
-    try {
-      profileName = requireProfileName(profile)
-    } catch (err) {
-      return { status: "error", message: err instanceof Error ? err.message : String(err) }
-    }
-    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
-      return { status: "error", message: "url must be an http or https URL" }
-    }
-    const ssoProvider = parseSsoProvider(ssoProviderRaw)
-    if (ssoProviderRaw && !ssoProvider) {
-      return { status: "error", message: "--sso-provider must be microsoft, google, or auto" }
-    }
-    return { status: "ok", command: { cmd: "finalize-login", profile: profileName, url, expect, ssoProvider } }
+    noExtraArgs(args)
+    if (!profile) fail("finalize-login requires --profile <name>")
+    const profileName = requireProfileName(profile)
+    httpUrlOption(url)
+    const ssoProvider = ssoProviderOption(ssoProviderRaw)
+    return { cmd: "finalize-login", profile: profileName, url, expect, ssoProvider }
   }
   if (cmd === "login") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const profile = takeOption(args, "--profile")
     const url = takeOption(args, "--url")
     const wait = takeFlag(args, "--wait")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
-      return { status: "error", message: "url must be an http or https URL" }
-    }
-    let profileName: string
-    let profileDerived = false
-    try {
-      const resolved = resolveLoginProfile({ profile, url })
-      profileName = requireProfileName(resolved.name)
-      profileDerived = resolved.derived
-    } catch (err) {
-      return { status: "error", message: err instanceof Error ? err.message : String(err) }
-    }
-    return { status: "ok", command: { cmd: "login", profile: profileName, url, wait, profileDerived } }
+    noExtraArgs(args)
+    httpUrlOption(url)
+    const resolved = resolveLoginProfile({ profile, url })
+    return { cmd: "login", profile: requireProfileName(resolved.name), url, wait, profileDerived: resolved.derived }
   }
   if (cmd === "await-login") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const profile = takeOption(args, "--profile")
     const sinceRaw = takeOption(args, "--since-version")
     const timeoutRaw = takeOption(args, "--timeout-ms")
@@ -342,140 +181,61 @@ export function parseArgv(argv: string[]): ParseResult {
     const url = takeOption(args, "--url")
     const expect = takeOption(args, "--expect")
     const chainFinalize = takeFlag(args, "--no-chain-finalize") ? false : undefined
-    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
-    let authKeyNames: string[] | undefined
-    if (authRaw !== undefined) {
-      try {
-        authKeyNames = parseAuthKeyNames(authRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
-      return { status: "error", message: "url must be an http or https URL" }
-    }
-    if (!profile) return { status: "error", message: "await-login requires --profile <name>" }
-    let profileName: string
-    try {
-      profileName = requireProfileName(profile)
-    } catch (err) {
-      return { status: "error", message: err instanceof Error ? err.message : String(err) }
-    }
-    let sinceVersion: number | undefined
-    if (sinceRaw !== undefined) {
-      const n = Number(sinceRaw)
-      if (!Number.isFinite(n)) return { status: "error", message: "--since-version must be a number" }
-      sinceVersion = n
-    }
-    let timeoutMs: number | undefined
-    if (timeoutRaw !== undefined) {
-      const n = Number(timeoutRaw)
-      if (!Number.isFinite(n)) return { status: "error", message: "--timeout-ms must be a number" }
-      timeoutMs = n
-    }
-    return { status: "ok", command: { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize, authKeyNames } }
+    const authKeyNames = authKeysOption(args)
+    noExtraArgs(args)
+    httpUrlOption(url)
+    if (!profile) fail("await-login requires --profile <name>")
+    const profileName = requireProfileName(profile)
+    const sinceVersion = numberOption(sinceRaw, "--since-version")
+    const timeoutMs = numberOption(timeoutRaw, "--timeout-ms")
+    return { cmd: "await-login", profile: profileName, sinceVersion, timeoutMs, saveEditor, url, expect, chainFinalize, authKeyNames }
   }
   if (cmd === "verify") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const runDir = args.shift()
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (runDir?.startsWith("-")) return { status: "error", message: "verify takes an optional run directory" }
-    return { status: "ok", command: { cmd: "verify", runDir } }
+    noExtraArgs(args)
+    if (runDir?.startsWith("-")) fail("verify takes an optional run directory")
+    return { cmd: "verify", runDir }
   }
   if (cmd === "profiles") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const purgeRaw = takeOption(args, "--purge")
     const humanAgree = takeFlag(args, "--yes")
     const keepRaw = takeOption(args, "--keep")
     const unkeepRaw = takeOption(args, "--unkeep")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (humanAgree && !purgeRaw) {
-      return { status: "error", message: "--yes requires --purge <name> after the human agrees" }
-    }
-    let purge: string | undefined
-    if (purgeRaw) {
-      try {
-        purge = requireProfileName(purgeRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    let keep: string | undefined
-    let unkeep: string | undefined
-    try {
-      if (keepRaw) keep = requireProfileName(keepRaw)
-      if (unkeepRaw) unkeep = requireProfileName(unkeepRaw)
-    } catch (err) {
-      return { status: "error", message: err instanceof Error ? err.message : String(err) }
-    }
-    if (keep && unkeep) return { status: "error", message: "pass only one of --keep or --unkeep" }
-    return { status: "ok", command: { cmd: "profiles", purge, humanAgree, keep, unkeep } }
+    noExtraArgs(args)
+    if (humanAgree && !purgeRaw) fail("--yes requires --purge <name> after the human agrees")
+    const purge = purgeRaw ? requireProfileName(purgeRaw) : undefined
+    const keep = keepRaw ? requireProfileName(keepRaw) : undefined
+    const unkeep = unkeepRaw ? requireProfileName(unkeepRaw) : undefined
+    if (keep && unkeep) fail("pass only one of --keep or --unkeep")
+    return { cmd: "profiles", purge, humanAgree, keep, unkeep }
   }
   if (cmd === "profile-status") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const profileRaw = takeOption(args, "--profile")
     const name = takeOption(args, "--name")
     const url = takeOption(args, "--url")
     const expect = takeOption(args, "--expect", { rejectHttp: true })
-    const authRaw = takeOption(args, "--auth-keys", { rejectHttp: true })
-    let authKeyNames: string[] | undefined
-    if (authRaw !== undefined) {
-      try {
-        authKeyNames = parseAuthKeyNames(authRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (!profileRaw && !name) {
-      return { status: "error", message: "profile-status requires --profile <name> or --name <saved>" }
-    }
-    let profile: string | undefined
-    if (profileRaw) {
-      try {
-        profile = requireProfileName(profileRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    if (url !== undefined && !isHttpOrHttpsUrl(url)) {
-      return { status: "error", message: "url must be an http or https URL" }
-    }
-    if (expect !== undefined && !isNonEmptyExpect(expect)) {
-      return { status: "error", message: "profile-status --expect must be a non-empty string" }
-    }
-    return { status: "ok", command: { cmd: "profile-status", profile, name, url, expect, authKeyNames } }
+    const authKeyNames = authKeysOption(args)
+    noExtraArgs(args)
+    if (!profileRaw && !name) fail("profile-status requires --profile <name> or --name <saved>")
+    const profile = profileRaw ? requireProfileName(profileRaw) : undefined
+    httpUrlOption(url)
+    if (expect !== undefined && !isNonEmptyExpect(expect)) fail("profile-status --expect must be a non-empty string")
+    return { cmd: "profile-status", profile, name, url, expect, authKeyNames }
   }
   if (cmd === "solari-health") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "solari-health" } }
+    noExtraArgs(args)
+    return { cmd: "solari-health" }
   }
   if (cmd === "reap") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const dryRun = takeFlag(args, "--dry-run")
     const sessionId = takeOption(args, "--session")
     const vmId = takeOption(args, "--vm")
     const packReceipts = takeFlag(args, "--pack-receipts")
     const accountWide = takeFlag(args, "--account-wide")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "reap", dryRun, sessionId, vmId, packReceipts, accountWide } }
+    noExtraArgs(args)
+    return { cmd: "reap", dryRun, sessionId, vmId, packReceipts, accountWide }
   }
   if (cmd === "desktop") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const open = takeOption(args, "--open")
     const type = takeOption(args, "--type")
     const expect = takeOption(args, "--expect")
@@ -483,77 +243,126 @@ export function parseArgv(argv: string[]): ParseResult {
     let click: { x: number; y: number } | undefined
     if (clickRaw) {
       const parts = clickRaw.split(",").map((p) => Number(p.trim()))
-      if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) {
-        return { status: "error", message: "--click must be x,y" }
-      }
+      if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) fail("--click must be x,y")
       click = { x: parts[0]!, y: parts[1]! }
     }
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    return { status: "ok", command: { cmd: "desktop", open, type, click, expect } }
+    noExtraArgs(args)
+    return { cmd: "desktop", open, type, click, expect }
   }
   if (cmd === "trace") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const profileRaw = takeOption(args, "--profile")
     const limitRaw = takeOption(args, "--limit")
     const all = takeFlag(args, "--all")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    let profile: string | undefined
-    if (profileRaw) {
-      try {
-        profile = requireProfileName(profileRaw)
-      } catch (err) {
-        return { status: "error", message: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    let limit: number | undefined
-    if (limitRaw !== undefined) {
-      const n = Number(limitRaw)
-      if (!Number.isFinite(n)) return { status: "error", message: "--limit must be a number" }
-      limit = n
-    }
-    return { status: "ok", command: { cmd: "trace", profile, limit, all } }
+    noExtraArgs(args)
+    const profile = profileRaw ? requireProfileName(profileRaw) : undefined
+    return { cmd: "trace", profile, limit: numberOption(limitRaw, "--limit"), all }
   }
   if (cmd === "job") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const parsed = parseJobFlags(args)
-    if (!parsed.ok) return { status: "error", message: parsed.message }
-    return { status: "ok", command: { cmd: "job", opts: parsed.opts } }
+    if (!parsed.ok) fail(parsed.message)
+    return { cmd: "job", opts: parsed.opts }
   }
   if (cmd === "connect") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const parsed = parseConnectFlags(args)
-    if (!parsed.ok) return { status: "error", message: parsed.message }
+    if (!parsed.ok) fail(parsed.message)
     const { ok: _ok, ...connect } = parsed
-    return { status: "ok", command: { cmd: "connect", connect } }
+    return { cmd: "connect", connect }
   }
   if (cmd === "job-status") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const parsed = parseJobStatusFlags(args)
-    if (!parsed.ok) return { status: "error", message: parsed.message }
-    return { status: "ok", command: { cmd: "job-status", jobId: parsed.jobId, waitMs: parsed.waitMs } }
+    if (!parsed.ok) fail(parsed.message)
+    return { cmd: "job-status", jobId: parsed.jobId, waitMs: parsed.waitMs }
   }
   if (cmd === "sweep") {
-    if (args.includes("--help") || args.includes("-h")) {
-      return { status: "ok", command: { cmd: "help" } }
-    }
     const planPath = takeOption(args, "--plan")
     const notify = takeOption(args, "--notify")
-    if (args.length > 0) return { status: "error", message: `unexpected arguments: ${args.join(" ")}` }
-    if (!planPath) return { status: "error", message: "sweep requires --plan <plan.json>" }
-    if (notify !== undefined && !isHttpOrHttpsUrl(notify)) {
-      return { status: "error", message: "--notify must be an http or https URL (no userinfo)" }
-    }
-    return { status: "ok", command: { cmd: "sweep", planPath, notify } }
+    noExtraArgs(args)
+    if (!planPath) fail("sweep requires --plan <plan.json>")
+    if (notify !== undefined && !isHttpOrHttpsUrl(notify)) fail("--notify must be an http or https URL (no userinfo)")
+    return { cmd: "sweep", planPath, notify }
   }
-  return { status: "error", message: `unknown command: ${cmd}` }
+  return fail(`unknown command: ${cmd}`)
+}
+
+function parseCheck(args: string[]): CliCommand {
+  const expectOpt = takeOption(args, "--expect", { rejectHttp: true })
+  const name = takeOption(args, "--name", { rejectHttp: true })
+  const selector = takeOption(args, "--selector", { rejectHttp: true })
+  const profile = takeOption(args, "--profile", { rejectHttp: true })
+  const profileIdx = args.indexOf("--profile")
+  const profileTok = profileIdx >= 0 ? args[profileIdx + 1] : undefined
+  if (profileTok && /^https?:\/\//i.test(profileTok)) fail("--profile value must not be a URL")
+  const stealth = takeFlag(args, "--stealth")
+  const record = takeFlag(args, "--record")
+  const allowRecordProfile = takeFlag(args, "--allow-record-profile")
+  const allowPageActions = takeFlag(args, "--allow-page-actions")
+  const sso = takeFlag(args, "--sso")
+  const ssoProviderRaw = takeOption(args, "--sso-provider")
+  const waitFor = takeOption(args, "--wait-for", { rejectHttp: true })
+  const fill = takeOption(args, "--fill", { rejectHttp: true })
+  const value = takeOption(args, "--value")
+  const click = takeOption(args, "--click", { rejectHttp: true })
+  const proxy = takeOption(args, "--proxy", { rejectHttp: true })
+  const proxySticky = takeOption(args, "--proxy-sticky", { rejectHttp: true })
+  const captcha = takeFlag(args, "--captcha")
+  const saveProfile = takeFlag(args, "--save-profile")
+  const verifyWithProfile = takeFlag(args, "--verify-with-profile")
+  const noVerify = takeFlag(args, "--no-verify")
+  const verifyFlag = takeFlag(args, "--verify")
+  const mobile = takeFlag(args, "--mobile")
+  const device = takeOption(args, "--device", { rejectHttp: true })
+  const authKeyNames = authKeysOption(args)
+  if (noVerify && verifyFlag) fail("pass only one of --verify or --no-verify")
+  let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
+  noExtraArgs(args)
+  let expect = expectOpt
+  let profileName = profile !== undefined ? requireProfileName(profile) : undefined
+  if (name) {
+    const merged = applySavedCheckName({ name, url, expect, profile: profileName })
+    url = merged.url
+    expect = merged.expect
+    profileName = merged.profile
+  }
+  const verify = noVerify ? false : verifyFlag ? true : undefined
+  const verifyAfter = shouldVerifyCheck({ name, profile: profileName, url, verify, verifyWithProfile })
+  if (!url || url.startsWith("-")) fail("check requires a URL or --name")
+  if (!isHttpOrHttpsUrl(url)) fail("url must be an http or https URL")
+  if (!isCheckUrl(url)) fail(LOOPBACK_URL_ERROR)
+  if (!expect || !isNonEmptyExpect(expect)) fail("check requires --expect <string> or --name")
+  const ssoProvider = ssoProviderOption(ssoProviderRaw)
+  if (record && (sso || Boolean(ssoProvider) || saveProfile || isDashboardLandingUrl(url))) fail(RECORD_LOGGED_IN_ERROR)
+  parseProxyFlag(proxy, proxySticky)
+  assertPageActionsAllowed({ profile: profileName, name, fill, value, click, allowPageActions })
+  assertRecordProfileAllowed({ record, profile: profileName, name, url, allowRecordProfile, fill, click })
+  return {
+    cmd: "check",
+    opts: {
+      url,
+      expect,
+      selector,
+      profile: profileName,
+      stealth,
+      record,
+      sso: sso || Boolean(ssoProvider),
+      ssoProvider,
+      allowRecordProfile,
+      allowPageActions,
+      waitFor,
+      fill,
+      value,
+      click,
+      proxy,
+      proxySticky,
+      captcha,
+      saveProfile,
+      verifyWithProfile,
+      mobile,
+      device,
+      authKeyNames,
+    },
+    verifyAfter,
+    verify,
+  }
 }
 
 export async function main(argv: string[]): Promise<number> {

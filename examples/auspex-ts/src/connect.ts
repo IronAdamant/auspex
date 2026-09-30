@@ -10,6 +10,7 @@
 import { homedir } from "node:os"
 import { createInterface, type Interface } from "node:readline"
 import QRCode from "qrcode"
+import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
 import { isHttpOrHttpsUrl } from "./http-url.ts"
 import { jobFilePath, type JobReceipt } from "./job-store.ts"
 import type { JobRunOptions } from "./job-cli.ts"
@@ -49,20 +50,6 @@ export type ConnectCommand = { mode: "run"; opts: ConnectOptions } | { mode: "sa
 
 export function parseConnectFlags(args: string[]): ({ ok: true } & ConnectCommand) | { ok: false; message: string } {
   const rest = [...args]
-  const take = (name: string) => {
-    const i = rest.indexOf(name)
-    if (i === -1) return undefined
-    const value = rest[i + 1]
-    if (value === undefined || value.startsWith("--")) return undefined
-    rest.splice(i, 2)
-    return value
-  }
-  const flag = (name: string) => {
-    const i = rest.indexOf(name)
-    if (i === -1) return false
-    rest.splice(i, 1)
-    return true
-  }
   const saveAt = rest.indexOf("--save")
   if (saveAt !== -1) {
     const name = rest[saveAt + 1]
@@ -75,12 +62,13 @@ export function parseConnectFlags(args: string[]): ({ ok: true } & ConnectComman
       return { ok: false, message: err instanceof Error ? err.message : String(err) }
     }
   }
-  const expect = take("--expect")
-  const profile = take("--profile")
-  let url = take("--url")
-  const verbose = flag("--verbose")
+  const expect = takeOption(rest, "--expect")
+  const profile = takeOption(rest, "--profile")
+  let url = takeOption(rest, "--url")
+  const verbose = takeFlag(rest, "--verbose")
   if (!url && rest.length > 0 && !rest[0]!.startsWith("-")) url = rest.shift()
-  if (rest.length > 0) return { ok: false, message: `unexpected arguments: ${rest.join(" ")}` }
+  const extra = unexpectedArgs(rest)
+  if (extra) return { ok: false, message: extra }
   if (!url) return { ok: false, message: "connect requires the app URL: auspex connect https://app.example" }
   if (!isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
   if (expect !== undefined && !isNonEmptyExpect(expect)) return { ok: false, message: "--expect must not be empty" }
