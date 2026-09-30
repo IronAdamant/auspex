@@ -270,6 +270,12 @@ export function classifySolariError(err: unknown): SolariIssue {
 }
 
 /** Shared CLI stdout and MCP failure body. nextCall is reap, remint, or omitted (wait once). */
+/** Terminal colour codes Playwright puts around its call log ("\u001b[2m"). JSON readers see them as noise. */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\u001b\[[0-9;]*m/g, "")
+}
+
 export function solariFailurePayload(err: unknown): {
   ok: false
   error: string
@@ -286,7 +292,7 @@ export function solariFailurePayload(err: unknown): {
     (issue.code === "ConcurrencyLimitExceeded" || issue.status === 429 ? reapNextCall() : undefined)
   return {
     ok: false,
-    error: issue.message,
+    error: stripAnsi(issue.message),
     code: issue.code,
     retryable: issue.retryable,
     ...(issue.recovery ? { recovery: issue.recovery } : {}),

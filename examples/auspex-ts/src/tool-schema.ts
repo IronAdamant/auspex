@@ -127,12 +127,12 @@ export const auspexCheckInputObject = z.object({
     .describe("Default auto: Microsoft, then Google, then a generic Sign in with button."),
   waitFor: z.string().optional().describe("CSS selector to wait for (visible) before reading the page. Canvas and live-sync apps need it."),
   fill: z.string().optional().describe(
-    "One CSS selector to fill; needs value. " +
+    "One CSS selector to fill (not text=, role=, or >>; refused at call time); needs value. The field must be on the page before the click: a check fills, then clicks. " +
     ONE_CHECK_PAGE_ACTIONS + " " +
     "FAIL-CLOSED: refused on password and one-time-code fields (call-time selector check, then in the page); with a profile or name consistencyhub needs allowPageActions (call-time validation).",
   ),
   value: z.string().optional().describe("Text to type into fill. FAIL-CLOSED (call-time validation): needs fill."),
-  click: z.string().optional().describe("One CSS selector to click after waitFor/fill. FAIL-CLOSED (call-time validation): with a profile or name consistencyhub needs allowPageActions."),
+  click: z.string().optional().describe("One selector to click after waitFor/fill: CSS or Playwright (role=link[name=\"…\"], text=…, \" >> visible=true\"). A miss keeps the check and names why in clickMissed and next. FAIL-CLOSED (call-time validation): with a profile or name consistencyhub needs allowPageActions."),
   proxy: z
     .string()
     .optional()

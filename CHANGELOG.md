@@ -6,6 +6,16 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A Solari 502 on Save gets one retry before the human is sent back to sign in.** Live on tldraw, Solari's editor/save answered 502 "Failed to export storageState" with over two minutes of the sign-in window left, and Auspex asked for a whole new sign-in; the same save worked the next morning. On a 502, 503 or 504, Auspex now waits 5 s, checks the remote browser is still live (the same token check the 409 path uses), and saves once more. `editorSave.retriedAfter` records it. If the browser is gone or the retry fails too, the Solari status stands exactly as before: nothing saved, not `stream-expired`, and `connect` says a retry was tried.
 
+- **A covered click names what is on top and how to click it.** tldraw's sidebar lays a transparent link row over each file name, so `--click "text=Random Test"` found the text but the link took the click, and the advice said "nothing matching that selector became visible". It now says `<a aria-label="Random Test"> lies on top of it and takes the click` and suggests `role=link[name="Random Test"]` (which then opened the file live), while warning that a banner or dialog cannot be got past in one check.
+
+- **Click errors no longer copy link addresses into the receipt.** The same miss quoted the covering link's HTML, including `href="/f/…"`: the id of the user's other tldraw file, which opens it for anyone who has it. Quoted elements keep only id, class, role, aria-label, name, type, title, and data-testid.
+
+- **A fill target that never appears says so.** tldraw's search box exists only after its Search button is clicked, and a check fills before it clicks; the error said the text "does not contain --value". It now says nothing matched, and why a field behind a button cannot be filled in the same check.
+
+- **`--fill` refuses a Playwright-only selector at once.** The typed value is read back with `document.querySelector`, so `text=`, `role=`, `>>`, `:visible`, and XPath fill selectors could never be found (each after a 12 s wait). They are now refused before a browser opens, naming CSS forms that work. `--click` still takes both, and the MCP descriptions now say so (click was described as CSS only).
+
+- **Failure JSON has no terminal colour codes.** A `--wait-for` timeout's `error` carried Playwright's `\u001b[2m` escapes.
+
 ## 0.1.27 — 2026-10-01
 
 npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.

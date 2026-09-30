@@ -548,3 +548,92 @@ test("a fill replaces what an input already holds: 'Untitled' does not become 'U
   assert.equal(text, "Auspex probe")
   assert.ok(calls.indexOf("fill:#doc-title-input=") < calls.indexOf("insert:Auspex probe"), calls.join(" "))
 })
+
+test("click errors keep only the attributes that name an element (no href capability links, no classes)", async () => {
+  const { compactElementHtml, shortClickError } = await import("../src/page-actions.ts")
+  assert.equal(
+    compactElementHtml('<a draggable="false" aria-label="Random Test" href="/f/cb5gAPyOxWKFtR93icW0C" class="_sidebarFileListItemButton_tuqtq_923"></a>'),
+    '<a aria-label="Random Test" class="_sidebarFileListItemButton_tuqtq_923"></a>',
+  )
+  assert.equal(
+    compactElementHtml('<button type="button" data-testid="share" data-file-id="f1" id="s1" style="x" role="menuitem" title="Share" src="/x">'),
+    '<button type="button" data-testid="share" id="s1" role="menuitem" title="Share">',
+  )
+  // Live, tldraw: the sidebar row's overlay link quoted the user's other file id in clickMissed.
+  const live =
+    "locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('text=Random Test').filter({ visible: true })\n" +
+    '  - <a draggable="false" aria-label="Random Test" href="/f/cb5gAPyOxWKFtR93icW0C" class="_sidebarFileListItemButton_tuqtq_923"></a> intercepts pointer events\n' +
+    "  - retrying click action\n  - waiting 20ms"
+  const short = shortClickError(new Error(live))
+  assert.equal(short.includes("cb5gAPyOxWKFtR93icW0C"), false)
+  assert.equal(short.includes("href"), false)
+  assert.equal(
+    short,
+    'locator.click: Timeout 15000ms exceeded. <a aria-label="Random Test" class="_sidebarFileListItemButton_tuqtq_923"></a> intercepts pointer events',
+  )
+})
+
+test("a covered click names what is on top and a selector for it, not 'nothing matching'", async () => {
+  const { clickMissedNext } = await import("../src/page-actions.ts")
+  const overlayLink = clickMissedNext(
+    "text=Random Test >> visible=true",
+    'locator.click: Timeout 15000ms exceeded. <a aria-label="Random Test"></a> intercepts pointer events',
+  )
+  assert.match(overlayLink, /<a aria-label="Random Test"> lies on top of it and takes the click/)
+  assert.match(overlayLink, /click it instead: role=link\[name="Random Test"\]\./)
+  assert.equal(overlayLink.includes("Nothing matching that selector"), false)
+  const banner = clickMissedNext(
+    "text=Buy",
+    'locator.click: Timeout 15000ms exceeded. <button id="accept">Accept all</button> from <div id="banner">…</div> subtree intercepts pointer events',
+  )
+  assert.match(banner, /role=button\[name="Accept all"\]/)
+  assert.match(banner, /If it is a banner or dialog, one check cannot get past it/)
+  // A cut-off text preview is not a name; fall back to the id.
+  const cut = clickMissedNext("text=Buy", 'locator.click: Timeout 15000ms exceeded. <div id="overlay">Sign up for our newsletter and…</div> intercepts pointer events')
+  assert.match(cut, /click it instead: \[id="overlay"\]\./)
+  const anonymous = clickMissedNext("text=Buy", "locator.click: Timeout 15000ms exceeded. <div></div> intercepts pointer events")
+  assert.match(anonymous, /click it instead by its role and name/)
+  const quoted = clickMissedNext("text=Go", 'locator.click: Timeout 15000ms exceeded. <button aria-label="Say &quot;hi&quot;"></button> intercepts pointer events')
+  assert.match(quoted, /role=button\[name="Say &quot;hi&quot;"\]/)
+})
+
+test("--fill refuses Playwright-only selectors before any browser opens; --click keeps them", async () => {
+  const { isPlaywrightOnlySelector, FILL_SELECTOR_CSS_ERROR } = await import("../src/page-actions.ts")
+  for (const sel of [
+    "text=Search",
+    'role=textbox[name="Search"]',
+    'input >> visible=true',
+    "//input[@name='q']",
+    "xpath=//input",
+    "css=#q",
+    "input:visible",
+    'input:has-text("Search")',
+    "internal:role=textbox",
+  ]) {
+    assert.equal(isPlaywrightOnlySelector(sel), true, sel)
+    assert.throws(() => assertFillPair({ fill: sel, value: "x" }), (err: Error) => err.message === FILL_SELECTOR_CSS_ERROR, sel)
+  }
+  for (const sel of ["#q", '[placeholder="Search..."]', 'input[name="q"]', "div > input", "input:not([type=hidden])", '[aria-label="Search"]', "#doc-title-input"]) {
+    assert.equal(isPlaywrightOnlySelector(sel), false, sel)
+    assert.doesNotThrow(() => assertFillPair({ fill: sel, value: "x" }), sel)
+  }
+  assert.doesNotThrow(() => assertPageActionsAllowed({ click: 'role=link[name="Random Test"] >> visible=true' }))
+})
+
+test("a fill target that never appears says so, instead of 'the value did not land'", async () => {
+  // Live, tldraw: the sidebar search box exists only after its Search button is clicked, and a check
+  // fills before it clicks; the old error said the text "does not contain --value".
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({ fill: async () => undefined, click: async () => undefined }),
+    evaluate: async <R,>(): Promise<R> => ({ password: false, contentEditable: false, text: "", present: false }) as R,
+    keyboard: { insertText: async () => undefined, type: async () => undefined },
+  }
+  await assert.rejects(
+    () => runPageActions(page, { fill: '[placeholder="Search..."]', value: "Random" }),
+    (err: Error) =>
+      err.message.startsWith('check --fill found nothing matching [placeholder="Search..."] on the page. filled was not set.') &&
+      /fills first, then clicks/.test(err.message) &&
+      !err.message.includes("does not contain --value"),
+  )
+})

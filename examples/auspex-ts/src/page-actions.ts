@@ -40,6 +40,28 @@ export const PASSWORD_FILL_ERROR =
 export const FILL_NOT_LANDED_ERROR =
   "check --fill did not land: the visible document text does not contain --value. filled was not set."
 
+/** The fill target never appeared. Not the same as a value that did not stick. */
+export function fillTargetMissingError(selector: string): string {
+  return (
+    `check --fill found nothing matching ${selector} on the page. filled was not set. ` +
+    "A check fills first, then clicks, so a field that opens from a button (a search box behind a Search button) " +
+    "cannot be filled in the same check. Fill a field that is there when the page loads, or open the URL that shows it."
+  )
+}
+
+export const FILL_SELECTOR_CSS_ERROR =
+  "check --fill takes a CSS selector (the typed value is read back with document.querySelector), " +
+  'not a Playwright one such as text=…, role=…, or " >> visible=true". ' +
+  'Use #id, [name="…"], [aria-label="…"], or [placeholder="…"]. --click takes either kind.'
+
+/** Playwright-only syntax: an engine prefix, a >> chain, an XPath, or a Playwright pseudo-class. */
+const PLAYWRIGHT_ONLY_SELECTOR =
+  /^\s*(?:(?:text|role|xpath|css|id|data-testid|nth|visible|internal:[\w-]+)\s*=|\/\/|\.\.)|>>|:(?:has-text|text|text-is|text-matches|nth-match|left-of|right-of|above|below|near)\(|:visible\b/i
+
+export function isPlaywrightOnlySelector(selector: string): boolean {
+  return PLAYWRIGHT_ONLY_SELECTOR.test(selector)
+}
+
 /** Per-key delay so a contenteditable can commit each character. Zero-delay bursts are easy to revert. */
 const CE_TYPE_DELAY_MS = 15
 /** Long enough for an editor to revert a DOM write that never entered the document the user sees. */
@@ -191,21 +213,28 @@ async function surfaceStillLoading(page: Pick<ActionPage, "evaluate">, selector:
  * The document editor can mount, show a loading placeholder, then replace that node.
  * Quiet on the placeholder is a stable spinner, not a surface that is ready to type.
  */
-async function awaitReadyThenQuiet(page: ActionPage, selector: string, value: string): Promise<boolean> {
+/** "missing": the selector never matched. "loading": it matched but stayed the loading placeholder. */
+async function awaitReadyThenQuiet(
+  page: ActionPage,
+  selector: string,
+  value: string,
+): Promise<"ready" | "missing" | "loading"> {
   const deadline = Date.now() + EDITOR_READY_TIMEOUT_MS
+  let seen = false
   while (Date.now() <= deadline) {
     const probe = await readField(page, selector)
     if (probe.password) throw new Error(PASSWORD_FILL_ERROR)
+    if (probe.present) seen = true
     if (probe.present && !blockedByLoadingChrome(probe.text, value)) {
       await surfaceQuiet(page, selector)
       const after = await readField(page, selector)
       if (after.password) throw new Error(PASSWORD_FILL_ERROR)
-      if (after.present && !blockedByLoadingChrome(after.text, value)) return true
+      if (after.present && !blockedByLoadingChrome(after.text, value)) return "ready"
     }
-    if (Date.now() >= deadline) return false
+    if (Date.now() >= deadline) break
     await wait(EDITOR_READY_POLL_MS)
   }
-  return false
+  return seen ? "loading" : "missing"
 }
 
 /**
@@ -287,8 +316,7 @@ async function landContentEditable(
     // Pass 0 already waited in runPageActions, before the contenteditable read.
     // A later rewrite can still drop the value; pass 1 waits out loading chrome, then types again.
     if (pass > 0) {
-      const again = await awaitReadyThenQuiet(page, selector, value)
-      if (!again) return false
+      if ((await awaitReadyThenQuiet(page, selector, value)) !== "ready") return false
     }
     const painted = await landOnce(page, selector, value, timeout, signal)
     if (!painted) continue
@@ -313,28 +341,80 @@ export type PageActionResult = {
  * The first line only says it timed out; the reason ("element is not stable", "<div> intercepts
  * pointer events") is the last call-log step.
  */
+/** Attributes that name an element for a selector. Others (href, src, style, data-*…) are dropped. */
+const NAMING_ATTRIBUTES = new Set(["id", "class", "role", "aria-label", "name", "type", "title", "data-testid"])
+
+/**
+ * Shorten the HTML Playwright quotes in a click error to the attributes that name the element.
+ * An href can be a capability link (tldraw's /f/<id> file link opens the file to anyone who has it),
+ * and data attributes can hold ids, so a receipt keeps `<a aria-label="Random Test" class="…">`.
+ */
+export function compactElementHtml(text: string): string {
+  return text.replace(/<([a-zA-Z][\w-]*)(\s[^<>]*)?>/g, (_tag, name: string, attrs = "") => {
+    const kept = [...attrs.matchAll(/([^\s=]+)(?:="([^"]*)")?/g)]
+      .filter((match) => NAMING_ATTRIBUTES.has(match[1].toLowerCase()) && match[2] !== undefined)
+      .map((match) => ` ${match[1]}="${match[2]}"`)
+      .join("")
+    return `<${name}${kept}>`
+  })
+}
+
 export function shortClickError(err: unknown): string {
   // eslint-disable-next-line no-control-regex
-  const raw = (err instanceof Error ? err.message : String(err)).replace(/\u001b\[[0-9;]*m/g, "")
+  const raw = compactElementHtml((err instanceof Error ? err.message : String(err)).replace(/\u001b\[[0-9;]*m/g, ""))
   const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean)
   const head = (lines[0] ?? "").slice(0, 200)
   const reason = [...lines].reverse().find((line) => line.startsWith("- ") && !/^- (waiting \d+ms|retrying click action)/.test(line))
   return reason ? `${head} ${reason.slice(2, 202)}` : head
 }
 
+/** Playwright's "<tag …>text</tag> [from <…> subtree] intercepts pointer events" call-log step. */
+const COVERED_BY = /<([a-zA-Z][\w-]*)((?:\s[^<>]*)?)>(?:([^<]*)<\/\1>)?\s+(?:from <[^<>]*>(?:[^<]*<\/[\w-]+>)?\s+subtree\s+)?intercepts pointer events/
+
+/** A selector for the element that took the click, from its quoted HTML, when it has a name. */
+function coveringSelector(tag: string, attrs: string, text: string): string | undefined {
+  const attr = (name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(attrs)?.[1]
+  const quote = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+  const role = attr("role") ?? ({ a: "link", button: "button" } as Record<string, string>)[tag.toLowerCase()]
+  // Playwright ends a cut-off text preview with "…"; a partial name would not match.
+  const name = attr("aria-label") ?? (text.trim() && !text.includes("…") ? text.trim() : undefined)
+  if (name && role) return `role=${role}[name="${quote(name)}"]`
+  const label = attr("aria-label")
+  if (label) return `[aria-label="${quote(label)}"]`
+  const testId = attr("data-testid")
+  if (testId) return `[data-testid="${quote(testId)}"]`
+  const id = attr("id")
+  return id ? `[id="${quote(id)}"]` : undefined
+}
+
+function coveredAdvice(covered: RegExpExecArray): string {
+  const element = `<${covered[1]}${covered[2]}>`
+  const selector = coveringSelector(covered[1], covered[2], covered[3] ?? "")
+  const instead = selector
+    ? `If that is the real control (a link row laid over its text), click it instead: ${selector}.`
+    : "If that is the real control (a link row laid over its text), click it instead by its role and name."
+  return (
+    `The target was found, but ${element} lies on top of it and takes the click. ${instead} ` +
+    "If it is a banner or dialog, one check cannot get past it: each check is one click in a fresh browser."
+  )
+}
+
 export function clickMissedNext(selector: string, error: string): string {
   const lead = `Click target ${selector} was not clicked (${error}). clicked is unset and ok is false. The screenshot and excerpt show the page before the click. `
   const several = /strict mode violation[^\n]*resolved to (\d+) elements/i.exec(error)
   const visibleHint = /visible=true/.test(selector) ? "" : ' " >> visible=true" (a page often keeps a hidden copy for mobile),'
+  const covered = COVERED_BY.exec(error)
   const fix = several
     ? `The selector matched ${several[1]} elements and a click needs exactly one. Make it unique: add${visibleHint} " >> nth=N", or use a role selector such as role=link[name="…"].`
-    : /\bnavigated to\b/i.test(error)
-      ? "The page navigated while the click waited (the app refreshed its sign-in or redirected after load). Retry once, or pass --wait-for with an element of the settled page."
-      : /element is not visible/i.test(error)
-        ? 'The first match is hidden (a page often keeps a hidden copy for mobile). Add " >> visible=true" to click the visible one.'
-        : /waiting for locator|timeout \d+ms exceeded/i.test(error)
-          ? "Nothing matching that selector became visible and clickable. Pick a selector that exists there (prefer a stable id or role)."
-          : "Pick a selector that exists there (prefer a stable id or role)."
+    : covered
+      ? coveredAdvice(covered)
+      : /\bnavigated to\b/i.test(error)
+        ? "The page navigated while the click waited (the app refreshed its sign-in or redirected after load). Retry once, or pass --wait-for with an element of the settled page."
+        : /element is not visible/i.test(error)
+          ? 'The first match is hidden (a page often keeps a hidden copy for mobile). Add " >> visible=true" to click the visible one.'
+          : /waiting for locator|timeout \d+ms exceeded/i.test(error)
+            ? "Nothing matching that selector became visible and clickable. Pick a selector that exists there (prefer a stable id or role)."
+            : "Pick a selector that exists there (prefer a stable id or role)."
   return `${lead}${fix} Or open the page's own URL instead of a menu. One check is one click.`
 }
 
@@ -362,6 +442,8 @@ export function assertFillPair(opts: PageActionOpts): void {
   }
   if (opts.fill) {
     assertNotPasswordSelector(opts.fill)
+    // Refused before any browser opens: the read-back could never find it, after a 12 s wait.
+    if (isPlaywrightOnlySelector(opts.fill)) throw new Error(FILL_SELECTOR_CSS_ERROR)
   }
 }
 
@@ -398,7 +480,8 @@ export async function runPageActions(
     // Wait until the control exists and is not the loading placeholder, then until its
     // HTML stops changing. A fill into "Loading document…" never reaches the chapter.
     const ready = await awaitReadyThenQuiet(page, fillSelector, value)
-    if (!ready) throw new Error(FILL_NOT_LANDED_ERROR)
+    if (ready === "missing") throw new Error(fillTargetMissingError(fillSelector))
+    if (ready !== "ready") throw new Error(FILL_NOT_LANDED_ERROR)
     const first = await readField(page, fillSelector)
     if (first.password) throw new Error(PASSWORD_FILL_ERROR)
     const box = page.locator(fillSelector)
