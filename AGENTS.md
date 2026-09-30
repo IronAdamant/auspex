@@ -301,7 +301,7 @@ OneDrive with the same Microsoft login is receipt-only evidence (`examples/auspe
 
 ```
 npx auspex login --url <https> [--profile <name>] [--wait]
-npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
+npx auspex check <url>|--url <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
 npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
 npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex profiles [--purge <name>] [--yes] [--keep <name>] [--unkeep <name>]

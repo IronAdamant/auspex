@@ -28,7 +28,7 @@ import { releaseOwnSessionsOnSignal } from "./shutdown.ts"
 
 export const USAGE = `Usage:
   npx auspex login --url <https> [--profile <name>] [--wait]
-  npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
+  npx auspex check <url>|--url <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
   npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
   npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
   npx auspex profiles [--purge <name>] [--yes] [--keep <name>] [--unkeep <name>]
@@ -288,6 +288,8 @@ function parseCommand(cmd: string, args: string[]): CliCommand {
 }
 
 function parseCheck(args: string[]): CliCommand {
+  // The URL is positional or --url (login, job, connect and the docs all spell it --url).
+  const urlOpt = takeOption(args, "--url")
   const expectOpt = takeOption(args, "--expect", { rejectHttp: true })
   const name = takeOption(args, "--name", { rejectHttp: true })
   const selector = takeOption(args, "--selector", { rejectHttp: true })
@@ -316,7 +318,7 @@ function parseCheck(args: string[]): CliCommand {
   const device = takeOption(args, "--device", { rejectHttp: true })
   const authKeyNames = authKeysOption(args)
   if (noVerify && verifyFlag) fail("pass only one of --verify or --no-verify")
-  let url = args[0] && !args[0].startsWith("-") ? args.shift() : undefined
+  let url = urlOpt ?? (args[0] && !args[0].startsWith("-") ? args.shift() : undefined)
   noExtraArgs(args)
   let expect = expectOpt
   let profileName = profile !== undefined ? requireProfileName(profile) : undefined
@@ -368,10 +370,17 @@ function parseCheck(args: string[]): CliCommand {
   }
 }
 
+/** The usage lines for one command (every command's line when it is unknown), not the whole help. */
+export function usageFor(cmd: string | undefined): string {
+  const lines = USAGE.split("\n").filter((line) => /^  npx auspex [a-z]/.test(line))
+  const own = lines.filter((line) => line.startsWith(`  npx auspex ${cmd} `) || line === `  npx auspex ${cmd}`)
+  return `Usage:\n${(own.length > 0 ? own : lines).join("\n")}\nFull help: --help\n`
+}
+
 export async function main(argv: string[]): Promise<number> {
   const parsed = parseArgv(argv.slice(2))
   if (parsed.status === "error") {
-    process.stderr.write(`${parsed.message}\n${USAGE}`)
+    process.stderr.write(`${parsed.message}\n${usageFor(argv[2])}`)
     writeStdoutJson(usageErrorReceipt(parsed.message))
     return 1
   }
