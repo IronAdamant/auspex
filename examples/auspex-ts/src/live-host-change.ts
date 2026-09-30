@@ -1,6 +1,6 @@
 /** Live remote host vs the minted door URL. Fail closed. Does not rename jars. */
 
-import { httpsOriginOnly } from "./http-url.ts"
+import { httpsOriginOnly, registeredDomain } from "./http-url.ts"
 import { hostChangeNextCall, type NextCall } from "./next-call.ts"
 import { profileSlugFromHost } from "./profile-slug.ts"
 import { savedCheckForProfile } from "./saved-checks.ts"
@@ -33,8 +33,6 @@ const NOT_APP_HOST_SUFFIXES = [
   "amazonaws.com",
 ] as const
 
-const MULTI_LABEL_SUFFIXES = new Set(["co.uk", "com.au", "co.jp", "com.br", "co.nz", "co.za", "com.mx"])
-
 const EDITOR_PAGE_URL_KEYS = ["pageUrl", "href", "finalUrl", "location"] as const
 
 export type LiveHostChange = {
@@ -60,13 +58,12 @@ export function ignoredLiveHost(hostname: string): boolean {
   return NOT_APP_HOST_SUFFIXES.some((suffix) => hostIs(host, suffix))
 }
 
-/** Registrable-ish family so www/cdn/auth siblings are one site. A different site is a different family. */
+/**
+ * Site family so www/cdn/auth siblings are one site and a different site is a different family.
+ * The same rule as the cookie-on-site check: com.sg or vercel.app is not one family.
+ */
 export function siteFamily(hostname: string): string {
-  const labels = hostname.toLowerCase().replace(/\.$/, "").split(".").filter(Boolean)
-  if (labels.length <= 2) return labels.join(".")
-  const last2 = labels.slice(-2).join(".")
-  if (MULTI_LABEL_SUFFIXES.has(last2) && labels.length >= 3) return labels.slice(-3).join(".")
-  return last2
+  return registeredDomain(hostname)
 }
 
 /** Explicit rebrands. Same product, different registrable domain. Not a hijack. */

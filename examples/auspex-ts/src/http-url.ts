@@ -1,6 +1,59 @@
 import { isIP } from "node:net"
 import { z } from "zod"
 
+/** Second-level labels under a country code that are suffixes themselves (co.uk, com.au, com.sg, ac.jp…). */
+const COUNTRY_SECOND_LEVEL = new Set(["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "mil", "ltd", "plc", "sch", "nhs", "gob", "gv"])
+
+/**
+ * Hosting domains where each subdomain belongs to a different owner (myapp.vercel.app and
+ * someone-else.vercel.app are different sites). The registered name is one label more than these.
+ */
+const SHARED_HOST_SUFFIXES = [
+  "github.io",
+  "gitlab.io",
+  "vercel.app",
+  "netlify.app",
+  "pages.dev",
+  "workers.dev",
+  "web.app",
+  "firebaseapp.com",
+  "herokuapp.com",
+  "onrender.com",
+  "fly.dev",
+  "up.railway.app",
+  "railway.app",
+  "azurewebsites.net",
+  "azurestaticapps.net",
+  "appspot.com",
+  "amplifyapp.com",
+  "replit.app",
+  "repl.co",
+  "glitch.me",
+  "deno.dev",
+  "supabase.co",
+  "ngrok-free.app",
+  "ngrok.io",
+  "lovable.app",
+]
+
+/**
+ * Registered domain: the site a host belongs to. Last two labels, three for a country suffix like
+ * co.uk / com.sg, and one label past a shared-hosting suffix like vercel.app. x.ai and cal.io stay two.
+ */
+export function registeredDomain(host: string): string {
+  const clean = host.toLowerCase().replace(/^\./, "").replace(/\.$/, "")
+  const labels = clean.split(".").filter(Boolean)
+  for (const suffix of SHARED_HOST_SUFFIXES) {
+    if (clean === suffix) return clean
+    if (clean.endsWith(`.${suffix}`)) return labels.slice(-(suffix.split(".").length + 1)).join(".")
+  }
+  if (labels.length <= 2) return labels.join(".")
+  const tld = labels[labels.length - 1]!
+  const second = labels[labels.length - 2]!
+  const take = tld.length === 2 && COUNTRY_SECOND_LEVEL.has(second) ? 3 : 2
+  return labels.slice(-take).join(".")
+}
+
 export const LOOPBACK_URL_ERROR =
   "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
 
