@@ -15,7 +15,7 @@ Cursor, Claude, and Grok pastes are on the [root README](../README.md#mcp). Clau
 Paste into the host's project instructions:
 
 ```text
-Read AGENTS.md and llms.txt before calling Auspex.
+Read AGENT-CARD.md (one page; it ships in the auspex-solari package and is in the repo root) before calling Auspex. The full contract is AGENTS.md.
 Never type a password or a one-time code. Never --record a logged-in session.
 ok, claimOk, and claimOkProfile are three separate results.
 A login wait (await-login) can run about 30 minutes. Call auspex_job, then auspex_job_status.
