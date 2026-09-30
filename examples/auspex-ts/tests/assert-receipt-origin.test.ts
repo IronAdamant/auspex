@@ -75,3 +75,55 @@ print(json.dumps([mod.forbidden_host(u) for u in urls]))
   assert.equal(out.status, 0, out.stderr)
   assert.deepEqual(JSON.parse(out.stdout), [true, true, false, false, false, true, false, false])
 })
+
+test("the anonymous fetch refuses a redirect to cloud metadata without connecting to it", async () => {
+  const { createServer } = await import("node:http")
+  const { mkdtempSync, writeFileSync, readFileSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const path = await import("node:path")
+  const { spawn } = await import("node:child_process")
+  const server = createServer((_req, res) => {
+    res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data/" })
+    res.end()
+  })
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
+  const port = (server.address() as { port: number }).port
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-redirect-"))
+  writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ expect: "iam", screenshotPath: ".auspex/runs/x/screenshot.png", finalUrl: `http://127.0.0.1:${port}/` }))
+  writeFileSync(path.join(dir, "screenshot.png"), readFileSync(path.join(path.dirname(ASSERT_RECEIPT_PY_PATH), "..", "demo", "ironadamant.png")))
+  try {
+    const started = Date.now()
+    const out = await new Promise<string>((resolve) => {
+      const child = spawn("python3", [ASSERT_RECEIPT_PY_PATH, dir])
+      let stdout = ""
+      child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")))
+      child.on("close", () => resolve(stdout))
+    })
+    const parsed = JSON.parse(out) as { claimOk: boolean; claimErrors: string[] }
+    assert.equal(parsed.claimOk, false)
+    assert.ok(parsed.claimErrors.includes("finalUrl redirected to a link-local or cloud-metadata address; not followed"), JSON.stringify(parsed.claimErrors))
+    assert.ok(Date.now() - started < 8_000, "refused at the redirect, not after a connect timeout")
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+  }
+})
+
+test("a public name whose DNS points at link-local or metadata is not fetched", () => {
+  const py = `
+import importlib.util, json, socket, sys
+spec = importlib.util.spec_from_file_location("assert_receipt", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+answers = {"evil.example": "169.254.169.254", "mapped.example": "::ffff:169.254.169.254", "aws6.example": "fd00:ec2::254", "fine.example": "93.184.216.34"}
+def fake(host, *_a, **_k):
+    if host not in answers:
+        raise socket.gaierror("no such host")
+    return [(0, 0, 0, "", (answers[host], 0))]
+socket.getaddrinfo = fake
+urls = ["http://evil.example/", "http://mapped.example/", "http://aws6.example/", "http://fine.example/", "http://missing.example/"]
+print(json.dumps([mod.resolves_forbidden(u) for u in urls]))
+`
+  const out = spawnSync("python3", ["-c", py, ASSERT_RECEIPT_PY_PATH], { encoding: "utf8" })
+  assert.equal(out.status, 0, out.stderr)
+  assert.deepEqual(JSON.parse(out.stdout), [true, true, true, false, false])
+})

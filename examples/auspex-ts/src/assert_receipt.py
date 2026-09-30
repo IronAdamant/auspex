@@ -6,17 +6,20 @@ Never treats manifest ok/matched as proof the text was on the page.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import sys
 import zlib
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.error import URLError
 from urllib.parse import urlparse
-from urllib.request import ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 
 def paeth(a, b, c):
@@ -148,9 +151,21 @@ def html_to_text(raw_html):
     return " ".join(parser.parts)
 
 
+FORBIDDEN_REDIRECT = "redirect to a link-local or cloud-metadata address; not followed"
+
+
+class RefuseForbiddenRedirect(HTTPRedirectHandler):
+    """Follow redirects, but never to a link-local or cloud-metadata address (by name or by DNS)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if forbidden_host(newurl) or resolves_forbidden(newurl):
+            raise URLError(FORBIDDEN_REDIRECT)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def fetch_url(url, timeout=12):
     req = Request(url, headers={"User-Agent": "AuspexReceiptAudit/1.0"})
-    opener = build_opener(ProxyHandler({}))
+    opener = build_opener(ProxyHandler({}), RefuseForbiddenRedirect)
     with opener.open(req, timeout=timeout) as resp:
         raw = resp.read(2_000_000)
         charset = resp.headers.get_content_charset() or "utf-8"
@@ -219,6 +234,30 @@ def forbidden_host(url):
     return False
 
 
+def forbidden_ip(text):
+    """Link-local (169.254/16, fe80::/10, including IPv4-mapped) or the AWS IPv6 metadata address."""
+    try:
+        ip = ipaddress.ip_address(text.split("%")[0])
+    except ValueError:
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    return ip.is_link_local or str(ip) == "fd00:ec2::254"
+
+
+def resolves_forbidden(url):
+    """A public-looking name whose DNS points at link-local or cloud metadata. Lookup failure is not."""
+    host = (urlparse(url).hostname or "").strip("[]")
+    if not host:
+        return False
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (OSError, UnicodeError):
+        return False
+    return any(forbidden_ip(info[4][0]) for info in infos)
+
+
 def audit_claim(man, work, skip_fetch, skip_all):
     if skip_all:
         return ["anonymous claim skipped"]
@@ -230,7 +269,7 @@ def audit_claim(man, work, skip_fetch, skip_all):
     url = str(man.get("finalUrl") or "")
     if not skip_fetch:
         parsed = urlparse(url)
-        if forbidden_host(url):
+        if forbidden_host(url) or resolves_forbidden(url):
             notes.append("finalUrl is a link-local or cloud-metadata address; not fetched")
         elif parsed.scheme in ("http", "https"):
             try:
@@ -240,7 +279,10 @@ def audit_claim(man, work, skip_fetch, skip_all):
                 else:
                     notes.append("fetched page text does not contain expect")
             except Exception as exc:
-                notes.append("fetch failed: " + type(exc).__name__)
+                if FORBIDDEN_REDIRECT in str(exc):
+                    notes.append("finalUrl redirected to a link-local or cloud-metadata address; not followed")
+                else:
+                    notes.append("fetch failed: " + type(exc).__name__)
         else:
             notes.append("finalUrl is not http(s); cannot fetch")
     ocr = ocr_png(work / "screenshot.png")
