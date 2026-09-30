@@ -2,6 +2,17 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+Final review pass (2026-10-01). Each fix has a test.
+
+- **The anonymous fetch never follows a redirect, or DNS, to cloud metadata.** It refused to start at such an address, but Python's `urllib` followed redirects on its own, so a public page that redirected to `169.254.169.254` was fetched from inside the Solari sandbox (the text never came back, but `claimOk` for a chosen expect answered yes/no about it). Redirects there, and names that resolve there, are now refused.
+- **`check` refuses a URL whose DNS points at loopback or metadata** (`169.254.169.254.nip.io`), before any Solari session; a landing whose DNS points there keeps nothing. The saved-login second browser also keeps no text sample from such a landing.
+- **Host-change detection knows more sites.** Two companies under `com.sg`, `org.uk`, `com.hk`… or two apps on `vercel.app`, `netlify.app`, `github.io`… were one "site", so a login saved on the wrong one was not flagged `hostChanged`. One shared rule now covers country suffixes and shared hosting.
+- **Sign-in pages at `/signin`, `/sign-in`, `/users/sign_in`, `/account/login`** count as sign-in pages (only `/login` and `/auth` did): a dead login landing there is `loggedOut`, a save there is refused, and `profile-status` without `--expect` says what its `loggedIn` means.
+- **Solari HTTP calls that had no timeout now have one**: the login-handoff POST (60 s, a named `SolariTimeout`), the session-status read (5 s) and reap's release (15 s), instead of Node's 5-minute default.
+- **The MCP image of a tall page is readable.** A 1280×3139 page used to arrive as a 417-px-wide sliver; a tall page is now cropped to its top before scaling, and the result says so.
+
 ## 0.1.25 — 2026-09-30
 
 npm `auspex-solari@0.1.25` (latest). Agents do not `npm publish`. Founder publishes this release.
