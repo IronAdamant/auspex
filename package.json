@@ -27,7 +27,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
     "@solarisdk/browser": "0.1.2",
-    "@solarisdk/mcp": "0.4.3",
     "@solarisdk/sdk": "0.1.2",
     "patchright-core": "1.62.2",
     "qrcode": "^1.5.4",

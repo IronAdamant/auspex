@@ -395,6 +395,11 @@ test("M4: workflow pins contents:read; @solarisdk versions are exact", () => {
   assert.equal(pkgJson.dependencies["@solarisdk/sdk"], "0.1.2")
   assert.equal(pkgJson.dependencies["@solarisdk/mcp"], "0.4.3")
   assert.equal(pkgJson.dependencies["@solarisdk/browser"].startsWith("^"), false)
+  // The published package never runs Solari's own MCP (a clone-only contributor path), and that
+  // dependency pulled puppeteer-core plus five high-severity audit findings into every npm install.
+  const published = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")) as { dependencies: Record<string, string> }
+  assert.equal("@solarisdk/mcp" in published.dependencies, false)
+  assert.equal(published.dependencies["@solarisdk/browser"], pkgJson.dependencies["@solarisdk/browser"])
 })
 
 test("P0: desktop type password/OTP refuse — fail-closed content detection", async () => {

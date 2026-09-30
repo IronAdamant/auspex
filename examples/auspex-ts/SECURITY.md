@@ -24,6 +24,7 @@
 - `@puppeteer/browsers` version 3.2.2+ dropped `extract-zip` in favor of `modern-tar`, eliminating the vulnerability
 - The Puppeteer API remains compatible across the 3.x series
 - While `@solarisdk/mcp@0.4.3` transitively depends on older `@puppeteer/browsers@2.13.2`, the override forces npm to resolve the newer secure version
+- An override only applies to the project being installed, so the published `auspex-solari` does not depend on `@solarisdk/mcp` at all (it is only for the clone's contributor path to Solari's own MCP). An npm install audits clean.
 
 **Verification:**
 
