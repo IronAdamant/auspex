@@ -231,7 +231,9 @@ test("save-editor overlay does not replace a leading retry, remint, or empty sav
   })
   assert.match(timeoutGuided.text, /not proof this login saved/)
   assert.equal(/Finalize-login NOW/.test(timeoutGuided.text), false)
-  assert.equal(timeoutGuided.nextCall?.tool, "auspex_await_login")
+  // The save failed: the text says remint, so the one call to take is a new door, not another wait.
+  assert.match(timeoutGuided.text, /Remint now/)
+  assert.equal(timeoutGuided.nextCall?.tool, "auspex_login")
   assert.equal(timeoutGuided.nextCall?.saveEditor, undefined)
 
   const stale = await waitForProfileSave("consistencyhub", {

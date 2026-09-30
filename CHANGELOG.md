@@ -10,6 +10,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A missed click says why.** Exploring Clozemaster, `--click "text=Collections"` failed because two elements matched (one hidden, for mobile), and the advice said to "pick a selector that exists there". The receipt now says how many elements matched and suggests `>> visible=true`, `>> nth=N`, or a role selector; a hidden first match gets `>> visible=true`; a timeout says nothing matching became visible.
 
+- **After a failed Solari save, `nextCall` says remint, like the text.** On a live tldraw run Solari's editor/save returned 502 ("Failed to export storageState"). The receipt's `next` said "Remint now" (the documented step: nothing was saved), but `nextCall` said `auspex_await_login`, so an agent taking `nextCall` would wait again on a save that did not happen. It now points at `auspex_login`.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

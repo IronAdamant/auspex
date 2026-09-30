@@ -323,9 +323,11 @@ export function overlaySaveEditorGuidance(opts: {
       : opts.next
     return { text, nextCall: opts.nextCall }
   }
+  // A failed editor/save stored nothing: the text says remint, and so must the one call to take.
+  // Waiting again (await) or finalizing would work on a save that did not happen.
   const failedSave = opts.editorSave && !opts.editorSave.ok
   const nextCall =
-    failedSave && opts.nextCall?.tool === "auspex_finalize_login"
+    failedSave && (opts.nextCall?.tool === "auspex_finalize_login" || opts.nextCall?.tool === "auspex_await_login")
       ? remintLoginNextCall(opts.profile)
       : opts.nextCall
   return { text: overlaySaveEditorNext(opts), nextCall }
