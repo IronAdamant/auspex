@@ -82,7 +82,7 @@ test("auspexCheckInputObject descriptions advertise fail-closed constraints and 
   assert.ok(ssoProviderSchema)
   const ssoProviderDesc = ssoProviderSchema.description
   assert.ok(ssoProviderDesc, "ssoProvider should have a description")
-  assert.match(ssoProviderDesc, /structural enum/i, "ssoProvider description should note it's a structural enum")
+  assert.deepEqual(ssoProviderSchema.unwrap().options, ["microsoft", "google", "auto"], "ssoProvider is a structural enum")
   
   // Check that saveProfile description mentions record restriction with call-time marker
   const saveProfileDesc = schema.shape.saveProfile.description
@@ -168,8 +168,7 @@ test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descript
     assert.match(ssoDesc, /call-time validation/i, "sso description should mark call-time-only constraint")
     assert.match(ssoDesc, /record/i)
     
-    const ssoProviderDesc = (props as any).ssoProvider?.description ?? ""
-    assert.match(ssoProviderDesc, /structural enum/i, "ssoProvider should note it's a structural enum")
+    assert.deepEqual((props as any).ssoProvider?.enum, ["microsoft", "google", "auto"], "ssoProvider is advertised as a structural enum")
     
     const saveProfileDesc = (props as any).saveProfile?.description ?? ""
     assert.match(saveProfileDesc, /FAIL-CLOSED/i, "saveProfile description should advertise FAIL-CLOSED constraints")
@@ -335,4 +334,26 @@ test("mcp.ts registers tools via registerAuspexTools; MCP check uses auspexCheck
   // Verify that tool-schema.ts includes FAIL-CLOSED descriptions
   const toolSchema = readFileSync(path.join(root, "src", "tool-schema.ts"), "utf8")
   assert.match(toolSchema, /FAIL-CLOSED/i, "tool-schema.ts should include FAIL-CLOSED markers in descriptions")
+})
+
+test("tool text stays small and points only at files the npm package ships", async () => {
+  const mcp = new McpServer({ name: "auspex", version: "0.1.0" })
+  registerAuspexTools(mcp)
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const client = new Client({ name: "auspex-size-test", version: "0" })
+  await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)])
+  try {
+    const { tools } = await client.listTools()
+    let total = 0
+    for (const tool of tools) {
+      const text = `${tool.description ?? ""} ${JSON.stringify(tool.inputSchema)}`
+      total += text.length
+      // docs/ is not in the published package; AGENTS.md and AGENT-CARD.md are.
+      assert.equal(/docs\//.test(text), false, `${tool.name} points at docs/, which npm users do not have`)
+    }
+    // Every agent session loads all of this. It was 32k characters (~8k tokens) before the trim.
+    assert.ok(total < 24_000, `tools/list is ${total} characters; keep it under 24,000`)
+  } finally {
+    await client.close()
+  }
 })

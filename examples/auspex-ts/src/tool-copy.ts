@@ -1,147 +1,122 @@
 /**
- * Short MCP/CLI tool copy. Detail lives in AGENTS.md and docs/door-card-api.md.
- * First sentence is the mistake that fails the call (fail-closed lead).
+ * MCP/CLI tool copy. Every agent session loads all of it, so each sentence has to earn its place.
+ * First sentence is the mistake that fails the call (fail-closed lead). Detail lives in AGENTS.md.
  */
 
 import { ONE_CHECK_PAGE_ACTIONS } from "./contract.ts"
 import {
   awaitLoginDescription,
+  DOOR_DETAIL,
   PROFILES_MAP_LINE,
   RE_GATE_TOOL_LINE,
   SEED_HEALTH_TOOL_LINE,
 } from "./door-await-contract.ts"
 
-const DOOR = "Detail: docs/door-card-api.md and AGENTS.md."
+const DOOR = DOOR_DETAIL
 
 export const CHECK_DESCRIPTION =
   "Passing anonymous verify (verify=true / --verify) on an auth-gated page poisons ok. " +
-  "Live Solari check + schema v1 receipt (schemaVersion 1 is frozen; required schemaVersion, ok, " +
+  "Live Solari check: a screenshot plus a receipt (schemaVersion 1 is frozen; required schemaVersion, ok, " +
   "reason matched|loggedOut|needsHuman|mismatch|network|recordedLoggedIn|expectMatchedPublicLanding|hostChanged|stream-expired, " +
-  "url, expect, screenshotPath). Default verify is an anonymous HTTP fetch of the page text except name=consistencyhub / " +
-  "profile=consistencyhub / attached profile on a non-public-marketing URL (defaults to verify=false). " +
-  "verify=true is anonymous and poisons ok on auth-gated pages. verifyWithProfile adds claimOkProfile " +
-  "(reuse gate — ok is not enough to treat the profile as reusable). They are not equivalent. " +
-  "Save is not sessionStorage. verifyWithProfile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
-  "record+profile needs allowRecordProfile on a public marketing host; never record a dashboard landing. " +
+  "url, expect, screenshotPath). The second check is an anonymous HTTP fetch of the page text, except that an attached profile on a " +
+  "non-public-marketing URL (and name or profile consistencyhub) defaults to verify=false. " +
+  "verifyWithProfile runs a fresh browser with only the saved login and adds claimOkProfile, the reuse gate: ok alone is not enough to treat the profile as reusable. " +
+  "They are not equivalent. verifyWithProfile is refused on weakSeed, emptySave, and a dead fold. " +
+  "Never record a logged-in session or a dashboard landing; record+profile needs allowRecordProfile on a public marketing host (never consistencyhub). " +
   ONE_CHECK_PAGE_ACTIONS + " " +
-  "check --fill sets filled only when visible value or innerText contains --value. Hidden textContent does not count. The fill waits until the control is present and visible text is not the document loading placeholder (Loading document…), then until the target stops changing, then clicks, focuses, and types a contenteditable. A value glued only to that placeholder does not count. Visible innerText is re-read on a short backoff before the fill refuses, and a hit has to still be there after a brief settle. pressSequentially runs when the driver has it. A ProseMirror view is appended to in that same turn; other editors use execCommand('insertText'). If a rewrite drops --value, the fill waits and tries once more. Prefer #save-document; text=Save can match Unsaved chrome. " +
-  "allowRecordProfile is refused for consistencyhub. Saved checks: ironadamant|checkpoint|consistencyhub. " +
-  "402 FeatureRequiresPlan is not retryable. 429 → auspex_reap (ledger, not accountWide). " +
+  "filled is set only when the visible control text contains value. Prefer stable selectors (#save-document, not text=Save). " +
+  "Saved checks: ironadamant|checkpoint|consistencyhub. 402 FeatureRequiresPlan is not retryable. 429 → auspex_reap. " +
   DOOR
 
 export const VERIFY_DESCRIPTION =
   "Calling auspex_verify after a default auspex_check double-counts verify and can contradict the receipt. " +
-  "Only after auspex_check with verify=false: sandbox integrity ok vs claim claimOk (an independent fetch, not JSON echo). " +
-  "429: auspex_reap first. " +
+  "Only after auspex_check with verify=false: integrity ok vs claimOk (an independent fetch, not a JSON echo). 429 → auspex_reap. " +
   DOOR
 
 export const LOGIN_DESCRIPTION =
   "Typing a password, or opening Solari noVNC on a phone, fails this handoff because the phone keyboard will not open. " +
-  "Mint once. handoff.url / oneLiner is the phone door (phone.html), on a phone or a computer. handoff.mobileUrl " +
-  "is that same page (real text field; Chrome-on-phone dogfood; autofill / reconnect same VNC JWT; remint only when stream-expired). Clear empties the whole field. Packet also has openOnPhone, " +
-  "qrPath. url without profile derives a safe host slug; explicit profile wins. " +
-  "That page is a seed/handoff door for off-site typing, not a same-session VNC takeover. Never type in Solari noVNC on a phone " +
-  "(software keyboard will not open). The agent never copies the password. After Save: " +
-  "auspex_await_login with saveEditor true (GET editor HTTP 401 if you open Solari on a phone). " +
-  "wait:true / --wait is that same saveEditor path. If profile is not the host slug: profileHostMatch false, " +
-  "suggestedProfile, remint nextCall. " +
-  "Solari editor start HTTP 409 reuses the live editor by polling /editor/token (no DELETE on that remint). status editor-busy (reason editor-start-409) means reuse failed. Do not finalize-login. Do not purge and remint while that editor is still running; stop the editor first, then remint. " +
+  "Mints the phone door once: handoff.url is phone.html (a real text field, on a phone or a computer) and handoff.mobileUrl is the same page; " +
+  "the packet also has openOnPhone, oneLiner, and qrPath. Clear empties the whole field. " +
+  "It is a seed/handoff door for off-site typing, not a same-session VNC takeover; noVNC never raises the software keyboard. The agent never copies the password. " +
+  "url without profile derives the host slug; an explicit profile wins, and one that is not the host slug sets profileHostMatch false and suggestedProfile. " +
+  "After Save: auspex_await_login with saveEditor true (wait:true does the same in this call). " +
+  "status editor-busy (Solari editor 409): stop the running editor, then remint; do not finalize-login. " +
   DOOR
 
 export const AWAIT_LOGIN_DESCRIPTION = awaitLoginDescription()
 
 export const FINALIZE_LOGIN_DESCRIPTION =
   "Calling finalize-login without url and expect on an unknown profile fails the call. " +
-  "Post-login one-shot: SSO + save-profile to capture sessionStorage. Saved-check profiles supply URL/expect; " +
-  "unknown profiles require url and expect. Reuse requires claimOkProfile=true from verifyWithProfile; " +
-  "ok alone is not enough to treat the profile as reusable. Public-landing expect hit is " +
-  "expectMatchedPublicLanding (not matched). Live host divergence: hostChanged, remint. " +
-  "If the editor-save VNC JWT (streamExpiresAt) is past and the profile has no completed non-empty seed, " +
-  "finalize refuses POST /sessions and returns reason stream-expired with a remint nextCall. " +
-  "If profile is not the host slug: profileHostMatch false, suggestedProfile. " +
+  "After Save: SSO + save-profile to capture sessionStorage (saved-check profiles supply url and expect). " +
+  "Reuse still needs claimOkProfile=true from verifyWithProfile; ok alone is not enough. " +
+  "An expect found on a public or login URL is expectMatchedPublicLanding. A live host change is hostChanged (remint). " +
+  "Past the door token with no completed seed, it returns stream-expired with a remint nextCall and opens no browser. " +
+  "A profile that is not the host slug sets profileHostMatch false and suggestedProfile. " +
   DOOR
 
 export const PROFILES_DESCRIPTION =
   "Treating a populated profile in this list as logged-in is a lie; this tool does not open the page. " +
-  "List names, ids, version, and populated. Listing is a read: it never deletes an idle login; only purge + humanAgree wipes. keep exempts a saved login from the 30-minute idle wipe (long agent loops); unkeep returns it to the normal clock. populated means Solari holds a stored file for that name; the file can still be an empty jar (0 cookies, 0 origins). profile-status or a check confirms a login; an empty jar refuses with code EmptySave and nextCall auspex_login. " +
+  "Lists names, ids, version, and populated (a stored file, which can still be an empty jar; profile-status or a check confirms a login). " +
+  "Listing never deletes. An idle saved profile is deleted on the next command after 30 minutes without use; keep exempts one for long loops, unkeep restores the clock. " +
   PROFILES_MAP_LINE +
-  " After a saved login has been used and tested, ask whether " +
-  "testing is done and the login may be purged. Purge only after the human agrees (purge + humanAgree). " +
-  "An idle saved profile is deleted on the next command after 30 minutes without use. " +
-  "Voluntary purge stops the editor before delete. If the named profile is not wiped, ok is false and wipeFailed lists it. " +
-  "No username, password, or Solari key field. Secrets are not included in the agent message. " +
+  " After a saved login has been used and tested, ask whether testing is done and the login may be purged; purge only after the human agrees (purge + humanAgree). " +
+  "A failed purge sets ok false and lists wipeFailed. No username, password, or key field; secrets are not included in the agent message. " +
   DOOR
 
 export const SOLARI_HEALTH_DESCRIPTION =
   "Treating auspex_solari_health as a logged-in app, or as profile-status, is a lie. " +
-  "Preflight: is Solari reachable with this key right now. " +
-  "Also reports install (npm, clone or AUSPEX_HOME), stateDir (where jobs, receipts and the Save folder live) and command (npx auspex-solari or npx auspex). " +
-  "GET /profiles (one attempt, 8s cap). ok true means the key was accepted and a profile list came back. " +
-  "Does not POST /sessions, open phone.html, type, or set claimOk or claimOkProfile. " +
-  "minted and appLogin stay false. profileCount is a count only. " +
-  "429 → auspex_reap (ledger). 402/403 → plan. 5xx, timeout, or network → wait and retry this command. " +
-  "Missing key → export SOLARI_API_KEY. Not a fourth primitive. " +
+  "Preflight: GET /profiles once (8 s cap); ok true means Solari accepted this key. It opens no browser and never sets claimOk or claimOkProfile. " +
+  "Also reports install (npm, clone, or AUSPEX_HOME), stateDir, and command for this install. " +
+  "429 → auspex_reap. 402/403 → plan. 5xx, timeout, or network → wait and retry. Missing key → export SOLARI_API_KEY. " +
   DOOR
 
 export const PROFILE_STATUS_DESCRIPTION =
   "Treating weakSeed as loggedIn skips the fold and the next check lands logged out. " +
-  "Report loggedIn vs loggedOut vs needsHuman vs weakSeed vs emptySave vs botWall. " +
-  "botWall means the site showed a bot check: not a logout; do not remint or finalize. " +
-  "loggedIn means the live probe saw expect. " +
-  "weakSeed is cookies/origins with a counted sessionStorage of 0, or stale folded expiresOn, when the jar is not cookie-strong or local-storage-auth. " +
-  "App-origin cookies or allowlisted localStorage auth key names are a Solari Save. seedReadiness reports counts and names only. solariSaveReady is not claimOkProfile. " +
-  "emptySave means the profile is missing. Save is not sessionStorage. " +
-  "check verifyWithProfile is refused on weakSeed, emptySave, and a dead fold. " +
-  "Never type a password. Microsoft/Google password/OTP is needsHuman: auspex_login, handoff.url " +
-  "(handoff.url is phone.html, real text field, on a phone or a computer). Never type in Solari noVNC on a phone. " +
-  "Path / is loggedOut unless expect matched. " +
+  "Reports loggedIn, loggedOut, needsHuman, weakSeed, emptySave, or botWall from one live probe. " +
+  "weakSeed: cookies with counted sessionStorage 0 or a stale fold, when the jar is not cookie-strong or local-storage-auth. " +
+  "App-origin cookies or allowlisted localStorage auth keys are a Solari Save (nextCall auspex_check with verifyWithProfile); solariSaveReady is not claimOkProfile. " +
+  "emptySave: the profile is missing or empty. botWall: the site showed a bot check; not a logout, do not remint or finalize. " +
+  "Never type a password: a Microsoft/Google password or OTP wall is needsHuman (auspex_login, phone door). " +
   `${SEED_HEALTH_TOOL_LINE} ` +
   DOOR
 
 export const DESKTOP_DESCRIPTION =
   "Passing a password or OTP-like string to type is refused, and desktops return 402 on the Free plan. " +
-  "Named Solari sandbox demo (default mousepad). Not the user's Mac. FAIL-CLOSED type refuses " +
-  "password/OTP-like strings. Wait/expect/ok share one process haystack. streamUrl is live VNC. " +
-  "429: auspex_reap. " +
+  "Named Solari sandbox demo (default mousepad). Not the user's Mac. FAIL-CLOSED: type refuses password/OTP-like strings before anything boots. " +
+  "429 → auspex_reap. " +
   DOOR
 
 export const REAP_DESCRIPTION =
   "Passing accountWide to clear one 429 kills every sandbox and desktop on the key. " +
-  "Default kills Auspex live-ledger ids only (accountWide stays false). Solari has no GET /sessions (cookbook #61). " +
-  "Use after 429. dryRun lists. packReceipts copies last receipts per URL into .auspex/pack. " +
-  "A browser or VM another running Auspex command opened in the last 10 minutes is left open and listed in inUse; sessionId releases one anyway. " +
+  "Default releases this machine's Auspex ledger only (Solari has no GET /sessions). Use after 429. dryRun lists. " +
+  "A session another running Auspex command opened in the last 10 minutes is left open (inUse); sessionId releases one anyway. " +
+  "packReceipts copies the last receipt per URL into .auspex/pack. " +
   DOOR
 
 export const TRACE_DESCRIPTION =
   "Treating auspex_trace as a log of check rows, tokens, or session ids is a lie. " +
-  "Last login mint episode plus one redacted post-handoff row (status and fold reason). " +
-  "Check rows are not written. If mint is silent or fails, read this before reminting. " +
-  "Never tokens, passwords, excerpts, or session ids. Not a fourth primitive. " +
+  "The last login mint episode plus one redacted post-handoff row (status and fold reason). Check rows are not written. " +
+  "If a mint is silent or fails, read this before reminting. Never tokens, passwords, excerpts, or session ids. " +
   DOOR
 
 export const JOB_DESCRIPTION =
   "Treating ok as claimOkProfile, or polling await-login for 30 minutes, is a lie. " +
-  "Durable mint→await→finalize→check job (url+expect or a saved-check name). " +
-  "First call mints and returns waiting + handoff; resume with jobId after Save (wait:true continues). " +
-  "Fail-closed nextCall matches the door-card matrix (hostChanged, stream-expired, editor-save-hung, " +
-  "profile-busy, expectMatchedPublicLanding). On 429 the job reaps the ledger (not accountWide) " +
-  "and nextCall resumes this job. claimOkProfile only after verifyWithProfile. " +
-  "Optional wakeWebhookUrl / AUSPEX_WAKE_WEBHOOK POSTs scrubbed JSON (operator-local). " +
-  "Not a fourth primitive. Never types passwords. " +
+  "Durable mint → await → finalize → check (url+expect or a saved-check name). The first call mints and returns waiting plus handoff (door link and qrPath); " +
+  "resume with jobId after Save, or pass wait:true. On 429 the job reaps its ledger and nextCall resumes it. " +
+  "claimOkProfile only after verifyWithProfile. Optional wakeWebhookUrl / AUSPEX_WAKE_WEBHOOK posts scrubbed JSON. Never types passwords. " +
   `${RE_GATE_TOOL_LINE} ` +
   DOOR
 
 export const SWEEP_DESCRIPTION =
   "Read-only sweep over an operator-written plan: one auspex_check per page, in order, with verifyWithProfile when the plan names a saved login. " +
-  "Each page is pass (matched and, with a profile, claimOkProfile true), fail (page loaded, expect text missing), or could-not-tell (anything else). " +
-  "Could-not-tell is never a pass. ok is true only when every page passed. " +
-  "A re-gate (loggedOut, needsHuman, stream-expired, hostChanged) or a Solari 429 / plan limit stops the sweep; remaining pages are not-run and stopped.nextCall is the one human step. Do not loop. " +
-  "No fill, click, record, sso, or save. Writes report.md + report.json under .auspex/sweeps (no page text). keepProfile true in the plan exempts that profile from the 30-minute idle wipe; a human-agreed purge still wipes it. " +
-  "Each page takes about a minute; keep MCP sweeps short or run the CLI (auspex sweep --plan). Not a fourth primitive. Never types passwords. " +
+  "Each page is pass (matched and, with a profile, claimOkProfile true), fail (page loaded, expect missing), or could-not-tell; could-not-tell is never a pass. " +
+  "ok only when every page passed. A re-gate or a Solari 429 / plan limit stops the sweep with one stopped.nextCall. Do not loop. " +
+  "No fill, click, record, sso, or save. Writes report.md + report.json under .auspex/sweeps (no page text). " +
+  "About a minute per page; keep MCP sweeps short or run the CLI. " +
   DOOR
 
 export const JOB_STATUS_DESCRIPTION =
   "Blind 30-minute polls of await-login waste the slot. " +
-  "Read the local job file; optional waitMs (max 60s) blocks until phase/status changes (a completed or failed job answers at once). " +
-  "After Save, resume auspex_job --job-id. Returns current state + nextCall. " +
+  "Reads the local job file; optional waitMs (max 60s) waits for a phase/status change (a completed or failed job answers at once). " +
+  "After Save, resume auspex_job with jobId. " +
   DOOR

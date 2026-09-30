@@ -65,7 +65,8 @@ export const LONG_RUN_CLI_LINE =
   "ok, loggedIn, weakSeed, and app-visible are not overnight-safe. " +
   "On re-gate, stop and take that row's nextCall once. No Auspex TTL or keepalive."
 
-export const DOOR_DETAIL = "Detail: docs/door-card-api.md and AGENTS.md."
+/** AGENTS.md ships in the npm package; docs/ does not. */
+export const DOOR_DETAIL = "Detail: AGENTS.md."
 
 export type DoorDecisionRow = {
   status: string
@@ -202,26 +203,15 @@ export function llmsDoorAwaitBlock(): string {
 export function awaitLoginDescription(): string {
   return (
     "Treating an empty Save (a version bump with zero cookies) as success is a lie; the profile is still logged out. " +
-    "Wait until Save stores cookies or origins (default 30 minutes). Pass saveEditor true after phone Save " +
-    "(do not open Solari on a phone: GET editor HTTP 401). empty-save is not success. " +
-    "IdP, fold, bare stream-expired, weakSeed, emptySave, seed health, and re-gate are one door decision table: status | do | don't | nextCall. " +
-    "Follow that row. Do not restate it. Do not merge an IdP row with a fold row. " +
-    "app-visible, sign-in-wall, editorFold no-cdp finalize-now, and bare stream-expired stay separate rows. " +
-    "If editorSave fails (for example 401), cookies are not proof of login. Follow the table. " +
-    "Leftover sessionStorage is not a fresh capture. Save is not sessionStorage. " +
-    "cookie-strong and local-storage-auth are their own door row. Counted sessionStorage 0 is expected on that Save. solariSaveReady is not claimOkProfile. " +
-    "verify-with-profile is refused on weakSeed, emptySave, and a dead fold (no claim session). " +
-    "That refuse is the table don't column. It does not add a nextCall. " +
+    "Waits until Save stores cookies or origins (default 30 minutes, capped to the door token). Pass saveEditor true after the human taps Save " +
+    "(never open Solari's editor on a phone: GET editor HTTP 401). A second call signals the running await; do not kill it. " +
     "Statuses: completed | timeout | empty-save | idp-only-save | waiting | host-changed | stream-expired | editor-save-hung | profile-busy | save-signaled | sibling-saved. " +
-    "Clipboard Save is not the jar. saveEditor POSTs Solari editor/save when Save is signaled (a version bump or the paste). " +
-    "If an await is already running, a second call signals that process. Do not kill it. Progress lines are live on stderr. " +
-    "A 409 not in a savable state gets one live editor/token check and one more save, then stream-expired, unless another path already owns that Save (sibling-saved). " +
-    "The loser does not report stream-expired and does not claim cookies. A failed save does not claim cookies. POST /editor/token has no TTL. " +
-    "A sign-in longer than about 5 minutes needs a fresh auspex login for the final Save window. " +
-    "saveEditor re-checks streamExpiresAt during the Save poll and caps the wait to that VNC stamp (plus a short grace). " +
-    "Once that stamp is past and the profile has no cookies, status is stream-expired. Follow that row's nextCall. Do not poll for 30 minutes. " +
-    "If profile is not the host slug: profileHostMatch false, suggestedProfile (soft advise). " +
-    "Live host divergence: hostChanged, remint auspex_login. " +
+    "IdP, fold, bare stream-expired, weakSeed, emptySave, cookie-strong, seed health, and re-gate are one door decision table (status | do | don't | nextCall). " +
+    "Follow that row. Do not merge an IdP row with a fold row; app-visible, sign-in-wall, editorFold no-cdp finalize-now, and bare stream-expired stay separate rows. " +
+    "A failed editorSave never claims cookies. Save is not sessionStorage; solariSaveReady is not claimOkProfile. " +
+    "verify-with-profile is refused on weakSeed, emptySave, and a dead fold. sibling-saved: another path owns this Save; do not POST again or remint. " +
+    "A sign-in longer than about 5 minutes needs a fresh auspex_login for the final Save. " +
+    "A profile that is not the host slug sets profileHostMatch false and suggestedProfile; a live host change is host-changed (remint). " +
     DOOR_DETAIL
   )
 }

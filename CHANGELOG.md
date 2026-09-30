@@ -12,6 +12,8 @@ Second review round, mostly from probing the published 0.1.22 CLI and MCP server
 - **`desktop` refuses a password-like `--type` before booting a VM**, not after a paid desktop had started (about a minute later).
 - **One process-alive check.** The profile lock and the Save folder treated a live process of another user as dead, so such a lock could be stolen.
 - `verify` with no run names the folder as `~/.auspex/runs`, not the account's home path.
+- **Old run folders are pruned.** `.auspex/runs` kept every check's screenshot and receipt forever (about 150 KB each). When a run starts, folders past the newest 200 are deleted, never one under an hour old. `AUSPEX_KEEP_RUNS` changes the number (`0` keeps all). Two runs started in the same second no longer share a folder (one screenshot overwrote the other).
+- **MCP tool text is 31% smaller** (about 8,000 → 5,500 tokens that every agent session loads). Same rules and facts; repeated rules, fill-engine internals and restated tables are gone. Tool text pointed at `docs/`, which the npm package does not ship; it now points at `AGENTS.md`. A test keeps the total under a budget.
 
 ## 0.1.22 — 2026-09-30
 

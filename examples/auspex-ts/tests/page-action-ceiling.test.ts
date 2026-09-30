@@ -57,8 +57,8 @@ test("MCP check schema refuses a list of fills or clicks", () => {
   optionalString(auspexCheckInputObject.shape.fill, "fill")
   optionalString(auspexCheckInputObject.shape.click, "click")
   assert.ok((auspexCheckInputObject.shape.fill.description ?? "").includes(ONE_CHECK_PAGE_ACTIONS))
-  assert.ok((auspexCheckInputObject.shape.click.description ?? "").includes(ONE_CHECK_PAGE_ACTIONS))
-  assert.ok((auspexCheckInputObject.shape.allowPageActions.description ?? "").includes(ONE_CHECK_PAGE_ACTIONS))
+  // Said once on fill and once in the tool description; every session pays for each repeat.
+  assert.equal((auspexCheckInputObject.shape.click.description ?? "").includes(ONE_CHECK_PAGE_ACTIONS), false)
   assert.ok(CHECK_DESCRIPTION.includes(ONE_CHECK_PAGE_ACTIONS))
   assert.ok(USAGE.includes(ONE_CHECK_PAGE_ACTIONS))
 
