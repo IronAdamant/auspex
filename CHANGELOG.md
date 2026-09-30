@@ -2,9 +2,15 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.25 — 2026-09-30
+
+npm `auspex-solari@0.1.25` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Docs only; no change to how a check works. The npm page's README now matches GitHub: it cites the green Actions run 36678582381 (live checks and the published 0.1.24 package) and today's ConsistencyHub and tldraw sign-ins. AGENT-CARD's opening names the second check plainly (a fetch for a public page, a saved-login browser for a logged-in one), and RECEIPTS no longer calls either claim a "sandbox claim".
+
 ## 0.1.24 — 2026-09-30
 
-npm `auspex-solari@0.1.24` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.24`. Agents do not `npm publish`. Founder publishes this release.
 
 Third review pass, plus fixes from live tldraw testing on 0.1.23 (connect login, repeat check, profile-status, a four-page sweep, MCP, the published package, and a logged-out check; all passed once `check --url` was fixed). Each fix has a test.
 
