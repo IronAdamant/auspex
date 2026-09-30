@@ -11,7 +11,7 @@ import { homedir } from "node:os"
 import { createInterface, type Interface } from "node:readline"
 import QRCode from "qrcode"
 import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
-import { isHttpOrHttpsUrl } from "./http-url.ts"
+import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { jobFilePath, type JobReceipt } from "./job-store.ts"
 import type { JobRunOptions } from "./job-cli.ts"
 import type { HandoffPacket } from "./profiles.ts"
@@ -71,6 +71,7 @@ export function parseConnectFlags(args: string[]): ({ ok: true } & ConnectComman
   if (extra) return { ok: false, message: extra }
   if (!url) return { ok: false, message: "connect requires the app URL: auspex connect https://app.example" }
   if (!isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
+  if (!isCheckUrl(url)) return { ok: false, message: LOOPBACK_URL_ERROR }
   if (expect !== undefined && !isNonEmptyExpect(expect)) return { ok: false, message: "--expect must not be empty" }
   return { ok: true, mode: "run", opts: { url, expect, profile, verbose: verbose || undefined } }
 }

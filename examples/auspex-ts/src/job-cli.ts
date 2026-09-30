@@ -1,7 +1,7 @@
 /** CLI flags for auspex_job / auspex_job_status. Copy lives in tool-copy.ts. */
 
 import { takeFlag, takeOption, unexpectedArgs } from "./argv.ts"
-import { isHttpOrHttpsUrl } from "./http-url.ts"
+import { isCheckUrl, isHttpOrHttpsUrl, LOOPBACK_URL_ERROR } from "./http-url.ts"
 import { requireJobId } from "./job-store.ts"
 import type { HandoffPacket } from "./profiles.ts"
 import type { ProgressFn } from "./progress.ts"
@@ -42,6 +42,7 @@ export function parseJobFlags(args: string[]): { ok: true; opts: JobRunOptions }
   const extra = unexpectedArgs(rest)
   if (extra) return { ok: false, message: extra }
   if (url !== undefined && !isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
+  if (url !== undefined && !isCheckUrl(url)) return { ok: false, message: LOOPBACK_URL_ERROR }
   if (wakeWebhookUrl !== undefined && !isHttpOrHttpsUrl(wakeWebhookUrl)) {
     return { ok: false, message: "wakeWebhookUrl must be an http or https URL (no userinfo)" }
   }

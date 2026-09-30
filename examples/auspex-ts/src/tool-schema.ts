@@ -264,7 +264,7 @@ export const auspexLoginInputObject = z.object({
   profile: profileNameSchema
     .optional()
     .describe("Profile name to create or reuse. Omit when url is set to derive a host slug (app.example.com → app-example-com). Explicit profile wins."),
-  url: httpUrlSchema
+  url: checkUrlSchema
     .optional()
     .describe(
       "http(s) login URL hint. Without profile, derives a safe host slug and echoes it on next / savePaste. With an explicit profile that is not that host slug, the command still runs and sets profileHostMatch false plus suggestedProfile (remint). Saved-check host affinity (consistencyhub on consistencyhub.io) is a match.",
@@ -283,7 +283,7 @@ export const auspexLoginInputSchema = auspexLoginInputObject.superRefine((val, c
 
 export const auspexAwaitLoginInputSchema = z.object({
   profile: profileNameSchema.describe("Profile name from auspex_login"),
-  url: httpUrlSchema
+  url: checkUrlSchema
     .optional()
     .describe(
       "Site URL for the soft profile/host advise. When set, a profile that is not this host's slug sets profileHostMatch false and suggestedProfile (the wait still runs). Omit to use the site URL stored by the last login mint. Omission of the fields is not a match. If the live browser host is a different site than the minted URL, the wait fails closed (status host-changed, hostChanged true) and nextCall remints auspex_login for that https origin. The password field is not a site picker.",
@@ -371,7 +371,7 @@ export const auspexFinalizeLoginInputSchema = z.object({
   profile: profileNameSchema.describe(
     "Profile name to finalize (SSO + save-profile; captures sessionStorage). Run NOW after Save/await-login when editorFold did not refresh; later reuse still needs claimOkProfile=true, not ok alone.",
   ),
-  url: httpUrlSchema.optional().describe(
+  url: checkUrlSchema.optional().describe(
     "Optional http(s) URL. Required with expect unless profile matches a saved check (e.g. consistencyhub). A profile that is not this host's slug still finalizes and sets profileHostMatch false plus suggestedProfile. If the live browser host diverges from the minted site, ok is false, reason is hostChanged, the profile is not saved, and nextCall remints auspex_login for the live https origin.",
   ),
   expect: expectSchema.optional().describe(
@@ -394,7 +394,7 @@ export const auspexProfileStatusInputSchema = z.object({
     .min(1)
     .optional()
     .describe("Saved check name (supplies profile and url, e.g. consistencyhub)"),
-  url: httpUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
+  url: checkUrlSchema.optional().describe("Optional URL to probe with the profile (no --sso, no --record)"),
   expect: expectSchema
     .optional()
     .describe(
@@ -425,7 +425,7 @@ export const auspexJobInputObject = z.object({
   profile: profileNameSchema
     .optional()
     .describe("Profile name. Omit with url to derive a host slug (app.example.com → app-example-com). Explicit profile wins."),
-  url: httpUrlSchema
+  url: checkUrlSchema
     .optional()
     .describe("http(s) app URL. Required with expect unless name or jobId is set. Derives profile when profile is omitted."),
   expect: expectSchema

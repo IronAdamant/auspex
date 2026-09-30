@@ -4,7 +4,7 @@ import { toAgentReceipt, type AgentReceipt } from "./agent-receipt.ts"
 import { runCheck, runFinalizeLogin, type CheckResult } from "./check.ts"
 import { classifySolariError } from "./errors.ts"
 import { shouldVerifyCheck } from "./fail-closed.ts"
-import { isHttpOrHttpsUrl } from "./http-url.ts"
+import { requireCheckUrl } from "./http-url.ts"
 import { JOB_INPUT_ERROR, type JobRunOptions } from "./job-cli.ts"
 import {
   jobIso,
@@ -141,9 +141,7 @@ function resolveCreateInput(opts: JobRunOptions): {
   if (!merged.name && (!merged.url || !isNonEmptyExpect(merged.expect ?? ""))) {
     throw new Error(JOB_INPUT_ERROR)
   }
-  if (merged.url && !isHttpOrHttpsUrl(merged.url)) {
-    throw new Error("url must be an http or https URL")
-  }
+  if (merged.url) requireCheckUrl(merged.url)
   const resolved = resolveLoginProfile({ profile: merged.profile, url: merged.url })
   return {
     profile: requireProfileName(resolved.name),

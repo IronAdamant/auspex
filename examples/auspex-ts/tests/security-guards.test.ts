@@ -520,3 +520,32 @@ test("P0: desktop type password/OTP refuse — fail-closed content detection", a
   })
   assert.equal(safeResult.ok, true)
 })
+
+test("every command that sends the cloud browser to a URL refuses loopback and cloud metadata up front", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  const { LOOPBACK_URL_ERROR } = await import("../src/http-url.ts")
+  const schemas = await import("../src/tool-schema.ts")
+  for (const bad of ["http://localhost:3000", "http://169.254.169.254/latest/meta-data", "http://[::1]/"]) {
+    const argvs = [
+      ["login", "--url", bad],
+      ["await-login", "--profile", "app", "--url", bad],
+      ["finalize-login", "--profile", "app", "--url", bad, "--expect", "Hi"],
+      ["profile-status", "--profile", "app", "--url", bad],
+      ["job", "--url", bad, "--expect", "Hi"],
+      ["connect", bad, "--expect", "Hi"],
+    ]
+    for (const argv of argvs) {
+      assert.deepEqual(parseArgv(argv), { status: "error", message: LOOPBACK_URL_ERROR }, argv.join(" "))
+    }
+    const mcp = [
+      [schemas.auspexLoginInputObject, { url: bad }],
+      [schemas.auspexAwaitLoginInputSchema, { profile: "app", url: bad }],
+      [schemas.auspexFinalizeLoginInputSchema, { profile: "app", url: bad }],
+      [schemas.auspexProfileStatusInputSchema, { profile: "app", url: bad }],
+      [schemas.auspexJobInputObject, { url: bad, expect: "Hi" }],
+    ] as const
+    for (const [schema, input] of mcp) assert.equal(schema.safeParse(input).success, false, `${bad} ${JSON.stringify(input)}`)
+  }
+  // The wake webhook is posted by this machine, not opened by the cloud browser: a local one is fine.
+  assert.equal(schemas.auspexJobInputObject.safeParse({ url: "https://app.example", expect: "Hi", wakeWebhookUrl: "http://localhost:8080/hook" }).success, true)
+})

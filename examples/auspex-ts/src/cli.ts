@@ -118,8 +118,11 @@ function numberOption(raw: string | undefined, flag: string): number | undefined
   return n
 }
 
-function httpUrlOption(url: string | undefined): void {
-  if (url !== undefined && !isHttpOrHttpsUrl(url)) fail("url must be an http or https URL")
+/** A URL the cloud browser will open: http(s), and not loopback, link-local or cloud metadata. */
+function browserUrlOption(url: string | undefined): void {
+  if (url === undefined) return
+  if (!isHttpOrHttpsUrl(url)) fail("url must be an http or https URL")
+  if (!isCheckUrl(url)) fail(LOOPBACK_URL_ERROR)
 }
 
 function ssoProviderOption(raw: string | undefined): SsoProvider | undefined {
@@ -160,7 +163,7 @@ function parseCommand(cmd: string, args: string[]): CliCommand {
     noExtraArgs(args)
     if (!profile) fail("finalize-login requires --profile <name>")
     const profileName = requireProfileName(profile)
-    httpUrlOption(url)
+    browserUrlOption(url)
     const ssoProvider = ssoProviderOption(ssoProviderRaw)
     return { cmd: "finalize-login", profile: profileName, url, expect, ssoProvider }
   }
@@ -169,7 +172,7 @@ function parseCommand(cmd: string, args: string[]): CliCommand {
     const url = takeOption(args, "--url")
     const wait = takeFlag(args, "--wait")
     noExtraArgs(args)
-    httpUrlOption(url)
+    browserUrlOption(url)
     const resolved = resolveLoginProfile({ profile, url })
     return { cmd: "login", profile: requireProfileName(resolved.name), url, wait, profileDerived: resolved.derived }
   }
@@ -183,7 +186,7 @@ function parseCommand(cmd: string, args: string[]): CliCommand {
     const chainFinalize = takeFlag(args, "--no-chain-finalize") ? false : undefined
     const authKeyNames = authKeysOption(args)
     noExtraArgs(args)
-    httpUrlOption(url)
+    browserUrlOption(url)
     if (!profile) fail("await-login requires --profile <name>")
     const profileName = requireProfileName(profile)
     const sinceVersion = numberOption(sinceRaw, "--since-version")
@@ -218,7 +221,7 @@ function parseCommand(cmd: string, args: string[]): CliCommand {
     noExtraArgs(args)
     if (!profileRaw && !name) fail("profile-status requires --profile <name> or --name <saved>")
     const profile = profileRaw ? requireProfileName(profileRaw) : undefined
-    httpUrlOption(url)
+    browserUrlOption(url)
     if (expect !== undefined && !isNonEmptyExpect(expect)) fail("profile-status --expect must be a non-empty string")
     return { cmd: "profile-status", profile, name, url, expect, authKeyNames }
   }
