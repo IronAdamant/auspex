@@ -77,12 +77,22 @@ jobs:
             echo "Skipping published smoke: SOLARI_API_KEY secret is not set"
             exit 0
           fi
-          node scripts/release-smoke.mjs --live --spec "$SMOKE_SPEC"
+          node scripts/release-smoke.mjs --live --spec "$SMOKE_SPEC" --evidence-dir "$RUNNER_TEMP/auspex-evidence"
+      # The published package's public check, as a reviewer can open it: receipt + screenshot
+      # (Solari session and sandbox ids withheld). The run page shows the same fields.
+      - name: Upload the public check receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auspex-public-evidence
+          path: ${{ runner.temp }}/auspex-evidence
+          if-no-files-found: ignore
+          retention-days: 90
 
   public:
-    # Repo secret SOLARI_API_KEY is present; weekly public runs live
-    # (observed Actions 36678582381, 2026-09-30). If it were unset the step
-    # skips (exit 0) so pull requests are not blocked. Do not remove it.
+    # Repo secret SOLARI_API_KEY is present; weekly public runs live and write
+    # their table to the run page. If it were unset the step skips (exit 0)
+    # so pull requests are not blocked. Do not remove it.
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '42 6 * * 1'
     runs-on: ubuntu-latest
     defaults:

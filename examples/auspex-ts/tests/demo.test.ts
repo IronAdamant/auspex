@@ -280,3 +280,19 @@ test("published 0.1.19 connect run receipt is redacted and every pass holds the 
     assert.equal(attempt.claimOkProfile, true)
   }
 })
+
+test("the weekly public check writes a readable table for the Actions run page", async () => {
+  const { publicCheckSummaryMarkdown } = await import("../scripts/public-check.ts")
+  const md = publicCheckSummaryMarkdown(
+    {
+      results: [
+        { url: "https://ironadamant.com", expect: "One office job.", ok: true, matched: true, reason: "matched", finalUrl: "https://ironadamant.com/" },
+        { url: "https://checkpointprojects.com", expect: "Checkpoint", ok: false, matched: false, reason: "mismatch" },
+      ],
+    },
+    "2026-10-01T00:00:00.000Z",
+  )
+  assert.match(md, /^### Weekly public check FAILED \(2026-10-01T00:00:00\.000Z\)/)
+  assert.match(md, /\| https:\/\/ironadamant\.com \| One office job\. \| true \| true \| matched \| https:\/\/ironadamant\.com\/ \|/)
+  assert.match(publicCheckSummaryMarkdown({ skipped: true, reason: "SOLARI_API_KEY is not set", results: [] }), /skipped/)
+})

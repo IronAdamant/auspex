@@ -6,12 +6,14 @@
 //   node scripts/release-smoke.mjs                          # auspex-solari@latest, no key needed
 //   node scripts/release-smoke.mjs --spec ./auspex-solari-0.1.9.tgz
 //   SOLARI_API_KEY=… node scripts/release-smoke.mjs --live  # also health + a verified public check
+//   … --live --evidence-dir <dir>   # also keep that check's receipt + screenshot (ids withheld)
 //
 // Prints one JSON summary. Exit 0 only when every step passed. Never prints the key.
+// In GitHub Actions it also writes the results table to the run page ($GITHUB_STEP_SUMMARY).
 
 import { spawn, spawnSync } from "node:child_process"
-import { mkdtempSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 
 const argv = process.argv.slice(2)
@@ -25,6 +27,7 @@ const spec = path.isAbsolute(option("--spec", "")) || option("--spec", "").start
   ? path.resolve(option("--spec", ""))
   : option("--spec", "auspex-solari@latest")
 const live = flag("--live")
+const evidenceDir = option("--evidence-dir", "")
 const timeoutMs = Number(option("--timeout-ms", "480000"))
 // Core tools every release since 0.1.5 exposes. Newer releases add more (auspex_sweep).
 const requiredTools = ["auspex_check", "auspex_login", "auspex_profile_status", "auspex_solari_health", "auspex_trace", "auspex_job"]
@@ -45,6 +48,86 @@ function homePathsIn(value, at = "", found = []) {
 
 const steps = []
 const record = (name, ok, detail = {}) => steps.push({ name, ok, ...detail })
+let serverInfo
+let evidence
+
+/** The Actions run this smoke ran in, when it ran in one. */
+function actionsRunUrl() {
+  const { GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_RUN_ID } = process.env
+  return GITHUB_SERVER_URL && GITHUB_REPOSITORY && GITHUB_RUN_ID
+    ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`
+    : undefined
+}
+
+/**
+ * Keep the live check's receipt and screenshot as evidence a reviewer can open. Solari session and
+ * sandbox ids are removed (live resource ids are never published); the package, server version,
+ * time, and Actions run say which live run produced it.
+ */
+function keepEvidence(receipt) {
+  const copy = JSON.parse(JSON.stringify(receipt))
+  delete copy.sessionId
+  if (copy.verify) {
+    delete copy.verify.sandboxId
+    delete copy.verify.claimProfileSessionId
+  }
+  mkdirSync(evidenceDir, { recursive: true })
+  const shot = String(receipt.screenshotPath ?? "")
+  const shotAbs = shot.startsWith("~/") ? path.join(homedir(), shot.slice(2)) : path.resolve(cwd, shot)
+  if (shot && existsSync(shotAbs)) {
+    copyFileSync(shotAbs, path.join(evidenceDir, "ironadamant.png"))
+    copy.screenshotPath = "ironadamant.png"
+  }
+  const run = actionsRunUrl()
+  copy.evidence = {
+    package: spec,
+    serverVersion: serverInfo?.version,
+    checkedAt: new Date().toISOString(),
+    ...(run ? { run } : {}),
+    withheld: "Solari session and sandbox ids are never published.",
+  }
+  writeFileSync(path.join(evidenceDir, "ironadamant-receipt.json"), `${JSON.stringify(copy, null, 2)}\n`)
+  return copy
+}
+
+/** The results table on the Actions run page, so nobody has to download logs to read them. */
+function writeStepSummary(ok) {
+  const file = process.env.GITHUB_STEP_SUMMARY
+  if (!file) return
+  const cell = (value) => String(value ?? "").replaceAll("|", "\\|").replaceAll("\n", " ")
+  const lines = [
+    `### Release smoke: \`${cell(spec)}\` ${ok ? "passed" : "FAILED"}`,
+    "",
+    `Server: ${cell(serverInfo?.name)} ${cell(serverInfo?.version)}. ${live ? "Live (Solari key present)." : "No key: live steps skipped."}`,
+    "",
+    "| Step | Result | Detail |",
+    "| --- | --- | --- |",
+    ...steps.map((s) => {
+      const { name, ok: passed, ...detail } = s
+      return `| ${cell(name)} | ${passed ? "pass" : "FAIL"} | ${cell(Object.keys(detail).length ? JSON.stringify(detail) : "")} |`
+    }),
+  ]
+  if (evidence) {
+    lines.push(
+      "",
+      "Public check receipt (artifact `auspex-public-evidence`; Solari ids withheld):",
+      "",
+      "| Field | Value |",
+      "| --- | --- |",
+      ...[
+        ["url", evidence.url],
+        ["expect", evidence.expect],
+        ["ok", evidence.ok],
+        ["reason", evidence.reason],
+        ["verify.claimOk (anonymous fetch saw the words)", evidence.verify?.claimOk],
+        ["title", evidence.title],
+        ["finalUrl", evidence.finalUrl],
+        ["checkedAt", evidence.evidence?.checkedAt],
+      ].map(([k, v]) => `| ${cell(k)} | ${cell(v)} |`),
+    )
+  }
+  appendFileSync(file, `${lines.join("\n")}\n`)
+}
 
 const cwd = mkdtempSync(path.join(tmpdir(), "auspex-smoke-"))
 const child = spawn("npx", ["-y", "-p", spec, "auspex-mcp"], {
@@ -114,6 +197,7 @@ async function run() {
     clientInfo: { name: "auspex-release-smoke", version: "1" },
   }, 240_000)
   const server = init.result?.serverInfo
+  serverInfo = server
   record("initialize", Boolean(server), { server })
   if (!server) return
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`)
@@ -172,6 +256,7 @@ async function run() {
   const homePaths = homePathsIn(r)
   record("receipt has no home dir in any field", Boolean(shot) && homePaths.length === 0, { screenshotPath: shot, homePaths })
   record("check returns an image", check.kinds.includes("image"))
+  if (evidenceDir && r.schemaVersion) evidence = keepEvidence(r)
 }
 
 let done = false
@@ -182,7 +267,13 @@ function finish(err) {
   if (err) record("error", false, { error: err.message })
   const ok = steps.length > 0 && steps.every((s) => s.ok)
   const summary = { ok, spec, live, steps }
+  if (evidence) summary.evidenceDir = evidenceDir
   if (!ok && stderr.trim()) summary.serverStderrTail = stderr.trim().split("\n").slice(-8)
+  try {
+    writeStepSummary(ok)
+  } catch {
+    /* the run page table is a convenience; the JSON on stdout stays the result */
+  }
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`)
   child.kill()
   process.exit(ok ? 0 : 1)
