@@ -2,9 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.22 — 2026-09-30
 
-From a clean-up and wiring review (Claude). Same features and contract; each fix has a test.
+npm `auspex-solari@0.1.22` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+From a clean-up and wiring review (Claude). Same features and contract; each fix has a test. Proven live on this code: ConsistencyHub (Microsoft sign-in) logged in end to end with `connect`, including the one-time finalize fallback (`claimOkProfile=true`), then purged.
 
 - **Ctrl-C and SIGTERM close the Solari sessions the command opened.** Nothing handled a stop signal, so Ctrl-C mid-check (or an MCP host stopping the server mid-call) left the browser holding a Solari slot until `reap`. The CLI and the MCP server now release their own ledger rows first (at most 8 s), then exit 130 or 143. The `bin/` launcher passes the signal on instead of dying and orphaning its child. Live: a check interrupted at `goto` released its browser in 0.3 s.
 - **MCP progress works with real clients.** Progress notifications used a made-up token, so SDK clients logged "unknown progress token" on each one and could not use them to keep a long call alive. They now use the client's own `progressToken` with a rising count, and are sent only when asked for.
@@ -16,7 +18,7 @@ From a clean-up and wiring review (Claude). Same features and contract; each fix
 
 ## 0.1.21 — 2026-09-30
 
-npm `auspex-solari@0.1.21` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.21`. Agents do not `npm publish`. Founder publishes this release.
 
 Easier for AI agents to operate. Proven live: Clozemaster and Lorari logged in end to end on this code (`claimOkProfile=true`).
 
