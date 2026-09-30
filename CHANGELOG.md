@@ -9,6 +9,9 @@ Third review pass. Each fix has a test.
 - **An npm install audits clean.** The published package listed Solari's own MCP server (`@solarisdk/mcp`) as a dependency, though only the clone's contributor path uses it. It pulled `puppeteer-core` and a vulnerable `extract-zip` into every install: `npm audit` reported 5 high findings, and `node_modules` was 99 MB. Now 0 findings and 41 MB. The clone keeps it; its lockfile also takes `ip-address` 10.7.2.
 - **One saved-login idle clock for both installs.** Each install kept its own 30-minute clock, but Solari shares saved logins across installs, so a login used a minute ago from a clone could read as idle to the npm install and be deleted by its next command. A clone now also records uses in `~/.auspex`, and both read the latest use.
 - **A saved login already deleted elsewhere stops being tracked**, instead of costing a Solari profile list on every later command.
+- **`check` accepts `--url`.** The "Next time" command `connect` prints after a login (`check --profile … --url … --expect … --verify-with-profile`), and the same shape in AGENTS.md, the landing page, RECEIPTS, both READMEs, the Cursor rule and DEMO.md, all failed with "unexpected arguments: --url". Found by running connect's own hint after a live tldraw login. A test now parses every command in the docs' code blocks.
+- A usage error prints the message and that command's usage line, not the whole 60-line help.
+- `check --verify-with-profile` prints progress while the sandbox and the second browser run (it went quiet after `:: closing`). Receipt guidance names `AGENTS.md` instead of `docs/ops-runbook.md`, which npm users do not have.
 - AGENTS.md's CLI reference now matches the CLI's own usage text (it lacked `--auth-keys` and one `--expect`), with a test. The host paste block points agents at `AGENT-CARD.md`, which the package ships.
 
 ## 0.1.23 — 2026-09-30
