@@ -65,3 +65,13 @@ test("withProfileLock does not steal a lock that is still being written", async 
   utimesSync(path.join(dir, "fresh.lock"), old, old)
   assert.equal(await withProfileLock("fresh", async () => "ok", { lockDir: dir }), "ok")
 })
+
+test("a lock held by a live process of another user (EPERM) is not stolen", async (t) => {
+  if (process.platform === "win32") return t.skip("no pid 1 on Windows")
+  const { pidAlive } = await import("../src/session-ledger.ts")
+  // pid 1 (init/launchd) always exists; a normal user gets EPERM for it, root gets success.
+  assert.equal(pidAlive(1), true)
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-lock-"))
+  writeFileSync(path.join(dir, "held.lock"), "1\n0\n")
+  await assert.rejects(() => withProfileLock("held", async () => "stolen", { lockDir: dir }), ProfileBusyError)
+})

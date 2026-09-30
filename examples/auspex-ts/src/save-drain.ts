@@ -5,6 +5,7 @@ import { homedir } from "node:os"
 import path from "node:path"
 import { packageRoot, stateDirFor } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
+import { pidAlive } from "./session-ledger.ts"
 
 export const SIBLING_SAVED_STATUS = "sibling-saved"
 
@@ -102,16 +103,6 @@ async function writeBeacon(profile: string, root: string | undefined, shared = s
     } catch {
       /* already gone */
     }
-  }
-}
-
-function pidAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
   }
 }
 

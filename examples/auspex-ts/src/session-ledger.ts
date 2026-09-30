@@ -55,7 +55,8 @@ export async function readLiveLedger(file = LIVE_LEDGER_PATH): Promise<LiveLedge
   }
 }
 
-function pidAlive(pid: number): boolean {
+/** True while process `pid` exists, including one owned by another user (EPERM). */
+export function pidAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
     process.kill(pid, 0)

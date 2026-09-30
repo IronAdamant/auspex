@@ -4,6 +4,7 @@ import type { FileHandle } from "node:fs/promises"
 import path from "node:path"
 import { stateDir } from "./paths.ts"
 import { requireProfileName } from "./profile-slug.ts"
+import { pidAlive } from "./session-ledger.ts"
 
 export const PROFILE_BUSY_CODE = "ProfileBusy"
 
@@ -27,16 +28,6 @@ export function defaultLockDir(): string {
 export function lockFileName(profile: string): string {
   const safe = requireProfileName(profile).replace(/[^A-Za-z0-9._-]+/g, "_")
   return `${safe}.lock`
-}
-
-function pidAlive(pid: number): boolean {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /** How long a just-created lock file may go without its PID before it counts as abandoned. */
