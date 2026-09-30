@@ -2,6 +2,10 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **Receipt excerpts no longer keep email addresses.** A logged-in page shows the account's email (Lorari's account menu did, in a live run), and receipts are kept on disk and copied for PRs by `reap --pack-receipts`. Excerpts now show `[redacted-email]`, as job files and webhooks already did. Matching still uses the full page text.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

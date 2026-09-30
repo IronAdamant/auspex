@@ -299,3 +299,13 @@ test("installInfo names the install, its state folder and its command, never the
   assert.equal(npm.stateDir, "~/.auspex")
   for (const info of [clone, npm]) assert.equal(info.stateDir.includes("someone"), false, info.stateDir)
 })
+
+test("receipt excerpts do not keep the account's email; matching still sees it", async () => {
+  const { prepareCheckExcerpt, haystackMatches, maskSecrets } = await import("../src/text.ts")
+  const page = "adamant_test adamant_test@outlook.com Vídeos Settings Your Bookings"
+  const excerpt = prepareCheckExcerpt({ raw: page })
+  assert.equal(excerpt.includes("@outlook.com"), false)
+  assert.match(excerpt, /\[redacted-email\] Vídeos Settings Your Bookings/)
+  assert.equal(haystackMatches(page, "adamant_test@outlook.com"), true)
+  assert.equal(maskSecrets("Contact support at help@lorari.com today"), "Contact support at [redacted-email] today")
+})
