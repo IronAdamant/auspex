@@ -2,9 +2,21 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.21 — 2026-09-30
+
+npm `auspex-solari@0.1.21` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Easier for AI agents to operate. Proven live: Clozemaster and Lorari logged in end to end on this code (`claimOkProfile=true`).
+
+- **The door QR comes with the link.** `job` and `connect` now write a QR image of the phone door when they mint. `connect` prints `QR code image: <path>` next to the link (so an agent in the background can hand it to the human), the job's `handoff.qrPath` records it, and `auspex_job` attaches the image while it waits, so an MCP host can show it to scan.
+- **`solari-health` names the environment**: `install` (npm, clone, or AUSPEX_HOME), `stateDir` (where jobs, receipts and the Save folder live; home shown as `~`), and `command` for this install.
+- **One-page agent card.** `AGENT-CARD.md` (about 900 words, shipped in the package) gives an agent the command table, one copyable pattern for waiting on a human (shell and MCP), how to read the three answers, when to stop, and the environment traps. CLAUDE.md loads the card; AGENTS.md stays the full contract.
+- **`connect`'s hints name the command for its install** (`npx auspex` from a clone, `npx auspex-solari` from npm): the Save hint, "Next time", the one-retry hint and the wrong-site hint.
+- Landing page: a copy button on each command block. CI test fix for Linux (no product change).
+
 ## 0.1.20 — 2026-09-30
 
-npm `auspex-solari@0.1.20` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.20`. Agents do not `npm publish`. Founder publishes this release.
 
 From a second wide review and two live `connect` runs (Lorari on 0.1.19, Clozemaster on this code). Each fix has a test.
 
