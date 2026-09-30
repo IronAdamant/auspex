@@ -32,13 +32,8 @@ export async function buildReceiptToolContent(
       content.push(pngNote("PNG omitted: screenshot file is empty"))
       return { content }
     }
-    const { buf: attach, mimeType } =
-      buf.length <= MAX_IMAGE_BYTES
-        ? fitMcpAttach(buf)
-        : (() => {
-            const scaled = fitPngUnderCap(buf, MAX_IMAGE_BYTES)
-            return fitMcpAttach(scaled)
-          })()
+    const { buf: attach, mimeType, croppedHeight, fullHeight } =
+      buf.length <= MAX_IMAGE_BYTES ? fitMcpAttach(buf) : fitMcpAttach(fitPngUnderCap(buf, MAX_IMAGE_BYTES))
     if (attach.length > MAX_IMAGE_BYTES) {
       content.push(pngNote(`PNG omitted: ${buf.length} bytes exceeds ${MAX_IMAGE_BYTES}`))
       return { content }
@@ -48,6 +43,9 @@ export async function buildReceiptToolContent(
       mimeType,
       data: attach.toString("base64"),
     })
+    if (croppedHeight && fullHeight) {
+      content.push(pngNote(`Image: the top ${croppedHeight} of ${fullHeight} px of a tall page, scaled to read. The full page is at screenshotPath.`))
+    }
   } catch (err) {
     const code = err && typeof err === "object" && "code" in err ? String((err as { code?: unknown }).code) : ""
     if (code === "ENOENT") {

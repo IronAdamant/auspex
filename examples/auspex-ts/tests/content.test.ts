@@ -201,3 +201,31 @@ test("packToolFailure includes structured 429 and receipt sessionId", async () =
   assert.match(text, /ConcurrencyLimitExceeded|"retryable": false/)
   assert.match(text, /schemaVersion/)
 })
+
+test("the MCP image of a tall page is its readable top, and says so; a normal page is whole", async () => {
+  const { fitMcpAttach, decodePng, encodePng, MCP_ATTACH_MAX_ASPECT } = await import("../src/png-fit.ts")
+  const { buildReceiptToolContent } = await import("../src/content.ts")
+  const { mkdtempSync, writeFileSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const path = await import("node:path")
+  // 200x800: the top 200x250 is red, the rest blue, so the crop can be seen in the pixels.
+  const w = 200
+  const h = 800
+  const px = Buffer.alloc(w * h * 3)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px.set(y < 250 ? [220, 20, 20] : [20, 20, 220], (y * w + x) * 3)
+  const tall = encodePng(w, h, px, 3)
+  const got = fitMcpAttach(tall)
+  assert.equal(got.croppedHeight, Math.round(w * MCP_ATTACH_MAX_ASPECT))
+  assert.equal(got.fullHeight, h)
+  const img = decodePng(got.buf)
+  assert.ok(img.height / img.width <= MCP_ATTACH_MAX_ASPECT + 0.02)
+  assert.ok(img.pixels[0]! > 150 && img.pixels[2]! < 80, "the kept part is the top of the page")
+  const square = fitMcpAttach(encodePng(100, 100, Buffer.alloc(100 * 100 * 3, 90), 3))
+  assert.equal(square.croppedHeight, undefined)
+  const dir = mkdtempSync(path.join(tmpdir(), "auspex-attach-"))
+  const shot = path.join(dir, "screenshot.png")
+  writeFileSync(shot, tall)
+  const packed = await buildReceiptToolContent({ ok: true }, shot)
+  assert.equal(packed.content[1]?.type, "image")
+  assert.match((packed.content[2] as { text?: string } | undefined)?.text ?? "", /top 250 of 800 px of a tall page/)
+})

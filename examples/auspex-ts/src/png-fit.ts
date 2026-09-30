@@ -184,15 +184,32 @@ export function fitPngUnderCap(png: Buffer, cap: number): Buffer {
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 export const MCP_ATTACH_MAX_SIDE = 1024
 export const MCP_ATTACH_MAX_BYTES = 180 * 1024
+/**
+ * Tallest part of a full-page shot a model is shown, as height / width. A 1280x3139 page scaled whole
+ * to 1024 px is 417 px wide and unreadable; its top 1280x1600 scales to a readable 819x1024.
+ */
+export const MCP_ATTACH_MAX_ASPECT = 1.25
 
-/** Smaller MCP attach: a real downscaled PNG. Does not mutate the on-disk full-page shot. */
-export function fitMcpAttach(png: Buffer, cap = MCP_ATTACH_MAX_BYTES): { buf: Buffer; mimeType: "image/png" } {
+/**
+ * Smaller MCP attach: a real downscaled PNG of the page, from the top, cropped when the page is tall.
+ * Does not mutate the on-disk full-page shot.
+ */
+export function fitMcpAttach(
+  png: Buffer,
+  cap = MCP_ATTACH_MAX_BYTES,
+): { buf: Buffer; mimeType: "image/png"; croppedHeight?: number; fullHeight?: number } {
   const decoded = decodePng(png)
-  const scale = Math.min(0.9, MCP_ATTACH_MAX_SIDE / Math.max(decoded.width, decoded.height, 1))
+  const keptHeight = Math.min(decoded.height, Math.max(1, Math.round(decoded.width * MCP_ATTACH_MAX_ASPECT)))
+  const kept = decoded.pixels.subarray(0, keptHeight * decoded.width * decoded.bpp)
+  const scale = Math.min(0.9, MCP_ATTACH_MAX_SIDE / Math.max(decoded.width, keptHeight, 1))
   const dw = Math.max(1, Math.floor(decoded.width * scale))
-  const dh = Math.max(1, Math.floor(decoded.height * scale))
-  const pixels = resize(decoded.pixels, decoded.width, decoded.height, dw, dh, decoded.bpp)
+  const dh = Math.max(1, Math.floor(keptHeight * scale))
+  const pixels = resize(kept, decoded.width, keptHeight, dw, dh, decoded.bpp)
   const pngOut = fitPngUnderCap(encodePng(dw, dh, pixels, decoded.bpp), cap)
   decodePng(pngOut)
-  return { buf: pngOut, mimeType: "image/png" }
+  return {
+    buf: pngOut,
+    mimeType: "image/png",
+    ...(keptHeight < decoded.height ? { croppedHeight: keptHeight, fullHeight: decoded.height } : {}),
+  }
 }
