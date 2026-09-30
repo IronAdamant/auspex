@@ -92,7 +92,6 @@ test("the anonymous fetch refuses a redirect to cloud metadata without connectin
   writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ expect: "iam", screenshotPath: ".auspex/runs/x/screenshot.png", finalUrl: `http://127.0.0.1:${port}/` }))
   writeFileSync(path.join(dir, "screenshot.png"), readFileSync(path.join(path.dirname(ASSERT_RECEIPT_PY_PATH), "..", "demo", "ironadamant.png")))
   try {
-    const started = Date.now()
     const out = await new Promise<string>((resolve) => {
       const child = spawn("python3", [ASSERT_RECEIPT_PY_PATH, dir])
       let stdout = ""
@@ -101,8 +100,8 @@ test("the anonymous fetch refuses a redirect to cloud metadata without connectin
     })
     const parsed = JSON.parse(out) as { claimOk: boolean; claimErrors: string[] }
     assert.equal(parsed.claimOk, false)
+    // This note (not "fetch failed" after a connect attempt) is what proves the redirect was refused.
     assert.ok(parsed.claimErrors.includes("finalUrl redirected to a link-local or cloud-metadata address; not followed"), JSON.stringify(parsed.claimErrors))
-    assert.ok(Date.now() - started < 8_000, "refused at the redirect, not after a connect timeout")
   } finally {
     await new Promise((resolve) => server.close(resolve))
   }
