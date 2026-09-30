@@ -52,13 +52,6 @@ function ipv6LinkLocalOrUnspecified(host: string): boolean {
   return false
 }
 
-/** True for localhost, 127.0.0.1, and ::1 (bracketed IPv6 hostnames included). */
-export function isLoopbackHost(hostname: string): boolean {
-  const h = stripBrackets(hostname)
-  if (h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0:0:0:0:0:0:0:1") return true
-  return false
-}
-
 /** Loopback aliases, IPv4-mapped IPv6, link-local, and cloud metadata. Public URLs stay allowed. */
 export function isForbiddenCheckHost(hostname: string): boolean {
   const h = stripBrackets(hostname)

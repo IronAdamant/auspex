@@ -24,7 +24,6 @@ import { hostIs } from "./sso.ts"
 import { requireExpect } from "./text.ts"
 
 export const MAX_SWEEP_PAGES = 12
-export const SWEEP_REPORT_VERSION = 1
 
 export type SweepPage = { name: string; url: string; expect: string }
 

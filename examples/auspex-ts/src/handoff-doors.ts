@@ -175,16 +175,6 @@ export function doorStreamDisconnectAction(opts: {
   return "reconnect"
 }
 
-/**
- * Door countdown uses the minted hash `exp` (the same stamp as streamExpiresAt).
- * A second JWT parse must not pull that stamp earlier.
- */
-export function doorExpirySeconds(opts: { hashExp?: number; jwtExp?: number }): number | undefined {
-  if (opts.hashExp !== undefined && opts.hashExp > 0) return opts.hashExp
-  if (opts.jwtExp !== undefined && opts.jwtExp > 0) return opts.jwtExp
-  return undefined
-}
-
 /** Password-manager attributes for the one typing field. Never autocomplete=off. */
 export function imeAutocomplete(opts: { bulletsOn: boolean; otpOn?: boolean }): "current-password" | "one-time-code" {
   if (opts.otpOn && !opts.bulletsOn) return "one-time-code"

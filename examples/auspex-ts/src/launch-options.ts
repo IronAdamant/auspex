@@ -3,8 +3,6 @@ import { isPublicMarketingUrl } from "./saved-checks.ts"
 
 export const PROXY_FLAG_ERROR = "--proxy must be a 2-letter country code, smart, or off"
 
-export type ProxySticky = { country: string; session: string }
-
 export function parseProxyFlag(raw: string | undefined, sticky?: string): CreateSessionOptions["proxy"] {
   const pin = sticky?.trim()
   if (!raw) {

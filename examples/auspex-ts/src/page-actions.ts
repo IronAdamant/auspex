@@ -66,9 +66,6 @@ type FieldProbe = {
   present: boolean
 }
 
-/** none = focus only. all = replace the control. end = caret after the current text. */
-export type FillSelectMode = "none" | "all" | "end"
-
 /** Test doubles may return `true` for a password input. A string is the control text. */
 export function normalizeFieldProbe(raw: unknown): FieldProbe {
   if (raw === true) return { password: true, contentEditable: false, text: "", present: true }

@@ -5,8 +5,6 @@ import { awaitSaveEditorNextCall, remintLoginNextCall, type NextCall } from "./n
 import { boundPromise } from "./timeout.ts"
 
 export const STREAM_EXPIRED_STATUS = "stream-expired"
-export const EDITOR_SAVE_HUNG_STATUS = "editor-save-hung"
-export const PROFILE_BUSY_AWAIT_STATUS = "profile-busy"
 
 /** Bound around Solari editor/save so await does not hang under a parallel finalize. */
 export const EDITOR_SAVE_BOUND_MS = 30_000

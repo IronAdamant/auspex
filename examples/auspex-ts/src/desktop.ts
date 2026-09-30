@@ -199,8 +199,6 @@ export function assertNotPasswordLikeText(text: string): void {
 export const DESKTOP_OVERALL_MS = 90_000
 export const DESKTOP_HEALTH_MS = 30_000
 export const WINDOW_MAP_MS = 8_000
-/** Old Mousepad layout guess. Unverified; not the default demo. Pass --click to attempt it. */
-export const MOUSEPAD_CLICK = { x: 320, y: 300 }
 export const DEFAULT_DESKTOP_TASK: DesktopTask = { open: "mousepad" }
 
 export type DesktopResult = {
@@ -321,10 +319,6 @@ async function waitReady(
     await sleepFn(1000)
   }
   return false
-}
-
-export async function expectOnDesktop(desktop: DesktopHandle, expect: string): Promise<boolean> {
-  return expectOnProcessSignal(await collectProcessSignal(desktop), expect)
 }
 
 export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps()): Promise<DesktopResult> {
