@@ -149,7 +149,20 @@ async function run() {
     claimOk: r.verify?.claimOk,
     verifyErrors: r.verify?.errors,
   })
-  record("receipt screenshotPath has no home dir", Boolean(shot) && !HOME_PATH.test(shot), { screenshotPath: shot })
+  // Every string in the receipt, not only screenshotPath: verify.runDir and diff.previousRunDir
+  // carried the home folder through 0.1.27 while screenshotPath was clean.
+  const homePaths = []
+  const walk = (value, at) => {
+    if (typeof value === "string") {
+      if (HOME_PATH.test(value)) homePaths.push(at)
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => walk(item, `${at}[${i}]`))
+    } else if (value && typeof value === "object") {
+      for (const [key, item] of Object.entries(value)) walk(item, at ? `${at}.${key}` : key)
+    }
+  }
+  walk(r, "")
+  record("receipt has no home dir in any field", Boolean(shot) && homePaths.length === 0, { screenshotPath: shot, homePaths })
   record("check returns an image", check.kinds.includes("image"))
 }
 

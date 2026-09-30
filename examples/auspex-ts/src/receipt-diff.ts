@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { toStatePath } from "./paths.ts"
 import { listCompleteRunDirs, RUNS_DIR } from "./receipt.ts"
 
 export type ReceiptDiff = {
@@ -100,7 +101,8 @@ export async function diffAgainstLastReceipt(opts: {
   }
   const excerptChanged = (previousExcerpt ?? "") !== (opts.excerpt ?? "")
   return {
-    previousRunDir: previous.dir,
+    // Relative in a clone, ~/… otherwise: a receipt never carries the home folder (it gets attached to PRs).
+    previousRunDir: toStatePath(previous.dir),
     previousUrl,
     previousExcerpt,
     previousReason,

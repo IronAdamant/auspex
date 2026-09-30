@@ -7,6 +7,7 @@ import { shouldVerifyAfterCheck } from "./fail-closed.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { assertRunDirUnderRuns, findLatestRun, loadRunFiles, RECEIPT_ASSERT_PY } from "./receipt.ts"
+import { toStatePath } from "./paths.ts"
 import { createClient, fetchWithIdempotencyKey, gotoWithSessionRestore, launchBrowser, OVERALL_TIMEOUT_MS, pageForSession, requireApiKey, resolveProfileId } from "./solari.ts"
 import { profileClaimSessionCreate } from "./launch-options.ts"
 import { abortableSleep, boundPromise, closeThenRelease, CLOSE_TIMEOUT_MS, linkAbortSignal, observeAbort, raceWithTimeout, ReadyRelease } from "./timeout.ts"
@@ -406,7 +407,8 @@ export async function verifyReceipt(
           parsed.ok = false
           parsed.errors = [...parsed.errors, `python exit ${out.exitCode}`]
         }
-        let result: VerifyResult = { ...parsed, runDir: dir, sandboxId: sandbox.sandboxId }
+        // Receipt paths are relative in a clone and ~/… otherwise, never the home folder (toStatePath).
+        let result: VerifyResult = { ...parsed, runDir: toStatePath(dir), sandboxId: sandbox.sandboxId }
         onProgress("sandbox-kill")
         try {
           const killedId = sandbox.sandboxId
@@ -478,7 +480,7 @@ export async function checkThenVerify(
         errors: [],
         claimOk: false,
         claimErrors: [],
-        runDir: dir,
+        runDir: toStatePath(dir),
         skipped: true,
         skipReason: check.reason,
         ...(check.reason === "hostChanged" || check.hostChanged ? { claimOkProfile: false } : {}),
@@ -499,7 +501,7 @@ export async function checkThenVerify(
         errors: [],
         claimOk: false,
         claimErrors: [],
-        runDir: dir,
+        runDir: toStatePath(dir),
         skipped: true,
         skipReason: ban.kind,
         anonymousClaimSkipped: true,
@@ -544,7 +546,7 @@ export async function checkThenVerify(
       errors: [msg],
       claimOk: false,
       claimErrors: [],
-      runDir: dir,
+      runDir: toStatePath(dir),
       ...(vwp
         ? {
             anonymousClaimSkipped: true,

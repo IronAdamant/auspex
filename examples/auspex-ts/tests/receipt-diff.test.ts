@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, utimesSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { toStatePath } from "../src/paths.ts"
 import { listCompleteRunDirs } from "../src/receipt.ts"
 import { canonicalCheckUrl, diffAgainstLastReceipt } from "../src/receipt-diff.ts"
 import { packLastReceipts } from "../src/reap.ts"
@@ -55,6 +56,8 @@ test("diffAgainstLastReceipt compares excerpt and url for the same site", async 
   assert.equal(same.sameUrl, true)
   assert.equal(same.excerptChanged, false)
   assert.equal(same.urlChanged, false)
+  // Receipt paths never carry the home folder: relative in a clone, ~/… otherwise (live, 0.1.27 did).
+  assert.equal(same.previousRunDir, toStatePath(older))
   const changed = await diffAgainstLastReceipt({
     url: "https://ironadamant.com",
     excerpt: "Two office jobs.",
@@ -96,4 +99,12 @@ test("packLastReceipts copies last receipt per URL", async () => {
   const iron = packed.packed.find((p) => p.url.includes("ironadamant"))
   assert.equal(iron?.reason, "matched")
   assert.match(iron?.screenshotPath ?? "", /screenshot\.png/)
+})
+
+test("receipt run folders go through toStatePath, so a receipt never names the home folder", async () => {
+  const { readFileSync } = await import("node:fs")
+  const sandbox = readFileSync(new URL("../src/sandbox.ts", import.meta.url), "utf8")
+  assert.equal(/runDir: dir\b/.test(sandbox), false, "verify.runDir must be toStatePath(dir)")
+  assert.ok((sandbox.match(/runDir: toStatePath\(dir\)/g) ?? []).length >= 4)
+  assert.equal(toStatePath("/Users/someone/.auspex/runs/2026-10-01T00-00-00", "/Users/someone"), "~/.auspex/runs/2026-10-01T00-00-00")
 })

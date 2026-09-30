@@ -20,6 +20,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A sweep row where the two browsers disagree is "could not tell", not "fail".** If the live browser still misses words the second browser saw, the row says so and suggests `check --wait-for`.
 
+- **Receipts no longer carry the home folder.** `screenshotPath` was relative (clone) or `~/…` (npm), but `verify.runDir` and `diff.previousRunDir` were absolute paths naming the user's home folder, in every check receipt; receipts get attached to PRs. Both now use the same `toStatePath` rule. The release smoke checked only `screenshotPath`; it now scans every field of the receipt, and fails published 0.1.27 on exactly those two fields.
+
 ## 0.1.27 — 2026-10-01
 
 npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.
