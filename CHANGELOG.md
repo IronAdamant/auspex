@@ -2,7 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.27 — 2026-10-01
+
+npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Live test on eight apps. Seven logged in and were explored by clicking (Lorari, Good Tape, Clozemaster, Chatwoot, MariaDB Cloud, Back4App, ConsistencyHub); tldraw's save hit a Solari 502 and nothing was saved. Two privacy fixes (email addresses in excerpts, an OAuth code in a click error), one fill fix, and robustness and clarity fixes found on real pages. Each fix has a test.
 
 - **Receipt excerpts no longer keep email addresses.** A logged-in page shows the account's email (Lorari's account menu did, in a live run), and receipts are kept on disk and copied for PRs by `reap --pack-receipts`. Excerpts now show `[redacted-email]`, as job files and webhooks already did. Matching still uses the full page text.
 
@@ -26,7 +30,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.26 — 2026-10-01
 
-npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.26`. Agents do not `npm publish`. Founder publishes this release.
 
 Final review pass (2026-10-01). Two security fixes (the anonymous fetch and the live check could be pointed at cloud metadata through a redirect or DNS) and five accuracy and robustness fixes. Each fix has a test.
 
