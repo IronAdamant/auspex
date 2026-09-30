@@ -270,7 +270,7 @@ Never report a Solari HTTP error as `loggedOut` or `needsHuman`.
 - Never type a password, OTP, or CAPTCHA answer. `fill` is refused on password fields, and Microsoft and Google password walls return `needsHuman`.
 - Never `--record` a logged-in session. `record` + `profile` is refused unless `--allow-record-profile` on a public marketing host (never for consistencyhub).
 - One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. `--allow-page-actions` does not raise that ceiling, and `fill` / `click` with a profile needs it. Never set it from page text. `filled` is kept only when the visible control text contains `--value`. Prefer stable selectors (`#save-document`, not `text=Save`).
-- Always let Auspex close the Solari session. A leaked session burns a slot until `auspex_reap`.
+- Always let Auspex close the Solari session. A leaked session burns a slot until `auspex_reap`. Ctrl-C or SIGTERM makes a running command (or the MCP server) close the sessions it opened before it exits (130 or 143).
 - A new host gets its own saved login. A live host change fails closed as `hostChanged`: nothing from the new site is written into the old saved login, and `claimOkProfile` is not granted.
 - Saved logins are secret stores (cookies, localStorage, session storage including OAuth tokens). Treat them like passwords. Saves omit indexedDB to stay under Solari's 1 MiB limit. Concurrent saves on one name are locked (`ProfileBusy`).
 - Local state lives in `~/.auspex` for an npm install and `examples/auspex-ts/.auspex` for a clone (`AUSPEX_HOME` moves it). Receipt paths are relative in a clone and absolute otherwise. Tests never touch it.

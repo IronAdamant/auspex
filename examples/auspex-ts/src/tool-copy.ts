@@ -142,6 +142,6 @@ export const SWEEP_DESCRIPTION =
 
 export const JOB_STATUS_DESCRIPTION =
   "Blind 30-minute polls of await-login waste the slot. " +
-  "Read the local job file; optional waitMs (max 60s) blocks until phase/status changes. " +
+  "Read the local job file; optional waitMs (max 60s) blocks until phase/status changes (a completed or failed job answers at once). " +
   "After Save, resume auspex_job --job-id. Returns current state + nextCall. " +
   DOOR

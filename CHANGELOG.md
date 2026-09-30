@@ -2,6 +2,18 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+From a clean-up and wiring review (Claude). Same features and contract; each fix has a test.
+
+- **Ctrl-C and SIGTERM close the Solari sessions the command opened.** Nothing handled a stop signal, so Ctrl-C mid-check (or an MCP host stopping the server mid-call) left the browser holding a Solari slot until `reap`. The CLI and the MCP server now release their own ledger rows first (at most 8 s), then exit 130 or 143. The `bin/` launcher passes the signal on instead of dying and orphaning its child. Live: a check interrupted at `goto` released its browser in 0.3 s.
+- **MCP progress works with real clients.** Progress notifications used a made-up token, so SDK clients logged "unknown progress token" on each one and could not use them to keep a long call alive. They now use the client's own `progressToken` with a rising count, and are sent only when asked for.
+- **`job-status --wait-ms` answers at once for a completed or failed job** instead of sleeping the whole wait.
+- **One Solari profile list per logged-in check** instead of two (one fewer round trip).
+- **`check` and `finalize-login` print `::` progress lines** on stderr, like `login`, `job` and `sweep`. Stdout is still one JSON object.
+- **One flag reader for every command.** `job` and `connect` now read a value that starts with a dash (`--expect "-20% off"`) the way `check` always did.
+- Clean-up: the MCP server version comes from `package.json`; the MCP sweep tool gives the same "not readable JSON" message as the CLI; dead exports and a duplicate `.env` parser removed; `cli.ts` 701 → 510 lines.
+
 ## 0.1.21 — 2026-09-30
 
 npm `auspex-solari@0.1.21` (latest). Agents do not `npm publish`. Founder publishes this release.
