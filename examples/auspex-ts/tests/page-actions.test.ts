@@ -508,3 +508,21 @@ test("a click miss says why: several matches need a unique selector; a timeout m
   assert.match(missing, /Nothing matching that selector became visible and clickable/)
   assert.match(missing, /One check is one click/)
 })
+
+test("a click that waited through a redirect says the page navigated, not that nothing matched", async () => {
+  const { clickMissedNext } = await import("../src/page-actions.ts")
+  const nav = clickMissedNext(
+    'text="MANAGE" >> visible=true',
+    'locator.click: Timeout 15000ms exceeded. navigated to "https://app.example/login/oauth2/code/grant?code=redacted"',
+  )
+  assert.match(nav, /The page navigated while the click waited/)
+  assert.equal(nav.includes("Nothing matching that selector"), false)
+})
+
+test("check lets the page settle before a fill or click, and keeps OAuth codes out of the receipt", () => {
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const settle = src.indexOf("if (opts.fill || opts.click)")
+  assert.ok(settle > 0 && settle < src.indexOf("await runPageActions(page, opts, signal)"))
+  assert.match(src, /clickMissed = actions\.clickMissed \? redactUrlSecretsInText\(actions\.clickMissed\)/)
+  assert.match(src, /finalUrl: receiptFinalUrl,/)
+})

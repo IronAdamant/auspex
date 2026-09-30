@@ -60,6 +60,7 @@ import {
 } from "./solari.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { noopProgress, type ProgressFn } from "./progress.ts"
+import { redactUrlSecrets, redactUrlSecretsInText } from "./scrub.ts"
 import { completeSso, describeAuthWall, shouldFailClosedAuth, type SsoProvider } from "./sso.ts"
 import {
   boundPromise,
@@ -72,6 +73,9 @@ import {
 } from "./timeout.ts"
 
 type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
+
+/** Each bounded wait for the page to settle before a fill or click. */
+export const PRE_ACTION_IDLE_MS = 8_000
 
 export type CheckOptions = {
   url: string
@@ -247,11 +251,20 @@ async function extractPage(
       const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
       // Excerpt only: the page's main region when it has one (menus and promo cards otherwise fill it).
       const main = sel ? null : (document.querySelector('main, [role="main"]') as HTMLElement | null)
-      // Excerpt only: the last visible dialog (a click usually opened it). No named helpers in here:
-      // this function runs in the page, where the bundler's __name() wrapper does not exist.
+      // Excerpt only: the last visible dialog, or the popup an expanded menu button names with
+      // aria-controls (a click usually opened it). No named helpers in here: this function runs in
+      // the page, where the bundler's __name() wrapper does not exist.
+      const popupIds = sel
+        ? []
+        : Array.from(
+            document.querySelectorAll('[aria-haspopup]:not([aria-haspopup="false"])[aria-expanded="true"][aria-controls]'),
+          ).flatMap((trigger) => (trigger.getAttribute("aria-controls") ?? "").split(/\s+/).filter(Boolean))
       const dialogs = sel
         ? []
-        : Array.from(document.querySelectorAll('dialog[open], [role="dialog"], [aria-modal="true"]')).filter((node) =>
+        : [
+            ...Array.from(document.querySelectorAll('dialog[open], [role="dialog"], [aria-modal="true"]')),
+            ...popupIds.map((id) => document.getElementById(id)).filter((node): node is HTMLElement => node !== null),
+          ].filter((node) =>
             typeof (node as HTMLElement & { checkVisibility?: () => boolean }).checkVisibility === "function"
               ? (node as HTMLElement & { checkVisibility: () => boolean }).checkVisibility()
               : node.getClientRects().length > 0,
@@ -273,8 +286,9 @@ async function extractPage(
 /**
  * Text for the receipt excerpt. Matching always uses the whole page; the excerpt prefers the
  * page's main region (<main> / role=main) when it holds real content, so menus and promo cards
- * do not use up the 500 characters. After a click, an open dialog is what the click showed, so it
- * wins (without a click, an open dialog is usually a cookie banner and <main> stays the excerpt).
+ * do not use up the 500 characters. After a click, an open dialog or menu popup is what the click
+ * showed, so it wins (without a click, an open dialog is usually a cookie banner and <main> stays
+ * the excerpt).
  */
 export function excerptRegion(whole: string, main: string, dialog = "", clicked = false): string {
   if (clicked && dialog.trim().length >= 20) return dialog
@@ -424,11 +438,23 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       }
       if (isCancelled()) return
       if (!needsHuman) {
+        if (opts.fill || opts.click) {
+          // A logged-in app often refreshes its session right after load (an OAuth redirect and
+          // back). A click in that window lands on a page that is then replaced, or waits on a
+          // page that is navigating away. Let the page settle first; both waits are bounded.
+          await page.waitForLoadState("networkidle", { timeout: PRE_ACTION_IDLE_MS, signal }).catch(() => undefined)
+          if (opts.profile) {
+            await page
+              .waitForURL((url) => isPersistableAppUrl(url.toString()), { timeout: PRE_ACTION_IDLE_MS, signal })
+              .catch(() => undefined)
+          }
+        }
         const actions = await runPageActions(page, opts, signal)
         waitedFor = actions.waitedFor
         filled = actions.filled
         clicked = actions.clicked
-        clickMissed = actions.clickMissed
+        // A Playwright error names the URL it navigated to, which can carry an OAuth code.
+        clickMissed = actions.clickMissed ? redactUrlSecretsInText(actions.clickMissed) : undefined
       }
       onProgress("settle")
       try {
@@ -615,7 +641,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       return deadStreamCheckResult({ url: opts.url, expect: opts.expect, profile: opts.profile })
     }
     if (workError) {
-      throw new AuspexError(explainSolariError(workError), {
+      throw new AuspexError(redactUrlSecretsInText(explainSolariError(workError)), {
         issue: classifySolariError(workError),
         sessionId: sessionId || undefined,
         screenshotPath: existsSync(screenshotAbs) ? screenshotPath : undefined,
@@ -695,10 +721,12 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       next = next ? `${lead} ${next}` : lead
     }
     
+    // Decisions above used the real landing URL; the receipt keeps it without secret parameters.
+    const receiptFinalUrl = finalUrl ? redactUrlSecrets(finalUrl) : finalUrl
     const diff = await diffAgainstLastReceipt({
       url: opts.url,
       excerpt,
-      finalUrl,
+      finalUrl: receiptFinalUrl,
       excludeDir: outDir,
     })
     const result: CheckResult = {
@@ -709,7 +737,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       expect: opts.expect,
       screenshotPath,
       title,
-      finalUrl,
+      finalUrl: receiptFinalUrl,
       matched,
       excerpt,
       sessionId,

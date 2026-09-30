@@ -14,6 +14,12 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **The saved-login second browser no longer reports a working login as broken when the page navigates while loading.** Live on MariaDB Cloud, the dashboard navigated during the second browser's read ("Execution context was destroyed"), so `claimOkProfile` came back false with "do not reuse this seed. Stop the loop" for a login that worked. The second browser now settles and reads again, as the first browser always did; two reruns confirmed the login.
 
+- **A missed click no longer puts an OAuth code in the receipt.** On MariaDB Cloud a click waited while the app refreshed its sign-in, and the `clickMissed` text quoted the redirect URL with its live `code=` and `state=`. Secret query and hash parameters (codes, state, tokens) in `clickMissed`, `finalUrl`, and check error text now read `redacted`; host, path, and hash routes stay.
+
+- **A fill or click waits for the page to settle first.** The same MariaDB click landed during that sign-in refresh: once on a page that was then replaced (the menu vanished), once timing out. A check with `--fill` or `--click` now waits (bounded) for network idle and, with a saved login, for the page to leave any sign-in URL. A click that still loses a navigation says so instead of "nothing matching became visible".
+
+- **After a click, the excerpt also shows a menu the click opened.** MariaDB's Manage menu is not a dialog, so the excerpt showed the dashboard underneath and the click looked like it did nothing. A popup named by an expanded menu button (`aria-haspopup`, `aria-expanded`, `aria-controls`) now counts like a dialog.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

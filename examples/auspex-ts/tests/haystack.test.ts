@@ -321,6 +321,15 @@ test("after a click the excerpt is the open dialog; without a click a dialog (co
   assert.equal(excerptRegion(whole, "", "", true), whole)
 })
 
+test("a menu popup a click opened counts as the dialog: the one an expanded menu button names", async () => {
+  // MariaDB's Manage button opens a popup that is neither a <dialog> nor role=menu; the button's
+  // aria-haspopup + aria-expanded + aria-controls is what says which element the click opened.
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  assert.match(src, /\[aria-haspopup\]:not\(\[aria-haspopup="false"\]\)\[aria-expanded="true"\]\[aria-controls\]/)
+  assert.match(src, /popupIds\.map\(\(id\) => document\.getElementById\(id\)\)/)
+})
+
 test("page functions in check.ts survive the clone's runner (no named helpers inside page.evaluate)", async () => {
   // tsx compiles with keepNames, which wraps a function assigned to a name in __name(...). Code sent
   // into the page by page.evaluate cannot see that helper, so such a function breaks every check in
