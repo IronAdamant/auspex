@@ -656,3 +656,21 @@ test("AGENT-CARD.md stays short, ships, and agrees with AGENTS.md", () => {
   assert.ok(pkgJson.files.includes("AGENT-CARD.md"), "the card ships in the npm package")
   assert.match(agents, /\[AGENT-CARD\.md\]\(AGENT-CARD\.md\)/)
 })
+
+test("code folders load the full contract; the root loads only the card", () => {
+  const root = readFileSync(path.join(repo, "CLAUDE.md"), "utf8")
+  assert.match(root, /@AGENT-CARD\.md/)
+  assert.equal(root.includes("@AGENTS.md"), false, "root stays light: card only")
+  // Claude Code loads a folder's CLAUDE.md when a session reads files there, so any session that
+  // touches product or door code gets the whole contract without having to remember it.
+  for (const [dir, importPath] of [
+    ["examples/auspex-ts", "@../../AGENTS.md"],
+    ["docs", "@../AGENTS.md"],
+  ] as const) {
+    const file = path.join(repo, dir, "CLAUDE.md")
+    assert.ok(existsSync(file), `${dir}/CLAUDE.md exists`)
+    const text = readFileSync(file, "utf8")
+    assert.ok(text.includes(importPath), `${dir}/CLAUDE.md imports the full contract`)
+    assert.ok(existsSync(path.resolve(path.dirname(file), importPath.slice(1))), `${importPath} resolves from ${dir}`)
+  }
+})
