@@ -674,3 +674,13 @@ test("code folders load the full contract; the root loads only the card", () => 
     assert.ok(existsSync(path.resolve(path.dirname(file), importPath.slice(1))), `${importPath} resolves from ${dir}`)
   }
 })
+
+test("AGENTS.md's CLI reference is the CLI's own usage, line for line", () => {
+  const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const block = agents.slice(agents.indexOf("## CLI"), agents.indexOf("## MCP hosts"))
+  const usageLines = USAGE.split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^npx auspex [a-z]/.test(line) && !line.includes("--name <ironadamant"))
+  assert.ok(usageLines.length >= 15)
+  for (const line of usageLines) assert.ok(block.includes(line), `AGENTS.md CLI block is missing or differs from: ${line}`)
+})

@@ -301,15 +301,15 @@ OneDrive with the same Microsoft login is receipt-only evidence (`examples/auspe
 
 ```
 npx auspex login --url <https> [--profile <name>] [--wait]
-npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--mobile] [--device <name>]
-npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize]
+npx auspex check <url> --expect <string> [--selector <css>] [--profile <name>] [--sso] [--sso-provider microsoft|google|auto] [--wait-for <css>] [--save-profile] [--verify|--no-verify] [--verify-with-profile] [--auth-keys <names>] [--mobile] [--device <name>]
+npx auspex await-login --profile <name> [--since-version <n>] [--timeout-ms <n>] [--save-editor] [--url <https>] [--expect <string>] [--no-chain-finalize] [--auth-keys <names>]
 npx auspex finalize-login --profile <name> [--url <url>] [--expect <string>]
 npx auspex profiles [--purge <name>] [--yes] [--keep <name>] [--unkeep <name>]
-npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>]
+npx auspex profile-status [--profile <name>] [--name <saved>] [--url <hint>] [--expect <string>] [--auth-keys <names>]
 npx auspex solari-health
 npx auspex job [--job-id <id>] [--name <saved>] [--profile <name>] [--url <https>] [--expect <string>] [--skip-finalize] [--verify-with-profile] [--wait] [--wake-webhook <url>] [--timeout-ms <n>]
 npx auspex job-status --job-id <id> [--wait-ms <n>]
-npx auspex connect <https> [--expect <string>] [--profile <name>] [--verbose]
+npx auspex connect <https> [--expect <words>] [--profile <name>] [--verbose]
 npx auspex connect --save <profile>
 npx auspex sweep --plan <plan.json> [--notify <url>]
 npx auspex reap [--dry-run] [--session <id>] [--vm <id>] [--pack-receipts] [--account-wide]
