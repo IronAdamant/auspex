@@ -90,3 +90,17 @@ test("MCP login schema allows url-only and still rejects whitespace profile", ()
   assert.equal(auspexLoginInputSchema.safeParse({ profile: "   " }).success, false)
   assert.equal(auspexLoginInputSchema.safeParse({}).success, false)
 })
+
+test("a profile name can never be a path (it names local editor-save and Save files)", async () => {
+  const { requireProfileName, profileNameSchema, PROFILE_NAME_PATH_ERROR } = await import("../src/profile-slug.ts")
+  const { editorSavePath } = await import("../src/profiles.ts")
+  for (const bad of ["../../package", "a/b", "a\\b", "..\\..\\x", "a\nb", "a\u0000b"]) {
+    assert.throws(() => requireProfileName(bad), { message: PROFILE_NAME_PATH_ERROR }, JSON.stringify(bad))
+    assert.equal(profileNameSchema.safeParse(bad).success, false, JSON.stringify(bad))
+  }
+  assert.throws(() => editorSavePath("../../package"), { message: PROFILE_NAME_PATH_ERROR })
+  for (const good of ["consistencyhub-io", "app-example-com", "my profile", "app.example.com", "..."]) {
+    assert.equal(requireProfileName(good), good)
+    assert.equal(profileNameSchema.safeParse(good).success, true, good)
+  }
+})

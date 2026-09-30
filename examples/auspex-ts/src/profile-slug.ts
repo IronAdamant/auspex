@@ -4,13 +4,23 @@ import { z } from "zod"
 
 export const PROFILE_NAME_ERROR = "profile name must be non-empty"
 
+/** A name becomes a local file name (editor-save, Save signals), so it can never be a path. */
+export const PROFILE_NAME_PATH_ERROR = "profile name must not contain /, \\, or control characters"
+
+const NOT_A_FILE_NAME = /[\\/\u0000-\u001f\u007f]/
+
 export function requireProfileName(value: string): string {
   const name = value.trim()
   if (!name) throw new Error(PROFILE_NAME_ERROR)
+  if (NOT_A_FILE_NAME.test(name)) throw new Error(PROFILE_NAME_PATH_ERROR)
   return name
 }
 
-export const profileNameSchema = z.string().trim().min(1, { message: PROFILE_NAME_ERROR })
+export const profileNameSchema = z
+  .string()
+  .trim()
+  .min(1, { message: PROFILE_NAME_ERROR })
+  .refine((name) => !NOT_A_FILE_NAME.test(name), { message: PROFILE_NAME_PATH_ERROR })
 
 
 export const PROFILE_SLUG_ERROR =
