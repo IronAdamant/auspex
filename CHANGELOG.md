@@ -6,6 +6,12 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A sign-in window that closes before Save is no longer reported as a Solari refusal.** Live on Canva, the human was still clearing a captcha and 2FA when the five minutes ran out, and `connect` said "Solari refused to save the login (HTTP 0: stream-expired before Solari editor/save…)". Auspex writes that stand-in itself when the window closes; Solari refused nothing. `connect` now says "The five-minute sign-in window closed before Save." and that the new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on (the Canva remint did).
 
+- **The public proof is a live run's receipt, readable without downloading logs.** A research pass could not tie the README's "run 36678582381: 0.1.24, `ok: true`" to that run without its logs (they do say it), and the committed public receipt carried a placeholder session id with no date or version. CI now writes the published package's public check to the run page and uploads its receipt and screenshot as the `auspex-public-evidence` artifact, with Solari ids withheld and the package, version, time, and run URL stamped in. The docs now cite [run 36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (published 0.1.28, `ok: true`, `claimOk: true`), and its receipt and screenshot replace the committed ones. The session id is withheld outright, not faked.
+
+- **Two sentences say exactly what they mean.** "`ok=true` requires `claimOk=true`" now says it holds when the anonymous check runs (the default; `--no-verify` skips it). The CLI help no longer calls the saved checks "not the stranger path" while the README offers `--name ironadamant` as a reviewer's live check.
+
+- **A public check's receipt no longer carries `profileSeed` and `seedReadiness`.** The CI receipt for ironadamant.com (no saved login) said `seedReadiness` "post-save", shape "empty", which reads like a failed save. They now appear only with a saved login, as AGENTS.md always said. The committed 0.1.28 receipt keeps them, because it is that run's output verbatim.
+
 ## 0.1.28 — 2026-10-01
 
 npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.

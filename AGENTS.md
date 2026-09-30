@@ -77,7 +77,7 @@ Each receipt keeps three answers apart:
 **`ok` ≠ `claimOk` ≠ `claimOkProfile`.** After `--verify-with-profile`, `claimOkProfile` is the reuse gate: `ok` alone is not enough to treat the profile as reusable. Do not invent `claimOkProfile=true`, and do not fold `claimOkProfile` into `ok`.
 
 Which second check runs:
-- **Public page, no saved login:** anonymous verify by default. `ok=true` requires `claimOk=true`.
+- **Public page, no saved login:** anonymous verify by default, and then `ok=true` requires `claimOk=true`. `--no-verify` skips that check, so `ok` then rests on the live browser alone.
 - **Logged-in app:** any attached profile on a non-public-marketing URL skips anonymous verify by default (so does `name=consistencyhub`). `verify=true` / `--verify` is not `verifyWithProfile`: it forces the anonymous check, which cannot see a logged-in page and poisons `ok`. `--verify-with-profile` skips anonymous claim, keeps the integrity check, and adds `claimOkProfile`. `--no-verify` always skips.
 - A `--verify-with-profile` timeout keeps `anonymousClaimSkipped` and sets `claimOkProfile=false`; it does not treat the miss as an anonymous `claimOk` failure. When integrity fails after that skip, the overlay `reason` is `network` (intentional, retry-shaped). Do not retry the check to chase `claimOkProfile`.
 
@@ -176,7 +176,7 @@ npx auspex-mcp                      # stdio MCP, same contract as the CLI
 
 CLI and MCP are the **same contract**: every MCP tool is a CLI command; every flag is a JSON field (`--wait-for` ↔ `waitFor`, `--no-verify` ↔ `verify: false`). Stdout is **one JSON object** with `schemaVersion`; exit `0` only when `ok` is true. `--help` and `connect` print human text.
 
-Weekly live coverage: the GitHub Actions `public` job runs Mondays; repo secret `SOLARI_API_KEY` is **present** (run [36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381), 2026-09-30, ironadamant + checkpoint `ok: true`). It skips when the secret is unset, so PRs are not blocked.
+Weekly live coverage: the GitHub Actions `public` job runs Mondays; repo secret `SOLARI_API_KEY` is **present** (run [36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135), 2026-10-01: ironadamant + checkpoint `ok: true`, and the published 0.1.28 package's public check `ok: true` with `claimOk: true`; the run page shows the table and the `auspex-public-evidence` artifact holds the receipt, Solari ids withheld). It skips when the secret is unset, so PRs are not blocked.
 
 ## Receipt schema v1 (frozen)
 

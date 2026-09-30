@@ -137,7 +137,7 @@ AUSPEX_UNTRUSTED_PAGE_TEXT>>>
 
 ### Demo Receipts
 
-**Public demo receipts use synthetic IDs:**
-- `demo/receipt.json` - Synthetic sessionId placeholder (ironadamant.com public check)
+**Public demo receipts withhold live IDs (no placeholders):**
+- `demo/ironadamant-receipt.json` and `demo/receipt.json` - ironadamant.com public check from a live CI run (`evidence.run`); sessionId and sandboxId removed
 - `demo/consistencyhub-receipt.json` - Real sessionId omitted, UI blurred, PII redacted
 - Never commit live Solari resource IDs (sessionId, vmId, profileId) to public demos

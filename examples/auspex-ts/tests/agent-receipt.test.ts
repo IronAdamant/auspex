@@ -376,3 +376,16 @@ test("persistAgentManifest writes agent-success ok (not protocol ok) to disk", a
   assert.equal(written.protocolOk, true)
 })
 
+
+test("a public check (no saved login) carries no profileSeed or seedReadiness", async () => {
+  // The CI receipt for ironadamant.com (no profile) said seedReadiness "post-save", shape "empty",
+  // which reads like a failed save. AGENTS: profileSeed only "when a profile was attached".
+  const receipt = toAgentReceipt(sampleCheck())
+  assert.equal("profileSeed" in receipt && receipt.profileSeed !== undefined, false)
+  assert.equal("seedReadiness" in receipt && receipt.seedReadiness !== undefined, false)
+  const withLogin = toAgentReceipt(sampleCheck({ profileSeed: { cookies: 3, origins: 1, appOriginCookieCount: 3 } }))
+  assert.ok(withLogin.seedReadiness, "a saved-login check still reports its seed")
+  const { readFileSync: read } = await import("node:fs")
+  const src = read(new URL("../src/check.ts", import.meta.url), "utf8")
+  assert.match(src, /profileSeed: opts\.profile \? profileSeed : undefined/)
+})

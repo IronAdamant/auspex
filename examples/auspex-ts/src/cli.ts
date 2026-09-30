@@ -46,7 +46,7 @@ export const USAGE = `Usage:
   npx auspex mcp
   npx tsx src/cli.ts <command>   # same CLI, from examples/auspex-ts
 
-Optional dogfood saved checks (not the stranger path):
+Saved checks on the author's own sites (a quick public check for a reviewer; for your own site use check <url> or connect):
   npx auspex check --name <ironadamant|checkpoint|consistencyhub>
 
 Leave alone (not first-line tools):

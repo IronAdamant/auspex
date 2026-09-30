@@ -25,8 +25,9 @@ const GUNZIP_MAX = 8 * 1024 * 1024
 const demoDir = path.join(packageRoot, "demo")
 const thisFile = fileURLToPath(import.meta.url)
 
-/** Public demo receipt must never commit a live Solari sessionId. */
-export const DEMO_SYNTHETIC_SESSION_ID = "demo_synthetic_session_ironadamant_public_marketing_page"
+/** Public demo receipts never commit a live Solari sessionId, and carry no placeholder in its place. */
+export const SESSION_ID_WITHHELD =
+  "Solari session ids are never published. The schema v1 receipt from a live CI run is demo/ironadamant-receipt.json (its run URL is inside)."
 
 export function asNdjson(raw: Uint8Array): string {
   if (raw.length >= 2 && raw[0] === 0x1f && raw[1] === 0x8b) {
@@ -181,12 +182,12 @@ export async function saveDemoReceipt(): Promise<void> {
       title: result.title,
       finalUrl: result.finalUrl,
       excerpt: result.excerpt,
-      sessionId: DEMO_SYNTHETIC_SESSION_ID,
+      sessionIdWithheld: SESSION_ID_WITHHELD,
       networkIdle: result.networkIdle,
       claimOk: verify.claimOk,
       verifyOk: verify.ok,
       claimErrors: verify.claimErrors,
-      note: "Presigned replay URLs are not returned or committed. Watch the Pages player at https://ironadamant.com/auspex/demo/replay.html (CI runs npm run generate:replay from replay.ndjson). The committed demo/replay.html is a stub, not the player. Or watch in https://console.getsolari.com → Sessions → Replay. Demo receipt uses synthetic sessionId placeholder.",
+      note: "Presigned replay URLs are not returned or committed. Watch the Pages player at https://ironadamant.com/auspex/demo/replay.html (CI runs npm run generate:replay from replay.ndjson). The committed demo/replay.html is a stub, not the player. Or watch in https://console.getsolari.com → Sessions → Replay.",
     }
     await copyFile(shotAbs, path.join(staging, "ironadamant.png"))
     await writeFile(path.join(staging, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`)

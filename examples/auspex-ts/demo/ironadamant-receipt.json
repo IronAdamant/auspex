@@ -4,18 +4,47 @@
   "reason": "matched",
   "url": "https://ironadamant.com",
   "expect": "One office job.",
-  "screenshotPath": "examples/auspex-ts/demo/ironadamant.png",
+  "screenshotPath": "ironadamant.png",
   "title": "One office job. You run it. | Iron Adamant",
   "finalUrl": "https://ironadamant.com/",
   "matched": true,
-  "sessionId": "demo_synthetic_session_ironadamant_public_marketing_page",
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\nAUSTRALIA · REMOTE · WRITE FIRST One office job. Your accounts. You run it. I leave. Quotes, invoices, chasing people: the bit that eats your week. Written plan, set price, about two weeks after the plan. No new package. $0 a month unless you ask. Tell me what’s eating your week I need something built View shipped work SERVICES What I can help with One office job you can run. Custom software when you need something built. The office job Quotes, invoices, follow-up in the accounts you already hav…\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
   "networkIdle": true,
+  "diff": {
+    "urlChanged": false,
+    "excerptChanged": false,
+    "sameUrl": false
+  },
   "verify": {
     "ok": true,
     "errors": [],
     "claimOk": true,
     "claimErrors": [],
-    "runDir": "examples/auspex-ts/demo"
+    "finalUrl": "https://ironadamant.com/",
+    "runDir": "~/.auspex/runs/2026-09-30T23-06-18"
   },
-  "demoNote": "Schema v1 public-check receipt for ironadamant.com. sessionId is the synthetic DEMO_SYNTHETIC_SESSION_ID placeholder. No replayUrl. Marketing summary remains demo/receipt.json."
+  "profileSeed": {
+    "cookies": 0,
+    "origins": 0
+  },
+  "seedReadiness": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageMiss": false,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "empty",
+    "solariSaveReady": false
+  },
+  "protocolOk": true,
+  "evidence": {
+    "package": "auspex-solari@0.1.28",
+    "serverVersion": "0.1.28",
+    "checkedAt": "2026-09-30T23:06:25.264Z",
+    "run": "https://github.com/IronAdamant/auspex/actions/runs/36789267135",
+    "withheld": "Solari session and sandbox ids are never published."
+  }
 }

@@ -25,7 +25,7 @@ test("USAGE leads with login --url and buries gated flags", () => {
   for (const flag of ["--name", "--stealth", "--captcha", "--record", "--fill", "--click"]) {
     assert.equal(check.includes(flag), false, `first check line must not lead with ${flag}`)
   }
-  const dogfood = USAGE.indexOf("Optional dogfood saved checks")
+  const dogfood = USAGE.indexOf("Saved checks on the author's own sites")
   const leave = USAGE.indexOf("Leave alone")
   assert.ok(dogfood > 0)
   assert.ok(leave > dogfood)

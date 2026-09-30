@@ -3,16 +3,17 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
-import { DEMO_SYNTHETIC_SESSION_ID, replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
+import { SESSION_ID_WITHHELD, replayHtmlFromNdjson } from "../scripts/save-demo-receipt.ts"
 import { assertNoCredentialLeak } from "../src/replay-redact.ts"
 import { parseReceiptV1 } from "../src/receipt-schema.ts"
 
 const demo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "demo")
 
-test("demo receipt has sessionId and no replayUrl", () => {
+test("demo receipt withholds the session id (no placeholder) and has no replayUrl", () => {
   const receipt = JSON.parse(readFileSync(path.join(demo, "receipt.json"), "utf8")) as {
     ok: boolean
-    sessionId: string
+    sessionId?: string
+    sessionIdWithheld?: string
     replayUrl?: string
     finalUrl: string
     networkIdle?: boolean
@@ -23,9 +24,9 @@ test("demo receipt has sessionId and no replayUrl", () => {
     note?: string
   }
   assert.equal(receipt.ok, true)
-  assert.equal(typeof receipt.sessionId, "string")
-  assert.equal(receipt.sessionId, DEMO_SYNTHETIC_SESSION_ID)
-  assert.ok(receipt.sessionId.startsWith("demo_synthetic_"))
+  // A placeholder id read as a fake run to a reviewer; the field is withheld outright instead.
+  assert.equal(receipt.sessionId, undefined)
+  assert.equal(receipt.sessionIdWithheld, SESSION_ID_WITHHELD)
   assert.equal(receipt.replayUrl, undefined)
   assert.equal(receipt.finalUrl, "https://ironadamant.com/")
   assert.equal(typeof receipt.networkIdle, "boolean")
@@ -52,9 +53,17 @@ test("demo ironadamant-receipt.json is schema v1", () => {
   assert.equal(receipt.expect, "One office job.")
   assert.match(receipt.screenshotPath, /ironadamant\.png/)
   assert.equal(receipt.matched, true)
-  assert.equal(receipt.sessionId, DEMO_SYNTHETIC_SESSION_ID)
   assert.equal(receipt.verify?.claimOk, true)
   assert.equal("replayUrl" in raw, false)
+  // The receipt of a live CI run of the published package, not a hand-made one.
+  assert.equal("sessionId" in raw, false, "live Solari ids are withheld, with no placeholder")
+  assert.equal(JSON.stringify(raw).includes("demo_synthetic"), false)
+  const evidence = raw.evidence as { run?: string; serverVersion?: string; package?: string; checkedAt?: string }
+  assert.match(evidence.run ?? "", /^https:\/\/github\.com\/IronAdamant\/auspex\/actions\/runs\/\d+$/)
+  assert.match(evidence.package ?? "", /^auspex-solari@\d+\.\d+\.\d+$/)
+  assert.equal(evidence.package, `auspex-solari@${evidence.serverVersion}`)
+  assert.ok(!Number.isNaN(Date.parse(evidence.checkedAt ?? "")))
+  assert.equal(/\/Users\/|\/home\//.test(JSON.stringify(raw)), false, "no home folder")
 })
 
 test("demo consistencyhub-receipt.json notes omitted sessionStorage or counts it", () => {

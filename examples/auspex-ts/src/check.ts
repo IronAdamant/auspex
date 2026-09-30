@@ -793,7 +793,9 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           }
         : {}),
       diff,
-      profileSeed,
+      // Only with a saved login (AGENTS: "when a profile was attached"). A public check's fresh
+      // browser has an empty jar, and "seedReadiness: post-save, empty" read like a failed save.
+      profileSeed: opts.profile ? profileSeed : undefined,
       profileSaved,
     }
     if (liveHostChange && opts.profile) {

@@ -27,7 +27,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
-- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381), 30 September: the public checks and the published 0.1.24 package, `ok: true`). Every push also installs the packed package and runs it end to end.
+- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present**. Run [36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (1 October) checked ironadamant.com with the published 0.1.28 package: `ok: true`, and an anonymous fetch agreed (`claimOk: true`). The run page shows the result table, and its `auspex-public-evidence` artifact holds the receipt and screenshot, with Solari's session ids withheld. The same receipt is committed as [demo/ironadamant-receipt.json](examples/auspex-ts/demo/ironadamant-receipt.json). Every push also installs the packed package and runs it end to end.
 
 ## Three answers on every receipt
 

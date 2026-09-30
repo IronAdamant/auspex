@@ -26,7 +26,7 @@ Three distinct booleans in the receipt, each telling you something different:
 - **`verify.claimOk`** — Anonymous claim: did a plain HTTP fetch of the page text, with no login, see the expect string? (OCR of the screenshot is added only where Tesseract is installed; Solari's base sandbox does not have it.)
 - **`verify.claimOkProfile`** — Saved-login claim: did a second, fresh Solari browser using only the saved login see the expect string in page text?
 
-**For public marketing pages:** `ok=true` requires `claimOk=true` (anonymous verify is the right signal).
+**For public marketing pages:** `ok=true` requires `claimOk=true` when the anonymous check runs, which is the default (anonymous verify is the right signal; `--no-verify` skips it).
 
 **For auth-gated SaaS:** Anonymous verify cannot see logged-in UI. Either skip verify entirely (`--no-verify`), or use `--verify-with-profile` to get `claimOkProfile` — that field is the reuse gate; `ok` alone is not enough to treat the profile as reusable. `name=consistencyhub`, `profile=consistencyhub`, or any attached profile on a non-public-marketing URL skip anonymous verify by default. Public marketing still verifies even with a leftover profile. No profile still verifies. `--verify` on auth-gated paths is still anonymous.
 
@@ -133,9 +133,9 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 **Demo artifacts (committed):**
 
-- **[Screenshot](examples/auspex-ts/demo/ironadamant.png)** — PNG from cloud Chrome (337 KB)
-- **[Schema v1 receipt](examples/auspex-ts/demo/ironadamant-receipt.json)** — Frozen agent contract (`parseReceiptV1`). Synthetic `sessionId`. No `replayUrl`.
-- **[Marketing summary](examples/auspex-ts/demo/receipt.json)** — Human-oriented JSON with `sessionId` and verify flags; **not** schema v1
+- **[Screenshot](examples/auspex-ts/demo/ironadamant.png)** — PNG from cloud Chrome in [Actions run 36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (336 KB)
+- **[Schema v1 receipt](examples/auspex-ts/demo/ironadamant-receipt.json)** — The receipt from that run's live public check with the published `auspex-solari@0.1.28` (`ok: true`, `claimOk: true`); `evidence.run` names the run. Solari session and sandbox ids are withheld, with no placeholder. No `replayUrl`.
+- **[Marketing summary](examples/auspex-ts/demo/receipt.json)** — Human-oriented JSON with verify flags and the replay note; session id withheld; **not** schema v1
 - **[Replay HTML stub](examples/auspex-ts/demo/replay.html)** — committed stub; generate the rrweb player with `npm run generate:replay` from `replay.ndjson` (emails and passwords stripped). Pages serves the player at [ironadamant.com/auspex/demo/replay.html](https://ironadamant.com/auspex/demo/replay.html)
 - **[Replay NDJSON](examples/auspex-ts/demo/replay.ndjson)** — Raw recording data ([view via jsDelivr](https://cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.ndjson))
 
@@ -238,8 +238,8 @@ No sessions were left open after any run.
 
 Two committed ironadamant JSON files:
 
-- [`demo/receipt.json`](examples/auspex-ts/demo/receipt.json) — **public marketing summary** (`sessionId`, `claimOk`, `verifyOk`, replay note). **Not** the schema v1 CLI/MCP stdout contract.
-- [`demo/ironadamant-receipt.json`](examples/auspex-ts/demo/ironadamant-receipt.json) — **schema v1** public-check receipt (`parseReceiptV1`). Required keys: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`. Synthetic `sessionId`. No `replayUrl`.
+- [`demo/receipt.json`](examples/auspex-ts/demo/receipt.json) — **public marketing summary** (`claimOk`, `verifyOk`, replay note; session id withheld). **Not** the schema v1 CLI/MCP stdout contract.
+- [`demo/ironadamant-receipt.json`](examples/auspex-ts/demo/ironadamant-receipt.json) — **schema v1** public-check receipt (`parseReceiptV1`). Required keys: `schemaVersion`, `ok`, `reason`, `url`, `expect`, `screenshotPath`. From a live CI run (`evidence.run`); Solari ids withheld. No `replayUrl`.
 
 Agents receive schema v1 on stdout when they call `auspex_check` or use the MCP tool.
 
@@ -299,7 +299,7 @@ The saved check is configured for ironadamant.com with the expect string "One of
 
 ## Weekly GitHub Actions Checks
 
-The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 36678582381](https://github.com/IronAdamant/auspex/actions/runs/36678582381) (2026-09-30, `workflow_dispatch`) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`; the same run's daily `live` job also passed the example.com check and the published-package smoke on `auspex-solari@0.1.24` (8/8). Earlier: run 36638435165 (2026-09-29). The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow does not commit artifacts. Demo PNG/receipt/replay files in this repo are manually committed when refreshed. Issues is on.
+The [`public` job](https://github.com/IronAdamant/auspex/actions/workflows/auspex-ts.yml) is Monday + `workflow_dispatch`. Repo secret `SOLARI_API_KEY` is **present** (masked in logs). Observed live success: [Actions run 36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (2026-10-01, `workflow_dispatch`) — ironadamant `One office job.` and checkpoint `Checkpoint` both `ok: true`; the same run's `live` job passed the example.com check and the published-package smoke on `auspex-solari@0.1.28` (8/8, including no home-folder path in any receipt field). Both jobs write their tables to the run page, and the public check's receipt and screenshot (Solari ids withheld) are the run's `auspex-public-evidence` artifact and [demo/ironadamant-receipt.json](examples/auspex-ts/demo/ironadamant-receipt.json). Earlier: run 36678582381 (2026-09-30, `auspex-solari@0.1.24`; its results are in the logs only) and run 36638435165 (2026-09-29). The step still skips with exit 0 if that secret were unset (PRs not blocked). Do not remove the secret. The workflow uploads artifacts; it does not commit them. Demo PNG/receipt/replay files in this repo are committed by hand when refreshed. Issues is on.
 
 ## Fail-closed: hostChanged
 
