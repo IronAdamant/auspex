@@ -616,3 +616,23 @@ test("agent mode prints the QR image path for the human to scan", async () => {
   )
   assert.match(text, /QR code image \(scan it, or open it for the human\): \/tmp\/auspex-x\/\.auspex\/runs\/r1\/handoff-qr\.png/)
 })
+
+test("a window that closed before Save is not a Solari refusal", () => {
+  // Live, Canva: the human was still clearing a captcha and 2FA when the five minutes ran out, and
+  // connect said "Solari refused to save the login (HTTP 0: stream-expired before Solari editor/save…)".
+  for (const editorSave of [
+    { ok: false, status: 0, error: "stream-expired before Solari editor/save. Clipboard Save is not the jar." },
+    { ok: false, status: 401, error: "stream-expired: VNC/handoff expiry is past; remint auspex_login" },
+  ]) {
+    const out = connectOutcome(job({ phase: "await", status: "stream-expired", ok: false, editorSave }))
+    assert.equal(out.ok, false)
+    assert.equal(out.headline, "The five-minute sign-in window closed before Save.", editorSave.error)
+    assert.equal(/refused/i.test(out.headline), false)
+    assert.match(out.detail.join(" "), /reopens the same cloud browser/)
+  }
+  // A real Solari answer still reads as Solari's.
+  const real = connectOutcome(
+    job({ phase: "await", status: "stream-expired", ok: false, editorSave: { ok: false, status: 409, error: "The editor isn't in a savable state." } }),
+  )
+  assert.match(real.headline, /Solari said the remote browser could not be saved/)
+})

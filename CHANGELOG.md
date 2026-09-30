@@ -2,6 +2,10 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **A sign-in window that closes before Save is no longer reported as a Solari refusal.** Live on Canva, the human was still clearing a captcha and 2FA when the five minutes ran out, and `connect` said "Solari refused to save the login (HTTP 0: stream-expired before Solari editor/save…)". Auspex writes that stand-in itself when the window closes; Solari refused nothing. `connect` now says "The five-minute sign-in window closed before Save." and that the new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on (the Canva remint did).
+
 ## 0.1.28 — 2026-10-01
 
 npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.

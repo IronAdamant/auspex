@@ -145,9 +145,13 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       ],
     }
   }
+  // When the window closed before Save, Auspex records editorSave itself (HTTP 0 or 401, error
+  // "stream-expired…"). Solari refused nothing, so that is the window sentence below, not a refusal.
+  const windowClosed = /^stream-expired/i.test(job.editorSave?.error ?? "")
   if (
     job.editorSave &&
     !job.editorSave.ok &&
+    !windowClosed &&
     (job.status === "timeout" || job.status === "waiting" || job.status === "stream-expired")
   ) {
     const code = `HTTP ${job.editorSave.status}${job.editorSave.error ? `: ${job.editorSave.error}` : ""}`
@@ -164,7 +168,10 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       return {
         ok: false,
         headline: "The five-minute sign-in window closed before Save.",
-        detail: ["Solari sets that window and Auspex cannot extend it.", `${again} Save as soon as the app is on screen.`],
+        detail: [
+          "Solari sets that window and Auspex cannot extend it.",
+          `${again} The new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on. Save as soon as the app is on screen.`,
+        ],
       }
     case "timeout":
     case "waiting":
