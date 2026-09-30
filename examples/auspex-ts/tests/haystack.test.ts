@@ -309,3 +309,33 @@ test("receipt excerpts do not keep the account's email; matching still sees it",
   assert.equal(haystackMatches(page, "adamant_test@outlook.com"), true)
   assert.equal(maskSecrets("Contact support at help@lorari.com today"), "Contact support at [redacted-email] today")
 })
+
+test("after a click the excerpt is the open dialog; without a click a dialog (cookie banner) does not take over", async () => {
+  const { excerptRegion } = await import("../src/check.ts")
+  const whole = "Sidebar Upload here Choose your plan Pro €16 Business Custom"
+  const main = "You have 3 tapes available. Upgrade Upload here Transcribe now"
+  const dialog = "Choose your plan Built for professionals Pro €16 Business Custom"
+  assert.equal(excerptRegion(whole, main, dialog, true), dialog)
+  assert.equal(excerptRegion(whole, main, dialog, false), main)
+  assert.equal(excerptRegion(whole, main, "OK", true), main, "a tiny dialog does not replace the page")
+  assert.equal(excerptRegion(whole, "", "", true), whole)
+})
+
+test("page functions in check.ts survive the clone's runner (no named helpers inside page.evaluate)", async () => {
+  // tsx compiles with keepNames, which wraps a function assigned to a name in __name(...). Code sent
+  // into the page by page.evaluate cannot see that helper, so such a function breaks every check in
+  // a clone (the npm bundle does not use keepNames, so only a live clone run would notice).
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const bodies = [...src.matchAll(/page\.evaluate\(/g)].map((m) => {
+    let depth = 0
+    for (let i = m.index! + "page.evaluate".length; i < src.length; i++) {
+      if (src[i] === "(") depth++
+      else if (src[i] === ")" && --depth === 0) return src.slice(m.index!, i + 1)
+    }
+    return src.slice(m.index!)
+  })
+  assert.ok(bodies.length >= 1, "check.ts has page.evaluate calls")
+  const named = /\b(?:const|let|var)\s+\w+\s*(?::[^=]+)?=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>|\bfunction\s+\w+\s*\(|\bclass\s+\w+/
+  for (const body of bodies) assert.equal(named.test(body), false, body.slice(0, 300))
+})

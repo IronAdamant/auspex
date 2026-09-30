@@ -241,17 +241,28 @@ async function extractPage(
   page: Page,
   selector: string | undefined,
   signal: AbortSignal,
-): Promise<{ title: string; finalUrl: string; raw: string; main: string; hasPassword: boolean }> {
+): Promise<{ title: string; finalUrl: string; raw: string; main: string; dialog: string; hasPassword: boolean }> {
   return observeAbort(
     page.evaluate((sel: string | null) => {
       const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
       // Excerpt only: the page's main region when it has one (menus and promo cards otherwise fill it).
       const main = sel ? null : (document.querySelector('main, [role="main"]') as HTMLElement | null)
+      // Excerpt only: the last visible dialog (a click usually opened it). No named helpers in here:
+      // this function runs in the page, where the bundler's __name() wrapper does not exist.
+      const dialogs = sel
+        ? []
+        : Array.from(document.querySelectorAll('dialog[open], [role="dialog"], [aria-modal="true"]')).filter((node) =>
+            typeof (node as HTMLElement & { checkVisibility?: () => boolean }).checkVisibility === "function"
+              ? (node as HTMLElement & { checkVisibility: () => boolean }).checkVisibility()
+              : node.getClientRects().length > 0,
+          )
+      const dialog = dialogs.length ? (dialogs[dialogs.length - 1] as HTMLElement) : null
       return {
         title: document.title,
         finalUrl: location.href,
         raw: el?.innerText ?? "",
         main: main?.innerText ?? "",
+        dialog: dialog?.innerText ?? "",
         hasPassword: Boolean(document.querySelector('input[type="password"]')),
       }
     }, selector ?? null),
@@ -262,9 +273,11 @@ async function extractPage(
 /**
  * Text for the receipt excerpt. Matching always uses the whole page; the excerpt prefers the
  * page's main region (<main> / role=main) when it holds real content, so menus and promo cards
- * do not use up the 500 characters.
+ * do not use up the 500 characters. After a click, an open dialog is what the click showed, so it
+ * wins (without a click, an open dialog is usually a cookie banner and <main> stays the excerpt).
  */
-export function excerptRegion(whole: string, main: string): string {
+export function excerptRegion(whole: string, main: string, dialog = "", clicked = false): string {
+  if (clicked && dialog.trim().length >= 20) return dialog
   return main.trim().length >= 40 ? main : whole
 }
 
@@ -446,7 +459,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
-        excerptSource = excerptRegion(extracted.raw, extracted.main)
+        excerptSource = excerptRegion(extracted.raw, extracted.main, extracted.dialog, Boolean(clicked))
         hasPassword = extracted.hasPassword
         sawPageText = true
         const haystack = normalizeHaystack(raw)

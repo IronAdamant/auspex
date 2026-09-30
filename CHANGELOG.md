@@ -6,6 +6,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **Receipt excerpts no longer keep email addresses.** A logged-in page shows the account's email (Lorari's account menu did, in a live run), and receipts are kept on disk and copied for PRs by `reap --pack-receipts`. Excerpts now show `[redacted-email]`, as job files and webhooks already did. Matching still uses the full page text.
 
+- **After a click, the receipt excerpt shows the dialog the click opened.** Clicking Good Tape's "Explore plans" opened a "Choose your plan" dialog, but the excerpt kept showing the page underneath, so an agent reading the receipt could not see what its click did. Without a click, an open dialog is usually a cookie banner, so the page stays the excerpt there. Matching still reads the whole page.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.
