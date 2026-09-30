@@ -280,7 +280,8 @@ test("landedOnForbiddenHost flags a redirect to loopback, link-local or metadata
   // check.ts blanks the page and keeps no text on such a landing.
   const { readFileSync } = await import("node:fs")
   const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  assert.match(src, /landedOnForbiddenHost\(finalUrl \|\| page\.url\(\)\)/)
+  assert.match(src, /const landedAt = finalUrl \|\| page\.url\(\)/)
+  assert.match(src, /landedOnForbiddenHost\(landedAt\)/)
   assert.match(src, /page\.goto\("about:blank"/)
   assert.match(src, /!needsHuman && !forbiddenLanding\) \{/)
 })

@@ -1,3 +1,4 @@
+import { lookup } from "node:dns/promises"
 import { isIP } from "node:net"
 import { z } from "zod"
 
@@ -136,6 +137,41 @@ export function landedOnForbiddenHost(finalUrl: string | undefined): boolean {
     return isForbiddenCheckHost(url.hostname)
   } catch {
     return false
+  }
+}
+
+export type HostLookup = (host: string) => Promise<Array<{ address: string }>>
+
+const defaultLookup: HostLookup = (host) => lookup(host, { all: true })
+
+/**
+ * A public-looking name whose DNS answer is loopback, link-local or cloud metadata
+ * (169.254.169.254.nip.io). Checked with this machine's resolver, bounded to 3 s; a failed or slow
+ * lookup is not a refusal (the cloud browser's own DNS decides, and the literal-host guard still runs).
+ */
+export async function resolvesToForbiddenHost(url: string, resolve: HostLookup = defaultLookup): Promise<boolean> {
+  let host: string
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false
+    host = parsed.hostname.replace(/^\[|\]$/g, "")
+  } catch {
+    return false
+  }
+  if (!host || isIP(host)) return false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const answers = await Promise.race([
+      resolve(host),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("dns timeout")), 3_000)
+      }),
+    ])
+    return answers.some((row) => isForbiddenCheckHost(row.address))
+  } catch {
+    return false
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 

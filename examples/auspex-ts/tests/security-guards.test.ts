@@ -572,3 +572,30 @@ test("desktop refuses password-like --type before any desktop VM is created", as
   )
   assert.equal(created, 0)
 })
+
+test("a check URL whose DNS points at loopback, link-local or metadata is refused before any browser", async () => {
+  const { resolvesToForbiddenHost } = await import("../src/http-url.ts")
+  const answers: Record<string, string[]> = {
+    "169.254.169.254.nip.io": ["169.254.169.254"],
+    "mapped.example": ["::ffff:127.0.0.1"],
+    "dual.example": ["93.184.216.34", "127.0.0.1"],
+    "app.example": ["93.184.216.34"],
+  }
+  const resolve = async (host: string) => {
+    const rows = answers[host]
+    if (!rows) throw new Error("ENOTFOUND")
+    return rows.map((address) => ({ address }))
+  }
+  assert.equal(await resolvesToForbiddenHost("http://169.254.169.254.nip.io/latest/meta-data/", resolve), true)
+  assert.equal(await resolvesToForbiddenHost("https://mapped.example/", resolve), true)
+  assert.equal(await resolvesToForbiddenHost("https://dual.example/", resolve), true)
+  assert.equal(await resolvesToForbiddenHost("https://app.example/", resolve), false)
+  assert.equal(await resolvesToForbiddenHost("https://unknown.example/", resolve), false, "a failed lookup is not a refusal")
+  assert.equal(await resolvesToForbiddenHost("https://93.184.216.34/", resolve), false, "IP literals use the literal guard")
+  assert.equal(await resolvesToForbiddenHost("not a url", resolve), false)
+  // runCheck asks before it creates a Solari client or opens a browser.
+  const src = readFileSync(path.join(pkg, "src", "check.ts"), "utf8")
+  const guard = src.indexOf("await resolvesToForbiddenHost(opts.url)")
+  assert.ok(guard > 0 && guard < src.indexOf("const solari = createClient()"))
+  assert.match(src, /landedOnForbiddenHost\(landedAt\) \|\| \(landedAt !== opts\.url && \(await resolvesToForbiddenHost\(landedAt\)\)\)/)
+})

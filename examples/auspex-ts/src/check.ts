@@ -13,7 +13,7 @@ import {
 import { persistAgentManifest } from "./agent-receipt.ts"
 import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
 import { parseDeviceOptions } from "./device-emulation.ts"
-import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, requireCheckUrl } from "./http-url.ts"
+import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, LOOPBACK_URL_ERROR, requireCheckUrl, resolvesToForbiddenHost } from "./http-url.ts"
 import { sessionCreateFromCheck } from "./launch-options.ts"
 import { assertVisibleFillLanded, clickMissedNext, runPageActions } from "./page-actions.ts"
 import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
@@ -301,6 +301,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   assertRecordNotLoggedIn(opts)
   assertPageActionsAllowed(opts)
   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
+  // The literal host passed; its DNS must not point the cloud browser at loopback or metadata either.
+  if (await resolvesToForbiddenHost(opts.url)) throw new Error(LOOPBACK_URL_ERROR)
   const onProgress = opts.onProgress ?? noopProgress
   const solari = createClient()
   const closer = new ReadyRelease()
@@ -461,7 +463,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
           throw extractErr
         }
       }
-      if (landedOnForbiddenHost(finalUrl || page.url())) {
+      const landedAt = finalUrl || page.url()
+      if (landedOnForbiddenHost(landedAt) || (landedAt !== opts.url && (await resolvesToForbiddenHost(landedAt)))) {
         // Redirected to loopback / link-local / cloud metadata: keep nothing from that page.
         forbiddenLanding = true
         matched = false
