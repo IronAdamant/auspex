@@ -1,6 +1,6 @@
 import { SolariClient } from "@solarisdk/sdk"
 import { persistAgentManifest } from "./agent-receipt.ts"
-import { runCheck, runDirFromResult, type CheckOptions, type CheckResult } from "./check.ts"
+import { extractPageSettled, runCheck, runDirFromResult, type CheckOptions, type CheckResult } from "./check.ts"
 import { MAX_IMAGE_BYTES } from "./content.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { shouldVerifyAfterCheck } from "./fail-closed.ts"
@@ -203,7 +203,13 @@ export async function defaultProfileClaimCheck(opts: {
     } catch {
       // network idle optional for claim check
     }
-    const sample = () => page.evaluate(() => document.body?.innerText ?? "")
+    // Like the first browser: an app that navigates while loading (a client-side redirect) destroys
+    // the page mid-read. Settle on the new page and read once more instead of failing the claim.
+    const settle = async () => {
+      await page.waitForLoadState("domcontentloaded", { timeout: 15_000, signal }).catch(() => undefined)
+      await page.waitForLoadState("networkidle", { timeout: 5_000, signal }).catch(() => undefined)
+    }
+    const sample = () => extractPageSettled(() => page.evaluate(() => document.body?.innerText ?? ""), settle)
     let raw = await sample()
     if (!haystackMatches(raw, opts.expect)) {
       const cap =

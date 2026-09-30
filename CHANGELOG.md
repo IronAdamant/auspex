@@ -12,6 +12,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **After a failed Solari save, `nextCall` says remint, like the text.** On a live tldraw run Solari's editor/save returned 502 ("Failed to export storageState"). The receipt's `next` said "Remint now" (the documented step: nothing was saved), but `nextCall` said `auspex_await_login`, so an agent taking `nextCall` would wait again on a save that did not happen. It now points at `auspex_login`.
 
+- **The saved-login second browser no longer reports a working login as broken when the page navigates while loading.** Live on MariaDB Cloud, the dashboard navigated during the second browser's read ("Execution context was destroyed"), so `claimOkProfile` came back false with "do not reuse this seed. Stop the loop" for a login that worked. The second browser now settles and reads again, as the first browser always did; two reruns confirmed the login.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.

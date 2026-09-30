@@ -713,3 +713,13 @@ test("profileClaimVerdict keeps nothing from a landing on cloud metadata, not ev
   // And a sign-in page on the wider rule (/users/sign_in) still never confirms.
   assert.equal(profileClaimVerdict({ raw: "Workspace ready", expect: "Workspace ready", landedUrl: "https://app.example/users/sign_in" }).claimOk, false)
 })
+
+test("the saved-login second browser settles and re-reads a page that navigates while loading", () => {
+  // Live on MariaDB Cloud: the dashboard navigated during the read, the second browser threw
+  // "Execution context was destroyed", and a working login was reported as not reusable.
+  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
+  const start = src.indexOf("export async function defaultProfileClaimCheck")
+  const body = src.slice(start, src.indexOf("\n}\n", start))
+  assert.match(body, /const sample = \(\) => extractPageSettled\(/)
+  assert.match(body, /waitForLoadState\("domcontentloaded"/)
+})
