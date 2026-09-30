@@ -14,7 +14,7 @@ AI agents can say "the dashboard loaded" when the page is really still a login s
 
 1. **Opens the website in a separate browser in the cloud** (run by [Solari](https://getsolari.com)), not on your computer.
 2. **Looks for the exact words you expect** on the page, and keeps a screenshot and a record of what it found (a "receipt").
-3. **Can check a second time with a second browser**, so one lucky look is not enough. A public page gets that second look by default. For a logged-in page you ask for it (`--verify-with-profile`); `connect` always does.
+3. **Checks a second time, independently**, so one lucky look is not enough. A public page is checked again with a plain fetch and no login. A logged-in page is checked again with a second browser only when you ask (`--verify-with-profile`); `connect` always does.
 4. **For sites that need a login, you sign in once yourself**, on a simple web page that works on your phone or computer. The AI never sees your password. A fresh browser then proves the saved login really works before Auspex calls it reusable.
 
 Auspex never types passwords and never records a logged-in session. It does not claim to spot the wrong account (Alice-vs-Bob): a saved login can belong to the wrong person and still show the words you asked for.
@@ -24,7 +24,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Watch, no install:** the video above, or https://ironadamant.com/auspex/ (a blurred logged-in page and its receipt).
 - **Run the tests, no API key:** clone the repo, then `npm install && npm test`.
 - **One live check (needs a Solari key, `SOLARI_API_KEY`):** `npx auspex-solari check --name ironadamant`. This is a public check with no login, so it does not prove the logged-in part.
-- **Logged-in evidence:** the redacted receipt [`consistencyhub-receipt.json`](examples/auspex-ts/demo/consistencyhub-receipt.json), and the live test of real apps [below](#tested-on-live-apps).
+- **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
 - **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present** (run [36638435165](https://github.com/IronAdamant/auspex/actions/runs/36638435165): `ok: true`). Every push also installs the packed package and runs it end to end.
@@ -34,7 +34,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 Each receipt keeps three answers apart, so a "yes" is never stretched to mean more than it does:
 
 - **The live browser saw your words.** (`ok`)
-- **A browser with no login also saw them.** (`claimOk`) On a logged-in app this stays "no" on purpose: a stranger cannot see your dashboard.
+- **A plain fetch, with no login, also saw them.** (`claimOk`) On a logged-in app this stays "no" on purpose.
 - **A second fresh browser, using only the saved login, saw them.** (`claimOkProfile`) This is the reuse gate: `ok` alone is not enough to treat the profile as reusable.
 
 ## Tested on live apps

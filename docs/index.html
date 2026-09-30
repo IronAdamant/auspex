@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Auspex</title>
-  <meta name="description" content="An agent can say a dashboard loaded when the page is still the login screen. Auspex reads the page in cloud Chrome and a second browser checks the claim. Tested on eight live apps. Never types passwords."/>
+  <meta name="description" content="An agent can say a dashboard loaded when the page is still the login screen. Auspex reads the page in cloud Chrome and checks the claim again independently. Tested on eight live apps. Never types passwords."/>
   <style>
     :root {
       --bg: #111;
@@ -155,7 +155,7 @@
     </p>
     <p>
       An agent can say a dashboard loaded when the page is still the login screen.
-      Auspex opens the page in a separate browser in the cloud, looks for the exact words you expect, and can have a second browser check that claim again.
+      Auspex opens the page in a separate browser in the cloud, looks for the exact words you expect, and checks that claim again: with a plain fetch for a public page, or with a second browser that uses only the saved login for a logged-in one.
       A person signs in once. The agent never sees the password, and Auspex never types one.
     </p>
 
@@ -166,8 +166,8 @@
         <code>ok</code>
       </div>
       <div>
-        <strong>A machine with no login also saw them.</strong>
-        <code>claimOk</code>. On a logged-in app this stays false on purpose: a stranger's browser cannot see your dashboard.
+        <strong>A plain fetch, with no login, also saw them.</strong>
+        <code>claimOk</code>. On a logged-in app this stays false on purpose.
       </div>
       <div>
         <strong>A second browser, using only the saved login, saw them.</strong>
@@ -220,11 +220,13 @@
         <strong>Logged-in app, personal data removed.</strong>
         A second browser, using only the saved login, confirmed it.
         Redacted auth-gated SaaS demo: ok true, claimOk false (skipped), claimOkProfile true.
-        <a href="demo/consistencyhub-receipt.json">Receipt</a>.
+        <a href="demo/consistencyhub-receipt.json">Receipt</a> (19 September run).
+        Newer: the eight-app live test (28 September) and its
+        <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#other-sign-in-receipts-receipt-only">receipt-only files</a>.
       </figcaption>
       <p class="dual-pack">
         Same Microsoft login seed.
-        ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a>.
+        ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a> (19 September).
         OneDrive: receipt-only <a href="demo/onedrive-receipt.json">onedrive-receipt.json</a> (no public PNG, PII).
         Both: ok true, claimOk false (skipped), claimOkProfile true.
         Worked evidence, not the recipe — strangers still use <code>login --url</code> plus their URL and expect.
