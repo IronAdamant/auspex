@@ -2,7 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.29 — 2026-10-01
+
+npm `auspex-solari@0.1.29` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Trello explored live (it logged in first time, and a card was made and confirmed by both browsers), Canva's sign-in window, and a research review of the public proof. The public receipt is now a live CI run's own output, cited by run. A check reads the labels of input buttons as page text; excerpts show what a click opened, even an unmarked window, and skip cookie banners; fill and sign-in-window messages say what happened. Each fix has a test.
 
 - **A sign-in window that closes before Save is no longer reported as a Solari refusal.** Live on Canva, the human was still clearing a captcha and 2FA when the five minutes ran out, and `connect` said "Solari refused to save the login (HTTP 0: stream-expired before Solari editor/save…)". Auspex writes that stand-in itself when the window closes; Solari refused nothing. `connect` now says "The five-minute sign-in window closed before Save." and that the new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on (the Canva remint did).
 
@@ -24,7 +28,7 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 ## 0.1.28 — 2026-10-01
 
-npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.28`. Agents do not `npm publish`. Founder publishes this release.
 
 tldraw retried live (it logged in first time; the earlier Save 502 was Solari's and transient) and explored with connect, check clicks and fills, sweep, the MCP check, profile-status, and trace. Two privacy fixes (receipts and trace named the home folder; a click error quoted a capability link), a Save retry on a Solari 5xx, and clearer click, fill, and sweep results. Each fix has a test; the release smoke now scans every receipt field for home-folder paths.
 
