@@ -210,7 +210,21 @@ export async function defaultProfileClaimCheck(opts: {
       await page.waitForLoadState("domcontentloaded", { timeout: 15_000, signal }).catch(() => undefined)
       await page.waitForLoadState("networkidle", { timeout: 5_000, signal }).catch(() => undefined)
     }
-    const sample = () => extractPageSettled(() => page.evaluate(() => document.body?.innerText ?? ""), settle)
+    // The same words the live check reads: body text plus visible button-input labels.
+    const sample = () =>
+      extractPageSettled(
+        () =>
+          page.evaluate(() =>
+            [
+              document.body?.innerText ?? "",
+              ...Array.from(document.querySelectorAll('input[type="submit" i], input[type="button" i], input[type="reset" i]'))
+                .filter((node) => (node as HTMLElement).getClientRects().length > 0)
+                .map((node) => (node as HTMLInputElement).value.trim())
+                .filter(Boolean),
+            ].join("\n"),
+          ),
+        settle,
+      )
     let raw = await sample()
     if (!haystackMatches(raw, opts.expect)) {
       const cap =

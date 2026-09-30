@@ -387,3 +387,47 @@ test("the live check re-reads for the expect with the second browser's budget be
   assert.ok(loop > 0 && loop < src.indexOf("title = extracted.title"), "the re-read runs before the receipt fields are set")
   assert.match(src.slice(loop, loop + 600), /extracted = await readPage\(\)/)
 })
+
+test("both browsers read visible button-input labels, and neither reads typed field text", async () => {
+  // Live, Trello: the screenshot showed "Send to Today", the check said it was missing, because
+  // innerText leaves out <input type="submit" value="…">.
+  const { readFileSync } = await import("node:fs")
+  const check = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const sandbox = readFileSync(new URL("../src/sandbox.ts", import.meta.url), "utf8")
+  const buttons = `input[type="submit" i], input[type="button" i], input[type="reset" i]`
+  assert.ok(check.includes(buttons), "live check reads button-input labels")
+  assert.ok(sandbox.includes(buttons), "second browser reads the same labels")
+  for (const src of [check, sandbox]) assert.equal(/input\[type="text"|textarea\)\.value/.test(src), false)
+})
+
+test("after a click the excerpt is an overlay the click opened, not a cookie banner that was already there", async () => {
+  // Live, Trello: after clicking Templates, the excerpt was Atlassian's cookie banner, open before the
+  // click and still open on the new page.
+  const { overlayOpenedByClick, excerptRegion } = await import("../src/check.ts")
+  const banner = "Atlassian uses cookies to improve your browsing experience… Accept all"
+  assert.equal(overlayOpenedByClick([banner], [banner]), "")
+  assert.equal(overlayOpenedByClick([banner, "Manage workspace Name Invite teammates"], [banner]), "Manage workspace Name Invite teammates")
+  assert.equal(overlayOpenedByClick(["Notifications You’re all caught up."], []), "Notifications You’re all caught up.")
+  const main = "Templates Most popular templates Business Design Education Engineering Marketing"
+  assert.equal(excerptRegion(`${banner} ${main}`, main, overlayOpenedByClick([banner], [banner]), true), main)
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const snapshot = src.indexOf("overlaysBefore = await extractPage(page, opts.selector, signal)")
+  assert.ok(snapshot > 0 && snapshot < src.indexOf("const actions = await runPageActions(page, opts, signal)"), "snapshot before the click")
+})
+
+test("the excerpt drops a cookie-consent banner so its 500 characters show the page", async () => {
+  // Live, Trello: Atlassian's banner took 290 of 500 characters, and the new card fell off the end.
+  const { withoutConsentBanners } = await import("../src/check.ts")
+  const banner =
+    "Atlassian uses cookies to improve your browsing experience, perform analytics and research, and conduct advertising. Accept all cookies to indicate that you agree to our use of cookies on your device. Atlassian cookies and tracking notice , (opens new window) Preferences Only necessary Accept all"
+  const page = `Skip to: Board Board switcher Create 14 days left ${banner.replaceAll(". ", ".\n")} My Trello board Share Today 2 Start using Trello Auspex test card`
+  const out = withoutConsentBanners(page, [banner])
+  assert.equal(out.includes("Atlassian uses cookies"), false)
+  assert.match(out, /My Trello board Share Today 2 Start using Trello Auspex test card$/)
+  assert.equal(withoutConsentBanners("Short page", ["tiny"]), "Short page", "a tiny match is never cut")
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  assert.match(src, /\.filter\(\(node\) => !node\.closest\('main, \[role="main"\]'\)\)/, "a cookie policy page's own <main> is never cut")
+  assert.match(src, /if \(excerptSource !== opened\) excerptSource = withoutConsentBanners/)
+})

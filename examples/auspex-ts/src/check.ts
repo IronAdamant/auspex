@@ -261,7 +261,15 @@ async function extractPage(
   page: Page,
   selector: string | undefined,
   signal: AbortSignal,
-): Promise<{ title: string; finalUrl: string; raw: string; main: string; dialog: string; hasPassword: boolean }> {
+): Promise<{
+  title: string
+  finalUrl: string
+  raw: string
+  main: string
+  dialogs: string[]
+  consent: string[]
+  hasPassword: boolean
+}> {
   return observeAbort(
     page.evaluate((sel: string | null) => {
       const el = sel ? (document.querySelector(sel) as HTMLElement | null) : document.body
@@ -285,18 +293,69 @@ async function extractPage(
               ? (node as HTMLElement & { checkVisibility: () => boolean }).checkVisibility()
               : node.getClientRects().length > 0,
           )
-      const dialog = dialogs.length ? (dialogs[dialogs.length - 1] as HTMLElement) : null
+      // Excerpt only: cookie-consent banners outside <main> (a fresh cloud browser sees one on most
+      // sites; Atlassian's took 290 of the excerpt's 500 characters). Matching still reads them.
+      const consent = sel
+        ? []
+        : Array.from(
+            document.querySelectorAll(
+              '[role="dialog"], [role="alertdialog"], [role="region"], [aria-modal="true"], dialog[open], [id*="cookie" i], [id*="consent" i], [aria-label*="cookie" i], [aria-label*="consent" i]',
+            ),
+          )
+            .filter((node) => !node.closest('main, [role="main"]'))
+            .filter((node) =>
+              typeof (node as HTMLElement & { checkVisibility?: () => boolean }).checkVisibility === "function"
+                ? (node as HTMLElement & { checkVisibility: () => boolean }).checkVisibility()
+                : node.getClientRects().length > 0,
+            )
+            .map((node) => (node as HTMLElement).innerText ?? "")
+            .filter((text) => text.length < 2000 && /cookie/i.test(text) && /\b(accept|consent|reject|necessary|preferences)\b/i.test(text))
+      // innerText leaves out <input type="submit" value="Send to Today">, a visible button label
+      // (live, Trello's add-card page). Typed field text stays out: it is not the page's words.
+      const buttonInputs = 'input[type="submit" i], input[type="button" i], input[type="reset" i]'
+      const labelsIn = [el, main].map((root) =>
+        root
+          ? Array.from(root.querySelectorAll(buttonInputs))
+              .filter((node) =>
+                typeof (node as HTMLElement & { checkVisibility?: () => boolean }).checkVisibility === "function"
+                  ? (node as HTMLElement & { checkVisibility: () => boolean }).checkVisibility()
+                  : node.getClientRects().length > 0,
+              )
+              .map((node) => (node as HTMLInputElement).value.trim())
+              .filter(Boolean)
+          : [],
+      )
       return {
         title: document.title,
         finalUrl: location.href,
-        raw: el?.innerText ?? "",
-        main: main?.innerText ?? "",
-        dialog: dialog?.innerText ?? "",
+        raw: [el?.innerText ?? "", ...labelsIn[0]].join("\n"),
+        main: [main?.innerText ?? "", ...labelsIn[1]].join("\n"),
+        dialogs: dialogs.map((node) => (node as HTMLElement).innerText ?? ""),
+        consent,
         hasPassword: Boolean(document.querySelector('input[type="password"]')),
       }
     }, selector ?? null),
     signal,
   )
+}
+
+/** Excerpt only: drop cookie-consent banner text, so the 500 characters show the page itself. */
+export function withoutConsentBanners(text: string, banners: string[]): string {
+  let out = normalizeHaystack(text)
+  for (const banner of banners) {
+    const words = normalizeHaystack(banner)
+    if (words.length >= 20) out = out.split(words).join(" ")
+  }
+  return normalizeHaystack(out)
+}
+
+/**
+ * The newest overlay the click opened. One that was already open before the click (Atlassian's
+ * cookie banner on Trello stayed through a page change) is not what the click showed.
+ */
+export function overlayOpenedByClick(after: string[], before: string[]): string {
+  const opened = after.filter((text) => !before.includes(text))
+  return opened.length ? opened[opened.length - 1] : ""
 }
 
 /**
@@ -367,6 +426,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
   let waitedFor: string | undefined
   let filled: string | undefined
   let clicked: string | undefined
+  /** Overlay text already open before the click (a cookie banner): not what the click showed. */
+  let overlaysBefore: string[] = []
   let clickMissed: string | undefined
   let profileSeed: ProfileSeed | undefined
   let profileSaved: ProfileSaveResult | undefined
@@ -468,6 +529,12 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
               .catch(() => undefined)
           }
         }
+        if (opts.click) {
+          overlaysBefore = await extractPage(page, opts.selector, signal).then(
+            (before) => before.dialogs,
+            () => [],
+          )
+        }
         const actions = await runPageActions(page, opts, signal)
         waitedFor = actions.waitedFor
         filled = actions.filled
@@ -518,7 +585,10 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw
-        excerptSource = excerptRegion(extracted.raw, extracted.main, extracted.dialog, Boolean(clicked))
+        const opened = overlayOpenedByClick(extracted.dialogs, overlaysBefore)
+        excerptSource = excerptRegion(extracted.raw, extracted.main, opened, Boolean(clicked))
+        // A consent dialog the click itself opened (Preferences) is what the click showed; keep it.
+        if (excerptSource !== opened) excerptSource = withoutConsentBanners(excerptSource, extracted.consent)
         hasPassword = extracted.hasPassword
         sawPageText = true
         const haystack = normalizeHaystack(raw)

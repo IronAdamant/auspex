@@ -126,3 +126,15 @@ print(json.dumps([mod.resolves_forbidden(u) for u in urls]))
   assert.equal(out.status, 0, out.stderr)
   assert.deepEqual(JSON.parse(out.stdout), [true, true, true, false, false])
 })
+
+test("anonymous claim reads a button drawn by <input type=submit>, not text typed into a field", () => {
+  // Live, Trello's add-card page: "Send to Today" is <input type="submit" value="Send to Today">.
+  const text = pageText(
+    '<body><p>Create a card</p><input type="submit" value="Send to Today"><input type="button" value="Never Mind"><input type="text" value="Typed by an agent"><input type="submit" value="Hidden one" hidden><script>var x = "<input type=submit value=Script>"</script></body>',
+  )
+  assert.match(text, /Send to Today/)
+  assert.match(text, /Never Mind/)
+  assert.equal(text.includes("Typed by an agent"), false, "field text is not page text")
+  assert.equal(text.includes("Hidden one"), false)
+  assert.equal(text.includes("Script"), false)
+})

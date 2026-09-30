@@ -12,6 +12,12 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A public check's receipt no longer carries `profileSeed` and `seedReadiness`.** The CI receipt for ironadamant.com (no saved login) said `seedReadiness` "post-save", shape "empty", which reads like a failed save. They now appear only with a saved login, as AGENTS.md always said. The committed 0.1.28 receipt keeps them, because it is that run's output verbatim.
 
+- **Words on `<input type="submit">` buttons count as page text.** Trello's add-card page draws "Send to Today" as `<input type="submit" value="Send to Today">`; the screenshot showed it and the check said it was missing, because `innerText` leaves input values out. The live browser, the second browser, and the anonymous fetch now all read the labels of visible submit, button, and reset inputs. Text typed into a field is still not page text, so an agent cannot "find" words it filled in itself. That page then created a card in one click, and both browsers confirmed it on the board.
+
+- **After a click, the excerpt is an overlay the click opened, not a cookie banner that was already there.** On Trello, after clicking Templates, the excerpt was Atlassian's cookie banner: open before the click and still open on the new page. Overlays open before the click are no longer taken as what the click showed; a menu or dialog the click opened still is.
+
+- **Excerpts skip cookie-consent banners.** A fresh cloud browser sees one on most sites; Atlassian's took 290 of the excerpt's 500 characters, and Trello's new card fell off the end. The excerpt now drops a visible consent banner outside `<main>` (unless the click opened it, such as Preferences). Matching still reads the whole page.
+
 ## 0.1.28 — 2026-10-01
 
 npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.

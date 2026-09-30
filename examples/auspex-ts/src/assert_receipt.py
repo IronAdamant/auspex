@@ -120,6 +120,9 @@ def haystack_matches(raw, expect):
 # Not page text: code, styles, the tab title (example.com keeps "Example Domain" only there),
 # and inert <template> content.
 SKIP_TAGS = ("script", "style", "noscript", "title", "template")
+# A button drawn by <input type="submit" value="Send to Today"> shows its value as its label. Text a
+# user typed into a field is not page text (an agent could "find" words it filled in itself).
+BUTTON_INPUT_TYPES = ("submit", "button", "reset")
 
 
 class VisibleText(HTMLParser):
@@ -131,6 +134,10 @@ class VisibleText(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in SKIP_TAGS:
             self._skip += 1
+        elif tag == "input" and not self._skip:
+            a = {k.lower(): (v or "") for k, v in attrs}
+            if a.get("type", "").lower() in BUTTON_INPUT_TYPES and a.get("value") and "hidden" not in a:
+                self.parts.append(a["value"])
 
     def handle_endtag(self, tag):
         if tag in SKIP_TAGS and self._skip:

@@ -720,6 +720,6 @@ test("the saved-login second browser settles and re-reads a page that navigates 
   const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
   const start = src.indexOf("export async function defaultProfileClaimCheck")
   const body = src.slice(start, src.indexOf("\n}\n", start))
-  assert.match(body, /const sample = \(\) => extractPageSettled\(/)
+  assert.match(body, /const sample = \(\) =>\s*extractPageSettled\(/)
   assert.match(body, /waitForLoadState\("domcontentloaded"/)
 })
