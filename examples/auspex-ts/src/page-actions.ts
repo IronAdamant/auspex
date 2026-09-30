@@ -208,10 +208,28 @@ async function awaitReadyThenQuiet(page: ActionPage, selector: string, value: st
   return false
 }
 
+/**
+ * Empty an input or textarea before text is inserted or typed at its caret. Without this a title
+ * field that already says "Untitled" became "UntitledAuspex probe" (live, ConsistencyHub), and the
+ * landed check passed because that contains the value. Contenteditable editors take their own path.
+ */
+async function clearField(
+  box: { fill: (value: string, opts?: { timeout?: number; signal?: AbortSignal }) => Promise<unknown> },
+  timeout: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  await box.fill("", { timeout, signal }).catch((err: unknown) => {
+    if (signal?.aborted) throw err
+  })
+}
+
 async function typeInto(page: ActionPage, selector: string, value: string, timeout: number, signal?: AbortSignal): Promise<void> {
   const keyboard = page.keyboard
   if (!keyboard || typeof keyboard.type !== "function") return
-  await page.locator(selector).click({ timeout, signal })
+  const box = page.locator(selector)
+  // Typing lands at the caret; a fill replaces what the field held (see clearField).
+  await clearField(box, timeout, signal)
+  await box.click({ timeout, signal })
   // Method call. Extracting keyboard.type drops this and Playwright throws reading _page.
   await keyboard.type(value)
 }
@@ -390,6 +408,7 @@ export async function runPageActions(
       landed = await landContentEditable(page, fillSelector, value, timeout, signal)
     } else if (pageHasInsertText(page)) {
       const keyboard = page.keyboard
+      await clearField(box, timeout, signal)
       await insertTextAt(
         {
           click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),

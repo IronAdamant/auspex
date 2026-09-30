@@ -526,3 +526,25 @@ test("check lets the page settle before a fill or click, and keeps OAuth codes o
   assert.match(src, /clickMissed = actions\.clickMissed \? redactUrlSecretsInText\(actions\.clickMissed\)/)
   assert.match(src, /finalUrl: receiptFinalUrl,/)
 })
+
+test("a fill replaces what an input already holds: 'Untitled' does not become 'UntitledAuspex probe'", async () => {
+  // Live on ConsistencyHub: the title field said "Untitled", insertText typed at the caret, and the
+  // landed check passed because "UntitledAuspex probe" contains "Auspex probe".
+  let text = "Untitled"
+  const { page, calls } = fieldPage({
+    text: () => text,
+    onFill: (value) => {
+      text = value
+    },
+    onInsert: (value) => {
+      text += value
+    },
+    onType: (value) => {
+      text += value
+    },
+  })
+  const out = await runPageActions(page, { fill: "#doc-title-input", value: "Auspex probe" })
+  assert.equal(out.filled, "#doc-title-input")
+  assert.equal(text, "Auspex probe")
+  assert.ok(calls.indexOf("fill:#doc-title-input=") < calls.indexOf("insert:Auspex probe"), calls.join(" "))
+})

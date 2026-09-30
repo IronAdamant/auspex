@@ -22,6 +22,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **A saved-login check no longer crashes when the app redirects right after load.** MariaDB Cloud refreshes its sign-in just after the page loads. When that landed during Auspex's session-storage read after `goto`, the whole check failed with "Execution context was destroyed", `retryable: false` and no receipt (Billing and AI Agents did, 3 of 3 for Billing). That read is now skipped on a navigation race (the new page already ran the restore script), and the page read retries up to three times for an app that redirects twice. Billing then opened 3 of 3, and `claimOkProfile` stayed true.
 
+- **`--fill` replaces what a text field held instead of adding to it.** On ConsistencyHub, filling the document title (which said "Untitled") with "Auspex probe" produced "UntitledAuspex probe": the text was inserted at the caret, and the fill still reported success because the field contained the value. An input or textarea is now emptied before the text goes in, as Playwright's own fill does. Rich-text editors are unchanged. The corrected fill then renamed the document, and a new "Pirate Hunt Log" document was written, saved, and confirmed by a second browser.
+
 ## 0.1.26 — 2026-10-01
 
 npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.
