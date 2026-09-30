@@ -330,3 +330,14 @@ test("summarizeLoginTrace advises reap on 429 and remint on 503", () => {
   assert.match(s503, /503/)
   assert.match(s503, /remint/)
 })
+
+test("trace names its file without the home folder (relative in a clone, ~/ otherwise)", async () => {
+  // Live, tldraw: auspex trace printed tracePath as /Users/<name>/…/.auspex/trace/login.jsonl.
+  // A path that does not exist: reading a missing trace writes nothing.
+  const { toStatePath } = await import("../src/paths.ts")
+  const file = path.join(os.homedir(), ".auspex-trace-test-not-created", "login.jsonl")
+  const read = await readLoginTrace({ file })
+  assert.equal(read.tracePath, toStatePath(file))
+  assert.equal(read.tracePath, "~/.auspex-trace-test-not-created/login.jsonl")
+  assert.equal(read.events.length, 0)
+})

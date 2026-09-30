@@ -31,6 +31,18 @@ const requiredTools = ["auspex_check", "auspex_login", "auspex_profile_status", 
 // Same rule as assert_receipt.py: receipts must never carry a home directory.
 const HOME_PATH = /^(\/Users\/|\/home\/|\/root(\/|$)|[A-Za-z]:[\\/]Users[\\/])/
 
+/** Every field (dotted path) of a tool's JSON that holds a home-folder path. */
+function homePathsIn(value, at = "", found = []) {
+  if (typeof value === "string") {
+    if (HOME_PATH.test(value)) found.push(at)
+  } else if (Array.isArray(value)) {
+    value.forEach((item, i) => homePathsIn(item, `${at}[${i}]`, found))
+  } else if (value && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) homePathsIn(item, at ? `${at}.${key}` : key, found)
+  }
+  return found
+}
+
 const steps = []
 const record = (name, ok, detail = {}) => steps.push({ name, ok, ...detail })
 
@@ -112,7 +124,13 @@ async function run() {
 
   // Loads the runner chain (receipt.ts reads assert_receipt.py at import). No key needed.
   const trace = await callTool("auspex_trace", {})
-  record("auspex_trace", trace.json?.ok === true, trace.json?.ok === true ? {} : { error: trace.json?.error ?? trace.error })
+  // trace printed tracePath with the home folder through 0.1.27.
+  const traceHome = homePathsIn(trace.json)
+  record(
+    "auspex_trace",
+    trace.json?.ok === true && traceHome.length === 0,
+    trace.json?.ok === true ? (traceHome.length ? { homePaths: traceHome } : {}) : { error: trace.json?.error ?? trace.error },
+  )
 
   // The CLI a stranger types: `npx auspex-solari trace` from the same empty folder (no key needed).
   const cli = spawnSync("npx", ["-y", "-p", spec, "auspex-solari", "trace"], {
@@ -151,17 +169,7 @@ async function run() {
   })
   // Every string in the receipt, not only screenshotPath: verify.runDir and diff.previousRunDir
   // carried the home folder through 0.1.27 while screenshotPath was clean.
-  const homePaths = []
-  const walk = (value, at) => {
-    if (typeof value === "string") {
-      if (HOME_PATH.test(value)) homePaths.push(at)
-    } else if (Array.isArray(value)) {
-      value.forEach((item, i) => walk(item, `${at}[${i}]`))
-    } else if (value && typeof value === "object") {
-      for (const [key, item] of Object.entries(value)) walk(item, at ? `${at}.${key}` : key)
-    }
-  }
-  walk(r, "")
+  const homePaths = homePathsIn(r)
   record("receipt has no home dir in any field", Boolean(shot) && homePaths.length === 0, { screenshotPath: shot, homePaths })
   record("check returns an image", check.kinds.includes("image"))
 }

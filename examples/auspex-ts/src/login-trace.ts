@@ -2,7 +2,7 @@ import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import type { StorageState } from "@solarisdk/browser"
 import { foldedExpiresOnMs } from "./profile-storage.ts"
-import { stateDir } from "./paths.ts"
+import { stateDir, toStatePath } from "./paths.ts"
 import { hostIs } from "./sso.ts"
 
 /** Gitignored. Cookie hosts + counts only — never tokens, values, excerpts, or session ids. */
@@ -332,7 +332,7 @@ export async function recordLoginTrace(
     await appendLoginTrace({ ...event, episodeId, remintIndex }, file)
     const episodeEvents = (await loadJsonl(file)).filter((e) => (episodeId ? e.episodeId === episodeId : true))
     return {
-      tracePath: file,
+      tracePath: toStatePath(file),
       episodeId,
       remintCount: remintIndex,
       traceSummary: summarizeLoginTrace(episodeEvents),
@@ -425,7 +425,8 @@ export async function readLoginTrace(opts: {
   if (events.length > limit) events = events.slice(-limit)
   const remintCount = [...events].reverse().find((e) => e.remintIndex)?.remintIndex
   return {
-    tracePath: file,
+    // Shown to agents and hosts: relative in a clone, ~/… otherwise, never the home folder.
+    tracePath: toStatePath(file),
     episodeId,
     remintCount,
     traceSummary: summarizeLoginTrace(events),
