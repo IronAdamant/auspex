@@ -132,4 +132,4 @@ npx auspex-solari check --name consistencyhub --verify-with-profile
 
 This repo is a fork of the Solari cookbook; Auspex lives in [examples/auspex-ts](examples/auspex-ts), and the other folders under `examples/` are the original Solari samples. MIT licensed.
 
-**AI agents:** read [AGENTS.md](AGENTS.md) (full rules) and [llms.txt](llms.txt) (short card) instead of this page.
+**AI agents:** start with [AGENT-CARD.md](AGENT-CARD.md) (one page), then [AGENTS.md](AGENTS.md) for the full rules, instead of this page.

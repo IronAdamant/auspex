@@ -15,6 +15,7 @@
   "files": [
     "bin/",
     "AGENTS.md",
+    "AGENT-CARD.md",
     "README.md",
     "examples/auspex-ts/bin/",
     "examples/auspex-ts/src/",

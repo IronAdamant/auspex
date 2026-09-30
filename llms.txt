@@ -1,6 +1,6 @@
 # Auspex — agent quick card
 
-Source of truth: [AGENTS.md](AGENTS.md). This file is the short door. Product name is Auspex. Repo is `IronAdamant/auspex`. ConsistencyHub and OneDrive are worked examples of a logged-in app, not the recipe for every site.
+Source of truth: [AGENTS.md](AGENTS.md). One-page agent card: [AGENT-CARD.md](AGENT-CARD.md). This file is the short door. Product name is Auspex. Repo is `IronAdamant/auspex`. ConsistencyHub and OneDrive are worked examples of a logged-in app, not the recipe for every site.
 
 Auspex opens the site in Solari cloud Chrome, checks the claim, then checks again on a second machine (by default on a public page; with `--verify-with-profile` on a logged-in app). It does not type passwords or log in for the user.
 

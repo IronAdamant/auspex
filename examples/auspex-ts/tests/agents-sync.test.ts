@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
-import { USAGE } from "../src/cli.ts"
+import { parseArgv as cliParseArgv, USAGE } from "../src/cli.ts"
 import {
   AWAIT_LOGIN_BEGIN,
   AWAIT_LOGIN_END,
@@ -351,8 +351,10 @@ test("published MCP paste cards use auspex-solari, env, and the job path for lon
   assert.match(grok, /tool_timeout_sec = 1800/)
   const auspexBlock = grok.split("[mcp_servers.solari]")[0] ?? ""
   assert.equal(auspexBlock.includes("tool_timeout_sec = 300"), false, "Auspex Grok block must not use a 300s tool timeout")
-  assert.match(claudeMd, /@AGENTS\.md/)
-  assert.match(claudeMd, /@llms\.txt/)
+  // CLAUDE.md loads the one-page card and points at the full contract for code changes.
+  assert.match(claudeMd, /@AGENT-CARD\.md/)
+  assert.match(claudeMd, /\[AGENTS\.md\]\(AGENTS\.md\)/)
+  assert.match(claudeMd, /before changing door, receipt, or login code/)
   assert.ok(claudeMd.length < 800, "CLAUDE.md stays a thin pointer")
   for (const host of ["Qwen Code", "Kimi Code", "DeepSeek Harness", "OpenHands"]) {
     assert.match(hosts, new RegExp(host))
@@ -621,4 +623,36 @@ test("weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason networ
   }
   assert.match(rootAgents, /overlay `reason` is `network` \(intentional, retry-shaped\)/)
   assert.match(rootAgents, /do not fold `claimOkProfile` into `ok`/)
+})
+
+test("AGENT-CARD.md stays short, ships, and agrees with AGENTS.md", () => {
+  const card = readFileSync(path.join(repo, "AGENT-CARD.md"), "utf8")
+  const agents = readFileSync(path.join(repo, "AGENTS.md"), "utf8")
+  const words = card.split(/\s+/).filter(Boolean).length
+  assert.ok(words < 1000, `the card is ${words} words; keep it under 1000`)
+  // Same frozen reason list as the receipt schema in AGENTS.md.
+  const reasons = ["matched", "loggedOut", "needsHuman", "mismatch", "network", "recordedLoggedIn", "expectMatchedPublicLanding", "hostChanged", "stream-expired"]
+  for (const r of reasons) assert.match(card, new RegExp("`" + r + "`"), `card names reason ${r}`)
+  // Every status the card tells an agent to act on is a real status in the contract.
+  for (const status of ["idp-only-save", "app-visible", "sign-in-wall", "no-cdp", "cookie-strong", "local-storage-auth", "weakSeed", "emptySave", "botWall", "suggestedUrl", "claimOkProfile"]) {
+    assert.match(card, new RegExp(status), `card names ${status}`)
+    assert.match(agents, new RegExp(status), `AGENTS.md also names ${status}`)
+  }
+  // Every CLI command the card uses exists.
+  const parseArgv = cliParseArgv
+  for (const cmd of ["check", "connect", "sweep", "reap", "solari-health", "profiles"]) {
+    assert.match(card, new RegExp(cmd), `card mentions ${cmd}`)
+    const parsed = parseArgv([cmd])
+    const message = parsed.status === "error" ? parsed.message : ""
+    assert.equal(message.startsWith("unknown command"), false, `${cmd} is a real command`)
+  }
+  // The check above can fail: a made-up command is reported as unknown.
+  const fake = parseArgv(["not-a-command"])
+  assert.equal(fake.status === "error" && fake.message.startsWith("unknown command"), true)
+  for (const rule of ["take it once", "Never hold one tool call open", "QR", "stateDir", "30 minutes", "five minutes"]) {
+    assert.match(card, new RegExp(rule), `card keeps: ${rule}`)
+  }
+  const pkgJson = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")) as { files: string[] }
+  assert.ok(pkgJson.files.includes("AGENT-CARD.md"), "the card ships in the npm package")
+  assert.match(agents, /\[AGENT-CARD\.md\]\(AGENT-CARD\.md\)/)
 })
