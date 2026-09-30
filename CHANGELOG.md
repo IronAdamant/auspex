@@ -2,9 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.23 — 2026-09-30
 
-Second review round, mostly from probing the published 0.1.22 CLI and MCP server with bad input. Each fix has a test.
+npm `auspex-solari@0.1.23` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Second review round, mostly from probing the published 0.1.22 CLI and MCP server with bad input, plus two items the freeze had held back (run-folder pruning, smaller MCP tool text). Each fix has a test.
 
 - **A profile name can no longer be a path.** The name becomes a local file name (`.auspex/editor-save/<name>.json`, the Save signal files), and `../../package` resolved to the clone's own `package.json`. Names with `/`, `\` or control characters are now refused (CLI and MCP); normal names are unchanged.
 - **`login`, `job` and `connect` refuse loopback and cloud-metadata URLs up front**, like `check` always did. `connect http://localhost:3000` used to send the human through the sign-in and fail only at the final check.
@@ -17,7 +19,7 @@ Second review round, mostly from probing the published 0.1.22 CLI and MCP server
 
 ## 0.1.22 — 2026-09-30
 
-npm `auspex-solari@0.1.22` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.22`. Agents do not `npm publish`. Founder publishes this release.
 
 From a clean-up and wiring review (Claude). Same features and contract; each fix has a test. Proven live on this code: ConsistencyHub (Microsoft sign-in) logged in end to end with `connect`, including the one-time finalize fallback (`claimOkProfile=true`), then purged.
 
