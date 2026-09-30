@@ -2,9 +2,11 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
-## Unreleased
+## 0.1.26 — 2026-10-01
 
-Final review pass (2026-10-01). Each fix has a test.
+npm `auspex-solari@0.1.26` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Final review pass (2026-10-01). Two security fixes (the anonymous fetch and the live check could be pointed at cloud metadata through a redirect or DNS) and five accuracy and robustness fixes. Each fix has a test.
 
 - **The anonymous fetch never follows a redirect, or DNS, to cloud metadata.** It refused to start at such an address, but Python's `urllib` followed redirects on its own, so a public page that redirected to `169.254.169.254` was fetched from inside the Solari sandbox (the text never came back, but `claimOk` for a chosen expect answered yes/no about it). Redirects there, and names that resolve there, are now refused.
 - **`check` refuses a URL whose DNS points at loopback or metadata** (`169.254.169.254.nip.io`), before any Solari session; a landing whose DNS points there keeps nothing. The saved-login second browser also keeps no text sample from such a landing.
@@ -15,7 +17,7 @@ Final review pass (2026-10-01). Each fix has a test.
 
 ## 0.1.25 — 2026-09-30
 
-npm `auspex-solari@0.1.25` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.25`. Agents do not `npm publish`. Founder publishes this release.
 
 Docs only; no change to how a check works. The npm page's README now matches GitHub: it cites the green Actions run 36678582381 (live checks and the published 0.1.24 package) and today's ConsistencyHub and tldraw sign-ins. AGENT-CARD's opening names the second check plainly (a fetch for a public page, a saved-login browser for a logged-in one), and RECEIPTS no longer calls either claim a "sandbox claim".
 
