@@ -2,6 +2,15 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+Third review pass. Each fix has a test.
+
+- **An npm install audits clean.** The published package listed Solari's own MCP server (`@solarisdk/mcp`) as a dependency, though only the clone's contributor path uses it. It pulled `puppeteer-core` and a vulnerable `extract-zip` into every install: `npm audit` reported 5 high findings, and `node_modules` was 99 MB. Now 0 findings and 41 MB. The clone keeps it; its lockfile also takes `ip-address` 10.7.2.
+- **One saved-login idle clock for both installs.** Each install kept its own 30-minute clock, but Solari shares saved logins across installs, so a login used a minute ago from a clone could read as idle to the npm install and be deleted by its next command. A clone now also records uses in `~/.auspex`, and both read the latest use.
+- **A saved login already deleted elsewhere stops being tracked**, instead of costing a Solari profile list on every later command.
+- AGENTS.md's CLI reference now matches the CLI's own usage text (it lacked `--auth-keys` and one `--expect`), with a test. The host paste block points agents at `AGENT-CARD.md`, which the package ships.
+
 ## 0.1.23 — 2026-09-30
 
 npm `auspex-solari@0.1.23` (latest). Agents do not `npm publish`. Founder publishes this release.
