@@ -125,7 +125,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
       headline: `✓ Logged in to ${host}. A second browser, using only the saved login, saw ${words}.`,
       detail: [
         `Saved as profile ${job.profile}.`,
-        `Next time: npx auspex-solari check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
+        `Next time: ${cliCommand()} check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
       ],
     }
   }
@@ -208,7 +208,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
         headline: `The remote browser ended up on a different site${job.suggestedUrl ? ` (${job.suggestedUrl})` : ""}.`,
         detail: [
           job.suggestedUrl
-            ? `If that is the app you meant, run: npx auspex-solari connect ${job.suggestedUrl}`
+            ? `If that is the app you meant, run: ${cliCommand()} connect ${job.suggestedUrl}`
             : "Run connect again with the app's own address.",
         ],
       }
@@ -268,7 +268,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
           detail: saved
             ? [
                 "Your login did save. Retry just the check once:",
-                `npx auspex-solari check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
+                `${cliCommand()} check --profile ${job.profile} --url ${job.url} --expect ${quoteArg(job.expect ?? "")} --verify-with-profile`,
               ]
             : [`Nothing was claimed. Wait a moment, then ${again.toLowerCase()}`],
         }
