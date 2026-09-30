@@ -298,7 +298,6 @@ test("clone MCP and replay stub stay honest after slim", () => {
   const runJs = readFileSync(path.join(pkg, "bin", "run.mjs"), "utf8")
   const receipt = JSON.parse(readFileSync(path.join(pkg, "demo", "receipt.json"), "utf8")) as { note?: string }
   const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
-  const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
   const saveDemo = readFileSync(path.join(pkg, "scripts", "save-demo-receipt.ts"), "utf8")
 
   for (const [label, text] of [
@@ -324,8 +323,6 @@ test("clone MCP and replay stub stay honest after slim", () => {
   assert.match(receipt.note ?? "", /generate:replay/)
   assert.match(index, /committed repo file/)
   assert.match(index, /stub/)
-  assert.match(discord, /committed repo `demo\/replay\.html`/)
-  assert.match(discord, /stub/)
   assert.match(saveDemo, /Does not overwrite the committed demo\/replay\.html stub/)
 })
 
@@ -413,9 +410,8 @@ test("honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only", () =
   assert.match(rootAgents, /does not treat the miss as an anonymous `claimOk` failure/)
 })
 
-test("showcase landing and Discord packet hero the Pages HTML player, not jsDelivr text/plain", () => {
+test("showcase landing heroes the Pages HTML player, not jsDelivr text/plain", () => {
   const index = readFileSync(path.join(repo, "docs", "index.html"), "utf8")
-  const discord = readFileSync(path.join(repo, "docs", "showcase", "DISCORD.md"), "utf8")
   const header = index.split("<iframe")[0] ?? ""
   assert.match(header, /ok ≠ claimOk ≠ claimOkProfile/)
   assert.match(header, /Alice-vs-Bob/)
@@ -480,18 +476,13 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
   const worked = rootForWorked.split("## Worked example (dogfood)")[1]?.split("## MCP first")[0] ?? ""
   assert.match(worked, /npx auspex-solari login/)
   assert.equal(worked.includes("npx auspex login"), false, "worked example must not tell a stranger to run npx auspex")
-  assert.match(discord, /above the player/)
-  assert.match(discord, /software keyboard/)
-  assert.match(discord, /Tap Save/)
   assert.match(index, /phone's own Safari or Chrome/)
   assert.match(index, /software keyboard/)
   assert.equal(index.includes('src="demo/phone.png"'), false, "do not ship a phone still before the live test")
-  assert.match(discord, /https:\/\/ironadamant\.com\/auspex\/demo\/replay\.html/)
   const packReadme = readFileSync(path.join(pkg, "README.md"), "utf8")
   for (const [label, text] of [
     ["package README", packReadme],
     ["RECEIPTS.md", receipts],
-    ["Discord packet", discord],
   ] as const) {
     assert.equal(
       text.includes("cdn.jsdelivr.net/gh/IronAdamant/auspex@main/examples/auspex-ts/demo/replay.html"),
@@ -499,12 +490,7 @@ test("showcase landing and Discord packet hero the Pages HTML player, not jsDeli
       `${label} must not hero jsDelivr replay.html (text/plain)`,
     )
   }
-  assert.match(discord, /https:\/\/github\.com\/IronAdamant\/auspex/)
-  assert.match(discord, /npx auspex-solari check --name ironadamant/)
-  assert.match(discord, /auspex-mcp/)
-  assert.match(discord, /ok.*claimOk.*claimOkProfile/)
   assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(index), false)
-  assert.equal(/slr_live_[A-Za-z0-9]{8,}/.test(discord), false)
 })
 
 test("trace docs allow one post-handoff row and still forbid check rows and secrets", () => {
