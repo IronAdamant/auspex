@@ -177,6 +177,16 @@ export function classifySweepReceipt(page: SweepPage, receipt: AgentReceipt, has
     }
   }
   if (receipt.reason === "mismatch") {
+    // The two browsers disagree: the page drew its words late or changed between reads (live on
+    // tldraw before the live check re-read). That is evidence of neither a pass nor a fail.
+    if (verify?.claimOkProfile === true) {
+      return {
+        ...base,
+        detail:
+          "the live browser did not find the text, but a second browser with the saved login did: the page draws late or changed between reads. " +
+          "Not a pass, not a fail; recheck that page with check --wait-for <the app's main element>.",
+      }
+    }
     return { ...base, status: "fail", detail: "page loaded; the live browser did not find the expected text" }
   }
   return { ...base, detail: receipt.next ? receipt.next.slice(0, 280) : `could not tell (${receipt.reason})` }

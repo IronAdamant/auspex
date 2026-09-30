@@ -16,6 +16,10 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **Failure JSON has no terminal colour codes.** A `--wait-for` timeout's `error` carried Playwright's `\u001b[2m` escapes.
 
+- **The live check waits for late-drawn words as long as the second browser does.** In a tldraw sweep, a file page's first read had only the sidebar; the screenshot a moment later showed "Page 1", and the second browser with the saved login saw it, yet the row said fail. The second browser re-reads for up to 2 s (5 s on a nearly empty page) before a miss, and the live check read once. It now re-reads with the same budget (a test keeps the two equal); the same sweep then passed 3 of 3.
+
+- **A sweep row where the two browsers disagree is "could not tell", not "fail".** If the live browser still misses words the second browser saw, the row says so and suggests `check --wait-for`.
+
 ## 0.1.27 — 2026-10-01
 
 npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.

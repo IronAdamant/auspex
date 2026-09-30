@@ -372,3 +372,18 @@ test("page functions in check.ts survive the clone's runner (no named helpers in
   const named = /\b(?:const|let|var)\s+\w+\s*(?::[^=]+)?=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>|\bfunction\s+\w+\s*\(|\bclass\s+\w+/
   for (const body of bodies) assert.equal(named.test(body), false, body.slice(0, 300))
 })
+
+test("the live check re-reads for the expect with the second browser's budget before calling a miss", async () => {
+  const { LIVE_EXPECT_SETTLE_MS, LIVE_EXPECT_EMPTY_EXTRA_MS, liveExpectBudgetMs } = await import("../src/check.ts")
+  const { PROFILE_CLAIM_SETTLE_MS, PROFILE_CLAIM_RETRY_MS } = await import("../src/sandbox.ts")
+  assert.equal(LIVE_EXPECT_SETTLE_MS, PROFILE_CLAIM_SETTLE_MS, "the two browsers wait for the words equally long")
+  assert.equal(LIVE_EXPECT_EMPTY_EXTRA_MS, PROFILE_CLAIM_RETRY_MS)
+  assert.equal(liveExpectBudgetMs("tldraw - free and instant collaborative whiteboarding My workspace Search..."), 2_000)
+  assert.equal(liveExpectBudgetMs("Loading…"), 5_000)
+  assert.equal(liveExpectBudgetMs(""), 5_000)
+  const { readFileSync } = await import("node:fs")
+  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
+  const loop = src.indexOf("const cap = liveExpectBudgetMs(extracted.raw)")
+  assert.ok(loop > 0 && loop < src.indexOf("title = extracted.title"), "the re-read runs before the receipt fields are set")
+  assert.match(src.slice(loop, loop + 600), /extracted = await readPage\(\)/)
+})

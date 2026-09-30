@@ -67,6 +67,7 @@ import {
   boundPromise,
   closeThenRelease,
   CLOSE_TIMEOUT_MS,
+  abortableSleep,
   observeAbort,
   ReadyRelease,
   raceWithTimeout,
@@ -77,6 +78,20 @@ type Page = Awaited<ReturnType<BrowserSession["newPage"]>>
 
 /** Each bounded wait for the page to settle before a fill or click. */
 export const PRE_ACTION_IDLE_MS = 8_000
+
+/**
+ * How long the live check keeps re-reading for the expect before it calls a miss. The same budget as
+ * the second browser (sandbox PROFILE_CLAIM_SETTLE_MS / PROFILE_CLAIM_RETRY_MS; a test keeps them
+ * equal), so the two browsers do not disagree about a page that draws its words late.
+ */
+export const LIVE_EXPECT_SETTLE_MS = 2_000
+/** Extra when the first read is nearly empty (under 50 characters): the page is still drawing. */
+export const LIVE_EXPECT_EMPTY_EXTRA_MS = 3_000
+const LIVE_EXPECT_POLL_MS = 250
+
+export function liveExpectBudgetMs(raw: string): number {
+  return !raw.trim() || raw.length < 50 ? LIVE_EXPECT_SETTLE_MS + LIVE_EXPECT_EMPTY_EXTRA_MS : LIVE_EXPECT_SETTLE_MS
+}
 
 export type CheckOptions = {
   url: string
@@ -479,13 +494,27 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
       let hasPassword = false
       let sawPageText = false
       try {
-        const extracted = await extractPageSettled(
-          () => extractPage(page, opts.selector, signal),
-          async () => {
-            await page.waitForLoadState("domcontentloaded", { timeout: 15_000, signal }).catch(() => undefined)
-            await page.waitForLoadState("networkidle", { timeout: 5_000, signal }).catch(() => undefined)
-          },
-        )
+        const readPage = () =>
+          extractPageSettled(
+            () => extractPage(page, opts.selector, signal),
+            async () => {
+              await page.waitForLoadState("domcontentloaded", { timeout: 15_000, signal }).catch(() => undefined)
+              await page.waitForLoadState("networkidle", { timeout: 5_000, signal }).catch(() => undefined)
+            },
+          )
+        let extracted = await readPage()
+        // A canvas or live-sync app can draw its words after network idle: live on tldraw the first
+        // read had only the sidebar, the screenshot a moment later showed "Page 1", and the second
+        // browser (which re-reads) saw it. Re-read the same way before calling a miss.
+        if (!needsHuman && !haystackMatches(extracted.raw, opts.expect)) {
+          const cap = liveExpectBudgetMs(extracted.raw)
+          const started = Date.now()
+          while (!isCancelled() && Date.now() - started < cap) {
+            await abortableSleep(Math.min(LIVE_EXPECT_POLL_MS, Math.max(0, cap - (Date.now() - started))), signal)
+            extracted = await readPage()
+            if (haystackMatches(extracted.raw, opts.expect)) break
+          }
+        }
         title = extracted.title
         finalUrl = extracted.finalUrl || page.url()
         raw = extracted.raw

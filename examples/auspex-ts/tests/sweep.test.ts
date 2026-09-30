@@ -33,6 +33,17 @@ function receipt(over: Partial<AgentReceipt> = {}): AgentReceipt {
   } as AgentReceipt
 }
 
+/** A real miss: the second browser with the saved login did not see the words either. */
+const BOTH_MISSED = {
+  ok: true,
+  claimOk: false,
+  errors: [],
+  claimErrors: [],
+  anonymousClaimSkipped: true,
+  claimOkProfile: false,
+  runDir: "x",
+} as AgentReceipt["verify"]
+
 const plan = () =>
   parseSweepPlan({
     name: "App nightly",
@@ -107,7 +118,7 @@ test("classifySweepReceipt: only a confirmed match is pass", () => {
   assert.match(unconfirmed.detail, /Not a pass/)
   assert.equal(classifySweepReceipt(page, receipt({ verify: undefined }), true).status, "unknown")
   assert.equal(classifySweepReceipt(page, receipt({ verify: undefined }), false).status, "pass")
-  assert.equal(classifySweepReceipt(page, receipt({ ok: false, reason: "mismatch", matched: false }), true).status, "fail")
+  assert.equal(classifySweepReceipt(page, receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED }), true).status, "fail")
   // Live matched, anonymous second machine could not see JS-rendered text: reason mismatch, not a fail.
   const unseen = classifySweepReceipt(page, receipt({ ok: false, reason: "mismatch", matched: true }), false)
   assert.equal(unseen.status, "unknown")
@@ -116,14 +127,14 @@ test("classifySweepReceipt: only a confirmed match is pass", () => {
   assert.equal(classifySweepReceipt(page, receipt({ ok: false, reason: "loggedOut" }), true).status, "unknown")
   const regressed = classifySweepReceipt(
     page,
-    receipt({ ok: false, reason: "mismatch", matched: false, diff: { previousReason: "matched", previousExpect: "Your projects", urlChanged: false, excerptChanged: true, sameUrl: true } }),
+    receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED, diff: { previousReason: "matched", previousExpect: "Your projects", urlChanged: false, excerptChanged: true, sameUrl: true } }),
     true,
   )
   assert.equal(regressed.regressed, true)
   // A previous run with a different expect is not comparable.
   const otherExpect = classifySweepReceipt(
     page,
-    receipt({ ok: false, reason: "mismatch", matched: false, diff: { previousReason: "matched", previousExpect: "Checkpoint", urlChanged: false, excerptChanged: true, sameUrl: true } }),
+    receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED, diff: { previousReason: "matched", previousExpect: "Checkpoint", urlChanged: false, excerptChanged: true, sameUrl: true } }),
     true,
   )
   assert.equal(otherExpect.regressed, undefined)
@@ -166,7 +177,7 @@ test("runSweep: 429 stops with reap; other errors are could-not-tell and continu
     check: async () => {
       n += 1
       if (n === 1) throw new Error("goto timed out")
-      if (n === 2) return receipt({ ok: false, reason: "mismatch", matched: false })
+      if (n === 2) return receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED })
       return receipt()
     },
   })
@@ -183,7 +194,7 @@ test("all-pass sweep is ok and still says it is not a lease", async () => {
 
 test("report and webhook never carry page text", async () => {
   const report = await runSweep(plan(), {
-    check: async (page) => (page.name === "Team" ? receipt({ ok: false, reason: "mismatch", matched: false }) : receipt()),
+    check: async (page) => (page.name === "Team" ? receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED }) : receipt()),
   })
   const md = renderSweepMarkdown(report)
   assert.equal(md.includes(PAGE_TEXT), false)
@@ -292,4 +303,24 @@ test("CLI and MCP read a sweep plan the same way: from the caller's folder, with
   }
   const tools = readFileSync(path.resolve("src", "mcp-tools.ts"), "utf8")
   assert.match(tools, /readSweepPlanFile\(planPath\)/)
+})
+
+test("a sweep row where the live browser missed but the second browser saw the words could not tell", () => {
+  // Live on tldraw: the first read had only the sidebar, the screenshot showed "Page 1", and the
+  // second browser with the saved login saw it; the row said fail.
+  const page = { name: "first-file", url: "https://app.example/f/1", expect: "Page 1" }
+  const disagree = classifySweepReceipt(
+    page,
+    receipt({ ok: false, reason: "mismatch", matched: false, verify: { ok: true, claimOk: false, claimOkProfile: true } as AgentReceipt["verify"] }),
+    true,
+  )
+  assert.equal(disagree.status, "unknown")
+  assert.match(disagree.detail, /a second browser with the saved login did/)
+  assert.match(disagree.detail, /--wait-for/)
+  const bothMissed = classifySweepReceipt(
+    page,
+    receipt({ ok: false, reason: "mismatch", matched: false, verify: { ok: true, claimOk: false, claimOkProfile: false } as AgentReceipt["verify"] }),
+    true,
+  )
+  assert.equal(bothMissed.status, "fail")
 })
