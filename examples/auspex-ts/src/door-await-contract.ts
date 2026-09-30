@@ -13,7 +13,8 @@ export const LONG_RUN_BEGIN = "<!-- auspex-long-run:begin -->"
 export const LONG_RUN_END = "<!-- auspex-long-run:end -->"
 
 /** Tiny pointer on existing next text. Not a pager and not a new tool. */
-export const OPS_GUIDE = "Guide: docs/ops-runbook.md."
+/** Receipts reach npm users, who have AGENTS.md (it ships in the package) but not docs/. */
+export const OPS_GUIDE = "Guide: AGENTS.md, Long unattended loops."
 
 /** Locked refuse. Same sentence in CLI help, AGENTS rules, and llms Do not. */
 export const KEY_ENV_REFUSE =

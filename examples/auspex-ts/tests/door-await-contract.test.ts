@@ -224,3 +224,14 @@ test("ops stamps lock key refuse, profile map, and the runbook", () => {
   assert.match(RE_GATE_STOP, /This is a re-gate/)
   assert.match(CLAIM_FALSE_STOP, /do not reuse this seed/)
 })
+
+test("receipt and tool pointers name files the npm package ships, never docs/", async () => {
+  const { OPS_GUIDE, DOOR_DETAIL } = await import("../src/door-await-contract.ts")
+  const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")) as { files: string[] }
+  for (const pointer of [OPS_GUIDE, DOOR_DETAIL]) {
+    assert.equal(pointer.includes("docs/"), false, pointer)
+    assert.match(pointer, /AGENTS\.md/)
+  }
+  assert.ok(pkg.files.includes("AGENTS.md"))
+  assert.equal(pkg.files.some((f) => f.startsWith("docs")), false, "docs/ is not published, so receipts must not send agents there")
+})

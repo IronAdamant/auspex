@@ -68,7 +68,7 @@ connect is one command for a person at a terminal: it shows the phone door link,
 job is durable mint→await→finalize→check (not a fourth primitive). Optional --wake-webhook or AUSPEX_WAKE_WEBHOOK. Mint lead-up is traced to .auspex/trace/login.jsonl.
 login --wait blocks until Save is signaled, then runs --save-editor. It does not POST editor/save before that signal. handoff.url is the phone door (phone.html).
 await-login --save-editor POSTs Solari editor/save when Save is signaled. If one await is already running, this call signals it and does not kill it. If another path already owns that Save, status is sibling-saved (not stream-expired). Clipboard Save is not the jar. Progress is stderr lines that start with :: . Stdout stays one JSON object.
-Requires SOLARI_API_KEY. ${KEY_ENV_REFUSE} Detail: AGENTS.md, docs/ops-runbook.md, and docs/door-card-api.md.
+Requires SOLARI_API_KEY. ${KEY_ENV_REFUSE} Detail: AGENT-CARD.md and AGENTS.md (both ship with this package).
 `
 
 export type CliCommand =

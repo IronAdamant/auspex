@@ -517,6 +517,7 @@ export async function checkThenVerify(
       ? await deps.verify(dir, profileId)
       : await verifyReceipt(dir, {
           ...defaultVerifyDeps(),
+          onProgress,
           skipAnonymousClaim: verifyWithProfile && Boolean(profileId),
         }, profileId ? { profileId } : undefined)
     await persistAgentManifest(check, { verify }).catch(() => undefined)
