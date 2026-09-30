@@ -1,8 +1,8 @@
-import { mkdirSync, writeFileSync } from "node:fs"
+import { writeFileSync } from "node:fs"
 import path from "node:path"
 import { SolariClient } from "@solarisdk/sdk"
 import { toReceiptPath } from "./check.ts"
-import { stateDir } from "./paths.ts"
+import { ensureRunDir } from "./paths.ts"
 import { AuspexError, classifySolariError, explainSolariError } from "./errors.ts"
 import { forgetLive, rememberLive } from "./session-ledger.ts"
 import { fetchWithIdempotencyKey, requireApiKey } from "./solari.ts"
@@ -298,11 +298,6 @@ export function defaultDesktopDeps(): DesktopDeps {
   }
 }
 
-function newRunDir(): string {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-  return path.join(stateDir, "runs", stamp)
-}
-
 async function waitReady(
   desktop: DesktopHandle,
   sleepFn: (ms: number) => Promise<void>,
@@ -376,8 +371,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
         if (task.type && desktop.typeText) await desktop.typeText(task.type)
         tui.setPhase("screenshot")
         const png = await desktop.screenshot()
-        const dir = newRunDir()
-        mkdirSync(dir, { recursive: true })
+        const dir = await ensureRunDir()
         const abs = path.join(dir, "screenshot.png")
         writeFileSync(abs, png)
         const desktopId = desktop.sessionId

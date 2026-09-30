@@ -1,5 +1,5 @@
 import { mkdtempSync } from "node:fs"
-import { mkdir } from "node:fs/promises"
+import { mkdir, readdir, rm, stat } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -77,10 +77,51 @@ export function resolveStatePath(p: string, home: string = homedir()): string {
   return path.isAbsolute(p) ? p : path.join(packageRoot, p)
 }
 
-export async function ensureRunDir(): Promise<string> {
-  const runsDir = path.join(stateDir, "runs")
+/** Run folders kept by default (about 150 KB each). AUSPEX_KEEP_RUNS overrides; 0 keeps every run. */
+export const DEFAULT_KEEP_RUNS = 200
+/** A run this young may still belong to a running command (its check, its door QR). Never pruned. */
+export const RUN_PRUNE_MIN_AGE_MS = 60 * 60 * 1000
+/** Only folders named like a run stamp are ever pruned. */
+const RUN_FOLDER = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}/
+
+export function keepRunsFromEnv(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.AUSPEX_KEEP_RUNS?.trim()
+  if (!raw || !/^\d+$/.test(raw)) return DEFAULT_KEEP_RUNS
+  return Number(raw)
+}
+
+/** Deletes run folders past the newest `keep` (by stamp), skipping any under an hour old. Returns the names removed. */
+export async function pruneRuns(runsDir: string, keep: number, nowMs: number = Date.now()): Promise<string[]> {
+  if (keep <= 0) return []
+  const names = (await readdir(runsDir).catch(() => [] as string[])).filter((n) => RUN_FOLDER.test(n)).sort().reverse()
+  const removed: string[] = []
+  for (const name of names.slice(keep)) {
+    const dir = path.join(runsDir, name)
+    const st = await stat(dir).catch(() => undefined)
+    if (!st?.isDirectory() || nowMs - st.mtimeMs < RUN_PRUNE_MIN_AGE_MS) continue
+    await rm(dir, { recursive: true, force: true })
+    removed.push(name)
+  }
+  return removed
+}
+
+/**
+ * A new folder of its own under runs/ (a second run in the same second gets `-2`, so two checks never
+ * share a screenshot). Then trims old runs so .auspex does not grow without end.
+ */
+export async function ensureRunDir(runsDir: string = path.join(stateDir, "runs")): Promise<string> {
+  await mkdir(runsDir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5)
-  const runDir = path.join(runsDir, stamp)
-  await mkdir(runDir, { recursive: true })
+  let runDir = ""
+  for (let n = 1; !runDir; n++) {
+    const candidate = path.join(runsDir, n === 1 ? stamp : `${stamp}-${n}`)
+    try {
+      await mkdir(candidate)
+      runDir = candidate
+    } catch (err) {
+      if ((err as { code?: string }).code !== "EEXIST") throw err
+    }
+  }
+  await pruneRuns(runsDir, keepRunsFromEnv()).catch(() => undefined)
   return runDir
 }
