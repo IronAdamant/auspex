@@ -20,6 +20,8 @@ The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founde
 
 - **After a click, the excerpt shows what the click opened even when the page does not mark it as a dialog.** Clicking a Trello card opened its window (not `role="dialog"`), and the excerpt was the board behind it; the window had also not been drawn yet when the page was read (the screenshot a moment later had it). After a click the check now waits, bounded at 3 s, for the page to stop changing, and when no marked dialog opened, the excerpt is the text that appeared since the click. The card's excerpt then read "Auspex test card … Made by an AI agent through Auspex … Comments and activity". A click that navigates shows the new page's own content, without the header and sidebar it shares with the old one.
 
+- **A fill target that changes when focused gets a clear error, not a bare timeout.** Trello's search box turns placeholder "Search" into "Search Trello" once focused, so `--fill 'input[placeholder="Search"]'` stopped matching mid-fill and died with "locator.click: Timeout … waiting for locator" and no receipt. It now says the field changed on focus and to use a selector that stays true (id, name, aria-label); `input[placeholder^="Search"]` then typed "Auspex", and Trello's search showed the new card.
+
 ## 0.1.28 — 2026-10-01
 
 npm `auspex-solari@0.1.28` (latest). Agents do not `npm publish`. Founder publishes this release.

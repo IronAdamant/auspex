@@ -637,3 +637,28 @@ test("a fill target that never appears says so, instead of 'the value did not la
       !err.message.includes("does not contain --value"),
   )
 })
+
+test("a fill target that stops matching once focused says so, not a bare Playwright timeout", async () => {
+  // Live, Trello: focusing the search box turned placeholder "Search" into "Search Trello", and the
+  // fill died with "locator.click: Timeout … waiting for locator" and no receipt.
+  let focused = false
+  const page = {
+    waitForSelector: async () => undefined,
+    locator: () => ({
+      fill: async () => {
+        focused = true
+      },
+      click: async () => {
+        if (focused) throw new Error("locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('input[placeholder=\"Search\"]')")
+      },
+    }),
+    evaluate: async <R,>(): Promise<R> => ({ password: false, contentEditable: false, text: "", present: !focused }) as R,
+    keyboard: { insertText: async () => undefined, type: async () => undefined },
+  }
+  await assert.rejects(
+    () => runPageActions(page, { fill: 'input[placeholder="Search"]', value: "Auspex" }),
+    (err: Error) =>
+      err.message.startsWith('check --fill found input[placeholder="Search"], but once the field was focused nothing matched it any more') &&
+      /its id, name, or aria-label/.test(err.message),
+  )
+})

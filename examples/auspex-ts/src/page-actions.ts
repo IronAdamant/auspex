@@ -49,6 +49,15 @@ export function fillTargetMissingError(selector: string): string {
   )
 }
 
+/** The fill target matched, then stopped matching once focused. */
+export function fillTargetChangedError(selector: string): string {
+  return (
+    `check --fill found ${selector}, but once the field was focused nothing matched it any more: the page changes the field ` +
+    `on focus (Trello's search box turns placeholder "Search" into "Search Trello"). filled was not set. ` +
+    "Use a selector that stays true while the field is focused: its id, name, or aria-label."
+  )
+}
+
 export const FILL_SELECTOR_CSS_ERROR =
   "check --fill takes a CSS selector (the typed value is read back with document.querySelector), " +
   'not a Playwright one such as text=…, role=…, or " >> visible=true". ' +
@@ -487,31 +496,43 @@ export async function runPageActions(
     const box = page.locator(fillSelector)
     const canType = typeof page.keyboard?.type === "function"
     let landed = false
-    if (first.contentEditable && (canType || pageHasInsertText(page))) {
-      landed = await landContentEditable(page, fillSelector, value, timeout, signal)
-    } else if (pageHasInsertText(page)) {
-      const keyboard = page.keyboard
-      await clearField(box, timeout, signal)
-      await insertTextAt(
-        {
-          click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),
-          insertText: (text) => keyboard.insertText(text).then(() => undefined),
-        },
-        value,
-        timeout,
-      )
-      if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
-        await typeInto(page, fillSelector, value, timeout, signal)
+    // A field that matched before it was focused and not after (a placeholder that changes on
+    // focus) makes every later step wait for nothing. Say that, instead of a bare Playwright timeout.
+    const changedOnFocus = async () => !(await readField(page, fillSelector)).present
+    try {
+      if (first.contentEditable && (canType || pageHasInsertText(page))) {
+        landed = await landContentEditable(page, fillSelector, value, timeout, signal)
+      } else if (pageHasInsertText(page)) {
+        const keyboard = page.keyboard
+        await clearField(box, timeout, signal)
+        await insertTextAt(
+          {
+            click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),
+            insertText: (text) => keyboard.insertText(text).then(() => undefined),
+          },
+          value,
+          timeout,
+        )
+        if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
+          await typeInto(page, fillSelector, value, timeout, signal)
+        }
+        landed = await controlContainsValue(page, fillSelector, value)
+      } else {
+        await box.fill(value, { timeout, signal })
+        if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
+          await typeInto(page, fillSelector, value, timeout, signal)
+        }
+        landed = await controlContainsValue(page, fillSelector, value)
       }
-      landed = await controlContainsValue(page, fillSelector, value)
-    } else {
-      await box.fill(value, { timeout, signal })
-      if (!(await controlContainsValue(page, fillSelector, value)) && canType) {
-        await typeInto(page, fillSelector, value, timeout, signal)
-      }
-      landed = await controlContainsValue(page, fillSelector, value)
+    } catch (err) {
+      if (signal?.aborted) throw err
+      if (await changedOnFocus().catch(() => false)) throw new Error(fillTargetChangedError(fillSelector))
+      throw err
     }
-    if (!landed) throw new Error(FILL_NOT_LANDED_ERROR)
+    if (!landed) {
+      if (await changedOnFocus().catch(() => false)) throw new Error(fillTargetChangedError(fillSelector))
+      throw new Error(FILL_NOT_LANDED_ERROR)
+    }
     out.filled = fillSelector
   }
   if (opts.click) {
