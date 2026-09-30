@@ -2,6 +2,10 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **A Solari 502 on Save gets one retry before the human is sent back to sign in.** Live on tldraw, Solari's editor/save answered 502 "Failed to export storageState" with over two minutes of the sign-in window left, and Auspex asked for a whole new sign-in; the same save worked the next morning. On a 502, 503 or 504, Auspex now waits 5 s, checks the remote browser is still live (the same token check the 409 path uses), and saves once more. `editorSave.retriedAfter` records it. If the browser is gone or the retry fails too, the Solari status stands exactly as before: nothing saved, not `stream-expired`, and `connect` says a retry was tried.
+
 ## 0.1.27 — 2026-10-01
 
 npm `auspex-solari@0.1.27` (latest). Agents do not `npm publish`. Founder publishes this release.

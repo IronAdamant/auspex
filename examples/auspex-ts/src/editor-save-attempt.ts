@@ -1,7 +1,12 @@
 /**
- * One Solari editor/save, and one live /editor/token check when the editor is not savable.
- * The token call does not lengthen the JWT and the token is not returned.
+ * One Solari editor/save, and one live /editor/token check when the editor is not savable or
+ * Solari answered 502/503/504. The token call does not lengthen the JWT and the token is not returned.
  */
+
+import { isEditorSaveInfraStatus } from "./await-fail.ts"
+
+/** Pause before the one more save after a Solari 502/503/504 (the Blame table's retry-once rule). */
+export const EDITOR_SAVE_INFRA_RETRY_DELAY_MS = 5_000
 
 export type EditorSaveSnap = {
   ok: boolean
@@ -19,6 +24,8 @@ export type EditorSaveOutcome = EditorSaveSnap & {
   tokenReuse?: boolean
   /** Solari HTTP status of that one /editor/token check (0 when it threw). */
   tokenStatus?: number
+  /** The first editor/save got this Solari 502/503/504; the editor was still live, so it saved once more. */
+  retriedAfter?: number
 }
 
 /** A boolean, or the token probe with Solari's status. */
@@ -32,6 +39,7 @@ export type EditorSaveReceipt = {
   notSavableExhausted?: boolean
   tokenReuse?: boolean
   tokenStatus?: number
+  retriedAfter?: number
 }
 
 export function editorSaveForReceipt(saved: EditorSaveOutcome): EditorSaveReceipt {
@@ -43,6 +51,7 @@ export function editorSaveForReceipt(saved: EditorSaveOutcome): EditorSaveReceip
   if (saved.notSavableExhausted === true) receipt.notSavableExhausted = true
   if (typeof saved.tokenReuse === "boolean") receipt.tokenReuse = saved.tokenReuse
   if (typeof saved.tokenStatus === "number") receipt.tokenStatus = saved.tokenStatus
+  if (typeof saved.retriedAfter === "number") receipt.retriedAfter = saved.retriedAfter
   return receipt
 }
 
@@ -70,8 +79,19 @@ export function editorSaveHttpProgress(saved: EditorSaveSnap): string | undefine
   return `await: editor/save ${saved.status}${detail}. POST finished.${stand} Short jar poll. Not a 30-minute wait.`
 }
 
+async function probeEditorLive(
+  editorStillLive: () => Promise<EditorLiveProbe>,
+): Promise<{ live: boolean; tokenStatus?: number }> {
+  try {
+    const probe = await editorStillLive()
+    return typeof probe === "boolean" ? { live: probe } : { live: probe.live, tokenStatus: probe.status }
+  } catch {
+    return { live: false, tokenStatus: 0 }
+  }
+}
+
 /**
- * POST editor/save. On that 409, ask /editor/token once.
+ * POST editor/save. On that 409, or on a Solari 502/503/504, ask /editor/token once.
  * A token means the editor still exists: save one more time. Otherwise stop.
  * A failed save stays not ok. This function does not read cookies.
  * The token call does not lengthen the JWT and the token is not returned.
@@ -80,24 +100,18 @@ export async function saveEditorWithNotSavableReuse(opts: {
   save: () => Promise<EditorSaveSnap>
   editorStillLive: () => Promise<EditorLiveProbe>
   onProgress?: (phase: string) => void
+  /** Test seam for the pause before a 5xx retry. */
+  sleep?: (ms: number) => Promise<void>
 }): Promise<EditorSaveOutcome> {
   const first = await opts.save()
+  if (!first.hung && isEditorSaveInfraStatus(first.status)) return retryAfterInfraError(first, opts)
   if (first.hung || !isNotSavableConflict(first.status, first.error)) {
     const progress = editorSaveHttpProgress(first)
     if (progress) opts.onProgress?.(progress)
     return first
   }
   opts.onProgress?.("await: editor/save 409 not in a savable state. One live editor/token check.")
-  let live = false
-  let tokenStatus: number | undefined
-  try {
-    const probe = await opts.editorStillLive()
-    live = typeof probe === "boolean" ? probe : probe.live
-    if (typeof probe !== "boolean") tokenStatus = probe.status
-  } catch {
-    live = false
-    tokenStatus = 0
-  }
+  const { live, tokenStatus } = await probeEditorLive(opts.editorStillLive)
   const token = tokenStatus !== undefined ? { tokenStatus } : {}
   if (!live) {
     const seen = tokenStatus !== undefined ? ` (editor/token ${tokenStatus})` : ""
@@ -112,4 +126,47 @@ export async function saveEditorWithNotSavableReuse(opts: {
     return { ...second, ok: false, notSavableExhausted: true, tokenReuse: true, ...token }
   }
   return { ...second, tokenReuse: true, ...token }
+}
+
+/**
+ * A Solari 502/503/504 on editor/save is usually brief (live, tldraw: "Failed to export
+ * storageState" with two minutes of door left; the same save worked the next morning). Before the
+ * human is sent back to sign in again, wait a moment and, if the editor is still live, save once
+ * more. Otherwise, or if that save fails too, the Solari status stands exactly as before.
+ */
+async function retryAfterInfraError(
+  first: EditorSaveSnap,
+  opts: {
+    save: () => Promise<EditorSaveSnap>
+    editorStillLive: () => Promise<EditorLiveProbe>
+    onProgress?: (phase: string) => void
+    sleep?: (ms: number) => Promise<void>
+  },
+): Promise<EditorSaveOutcome> {
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)))
+  const detail = first.error ? ` ${first.error}` : ""
+  opts.onProgress?.(
+    `await: editor/save ${first.status}${detail}. Solari infra error. ` +
+      `One live editor/token check in ${EDITOR_SAVE_INFRA_RETRY_DELAY_MS / 1000} s, then one more save.`,
+  )
+  await sleep(EDITOR_SAVE_INFRA_RETRY_DELAY_MS)
+  const { live, tokenStatus } = await probeEditorLive(opts.editorStillLive)
+  const token = tokenStatus !== undefined ? { tokenStatus } : {}
+  if (!live) {
+    const seen = tokenStatus !== undefined ? ` (editor/token ${tokenStatus})` : ""
+    opts.onProgress?.(`await: editor token is gone${seen}. No retry.`)
+    const progress = editorSaveHttpProgress(first)
+    if (progress) opts.onProgress?.(progress)
+    return { ...first, ok: false, tokenReuse: false, ...token }
+  }
+  opts.onProgress?.("await: editor still live. POST editor/save once more.")
+  const second = await opts.save()
+  const retried = { tokenReuse: true, retriedAfter: first.status, ...token }
+  if (second.ok) {
+    opts.onProgress?.(`await: editor/save succeeded on the retry after Solari ${first.status}.`)
+    return { ...second, ...retried }
+  }
+  const progress = editorSaveHttpProgress(second)
+  if (progress) opts.onProgress?.(progress)
+  return { ...second, ok: false, ...retried }
 }

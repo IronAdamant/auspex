@@ -5,6 +5,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import {
+  EDITOR_SAVE_INFRA_RETRY_DELAY_MS,
   editorSaveForReceipt,
   editorSaveHttpProgress,
   isNotSavableConflict,
@@ -205,28 +206,112 @@ test("a hung save is not a savable-state retry", async () => {
   assert.equal(second.ok, false)
 })
 
-test("other failures do not ask for a new editor token", async () => {
+test("a Solari 502 on save waits, checks the editor is live, and saves once more", async () => {
+  // Live, tldraw: editor/save 502 "Failed to export storageState" with two minutes of door left
+  // sent the human back to sign in again; the same save worked the next morning.
+  let saves = 0
   let liveChecks = 0
+  const slept: number[] = []
   const phases: string[] = []
   const saved = await saveEditorWithNotSavableReuse({
-    save: async () => ({ ok: false, status: 502, error: "Failed to export storageState" }),
+    save: async () => {
+      saves += 1
+      return saves === 1 ? { ok: false, status: 502, error: "Failed to export storageState" } : { ok: true, status: 200 }
+    },
     editorStillLive: async () => {
       liveChecks += 1
-      return true
+      return { live: true, status: 200 }
+    },
+    sleep: async (ms) => {
+      slept.push(ms)
     },
     onProgress: (phase) => {
       phases.push(phase)
     },
   })
-  assert.equal(liveChecks, 0)
-  assert.equal(saved.status, 502)
+  assert.equal(saves, 2)
+  assert.equal(liveChecks, 1)
+  assert.deepEqual(slept, [EDITOR_SAVE_INFRA_RETRY_DELAY_MS])
+  assert.equal(saved.ok, true)
+  assert.equal(saved.retriedAfter, 502)
   assert.equal(saved.notSavableExhausted, undefined)
-  assert.deepEqual(phases, [
+  assert.deepEqual(editorSaveForReceipt(saved), { ok: true, status: 200, tokenReuse: true, tokenStatus: 200, retriedAfter: 502 })
+  assert.match(phases.at(-1)!, /succeeded on the retry after Solari 502/)
+})
+
+test("a Solari 5xx on save with the editor already gone keeps the Solari status and does not save again", async () => {
+  let saves = 0
+  const phases: string[] = []
+  const saved = await saveEditorWithNotSavableReuse({
+    save: async () => {
+      saves += 1
+      return { ok: false, status: 503, error: "Service Unavailable" }
+    },
+    editorStillLive: async () => ({ live: false, status: 404 }),
+    sleep: async () => undefined,
+    onProgress: (phase) => {
+      phases.push(phase)
+    },
+  })
+  assert.equal(saves, 1)
+  assert.equal(saved.ok, false)
+  assert.equal(saved.status, 503)
+  assert.equal(saved.retriedAfter, undefined)
+  assert.equal(saved.notSavableExhausted, undefined, "a Solari 5xx is not stream-expired")
+  assert.match(phases.at(-1)!, /Solari status stands/)
+})
+
+test("a second Solari 5xx on the retry stands; it is still not stream-expired", async () => {
+  let saves = 0
+  const phases: string[] = []
+  const saved = await saveEditorWithNotSavableReuse({
+    save: async () => {
+      saves += 1
+      return { ok: false, status: 502, error: "Failed to export storageState" }
+    },
+    editorStillLive: async () => true,
+    sleep: async () => undefined,
+    onProgress: (phase) => {
+      phases.push(phase)
+    },
+  })
+  assert.equal(saves, 2, "one retry, never a loop")
+  assert.equal(saved.ok, false)
+  assert.equal(saved.status, 502)
+  assert.equal(saved.retriedAfter, 502)
+  assert.equal(saved.notSavableExhausted, undefined)
+  assert.equal(
+    phases.at(-1),
     "await: editor/save 502 Failed to export storageState. POST finished. Solari status stands. Short jar poll. Not a 30-minute wait.",
-  ])
+  )
+})
+
+test("other failures do not ask for a new editor token or save again", async () => {
+  for (const first of [
+    { ok: false, status: 413, error: "Payload Too Large" },
+    { ok: false, status: 0, error: "editorSave timed out after 30000ms", hung: true },
+  ]) {
+    let liveChecks = 0
+    let saves = 0
+    const saved = await saveEditorWithNotSavableReuse({
+      save: async () => {
+        saves += 1
+        return first
+      },
+      editorStillLive: async () => {
+        liveChecks += 1
+        return true
+      },
+      sleep: async () => undefined,
+    })
+    assert.equal(liveChecks, 0, first.error)
+    assert.equal(saves, 1, first.error)
+    assert.equal(saved.status, first.status)
+    assert.equal(saved.retriedAfter, undefined)
+  }
   assert.equal(
     editorSaveHttpProgress({ ok: false, status: 502, error: "Failed to export storageState" }),
-    phases[0],
+    "await: editor/save 502 Failed to export storageState. POST finished. Solari status stands. Short jar poll. Not a 30-minute wait.",
   )
   assert.equal(editorSaveHttpProgress({ ok: true, status: 200 }), undefined)
   assert.equal(editorSaveHttpProgress({ ok: false, status: 0, error: "timed out", hung: true }), undefined)

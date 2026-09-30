@@ -153,7 +153,7 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
     const code = `HTTP ${job.editorSave.status}${job.editorSave.error ? `: ${job.editorSave.error}` : ""}`
     const headline =
       job.editorSave.status >= 500
-        ? `Solari could not save the login (${code}). That is on Solari's side, not your sign-in.`
+        ? `Solari could not save the login (${code}${job.editorSave.retriedAfter ? `, again on a retry 5 s later` : ""}). That is on Solari's side, not your sign-in.`
         : job.editorSave.status === 409
           ? `Solari said the remote browser could not be saved right then (${code}).`
           : `Solari refused to save the login (${code}).`

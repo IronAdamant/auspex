@@ -245,7 +245,13 @@ function applyAwaitOutcome(record: JobRecord, waited: AwaitLoginResult): JobReco
   record.suggestedUrl = waited.suggestedUrl
   if (waited.seedReadiness) record.seedReadiness = waited.seedReadiness
   if (waited.editorSave && !waited.editorSave.ok) {
-    record.editorSave = { ok: false, status: waited.editorSave.status, error: waited.editorSave.error }
+    const retriedAfter = (waited.editorSave as { retriedAfter?: unknown }).retriedAfter
+    record.editorSave = {
+      ok: false,
+      status: waited.editorSave.status,
+      error: waited.editorSave.error,
+      ...(typeof retriedAfter === "number" ? { retriedAfter } : {}),
+    }
   } else {
     delete record.editorSave
   }

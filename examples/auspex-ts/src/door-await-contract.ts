@@ -186,7 +186,7 @@ export function agentsAwaitLoginBullet(): string {
     "`sibling-saved` (another path owns editor/save; do not POST again, do not remint). The next step for each is the door table. " +
     "`--save-editor` POSTs Solari editor/save when Save is signaled; a second call signals the running await. " +
     "It does not refresh folded sessionStorage unless `editorFold.ok`. " +
-    "A 409 not in a savable state gets one token check and one more save, then `stream-expired`. A failed save never claims cookies. " +
+    "A 409 not in a savable state gets one token check and one more save, then `stream-expired`. A Solari 502, 503, or 504 gets one token check after 5 s and one more save; if that fails too, the Solari status stands (not `stream-expired`). A failed save never claims cookies. " +
     "A sign-in longer than about 5 minutes needs a fresh login for the final Save window."
   )
 }

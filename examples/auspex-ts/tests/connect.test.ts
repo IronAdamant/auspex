@@ -259,6 +259,16 @@ test("connectOutcome: ok only with claimOkProfile, and fail-closed rows stay hon
   assert.equal(solari502.ok, false)
   assert.match(solari502.headline, /Solari could not save the login \(HTTP 502: Failed to export storageState\)/)
   assert.equal(/No Save arrived/.test(solari502.headline), false, "a finished Solari 502 is not a missing Save")
+  assert.equal(solari502.headline.includes("retry"), false, "no retry claimed when none ran")
+  const retried502 = connectOutcome(
+    job({
+      phase: "await",
+      status: "timeout",
+      ok: false,
+      editorSave: { ok: false, status: 502, error: "Failed to export storageState", retriedAfter: 502 },
+    }),
+  )
+  assert.match(retried502.headline, /\(HTTP 502: Failed to export storageState, again on a retry 5 s later\)/)
   assert.match(connectOutcome(job({ phase: "await", status: "timeout", ok: false })).headline, /No Save arrived/)
   const notSavable = connectOutcome(
     job({

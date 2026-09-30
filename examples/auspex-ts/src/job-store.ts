@@ -90,7 +90,7 @@ export type JobRecord = {
   /** A check landed logged out after that skip, so finalize ran once after all. Never repeats. */
   finalizeFallback?: boolean
   /** Solari editor/save result from the await, when it ran and failed. Status and error text only. */
-  editorSave?: { ok: boolean; status: number; error?: string }
+  editorSave?: { ok: boolean; status: number; error?: string; retriedAfter?: number }
   reaped?: boolean
   receipt?: Record<string, unknown>
 }
