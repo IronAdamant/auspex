@@ -549,3 +549,21 @@ test("every command that sends the cloud browser to a URL refuses loopback and c
   // The wake webhook is posted by this machine, not opened by the cloud browser: a local one is fine.
   assert.equal(schemas.auspexJobInputObject.safeParse({ url: "https://app.example", expect: "Hi", wakeWebhookUrl: "http://localhost:8080/hook" }).success, true)
 })
+
+test("desktop refuses password-like --type before any desktop VM is created", async () => {
+  const { runDesktopReview, DESKTOP_PASSWORD_TYPE_ERROR } = await import("../src/desktop.ts")
+  let created = 0
+  await assert.rejects(
+    runDesktopReview({
+      create: async () => {
+        created += 1
+        throw new Error("must not boot")
+      },
+      sleep: async () => undefined,
+      status: { write: () => true } as unknown as NodeJS.WritableStream,
+      task: { open: "mousepad", type: "MyPassw0rd!" },
+    }),
+    { message: DESKTOP_PASSWORD_TYPE_ERROR },
+  )
+  assert.equal(created, 0)
+})

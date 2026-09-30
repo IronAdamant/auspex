@@ -322,6 +322,9 @@ async function waitReady(
 }
 
 export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps()): Promise<DesktopResult> {
+  // Desktop --type FAIL-CLOSED: refuse password/OTP-like strings (cannot detect field context).
+  // Before anything boots, so a refused string never costs a desktop VM.
+  if (deps.task?.type) assertNotPasswordLikeText(deps.task.type)
   const status = deps.status ?? process.stderr
   const sleepFn = deps.sleep ?? sleep
   const tui = deps.tui ?? createDesktopTui(status)
@@ -370,11 +373,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
           await desktop.click(clickAt.x, clickAt.y)
           click = { x: clickAt.x, y: clickAt.y, verified: false }
         }
-        // Desktop --type FAIL-CLOSED: refuse password/OTP-like strings (cannot detect field context)
-        if (task.type) {
-          assertNotPasswordLikeText(task.type)
-          if (desktop.typeText) await desktop.typeText(task.type)
-        }
+        if (task.type && desktop.typeText) await desktop.typeText(task.type)
         tui.setPhase("screenshot")
         const png = await desktop.screenshot()
         const dir = newRunDir()
