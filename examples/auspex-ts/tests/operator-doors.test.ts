@@ -1002,3 +1002,63 @@ test("before Save, a closed stream still reconnects", () => {
   assert.ok(clients.length >= 2, "reconnect opens a new stream")
   assert.match(live.byId.get("status")?.textContent ?? "", /Reconnecting/)
 })
+
+test("the saved-login idle clock is shared: a login used from the other install is not deleted", async () => {
+  const { commitOperatorSession, noteOperatorUse, emptyOperatorState, writeOperatorState, readOperatorState, OPERATOR_IDLE_MS } =
+    await import("../src/operator-session.ts")
+  const { mkdtempSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const npmRoot = mkdtempSync(path.join(tmpdir(), "auspex-npm-"))
+  const cloneRoot = mkdtempSync(path.join(tmpdir(), "auspex-clone-"))
+  const before = process.env.AUSPEX_SHARED_STATE
+  // The npm install's own folder is the shared one.
+  process.env.AUSPEX_SHARED_STATE = path.join(npmRoot, ".auspex")
+  try {
+    const t0 = 1_000_000_000
+    const later = t0 + 40 * 60 * 1000
+    const wipes: string[][] = []
+    const applyWipes = async (names: readonly string[]) => {
+      wipes.push([...names])
+      return [...names]
+    }
+    // The npm install last used app-x 40 minutes ago; the clone uses it now.
+    writeOperatorState(npmRoot, noteOperatorUse(emptyOperatorState(), { profile: "app-x" }, t0))
+    await commitOperatorSession({ root: cloneRoot, nowMs: later, note: { profile: "app-x" }, applyWipes })
+    // The npm install's next command, for another site, must not delete app-x.
+    await commitOperatorSession({ root: npmRoot, nowMs: later + 1000, note: { profile: "app-y" }, applyWipes })
+    assert.deepEqual(wipes, [])
+    assert.equal(readOperatorState(npmRoot, later).profiles["app-x"]?.lastUsedMs, later)
+    // And the other way round: a use from npm keeps the clone from deleting it.
+    const muchLater = later + 40 * 60 * 1000
+    await commitOperatorSession({ root: npmRoot, nowMs: muchLater, note: { profile: "app-x" }, applyWipes })
+    await commitOperatorSession({ root: cloneRoot, nowMs: muchLater + 1000, note: { profile: "app-z" }, applyWipes })
+    assert.deepEqual(wipes, [["app-y"]], "only app-y, idle for 40 minutes, goes")
+    assert.ok(OPERATOR_IDLE_MS < 40 * 60 * 1000)
+  } finally {
+    if (before === undefined) delete process.env.AUSPEX_SHARED_STATE
+    else process.env.AUSPEX_SHARED_STATE = before
+  }
+})
+
+test("a saved login already gone from Solari stops being tracked (no profile list on every command)", async () => {
+  const { commitOperatorSession, noteOperatorUse, emptyOperatorState, writeOperatorState, readOperatorState, applyOperatorWipes } =
+    await import("../src/operator-session.ts")
+  const { mkdtempSync } = await import("node:fs")
+  const { tmpdir } = await import("node:os")
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-gone-"))
+  writeOperatorState(root, noteOperatorUse(emptyOperatorState(), { profile: "gone-app" }, 0))
+  let lists = 0
+  const applyWipes = (names: readonly string[]) =>
+    applyOperatorWipes(names, {
+      list: async () => {
+        lists += 1
+        return [{ id: "p1", name: "other-app" }]
+      },
+      deleteProfile: async () => assert.fail("nothing to delete"),
+    })
+  const first = await commitOperatorSession({ root, nowMs: 60 * 60 * 1000, applyWipes })
+  assert.deepEqual(first.wiped, [])
+  assert.equal(readOperatorState(root).profiles["gone-app"], undefined)
+  await commitOperatorSession({ root, nowMs: 2 * 60 * 60 * 1000, applyWipes })
+  assert.equal(lists, 1, "the second command has nothing to look up")
+})

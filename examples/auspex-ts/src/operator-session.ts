@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { homedir } from "node:os"
 import path from "node:path"
 import { stateDirFor } from "./paths.ts"
 
@@ -90,6 +91,8 @@ export type WipeFailure = {
 export type OperatorWipeReport = {
   wiped: string[]
   wipeFailed: WipeFailure[]
+  /** Names Solari no longer has (deleted elsewhere). Not wiped here, but nothing is left to track. */
+  absent?: string[]
 }
 
 export type OperatorWipeTarget = {
@@ -172,8 +175,52 @@ export function operatorStatePath(root: string): string {
   return path.join(stateDirFor(root), "operator-session.json")
 }
 
+/**
+ * The npm install's state file (`~/.auspex`), which a clone also records uses in. Solari saved logins
+ * are shared by every install, so the idle clock must be too: otherwise a login used a minute ago from
+ * a clone still reads as idle to the npm install, and its next command deletes it. Undefined when this
+ * install's own file is that one, and under tests unless AUSPEX_SHARED_STATE names a folder.
+ */
+export function sharedOperatorStatePath(
+  root: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): string | undefined {
+  const explicit = env.AUSPEX_SHARED_STATE?.trim()
+  const dir = explicit ? path.resolve(explicit) : env.NODE_TEST_CONTEXT ? undefined : path.join(home, ".auspex")
+  if (!dir) return undefined
+  const file = path.join(dir, "operator-session.json")
+  return path.resolve(file) === path.resolve(operatorStatePath(root)) ? undefined : file
+}
+
+/** One row per profile: the latest use wins (its site and keep), and a busy window from either side holds. */
+function mergeOperatorStates(a: OperatorState, b: OperatorState): OperatorState {
+  const profiles: OperatorState["profiles"] = { ...a.profiles }
+  for (const [name, row] of Object.entries(b.profiles)) {
+    const mine = profiles[name]
+    if (!mine) {
+      profiles[name] = row
+      continue
+    }
+    const latest = row.lastUsedMs > mine.lastUsedMs ? row : mine
+    const busyUntilMs = Math.max(mine.busyUntilMs ?? 0, row.busyUntilMs ?? 0)
+    profiles[name] = {
+      ...latest,
+      site: latest.site ?? mine.site ?? row.site,
+      ...(busyUntilMs > 0 ? { busyUntilMs } : {}),
+    }
+  }
+  return { profiles }
+}
+
+/** This install's saved-login clock, merged with the shared one (see sharedOperatorStatePath). */
 export function readOperatorState(root: string, nowMs: number = Date.now()): OperatorState {
-  const file = operatorStatePath(root)
+  const own = readOperatorStateFile(operatorStatePath(root), nowMs)
+  const shared = sharedOperatorStatePath(root)
+  return shared ? mergeOperatorStates(own, readOperatorStateFile(shared, nowMs)) : own
+}
+
+function readOperatorStateFile(file: string, nowMs: number): OperatorState {
   if (!existsSync(file)) return emptyOperatorState()
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as { profiles?: unknown }
@@ -204,8 +251,20 @@ export function readOperatorState(root: string, nowMs: number = Date.now()): Ope
   }
 }
 
+/** Writes this install's file and, from a clone, the shared one, so the other install sees these uses. */
 export function writeOperatorState(root: string, state: OperatorState): void {
-  const file = operatorStatePath(root)
+  writeOperatorStateFile(operatorStatePath(root), state)
+  const shared = sharedOperatorStatePath(root)
+  if (shared) {
+    try {
+      writeOperatorStateFile(shared, state)
+    } catch {
+      /* the shared clock is a courtesy to the other install; this install's own file is written */
+    }
+  }
+}
+
+function writeOperatorStateFile(file: string, state: OperatorState): void {
   mkdirSync(path.dirname(file), { recursive: true })
   const profiles: OperatorState["profiles"] = {}
   for (const [name, row] of Object.entries(state.profiles)) {
@@ -292,9 +351,13 @@ export async function applyOperatorWipes(
   const rows = await deps.list()
   const wiped: string[] = []
   const wipeFailed: WipeFailure[] = []
+  const absent: string[] = []
   for (const name of wanted) {
     const row = rows.find((item) => item.name.trim() === name)
-    if (!row) continue
+    if (!row) {
+      absent.push(name)
+      continue
+    }
     let stopError = ""
     if (deps.stopEditor) {
       try {
@@ -314,7 +377,7 @@ export async function applyOperatorWipes(
       })
     }
   }
-  return { wiped, wipeFailed }
+  return absent.length > 0 ? { wiped, wipeFailed, absent } : { wiped, wipeFailed }
 }
 
 function isWipeReport(report: readonly string[] | OperatorWipeReport): report is OperatorWipeReport {
@@ -326,6 +389,7 @@ function asWipeReport(report: readonly string[] | OperatorWipeReport): OperatorW
   return {
     wiped: [...report.wiped],
     wipeFailed: report.wipeFailed.map((row) => ({ name: row.name, error: row.error })),
+    ...(report.absent?.length ? { absent: [...report.absent] } : {}),
   }
 }
 
@@ -382,7 +446,9 @@ export async function commitOperatorSession(opts: {
     const report = asWipeReport(await opts.applyWipes(toWipe))
     wiped = report.wiped
     wipeFailed = report.wipeFailed
-    state = forgetOperatorProfiles(state, wiped)
+    // A login already gone from Solari is dropped too; kept, it would be "idle" on every command,
+    // each time costing a profile list.
+    state = forgetOperatorProfiles(state, [...wiped, ...(report.absent ?? [])])
   }
   writeOperatorState(opts.root, state)
   return { agent: decision.agent, wiped, wipeFailed }
