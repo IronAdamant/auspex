@@ -369,18 +369,31 @@ export function formatLogin(result: LoginResult): string {
   return `${JSON.stringify(result, null, 2)}\n`
 }
 
-export async function defaultProfileHttp(): Promise<ProfileHttp> {
+/** One login-handoff POST. Past this Solari is not answering; the mint fails instead of sitting on Node's 5-minute default. */
+export const LOGIN_HANDOFF_TIMEOUT_MS = 60_000
+
+export async function defaultProfileHttp(timeoutMs: number = LOGIN_HANDOFF_TIMEOUT_MS): Promise<ProfileHttp> {
   const key = requireApiKey()
   return {
     post: async (path, body) => {
-      const res = await fetch(`${BROWSER_API_BASE}${path}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body ?? {}),
-      })
+      let res: Response
+      try {
+        res = await fetch(`${BROWSER_API_BASE}${path}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body ?? {}),
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+      } catch (err) {
+        if ((err as { name?: string }).name !== "TimeoutError") throw err
+        throw new AuspexError(`Solari did not answer POST ${path.replace(/\/profiles\/[^/]+/, "/profiles/:id")} within ${Math.round(timeoutMs / 1000)} s.`, {
+          issue: { code: "SolariTimeout", retryable: true, solariBlame: "infra-5xx", recovery: "Wait a minute, then mint again once. This is Solari, not your sign-in." },
+          cause: err,
+        })
+      }
       const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
       if (!res.ok) {
         const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`

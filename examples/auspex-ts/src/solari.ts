@@ -79,6 +79,8 @@ export async function getSessionStatus(
 ): Promise<{ status?: string }> {
   const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${requireApiKey()}` },
+    // One status read. The caller's loop has its own deadline; a hung read must not outlive it.
+    signal: AbortSignal.timeout(5_000),
   })
   if (!res.ok) throw new Error(`session status ${res.status}`)
   return (await res.json()) as { status?: string }

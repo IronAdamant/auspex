@@ -465,3 +465,35 @@ test("agentReceiptOk succeeds with anonymousClaimSkipped when live matched and i
   })
   assert.equal(notOkWithoutSkip, false, "ok should be false when anonymous claim is not skipped and claimOk false")
 })
+
+test("a login-handoff POST that Solari never answers fails in bounded time with a named error", async () => {
+  const { defaultProfileHttp } = await import("../src/profiles.ts")
+  const { AuspexError } = await import("../src/errors.ts")
+  const realFetch = globalThis.fetch
+  const realKey = process.env.SOLARI_API_KEY
+  process.env.SOLARI_API_KEY = "slr_test_not_a_real_key"
+  // A server that accepts the request and never answers: only the abort ends it.
+  globalThis.fetch = ((_url: unknown, init?: RequestInit) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true })
+    })) as typeof fetch
+  // A real hung request holds a socket open; this stand-in holds nothing, and AbortSignal.timeout's
+  // timer does not keep Node alive on its own.
+  const keepAlive = setTimeout(() => undefined, 5_000)
+  try {
+    const http = await defaultProfileHttp(50)
+    const started = Date.now()
+    await assert.rejects(http.post("/profiles/p1/login-handoff", {}), (err: unknown) => {
+      assert.ok(err instanceof AuspexError)
+      assert.equal(err.issue.code, "SolariTimeout")
+      assert.match(err.message, /did not answer POST \/profiles\/:id\/login-handoff within/)
+      return true
+    })
+    assert.ok(Date.now() - started < 2_000)
+  } finally {
+    clearTimeout(keepAlive)
+    globalThis.fetch = realFetch
+    if (realKey === undefined) delete process.env.SOLARI_API_KEY
+    else process.env.SOLARI_API_KEY = realKey
+  }
+})

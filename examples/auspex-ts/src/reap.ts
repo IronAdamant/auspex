@@ -144,6 +144,8 @@ export async function defaultReapDeps(): Promise<ReapDeps> {
       const res = await fetch(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers,
+        // One hung release must not stall the whole reap (or the Ctrl-C release) for minutes.
+        signal: AbortSignal.timeout(15_000),
       })
       if (res.status === 404) throw new Error(`browser session refused (404 InvalidSessionId): ${id}`)
       if (!res.ok && res.status !== 204) throw new Error(`browser release ${res.status}`)
