@@ -2,9 +2,18 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## 0.1.30 — 2026-10-01
+
+npm `auspex-solari@0.1.30` (latest). Agents do not `npm publish`. Founder publishes this release.
+
+Docs only; no change to how a check works. The npm page's README now matches GitHub.
+
+- **The live-apps table has a confirmed Google sign-in.** Trello (Atlassian account, Sign in with Google) logged in first time on 2026-10-01, a second browser confirmed it, and a card made with one click was seen by both browsers on the board. Receipt-only, redacted like the other eight: [demo/trello-receipt.json](examples/auspex-ts/demo/trello-receipt.json). Canva stays not confirmed.
+- **The README says Auspex can confirm that an agent's change really happened,** citing the Trello card and the ConsistencyHub document that fresh browsers found. The CI bullet is shorter, and the 30 September rerun is dated to its release (0.1.24).
+
 ## 0.1.29 — 2026-10-01
 
-npm `auspex-solari@0.1.29` (latest). Agents do not `npm publish`. Founder publishes this release.
+npm `auspex-solari@0.1.29`. Agents do not `npm publish`. Founder publishes this release.
 
 Trello explored live (it logged in first time, and a card was made and confirmed by both browsers), Canva's sign-in window, and a research review of the public proof. The public receipt is now a live CI run's own output, cited by run. A check reads the labels of input buttons as page text; excerpts show what a click opened, even an unmarked window, and skip cookie banners; fill and sign-in-window messages say what happened. Each fix has a test.
 
