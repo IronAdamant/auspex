@@ -24,7 +24,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Watch, no install:** the video above, or https://ironadamant.com/auspex/ (a blurred logged-in page and its receipt).
 - **Run the tests, no API key:** clone the repo, then `npm install && npm test`.
 - **One live check (needs a Solari key, `SOLARI_API_KEY`):** `npx auspex-solari check --name ironadamant`. This is a public check with no login, so it does not prove the logged-in part.
-- **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
+- **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September, plus Trello's Google sign-in on 1 October), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
 - **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present**. Run [36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (1 October) checked ironadamant.com with the published 0.1.28 package: `ok: true`, and an anonymous fetch agreed (`claimOk: true`). The run page shows the result table, and its `auspex-public-evidence` artifact holds the receipt and screenshot, with Solari's session ids withheld. The same receipt is committed as [demo/ironadamant-receipt.json](examples/auspex-ts/demo/ironadamant-receipt.json). Every push also installs the packed package and runs it end to end.
@@ -39,7 +39,7 @@ Each receipt keeps three answers apart, so a "yes" is never stretched to mean mo
 
 ## Tested on live apps
 
-On 2026-09-28 a person signed in once per site on the login page, and an AI agent (Claude Code) did the rest. Real accounts; nothing was changed apart from a few menu clicks. The last row, Trello, was added on 2026-10-01.
+On 2026-09-28 a person signed in once per site on the login page, and an AI agent (Claude Code) did the rest. Real accounts; nothing was changed apart from a few menu clicks. The last row, Trello, was added on 2026-10-01; that run also made one test card.
 
 | Sign-in system | Kind of app | Login confirmed by a second browser? |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Eight of eight on 28 September, on a laptop and on a phone, and Trello on 1 Octo
 
 The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex reports that honestly. Trello is the confirmed Google sign-in: on 2026-10-01 it logged in first time, and the same saved login then made a card with one click that both browsers saw on the board. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
 
-On 2026-09-30, on the current release, ConsistencyHub and tldraw logged in end to end again, and the tldraw login then passed a repeat check, a four-page sweep, and the MCP tool ([RECEIPTS.md](RECEIPTS.md#rechecked-on-the-current-release-2026-09-30)).
+On 2026-09-30, on that day's release (0.1.24), ConsistencyHub and tldraw logged in end to end again, and the tldraw login then passed a repeat check, a four-page sweep, and the MCP tool ([RECEIPTS.md](RECEIPTS.md#rechecked-on-the-current-release-2026-09-30)).
 
 Worth knowing before pointing it at your own app: opening a logged-in page still runs the site as normal (a chat app showed the account as online), and some drawing apps finish drawing after the page looks ready.
 
