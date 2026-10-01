@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://trello.com/",
+  "expect": "Create new board",
+  "screenshotPath": "",
+  "title": "Trello — [redacted auth-gated boards page]",
+  "finalUrl": "https://trello.com/u/<user>/boards",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\n[REDACTED auth-gated Trello — account identity, board and workspace names, and activity omitted for public demo. Live expect matched: Create new board]\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "profileSeed": {
+    "cookies": 65,
+    "origins": 5
+  },
+  "demoNote": "Live test 2026-10-01 AEST, driven by Claude Code over the Auspex CLI (Atlassian account, Sign in with Google). Path: connect https://trello.com/ --expect \"Create new board\" → phone door → Google sign-in → Save → check --verify-with-profile. Logged in first time; claimOkProfile true from a second fresh Solari browser seeded only with the saved login (published 0.1.28 code). The same saved login then made a card with one click (trello.com/add-card, \"Send to Today\"), and a check of the board with expect \"Auspex test card\" had claimOkProfile true as well. sessionId/sandbox/runDir/cookieHosts omitted; account and board IDs masked. Receipt-only — no PNG (PII). Evidence, not the default recipe.",
+  "verify": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "claimOkProfile": true,
+    "claimErrorsProfile": []
+  },
+  "networkIdle": true
+}

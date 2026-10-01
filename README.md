@@ -39,7 +39,7 @@ Each receipt keeps three answers apart, so a "yes" is never stretched to mean mo
 
 ## Tested on live apps
 
-On 2026-09-28 a person signed in once per site on the login page, and an AI agent (Claude Code) did the rest. Real accounts; nothing was changed apart from a few menu clicks.
+On 2026-09-28 a person signed in once per site on the login page, and an AI agent (Claude Code) did the rest. Real accounts; nothing was changed apart from a few menu clicks. The last row, Trello, was added on 2026-10-01.
 
 | Sign-in system | Kind of app | Login confirmed by a second browser? |
 | --- | --- | --- |
@@ -51,10 +51,11 @@ On 2026-09-28 a person signed in once per site on the login page, and an AI agen
 | MySQL | Database console | Yes |
 | MongoDB (Parse) | App-backend dashboard | Yes |
 | Microsoft sign-in | ConsistencyHub (our own app) | Yes, after one extra step |
+| Google sign-in (Atlassian account) | Task boards: Trello, 2026-10-01 ([receipt](examples/auspex-ts/demo/trello-receipt.json)) | Yes, first time |
 
-Eight of eight, on a laptop and on a phone. When a login was not really saved, Auspex said so instead of guessing.
+Eight of eight on 28 September, on a laptop and on a phone, and Trello on 1 October. When a login was not really saved, Auspex said so instead of guessing.
 
-The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex reports that honestly. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
+The next day (2026-09-29) the same apps plus Canva (Google sign-in) ran again with the one-command version: eight of nine confirmed. Canva is not confirmed because it shows every cloud browser an "are you a robot?" check, and Auspex reports that honestly. Trello is the confirmed Google sign-in: on 2026-10-01 it logged in first time, and the same saved login then made a card with one click that both browsers saw on the board. Every attempt: [RECEIPTS.md](RECEIPTS.md#one-command-run-with-connect-2026-09-29).
 
 On 2026-09-30, on the current release, ConsistencyHub and tldraw logged in end to end again, and the tldraw login then passed a repeat check, a four-page sweep, and the MCP tool ([RECEIPTS.md](RECEIPTS.md#rechecked-on-the-current-release-2026-09-30)).
 

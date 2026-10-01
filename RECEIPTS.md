@@ -56,7 +56,7 @@ The artifact table is **Truth A** only. It does not mean Save always yields a re
 
 `sign-in-wall` is still on the Microsoft or Google page. Finish that sign-in, land on the app, then Save. That one mints again. If the jar already includes the app host and Save could not refresh in-tab session storage, finalize now. That case is not Truth B.
 
-The first two rows are the Microsoft pair from 2026-09-18. The next eight are the 2026-09-28 live test, receipt-only, with no screenshot. They are evidence, not the default recipe.
+The first two rows are the Microsoft pair from 2026-09-18. The next eight are the 2026-09-28 live test, receipt-only, with no screenshot. Trello (Google sign-in) is from 2026-10-01, also receipt-only. They are evidence, not the default recipe.
 
 | Host | Artifact | Triad |
 | --- | --- | --- |
@@ -70,6 +70,7 @@ The first two rows are the Microsoft pair from 2026-09-18. The next eight are th
 | MariaDB Cloud (MySQL) | [receipt-only](examples/auspex-ts/demo/mariadb-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | Back4App (MongoDB / Parse) | [receipt-only](examples/auspex-ts/demo/back4app-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | ConsistencyHub (Microsoft MSAL, 2026-09-28) | [receipt-only](examples/auspex-ts/demo/consistencyhub-msal-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** after finalize-login |
+| Trello (Google sign-in, 2026-10-01) | [receipt-only](examples/auspex-ts/demo/trello-receipt.json) — **no PNG** | `ok=true`, `claimOk=false` (anonymous skipped), **`claimOkProfile=true`** |
 | hostChanged remint | [golden](examples/auspex-ts/demo/host-changed-receipt.json) — synthetic hosts | `ok=false`, `reason=hostChanged`, `nextCall` remints `auspex_login` |
 
 Pack manifest: [`examples/auspex-ts/demo/dogfood-pack.json`](examples/auspex-ts/demo/dogfood-pack.json). Optional silent mint sample (redacted, no tokens): [`login-trace-sample.jsonl`](examples/auspex-ts/demo/login-trace-sample.jsonl).
