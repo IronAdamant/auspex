@@ -112,6 +112,13 @@
     return { mapped: mapped, resizeGated: gateResizeSession(rfb) }
   }
 
+  /* noVNC always asks for continuous updates; it turns them on only when the
+     server answers. "push": Solari sends each frame as the screen changes.
+     "request": every frame waits a full round trip for noVNC to ask again. */
+  function streamUpdateMode(rfb) {
+    return rfb && rfb._enabledContinuousUpdates ? "push" : "request"
+  }
+
   function planImeSteps(prev, next) {
     var from = String(prev == null ? "" : prev)
     var to = String(next == null ? "" : next)
@@ -267,6 +274,7 @@
     framebufferPoint: framebufferPoint,
     planImeSteps: planImeSteps,
     applyDoorView: applyDoorView,
+    streamUpdateMode: streamUpdateMode,
     createImeCoalescer: createImeCoalescer,
   }
 })(typeof window !== "undefined" ? window : globalThis)

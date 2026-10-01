@@ -35,6 +35,7 @@ function loadDoorStream() {
     framebufferPoint: (local: number, rendered: number, bitmap: number) => number
     planImeSteps: (prev: string, next: string) => Array<{ keysym: number; code: string; remote: string }>
     applyDoorView: (rfb: Record<string, unknown>) => { mapped: boolean; resizeGated: boolean }
+    streamUpdateMode: (rfb: Record<string, unknown> | null) => string
     createImeCoalescer: (opts: {
       send: (keysym: number, code: string) => boolean
       schedule: (fn: () => void, ms: number) => number
@@ -307,4 +308,22 @@ test("IME coalescer folds a burst, paces keys, and still commits on Enter and Cl
   assert.match(phone, /touch-action: manipulation/)
   assert.match(phone, /stays still while you tap/)
   assert.match(phone, /Tap a field in Solari's Chrome, then type here/)
+})
+
+test("the door names whether Solari pushes frames or noVNC asks for each one", () => {
+  const Door = loadDoorStream()
+  assert.equal(Door.streamUpdateMode({ _enabledContinuousUpdates: true }), "push")
+  assert.equal(Door.streamUpdateMode({ _enabledContinuousUpdates: false }), "request")
+  assert.equal(Door.streamUpdateMode(null), "request")
+
+  // The bundled noVNC asks for continuous updates and enables them when the server answers.
+  const novnc = readFileSync(path.join(repo, "docs", "novnc-rfb.js"), "utf8")
+  assert.match(novnc, /t\.push\(\$\.encodings\.pseudoEncodingContinuousUpdates\)/)
+  assert.match(novnc, /_enabledContinuousUpdates=!0/)
+
+  const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
+  assert.match(page, /streamUpdateMode\(rfb\)/)
+  assert.match(page, /data-stream-updates/)
+  assert.match(page, /Frames: server push\./)
+  assert.match(page, /Frames: on request\./)
 })

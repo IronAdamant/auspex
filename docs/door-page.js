@@ -478,7 +478,10 @@
           clearInterval(bootTimer)
           bootTimer = null
           setBoot("Ready", true)
-          setStatus("Connected.")
+          var updates = typeof Door.streamUpdateMode === "function" ? Door.streamUpdateMode(rfb) : "request"
+          screen.setAttribute("data-stream-updates", updates)
+          if (window.console && console.info) console.info("Auspex door stream updates: " + updates)
+          setStatus(updates === "push" ? "Connected. Frames: server push." : "Connected. Frames: on request.")
           if (ime) ime.focus()
         } else if (tries === 16) {
           setBoot("Still opening Solari's remote Chrome…")

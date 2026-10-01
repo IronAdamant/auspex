@@ -2,6 +2,10 @@
 
 The npm package is `auspex-solari`. **Do not npm publish from an agent.** Founder publishes.
 
+## Unreleased
+
+- **The door says whether Solari pushes frames.** The bundled noVNC already asks for continuous updates (each frame sent as the screen changes, not one per round trip) and turns them on only if the server agrees. On "Ready" the status line reads "Frames: server push." or "Frames: on request."; the screen element carries `data-stream-updates` and the console logs it. No change to the stream itself; this tells us whether the lag far from Solari's us-west browsers is a server setting to ask Solari about.
+
 ## 0.1.30 — 2026-10-01
 
 npm `auspex-solari@0.1.30` (latest). Agents do not `npm publish`. Founder publishes this release.
