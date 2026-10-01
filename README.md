@@ -16,6 +16,7 @@ AI agents can say "the dashboard loaded" when the page is really still a login s
 2. **Looks for the exact words you expect** on the page, and keeps a screenshot and a record of what it found (a "receipt").
 3. **Checks a second time, independently**, so one lucky look is not enough. A public page is checked again with a plain fetch and no login. A logged-in page is checked again with a second browser only when you ask (`--verify-with-profile`); `connect` always does.
 4. **For sites that need a login, you sign in once yourself**, on a simple web page that works on your phone or computer. The AI never sees your password. A fresh browser then proves the saved login really works before Auspex calls it reusable.
+5. **It can also confirm that an agent's change really happened.** After an agent made a Trello card, a fresh browser using only the saved login found it on the board; after it wrote a ConsistencyHub document, a fresh browser reopened it and saw the text. The click is not the proof; the second look is.
 
 Auspex never types passwords and never records a logged-in session. It does not claim to spot the wrong account (Alice-vs-Bob): a saved login can belong to the wrong person and still show the words you asked for.
 
@@ -27,7 +28,7 @@ Auspex never types passwords and never records a logged-in session. It does not 
 - **Logged-in evidence:** the live test of real apps [below](#tested-on-live-apps) (28 September, plus Trello's Google sign-in on 1 October), with its receipt-only files in [RECEIPTS.md](RECEIPTS.md#other-sign-in-receipts-receipt-only), and the one-command run the next day. The blurred ConsistencyHub still and its [receipt](examples/auspex-ts/demo/consistencyhub-receipt.json) are from 19 September.
 - **Your own site:** `npx auspex-solari connect https://your.app --expect "Words only shown when logged in"` (or step by step with `login --url https://your.app`).
 - **From your AI assistant (MCP):** `npx -p auspex-solari auspex-mcp`, setup [below](#mcp).
-- **CI:** Issues are on. The weekly live job skips if the key is unset; repo secret `SOLARI_API_KEY` is **present**. Run [36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) (1 October) checked ironadamant.com with the published 0.1.28 package: `ok: true`, and an anonymous fetch agreed (`claimOk: true`). The run page shows the result table, and its `auspex-public-evidence` artifact holds the receipt and screenshot, with Solari's session ids withheld. The same receipt is committed as [demo/ironadamant-receipt.json](examples/auspex-ts/demo/ironadamant-receipt.json). Every push also installs the packed package and runs it end to end.
+- **CI:** Issues are on. The weekly live job skips without a key; repo secret `SOLARI_API_KEY` is **present**. Run [36789267135](https://github.com/IronAdamant/auspex/actions/runs/36789267135) checked ironadamant.com with the published package: `ok` and `claimOk` true. The run page shows the table, and the receipt is committed as [demo/ironadamant-receipt.json](examples/auspex-ts/demo/ironadamant-receipt.json). Every push also installs the packed package and runs it end to end.
 
 ## Three answers on every receipt
 
