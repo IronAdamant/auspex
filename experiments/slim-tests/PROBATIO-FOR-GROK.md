@@ -28,6 +28,34 @@ test.
 8. **CLI and MCP are the same contract.** Every MCP tool is a CLI command; every flag is a JSON
    field. Build the CLI first; the MCP server is a thin wrapper.
 
+## Memory for agents (required in v0: it shapes the state format)
+
+Agents have small context and no memory between sessions; sub-agents never saw earlier work. So
+Probatio remembers for them. These notes are **state the tool keeps and checks**, never prose an
+agent must remember to write.
+
+1. **Ledger = memory of fixed bugs.** Each entry: the bug (as a mutant), fix commit, date, who fixed
+   it (agent or human), and the guard (test or golden row) that now catches it. Seeing a ledger bug
+   again is reported as a regression ("fixed in abc123, guarded by connect.test.ts:118; the guard
+   broke"), never as a new gap.
+2. **Findings log = memory of decisions.** Append-only JSONL with stable ids and a status: `open`,
+   `fixed`, `equivalent`, `wont-fix`. Every status needs a reason. An equivalent mutant is decided
+   once, not re-investigated by every agent.
+3. **Notes expire on their own.** Each decision is pinned to `file:line` plus a hash of that code.
+   When the code changes, the decision becomes `stale` and returns for review.
+4. **Guards are protected.** A test or golden row that is the only guard of a ledger bug is marked.
+   Deleting it, weakening it, or re-recording its contract fails the change unless the commit says
+   `Guard-Change: <guard>: <why>`. This is what stops a sub-agent overwriting a fix by accident.
+5. **One page to read first.** `PROBATIO.md` at the repo root, regenerated on every run, never
+   hand-edited: open gaps (top 10), recent fixes and their guards, protected guards, decisions to
+   respect. `probatio status` returns the same as JSON. Agents read this before anything else.
+6. **Every result names its author** (agent id, run id, commit), so a swarm's work can be traced and
+   a bad run reverted.
+
+Acceptance: fix a gap, rerun, and the gap shows as `fixed` with its guard; revert the fix and the
+same id comes back as a regression naming the original commit; edit the guarded line and the
+decision goes `stale`; delete the guard and the change is refused without a `Guard-Change:` line.
+
 ## Swarm protocol (several agents, one repo)
 
 - Work items are files: `.probatio/queue/<mutant-id>.json`. An agent claims one by atomic rename to
