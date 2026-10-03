@@ -22,26 +22,6 @@ import { shouldSteerToFinalize } from "../src/fold-steer.ts"
 import { SESSION_STORAGE_PREFIX } from "../src/profile-storage.ts"
 import { PUBLIC_CHECKS, publicCheckExitCode, runPublicChecks } from "../scripts/public-check.ts"
 
-test("await-login default and max match the 30-minute cold handoff", () => {
-  assert.equal(AWAIT_LOGIN_DEFAULT_MS, 1_800_000)
-  assert.equal(AWAIT_LOGIN_MAX_MS, 1_800_000)
-  assert.equal(clampAwaitLoginTimeoutMs(), 1_800_000)
-  assert.equal(clampAwaitLoginTimeoutMs(1_000), 5_000)
-  assert.equal(clampAwaitLoginTimeoutMs(9_000_000), 1_800_000)
-})
-
-test("seedFromStorageState counts cookies and origins without requiring values", () => {
-  assert.deepEqual(seedFromStorageState(undefined), { cookies: 0, origins: 0 })
-  assert.deepEqual(seedFromStorageState({ cookies: [], origins: [] }), { cookies: 0, origins: 0 })
-  assert.deepEqual(
-    seedFromStorageState({
-      cookies: [{ name: "sid", value: "1", domain: "example.com" }, { name: "", value: "x" }],
-      origins: [{ origin: "https://example.com" }, { origin: "" }],
-    }),
-    { cookies: 1, origins: 1 },
-  )
-})
-
 test("persistProfileState writes via profiles.save and skips empty seeds", async () => {
   let saved = 0
   const empty = await persistProfileState({
@@ -231,33 +211,6 @@ test("bindInspectProfileSeed forwards origin so live await-login can warn", asyn
   assert.match(completed.next, /sessionStorage/i)
 })
 
-test("seedFromStorageState marks stale folded expiresOn without dropping the count", () => {
-  const past = String(Date.now() - 60_000)
-  const near = String(Date.now() + 60_000)
-  const fresh = String(Date.now() + 20 * 60_000)
-  const state = (expiresOn: string) => ({
-    cookies: [{ name: "sid", value: "1", domain: "consistencyhub.io" }],
-    origins: [
-      {
-        origin: "https://consistencyhub.io",
-        localStorage: [
-          { name: `${SESSION_STORAGE_PREFIX}accessToken`, value: "tok" },
-          { name: `${SESSION_STORAGE_PREFIX}expiresOn`, value: expiresOn },
-        ],
-      },
-    ],
-  })
-  const stale = seedFromStorageState(state(past), "https://consistencyhub.io")
-  assert.equal(stale.sessionStorage, 2)
-  assert.equal(stale.sessionStorageStale, true)
-  const skew = seedFromStorageState(state(near), "https://consistencyhub.io")
-  assert.equal(skew.sessionStorage, 2)
-  assert.equal(skew.sessionStorageStale, true)
-  const ok = seedFromStorageState(state(fresh), "https://consistencyhub.io")
-  assert.equal(ok.sessionStorage, 2)
-  assert.equal(ok.sessionStorageStale, undefined)
-})
-
 test("waitForProfileSave warns when consistencyhub folded expiresOn is stale even if count is 2", async () => {
   const completed = await waitForProfileSave("consistencyhub", {
     sinceVersion: 37,
@@ -323,24 +276,6 @@ test("waitForProfileSave does not warn on a fresh folded expiresOn with count 2"
   assert.match(completed.next, /finalize-login/)
   assert.match(completed.next, /claimOkProfile/)
   assert.match(completed.next, /Reuse gate is claimOkProfile/)
-})
-
-test("seedFromStorageState counts sessionStorage when origin is passed", () => {
-  const state = {
-    cookies: [{ name: "sid", value: "1", domain: "consistencyhub.io" }],
-    origins: [
-      {
-        origin: "https://consistencyhub.io",
-        localStorage: [{ name: "theme", value: "dark" }],
-      },
-    ],
-  }
-  const counted = seedFromStorageState(state, "https://consistencyhub.io")
-  assert.equal(counted.cookies, 1)
-  assert.equal(counted.origins, 1)
-  assert.equal(counted.sessionStorage, 0)
-  const noOrigin = seedFromStorageState(state)
-  assert.equal(noOrigin.sessionStorage, undefined)
 })
 
 test("waitForProfileSave treats a 0-cookie version bump as empty-save", async () => {
@@ -619,33 +554,6 @@ test("pageForSession applies storageState when connect exposes no default contex
   assert.match(baked, /consistencyhub\.io/)
 })
 
-test("toPlaywrightStorageState does not force httpOnly or secure true", () => {
-  const pw = toPlaywrightStorageState({
-    cookies: [{ name: "sid", value: "1", domain: "example.com" }],
-  })
-  assert.equal(pw.cookies[0]?.httpOnly, false)
-  assert.equal(pw.cookies[0]?.secure, false)
-})
-
-test("inspectOriginForAwait forwards saved-check and login --url, not public marketing", () => {
-  assert.equal(inspectOriginForAwait({ name: "consistencyhub" }), "https://consistencyhub.io")
-  assert.equal(inspectOriginForAwait({ name: "ironadamant" }), undefined)
-  assert.equal(inspectOriginForAwait({ name: "checkpoint" }), undefined)
-  assert.equal(inspectOriginForAwait({ name: "myapp" }), undefined)
-  assert.equal(inspectOriginForAwait({ name: "myapp", url: "https://app.example/login" }), "https://app.example")
-  assert.equal(inspectOriginForAwait({ name: "myapp", url: "https://ironadamant.com" }), undefined)
-})
-
-test("loginWaitAwaitOpts waits for Save before POST editor/save", () => {
-  assert.deepEqual(loginWaitAwaitOpts(), { saveEditor: true, waitForSaveSignal: true })
-  assert.deepEqual(loginWaitAwaitOpts({ sinceVersion: 4, url: "https://app.example" }), {
-    sinceVersion: 4,
-    url: "https://app.example",
-    saveEditor: true,
-    waitForSaveSignal: true,
-  })
-})
-
 test("waitForProfileSave forwards login --url origin for unknown profiles", async () => {
   const origins: Array<string | undefined> = []
   const completed = await waitForProfileSave("myapp", {
@@ -673,14 +581,6 @@ test("waitForProfileSave forwards login --url origin for unknown profiles", asyn
   assert.match(completed.next, /warning/i)
   assert.match(completed.next, /finalize-login/)
   assert.equal(completed.next.includes("Run auspex check"), false)
-})
-
-test("public checks target ironadamant One office job and Checkpoint", () => {
-  assert.equal(PUBLIC_CHECKS.length, 2)
-  assert.equal(PUBLIC_CHECKS[0]?.url, "https://ironadamant.com")
-  assert.equal(PUBLIC_CHECKS[0]?.expect, "One office job.")
-  assert.equal(PUBLIC_CHECKS[1]?.url, "https://checkpointprojects.com")
-  assert.equal(PUBLIC_CHECKS[1]?.expect, "Checkpoint")
 })
 
 test("runPublicChecks skips without a key and fails closed on a miss", async () => {

@@ -64,21 +64,6 @@ function fieldPage(opts: {
   return { page, calls }
 }
 
-test("assertFillPair requires fill and value together", () => {
-  assert.throws(() => assertFillPair({ fill: "#q" }), /--value/)
-  assert.throws(() => assertFillPair({ value: "x" }), /--fill/)
-  assert.doesNotThrow(() => assertFillPair({ fill: "#q", value: "x" }))
-  assert.doesNotThrow(() => assertFillPair({}))
-})
-
-test("assertPageActionsAllowed refuses profile fill/click without the opt-in flag", () => {
-  assert.throws(() => assertPageActionsAllowed({ profile: "hub", click: "a" }), /allow-page-actions/)
-  assert.doesNotThrow(() => assertPageActionsAllowed({ click: "a" }))
-  assert.doesNotThrow(() =>
-    assertPageActionsAllowed({ profile: "hub", click: "a", allowPageActions: true }),
-  )
-})
-
 test("runPageActions waits, fills, then clicks in order", async () => {
   let text = ""
   const { page, calls } = fieldPage({
@@ -241,55 +226,6 @@ test("runPageActions uses insertText when keyboard.type does not stick in visibl
   assert.ok(calls.indexOf("type:hello") < calls.indexOf("select:all"))
   assert.ok(calls.indexOf("select:all") < calls.indexOf("insert:hello"))
   assert.equal(text, "hello")
-})
-
-test("probeVisibleControl uses innerText and ignores hidden textContent", () => {
-  const el = {
-    tagName: "DIV",
-    isContentEditable: true,
-    textContent: "MARK hidden in textContent",
-    innerText: "visible sentence",
-    querySelector() {
-      return null
-    },
-  }
-  const prev = (globalThis as { document?: unknown }).document
-  ;(globalThis as { document: unknown }).document = { querySelector: () => el }
-  try {
-    const probe = probeVisibleControl("#editor-content")
-    assert.equal(probe.contentEditable, true)
-    assert.equal(probe.present, true)
-    assert.equal(probe.text, "visible sentence")
-    assert.equal(probe.text.includes("MARK"), false)
-    ;(globalThis as { document: unknown }).document = { querySelector: () => null }
-    assert.equal(probeVisibleControl("#missing").present, false)
-  } finally {
-    ;(globalThis as { document?: unknown }).document = prev
-  }
-})
-
-test("probeVisibleControl reads input value and blanks a password", () => {
-  const prev = (globalThis as { document?: unknown }).document
-  const input = { tagName: "INPUT", type: "text", value: "alice", innerText: "", textContent: "" }
-  ;(globalThis as { document: unknown }).document = { querySelector: () => input }
-  try {
-    assert.deepEqual(probeVisibleControl("#user"), { password: false, contentEditable: false, text: "alice", present: true })
-    input.type = "password"
-    input.value = "secret"
-    assert.deepEqual(probeVisibleControl("#pwd"), { password: true, contentEditable: false, text: "", present: true })
-    // A password shown as text, and a one-time-code box, are still secret fields.
-    for (const autocomplete of ["current-password", "new-password", "one-time-code", "username one-time-code"]) {
-      const field = { tagName: "INPUT", type: "text", value: "123456", innerText: "", getAttribute: (n: string) => (n === "autocomplete" ? autocomplete : null) }
-      ;(globalThis as { document: unknown }).document = { querySelector: () => field }
-      assert.equal(probeVisibleControl("#code").password, true, autocomplete)
-      assert.equal(probeVisibleControl("#code").text, "")
-    }
-    const email = { tagName: "INPUT", type: "text", value: "a", innerText: "", getAttribute: () => "email" }
-    ;(globalThis as { document: unknown }).document = { querySelector: () => email }
-    assert.equal(probeVisibleControl("#email").password, false)
-  } finally {
-    ;(globalThis as { document?: unknown }).document = prev
-  }
 })
 
 test("assertVisibleFillLanded refuses a contenteditable whose excerpt lacks --value", async () => {

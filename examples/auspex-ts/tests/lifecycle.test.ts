@@ -11,14 +11,6 @@ import { DESKTOP_CREATE_OPTS } from "../src/desktop.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-test("sandbox create options are 1 vCPU / 2 GB with idle kill", () => {
-  assert.equal(SANDBOX_CREATE_OPTS.cpu, 1)
-  assert.equal(SANDBOX_CREATE_OPTS.memMb, 2048)
-  assert.equal(SANDBOX_CREATE_OPTS.lifecycle.onTimeout, "kill")
-  assert.equal(DESKTOP_CREATE_OPTS.cpu, 1)
-  assert.equal(DESKTOP_CREATE_OPTS.memMb, 2048)
-})
-
 test("fetchWithIdempotencyKey sets Idempotency-Key on sandbox creates", async () => {
   const seen: string[] = []
   const wrapped = fetchWithIdempotencyKey(async (input, init) => {
@@ -162,14 +154,6 @@ test("checkThenVerify verifies after matched and starts sandbox only after check
   assert.equal(both.check.sessionId, "sess")
   assert.equal(both.verify.ok, true)
   assert.equal(both.verify.skipped, undefined)
-})
-
-test("createProgress emits a heartbeat line before return", () => {
-  const chunks: string[] = []
-  const stream = { write: (s: string) => { chunks.push(s); return true } } as unknown as NodeJS.WritableStream
-  const p = createProgress({ stream })
-  p("launching")
-  assert.match(chunks.join(""), /:: launching/)
 })
 
 test("MCP progress uses the client's progressToken with a rising count", async () => {

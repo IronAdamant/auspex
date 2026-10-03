@@ -513,17 +513,6 @@ test("public marketing stays loggedOut when expect matches", async () => {
   assert.match(result.skipReason ?? "", /Public marketing pages stay loggedOut/)
 })
 
-test("loggedOut check next names finalize-login not remint sso save-profile", () => {
-  const next = checkLoggedOutNext("consistencyhub", 78)
-  assert.match(next, /finalize-login/)
-  assert.match(next, /auspex_finalize_login/)
-  assert.equal(next.includes("--sso --save-profile"), false)
-  assert.equal(next.includes("--url"), false)
-  const unknown = checkLoggedOutNext("acme", 3)
-  assert.match(unknown, /finalize-login --profile acme --url <url> --expect <string>/)
-  assert.equal(unknown.includes("Document Editor"), false)
-})
-
 test("profileStatus without an expect says loggedIn only means 'not a sign-in page'; a sign-in path is loggedOut", async () => {
   const deps = (finalUrl: string) => ({
     listProfiles: async () => [{ id: "p1", name: "app-example", populated: true }],

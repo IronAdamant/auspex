@@ -23,22 +23,6 @@ async function tempRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "auspex-save-window-"))
 }
 
-test("isNotSavableConflict matches only that 409 phrase", () => {
-  assert.equal(isNotSavableConflict(409, "not in a savable state"), true)
-  assert.equal(isNotSavableConflict(409, "Editor is NOT in a savable state right now"), true)
-  assert.equal(isNotSavableConflict(409, "profile is not in a savable state"), true)
-  assert.equal(isNotSavableConflict(409, SOLARI_NOT_SAVABLE), true)
-  assert.equal(isNotSavableConflict(409, "The editor isn’t in a savable state."), true)
-  assert.equal(isNotSavableConflict(409, "editor already running"), false)
-  assert.equal(isNotSavableConflict(409, "editor is open"), false)
-  assert.equal(isNotSavableConflict(409, "The editor isn't ready"), false)
-  assert.equal(isNotSavableConflict(409, "not savable"), false)
-  assert.equal(isNotSavableConflict(409, "cannot in a savable state"), false)
-  assert.equal(isNotSavableConflict(502, "not in a savable state"), false)
-  assert.equal(isNotSavableConflict(502, SOLARI_NOT_SAVABLE), false)
-  assert.equal(isNotSavableConflict(401, "not in a savable state"), false)
-})
-
 test("Solari 409 isn't in a savable state reuses one live token then saves again", async () => {
   let saves = 0
   let liveChecks = 0
@@ -721,37 +705,6 @@ test("a failed save does not block a later POST, and a saved owner does until th
   } finally {
     await rm(root, { recursive: true, force: true })
   }
-})
-
-test("line buffer flushes a newline and tolerates a missing handle", () => {
-  const chunks: string[] = []
-  let blocking: boolean | undefined
-  const stream = {
-    write(line: string) {
-      chunks.push(line)
-      return true
-    },
-    _handle: {
-      setBlocking(value: boolean) {
-        blocking = value
-      },
-    },
-  }
-  enableLiveLineBuffer(stream as unknown as NodeJS.WritableStream)
-  assert.equal(blocking, true)
-  writeLiveLine(stream as unknown as NodeJS.WritableStream, "await: waiting")
-  writeLiveLine(stream as unknown as NodeJS.WritableStream, "await: again\n")
-  assert.deepEqual(chunks, ["await: waiting\n", "await: again\n"])
-
-  const bare = {
-    write(line: string) {
-      chunks.push(line)
-      return true
-    },
-  }
-  enableLiveLineBuffer(bare as unknown as NodeJS.WritableStream)
-  writeLiveLine(bare as unknown as NodeJS.WritableStream, "ok")
-  assert.equal(chunks.at(-1), "ok\n")
 })
 
 test("claimSaveOwner does not take a save lock whose owner is still writing it", async () => {

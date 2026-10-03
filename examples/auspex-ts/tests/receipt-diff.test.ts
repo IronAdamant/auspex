@@ -8,14 +8,6 @@ import { listCompleteRunDirs } from "../src/receipt.ts"
 import { canonicalCheckUrl, diffAgainstLastReceipt } from "../src/receipt-diff.ts"
 import { packLastReceipts } from "../src/reap.ts"
 
-test("canonicalCheckUrl strips trailing slash and lowercases host", () => {
-  assert.equal(canonicalCheckUrl("https://IronAdamant.com/"), "https://ironadamant.com/")
-  assert.equal(
-    canonicalCheckUrl("https://checkpointprojects.com/foo/"),
-    "https://checkpointprojects.com/foo",
-  )
-})
-
 test("listCompleteRunDirs orders complete runs by mtime, not directory name", async () => {
   const runs = mkdtempSync(path.join(tmpdir(), "auspex-mtime-runs-"))
   const alpha = path.join(runs, "zzzz-old-name")

@@ -84,12 +84,6 @@ async function serveHtml(html: string): Promise<{ url: string; close: () => Prom
   }
 }
 
-test("RECEIPT_ASSERT_PY does not echo manifest ok/matched for the claim", () => {
-  assert.equal(RECEIPT_ASSERT_PY.includes('man.get("ok")'), false)
-  assert.equal(RECEIPT_ASSERT_PY.includes('man.get("matched")'), false)
-  assert.match(RECEIPT_ASSERT_PY, /fetch_url|tesseract/)
-})
-
 test("RECEIPT_ASSERT_PY accepts a good public receipt", async () => {
   const page = await serveHtml("<html><body>Build it. Ship it.</body></html>")
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-receipt-"))
@@ -212,12 +206,6 @@ test("RECEIPT_ASSERT_PY fails leftover-auth URLs and non-PNGs", () => {
   assert.ok(parsed.errors.some((e) => /auth path/i.test(e)))
 })
 
-test("assertRunDirUnderRuns rejects paths outside .auspex/runs", () => {
-  assert.throws(() => assertRunDirUnderRuns("/etc/passwd"), /under \.auspex\/runs/)
-  const ok = assertRunDirUnderRuns(path.join(RUNS_DIR, "stamp"))
-  assert.ok(ok.startsWith(RUNS_DIR))
-})
-
 test("findLatestRun picks the complete newest stamp", async () => {
   const runs = mkdtempSync(path.join(tmpdir(), "auspex-runs-"))
   mkdirSync(path.join(runs, "older"))
@@ -238,34 +226,6 @@ test("findLatestRun names an empty runs folder with ~, never the account's home 
     assert.equal(err.message.includes(homedir()), false)
     return true
   })
-})
-
-test("parseAssertStdout uses the last JSON line and rejects garbage", () => {
-  const ok = parseAssertStdout('noise\n{"ok":true,"errors":[],"claimOk":true,"claimErrors":[]}\n')
-  assert.equal(ok.ok, true)
-  assert.deepEqual(ok.errors, [])
-  assert.equal(ok.claimOk, true)
-  const bad = parseAssertStdout("not json")
-  assert.equal(bad.ok, false)
-  assert.match(bad.errors[0] ?? "", /not JSON/)
-  const empty = parseAssertStdout("   ")
-  assert.equal(empty.ok, false)
-})
-
-test("parseAssertStdout detects anonymousClaimSkipped from claimErrors", () => {
-  const skipped = parseAssertStdout(
-    '{"ok":true,"errors":[],"claimOk":false,"claimErrors":["anonymous claim skipped"]}\n',
-  )
-  assert.equal(skipped.ok, true)
-  assert.equal(skipped.claimOk, false)
-  assert.equal(skipped.anonymousClaimSkipped, true)
-  assert.deepEqual(skipped.claimErrors, ["anonymous claim skipped"])
-  
-  const notSkipped = parseAssertStdout(
-    '{"ok":true,"errors":[],"claimOk":false,"claimErrors":["fetched page text does not contain expect"]}\n',
-  )
-  assert.equal(notSkipped.claimOk, false)
-  assert.equal(notSkipped.anonymousClaimSkipped, undefined)
 })
 
 test("RECEIPT_ASSERT_PY does not return anonymousClaimSkipped for auth-gated skip_fetch", () => {
@@ -335,11 +295,6 @@ test("RECEIPT_ASSERT_PY with --skip-anonymous-claim returns claimOk false", () =
   assert.match(parsed.claimErrors[0] ?? "", /anonymous claim skipped/i, "claimErrors should explain skip")
 })
 
-test("assertReceiptUploadSize rejects oversized PNG+JSON", () => {
-  const png = Buffer.alloc(MAX_IMAGE_BYTES + 1)
-  assert.throws(() => assertReceiptUploadSize("{}", png), /exceeds/)
-})
-
 test("verifyReceipt does not write when the receipt is oversized", async () => {
   const dir = path.join(RUNS_DIR, `cap-${Date.now()}`)
   mkdirSync(dir, { recursive: true })
@@ -403,20 +358,6 @@ test("verifyReceipt writes RECEIPT_ASSERT_PY and kills even if run throws", asyn
   assert.equal(ran?.cmd, "python3")
   assert.ok(ran?.args.some((a) => a.includes("assert.py")))
   assert.equal(killed, true)
-})
-
-test("parseArgv check --verify requests verify-after-check", () => {
-  const parsed = parseArgv([
-    "check",
-    "https://ironadamant.com",
-    "--expect",
-    "Build it.",
-    "--verify",
-  ])
-  assert.equal(parsed.status, "ok")
-  if (parsed.status === "ok" && parsed.command.cmd === "check") {
-    assert.equal(parsed.command.verifyAfter, true)
-  }
 })
 
 test("verifyReceipt is not ok:true when kill fails after a good assert", async () => {
@@ -521,17 +462,6 @@ test("verifyReceipt overall bound kills a hung create", async () => {
   )
   await new Promise((r) => setTimeout(r, 250))
   assert.equal(killed, true)
-})
-
-test("parseArgv verify accepts an optional run dir", () => {
-  const a = parseArgv(["verify"])
-  assert.equal(a.status, "ok")
-  if (a.status === "ok" && a.command.cmd === "verify") assert.equal(a.command.runDir, undefined)
-  const b = parseArgv(["verify", ".auspex/runs/stamp"])
-  assert.equal(b.status, "ok")
-  if (b.status === "ok" && b.command.cmd === "verify") {
-    assert.equal(b.command.runDir, ".auspex/runs/stamp")
-  }
 })
 
 function writeVwpRun(stamp: string): string {

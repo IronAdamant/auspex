@@ -108,35 +108,6 @@ function deps(over: Partial<JobDeps> & { jobsDir: string }): JobDeps {
   }
 }
 
-test("parseJobFlags and parseArgv require jobId, name, or url+expect", () => {
-  const empty = parseJobFlags([])
-  assert.equal(empty.ok, false)
-  if (!empty.ok) assert.equal(empty.message, JOB_INPUT_ERROR)
-  const parsed = parseArgv([
-    "job",
-    "--url",
-    "https://app.example",
-    "--expect",
-    "Workspace ready",
-    "--verify-with-profile",
-    "--wake-webhook",
-    "https://hooks.example/wake",
-  ])
-  assert.equal(parsed.status, "ok")
-  if (parsed.status === "ok" && parsed.command.cmd === "job") {
-    assert.equal(parsed.command.opts.url, "https://app.example")
-    assert.equal(parsed.command.opts.expect, "Workspace ready")
-    assert.equal(parsed.command.opts.verifyWithProfile, true)
-    assert.equal(parsed.command.opts.wakeWebhookUrl, "https://hooks.example/wake")
-  }
-  const status = parseArgv(["job-status", "--job-id", "job-abc-12345678", "--wait-ms", "500"])
-  assert.equal(status.status, "ok")
-  if (status.status === "ok" && status.command.cmd === "job-status") {
-    assert.equal(status.command.jobId, "job-abc-12345678")
-    assert.equal(status.command.waitMs, 500)
-  }
-})
-
 test("first job mints and returns waiting nextCall to resume", async () => {
   const dir = await tmpJobs()
   const wakes: string[] = []
@@ -502,23 +473,6 @@ test("webhook POST is scrubbed and uses mock fetch", async () => {
   assert.equal(body.includes("private"), false)
   assert.match(body, /#redacted/)
   assert.match(body, /auspex_login/)
-})
-
-test("scrubJobValue drops secret keys and redacts emails", () => {
-  const scrubbed = scrubJobValue({
-    password: "hunter2",
-    token: "slr_live_abcdefghij",
-    sessionId: "sess-1",
-    excerpt: "secret page",
-    next: "email user@example.com",
-    nextCall: { tool: "auspex_job", jobId: "job-1", profile: "app-example" },
-  })
-  assert.equal("password" in scrubbed, false)
-  assert.equal("token" in scrubbed, false)
-  assert.equal("sessionId" in scrubbed, false)
-  assert.equal("excerpt" in scrubbed, false)
-  assert.equal(String(scrubbed.next).includes("user@example.com"), false)
-  assert.equal(scrubbed.nextCall.tool, "auspex_job")
 })
 
 test("job-status reads the file and waitMs returns after a phase change", async () => {

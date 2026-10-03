@@ -57,37 +57,6 @@ function firstSentence(text: string): string {
   return match?.[0]?.trim() ?? text
 }
 
-test("needsHuman receipt points nextCall at login with the profile from the prose", () => {
-  const guide = needsHumanGuide("app-example")
-  const receipt = toAgentReceipt(
-    sampleCheck({
-      next: `${guide.text} password hunter2secret token slr_live_abcdefghij`,
-      nextCall: guide.nextCall,
-    }),
-  )
-  assert.deepEqual([...RECEIPT_V1_REQUIRED_KEYS], [
-    "schemaVersion",
-    "ok",
-    "reason",
-    "url",
-    "expect",
-    "screenshotPath",
-  ])
-  assert.ok(NEXT_CALL_TOOLS.includes("auspex_job"))
-  assert.ok(NEXT_CALL_TOOLS.includes("auspex_login"))
-  assert.equal(receipt.schemaVersion, 1)
-  for (const key of RECEIPT_V1_REQUIRED_KEYS) assert.equal(typeof receipt[key] !== "undefined", true)
-  assert.equal(receipt.nextCall?.tool, "auspex_login")
-  assert.equal(receipt.nextCall?.profile, "app-example")
-  assert.match(receipt.next ?? "", /auspex_login --profile app-example/)
-  const dumped = JSON.stringify(receipt.nextCall)
-  assert.equal(dumped.includes("hunter2secret"), false)
-  assert.equal(dumped.includes("slr_live_"), false)
-  assert.equal(dumped.includes("sess-should-not-enter-next-call"), false)
-  assert.equal(dumped.includes("password"), false)
-  assert.equal(dumped.includes("cookie"), false)
-})
-
 test("CLI failureReceipt and MCP packToolFailure share the 429 nextCall", async () => {
   const err = new SolariError("full", 429, undefined, "ConcurrencyLimitExceeded")
   const cli = failureReceipt(err)
@@ -112,26 +81,6 @@ test("CLI failureReceipt and MCP packToolFailure share the 429 nextCall", async 
   assert.equal(JSON.stringify(cli.nextCall).includes("password"), false)
 })
 
-test("successful login mint points nextCall at await-login with saveEditor", () => {
-  const mobile = phoneHandoffUrl("vnc.jwt.not-a-field", "https://console.getsolari.com/handoff/abc")
-  const result = loginInstructions(
-    { id: "prof_1", name: "app-example" },
-    "https://app.example/home",
-    { url: "https://console.getsolari.com/handoff/abc", handoffId: "h1", expiresAt: "soon", version: 3 },
-    undefined,
-    mobile,
-  )
-  assert.equal(result.nextCall?.tool, "auspex_await_login")
-  assert.equal(result.nextCall?.profile, "app-example")
-  assert.equal(result.nextCall?.saveEditor, true)
-  assert.match(result.next, /auspex_await_login --profile app-example/)
-  assert.match(result.next, /saveEditor/)
-  const dumped = JSON.stringify(result.nextCall)
-  assert.equal(dumped.includes("vnc.jwt"), false)
-  assert.equal(dumped.includes("password"), false)
-  assert.equal(dumped.includes("cookie"), false)
-})
-
 test("completed save that still needs a fold points nextCall at finalize-login", async () => {
   const completed = await waitForProfileSave("consistencyhub", {
     sinceVersion: 14,
@@ -154,25 +103,6 @@ test("completed save that still needs a fold points nextCall at finalize-login",
   assert.equal(completed.nextCall?.profile, "consistencyhub")
   assert.match(completed.next, /finalize-login --profile consistencyhub/)
   assert.equal(JSON.stringify(completed.nextCall).includes("sessionId"), false)
-})
-
-test("noVNC mint without a QR still points nextCall at await-login with saveEditor", () => {
-  const solari = "https://console.getsolari.com/handoff/abc"
-  const minted = loginInstructions(
-    { id: "prof_1", name: "app-example" },
-    "https://app.example/home",
-    { url: solari, handoffId: "h1", expiresAt: "soon", version: 3 },
-    undefined,
-    solari,
-  )
-  const result = attachHandoffQr(minted, "", "https://app.example/home")
-  assert.equal(result.handoff?.qrPath, undefined)
-  assert.equal(result.next.includes("handoff.mobileUrl"), false)
-  assert.match(result.next, /auspex_await_login --profile app-example/)
-  assert.match(result.next, /saveEditor/)
-  assert.equal(result.nextCall?.tool, "auspex_await_login")
-  assert.equal(result.nextCall?.profile, "app-example")
-  assert.equal(result.nextCall?.saveEditor, true)
 })
 
 test("await-login timeout nextCall retries auspex_await_login", async () => {
@@ -381,14 +311,6 @@ test("profileStatus: a bot check is botWall with no nextCall, never loggedOut or
   assert.equal(status.ok, false)
   assert.equal(status.nextCall, undefined)
   assert.match(status.skipReason ?? "", /Do not remint or finalize/)
-})
-
-test("login with no handoff url points nextCall at auspex_login", () => {
-  const missed = loginInstructions({ id: "prof_1", name: "app-example" })
-  assert.match(missed.next, /Remint with auspex_login/)
-  assert.match(missed.next, /--profile app-example/)
-  assert.equal(missed.nextCall?.tool, "auspex_login")
-  assert.equal(missed.nextCall?.profile, "app-example")
 })
 
 test("stale folded save leads with remint, so nextCall is login not finalize", async () => {

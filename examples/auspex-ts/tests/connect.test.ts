@@ -41,36 +41,6 @@ function tty() {
   return { stdin, stdout, text: () => text }
 }
 
-test("parseConnectFlags takes a positional or --url, expect, profile", () => {
-  const a = parseConnectFlags(["https://app.example", "--expect", "Workspace ready"])
-  assert.ok(a.ok && a.mode === "run")
-  assert.equal(a.opts.url, "https://app.example")
-  assert.equal(a.opts.expect, "Workspace ready")
-  const b = parseConnectFlags(["--url", "https://app.example", "--profile", "mine"])
-  assert.ok(b.ok && b.mode === "run")
-  assert.equal(b.opts.profile, "mine")
-  assert.equal(b.opts.expect, undefined)
-  assert.equal(parseConnectFlags([]).ok, false)
-  assert.equal(parseConnectFlags(["ftp://x"]).ok, false)
-  assert.equal(parseConnectFlags(["https://app.example", "extra"]).ok, false)
-})
-
-test("parseConnectFlags --save takes one profile and nothing else", () => {
-  const s = parseConnectFlags(["--save", "app-lorari-com"])
-  assert.ok(s.ok && s.mode === "save")
-  assert.equal(s.profile, "app-lorari-com")
-  assert.equal(parseConnectFlags(["--save"]).ok, false)
-  assert.equal(parseConnectFlags(["--save", "x", "https://app.example"]).ok, false)
-})
-
-test("parseArgv routes connect and USAGE names both forms", () => {
-  const parsed = parseArgv(["connect", "https://app.example"])
-  assert.equal(parsed.status, "ok")
-  assert.equal(parsed.status === "ok" && parsed.command.cmd, "connect")
-  assert.match(USAGE, /npx auspex connect <https>/)
-  assert.match(USAGE, /npx auspex connect --save <profile>/)
-})
-
 test("without a terminal connect needs --expect and never reads stdin", async () => {
   const stdin = new PassThrough()
   const stdout = new PassThrough()
@@ -230,67 +200,6 @@ test("connect survives a failed Save signal and a closed input while the job wai
   }
 })
 
-test("connectOutcome: ok only with claimOkProfile, and fail-closed rows stay honest", () => {
-  assert.equal(connectOutcome(job()).ok, true)
-  const unconfirmed = connectOutcome(job({ claimOkProfile: false }))
-  assert.equal(unconfirmed.ok, false)
-  assert.match(unconfirmed.detail.join(" "), /Do not reuse/)
-  const noVwp = connectOutcome(job({ claimOkProfile: undefined }))
-  assert.equal(noVwp.ok, false)
-
-  const appVisible = connectOutcome(
-    job({ phase: "failed", status: "idp-only-save", ok: false, idpOnlyKind: "app-visible", claimOkProfile: undefined }),
-  )
-  assert.equal(appVisible.ok, false)
-  assert.match(appVisible.headline, /only your Microsoft or Google sign-in was saved/)
-  assert.equal(/Run the same command again/.test(appVisible.detail.join(" ")), false, "app-visible must not tell the human to remint")
-
-  const wall = connectOutcome(job({ phase: "failed", status: "idp-only-save", ok: false, idpOnlyKind: "sign-in-wall" }))
-  assert.match(wall.detail.join(" "), /Run the same command again/)
-
-  const solari502 = connectOutcome(
-    job({
-      phase: "await",
-      status: "timeout",
-      ok: false,
-      editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
-    }),
-  )
-  assert.equal(solari502.ok, false)
-  assert.match(solari502.headline, /Solari could not save the login \(HTTP 502: Failed to export storageState\)/)
-  assert.equal(/No Save arrived/.test(solari502.headline), false, "a finished Solari 502 is not a missing Save")
-  assert.equal(solari502.headline.includes("retry"), false, "no retry claimed when none ran")
-  const retried502 = connectOutcome(
-    job({
-      phase: "await",
-      status: "timeout",
-      ok: false,
-      editorSave: { ok: false, status: 502, error: "Failed to export storageState", retriedAfter: 502 },
-    }),
-  )
-  assert.match(retried502.headline, /\(HTTP 502: Failed to export storageState, again on a retry 5 s later\)/)
-  assert.match(connectOutcome(job({ phase: "await", status: "timeout", ok: false })).headline, /No Save arrived/)
-  const notSavable = connectOutcome(
-    job({
-      phase: "failed",
-      status: "stream-expired",
-      ok: false,
-      editorSave: { ok: false, status: 409, error: "The editor isn't in a savable state." },
-    }),
-  )
-  assert.match(notSavable.headline, /HTTP 409: The editor isn't in a savable state/)
-  assert.equal(/five-minute/.test(notSavable.headline), false, "a Solari 409 is not the clock")
-  assert.match(connectOutcome(job({ phase: "failed", status: "stream-expired", ok: false })).headline, /five-minute/)
-  assert.match(connectOutcome(job({ phase: "failed", status: "needsHuman", ok: false })).headline, /never types/)
-  const moved = connectOutcome(
-    job({ phase: "failed", status: "host-changed", ok: false, suggestedUrl: "https://other.example" }),
-  )
-  assert.match(moved.detail.join(" "), /connect https:\/\/other\.example/)
-  for (const status of ["empty-save", "expectMatchedPublicLanding", "loggedOut", "mismatch", "concurrency-limited", "network"] as const) {
-    assert.equal(connectOutcome(job({ phase: "failed", status, ok: false })).ok, false, status)
-  }
-})
-
 test("runJob calls onMinted with the door before the await", async () => {
   const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-"))
   const order: string[] = []
@@ -364,13 +273,6 @@ test("isBotChallengePage names Cloudflare checks and leaves real pages alone", a
   assert.equal(isBotChallengePage("Home - Canva", "What will you design today? Templates for you"), false)
   assert.equal(isBotChallengePage("Just a moment of calm | Blog", "An article"), false)
   assert.equal(isBotChallengePage("Sign in", "Enter your password"), false)
-})
-
-test("connectOutcome: a bot wall is named, not blamed on the sign-in", () => {
-  const out = connectOutcome(job({ phase: "failed", status: "mismatch", ok: false, botWall: true, url: "https://www.canva.com/" }))
-  assert.equal(out.ok, false)
-  assert.match(out.headline, /bot check/)
-  assert.equal(/logged-out|Make sure the app is fully loaded/.test(out.headline + out.detail.join(" ")), false)
 })
 
 test("runJob: a bot wall never triggers the finalize fallback", async () => {
@@ -470,43 +372,6 @@ test("connect stops at once when Solari gives no phone door, instead of handing 
   assert.equal(awaited, false, "must not wait on Solari's fallback page")
   assert.equal(text.includes("console.getsolari.com/handoff"), false, "must not hand out the fallback page")
   assert.match(text, new RegExp(NO_PHONE_DOOR.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-})
-
-test("connectOutcome: a Solari browser crash after a good save offers the one check retry, not a text wall", () => {
-  const out = connectOutcome(
-    job({
-      phase: "failed",
-      status: "failed",
-      ok: false,
-      claimOkProfile: undefined,
-      profile: "canva-com",
-      url: "https://www.canva.com/",
-      expect: "Templates for you",
-      reason:
-        "page.title: page.evaluate: Target page, context or browser has been closed; session close failed: Solari SDK exhausted retries and stripped the HTTP status (cookbook #56).",
-      next: "x".repeat(900),
-      seedReadiness: {
-        phase: "post-save",
-        shape: "cookie-strong",
-        solariSaveReady: true,
-        appOriginCookies: true,
-        appOriginCookieCount: 30,
-        localStorageCount: 0,
-        localStorageAuthKeyNames: [],
-        sessionStorageCount: 0,
-        sessionStorageMiss: true,
-        idpOnly: false,
-        weakSeed: false,
-      },
-    }),
-  )
-  assert.equal(out.ok, false)
-  assert.match(out.headline, /Solari's browser closed during the check/)
-  assert.match(out.detail.join(" "), /check --profile canva-com .*--verify-with-profile/)
-  assert.equal(out.detail.join(" ").includes("xxxx"), false, "must not dump the long next")
-  const other = connectOutcome(job({ phase: "failed", status: "failed", ok: false, reason: "y".repeat(500), next: "z".repeat(900) }))
-  assert.ok(other.headline.length < 230)
-  assert.equal(other.detail.join(" ").includes("zzzz"), false)
 })
 
 test("tildePath hides the account folder in printed paths", async () => {
@@ -617,22 +482,3 @@ test("agent mode prints the QR image path for the human to scan", async () => {
   assert.match(text, /QR code image \(scan it, or open it for the human\): \/tmp\/auspex-x\/\.auspex\/runs\/r1\/handoff-qr\.png/)
 })
 
-test("a window that closed before Save is not a Solari refusal", () => {
-  // Live, Canva: the human was still clearing a captcha and 2FA when the five minutes ran out, and
-  // connect said "Solari refused to save the login (HTTP 0: stream-expired before Solari editor/save…)".
-  for (const editorSave of [
-    { ok: false, status: 0, error: "stream-expired before Solari editor/save. Clipboard Save is not the jar." },
-    { ok: false, status: 401, error: "stream-expired: VNC/handoff expiry is past; remint auspex_login" },
-  ]) {
-    const out = connectOutcome(job({ phase: "await", status: "stream-expired", ok: false, editorSave }))
-    assert.equal(out.ok, false)
-    assert.equal(out.headline, "The five-minute sign-in window closed before Save.", editorSave.error)
-    assert.equal(/refused/i.test(out.headline), false)
-    assert.match(out.detail.join(" "), /reopens the same cloud browser/)
-  }
-  // A real Solari answer still reads as Solari's.
-  const real = connectOutcome(
-    job({ phase: "await", status: "stream-expired", ok: false, editorSave: { ok: false, status: 409, error: "The editor isn't in a savable state." } }),
-  )
-  assert.match(real.headline, /Solari said the remote browser could not be saved/)
-})

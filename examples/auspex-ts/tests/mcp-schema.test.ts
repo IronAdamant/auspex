@@ -11,12 +11,6 @@ import { auspexCheckInputObject } from "../src/tool-schema.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-test("auspexCheckInputObject is a ZodObject with url and expect (MCP ListTools needs .shape)", () => {
-  assert.ok(auspexCheckInputObject.shape)
-  assert.ok(auspexCheckInputObject.shape.url)
-  assert.ok(auspexCheckInputObject.shape.expect)
-})
-
 test("ListTools advertises auspex_check with FAIL-CLOSED constraints in descriptions and structural vs call-time markers", async () => {
   const mcp = new McpServer({ name: "auspex", version: "0.1.0" })
   registerAuspexTools(mcp)

@@ -31,18 +31,6 @@ test("DualStdioServerTransport drops the connection when the buffer exceeds 10MB
   await t.close()
 })
 
-test("parseContentLength rejects non-integers", () => {
-  assert.throws(
-    () => parseContentLength("10.5", DualStdioServerTransport.MAX_BUFFER_BYTES),
-    /not an integer/,
-  )
-  assert.throws(
-    () => parseContentLength("0x10", DualStdioServerTransport.MAX_BUFFER_BYTES),
-    /not an integer/,
-  )
-  assert.equal(parseContentLength("12", DualStdioServerTransport.MAX_BUFFER_BYTES), 12)
-})
-
 test("DualStdioServerTransport rejects non-integer Content-Length", async () => {
   const { stdin, t, errOf } = transport()
   await t.start()

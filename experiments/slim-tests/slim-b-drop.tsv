@@ -1,0 +1,270 @@
+agent-receipt.test.ts	deriveCheckReason covers matched, mismatch, network, loggedOut, needsHuman
+agent-receipt.test.ts	overlayVerifyReason maps claim miss to mismatch and fetch fail to network
+agent-receipt.test.ts	toAgentReceipt is parseable: schemaVersion, ok, reason, url, expect, screenshotPath
+agent-receipt.test.ts	toAgentReceipt does not overlay a skipped verify after loggedOut
+agent-receipt.test.ts	toAgentReceipt folds sandbox verify into ok/reason
+agent-receipt.test.ts	toAgentReceipt adds next hint when live matched but claimOk false (auth-gated)
+agent-receipt.test.ts	toAgentReceipt does not add auth-gated hint when OCR was attempted
+agent-receipt.test.ts	toAgentReceipt adds OCR unavailable note when tesseract missing
+agent-receipt.test.ts	overlayVerifyReason preserves matched when anonymousClaimSkipped
+agent-receipt.test.ts	overlayVerifyReason maps anonymousClaimSkipped integrity fail to network
+agent-receipt.test.ts	agentReceiptOk returns true when live matched and anonymousClaimSkipped
+agent-receipt.test.ts	toAgentReceipt produces ok=true when live matched and anonymousClaimSkipped
+agent-receipt.test.ts	VWP envelope timeout with anonymousClaimSkipped stays matched and does not fold claimOkProfile into ok
+agent-receipt.test.ts	toAgentReceipt next treats claimOkProfile as the reuse gate after VWP
+agent-receipt.test.ts	mismatch is not agent ok even when protocolOk is true
+await-fail.test.ts	stream-expired guide remints auspex_login and is parseable
+await-fail.test.ts	completed editorSave 5xx caps the jar poll and does not mark the stream expired
+await-fail.test.ts	editorSave.ok keeps the full poll and the 409 path keeps the short cap
+await-fail.test.ts	completed editorSave 4xx uses the same short jar poll and is not a stream-expired label
+await-fail.test.ts	editor-save-hung and profile-busy do not point at finalize-login
+await-fail.test.ts	isProfileBusyMessage matches ProfileBusyError
+await-steer.test.ts	steer order is host patch, cookie Save, finalize, fail-closed, empty jar, IdP-only, then overlay
+await-steer.test.ts	completed editorSave 502 lands on the save overlay and does not deny Solari 5xx
+await-steer.test.ts	not-savable exhaustion is stream-expired and does not claim a cookie Save
+await-steer.test.ts	a 409 with stream time left says Solari refused, not the clock
+await-steer.test.ts	empty jar after a completed non-2xx names the status and does not finalize
+await-steer.test.ts	empty jar after editorSave 200 does not append finalize
+await-steer.test.ts	completed 502 next copy drops the waiting lead and keeps the Solari status
+budget.test.ts	profile claim budget is the remainder of VERIFY_OVERALL_MS, not a second envelope
+cli-help.test.ts	USAGE leads with login --url and buries gated flags
+cli-help.test.ts	USAGE documents check, login, and profiles
+cli-help.test.ts	parseArgv check --sso
+cli-help.test.ts	parseArgv --stealth=true is not a boolean flag
+cli-help.test.ts	parseArgv login and profiles
+cli-help.test.ts	shipped CLI --help lists check, login, profiles
+cli-help.test.ts	shipped CLI check --help lists login and profiles
+cli-help.test.ts	shipped CLI rejects empty and whitespace --expect
+cli-help.test.ts	shipped CLI rejects a non-https URL
+cli-help.test.ts	shipped CLI rejects a userinfo URL
+cli-help.test.ts	shipped CLI does not take https as --profile
+cli-help.test.ts	parseArgv rejects --record with --sso or --save-profile
+cli-help.test.ts	parseArgv rejects --record with --profile unless override is set
+cli-help.test.ts	shipped CLI rejects loopback check URLs without launching Solari
+cli-help.test.ts	shipped CLI rejects --record with --profile
+cli-help.test.ts	shipped CLI rejects whitespace-only --profile
+cli-help.test.ts	parseArgv check click/fill/wait-for and proxy
+cli-help.test.ts	parseArgv rejects fill/click with a profile unless --allow-page-actions
+cli-help.test.ts	parseArgv check --save-profile
+cli-help.test.ts	parseArgv reap and desktop --expect
+cli-help.test.ts	parseArgv check --name uses saved checks and verifies by default
+cli-help.test.ts	parseArgv rejects --record with a dashboard landing URL
+cli-help.test.ts	parseArgv profile-status and reap --pack-receipts
+cli-help.test.ts	parseArgv desktop takes no extra args
+cli-help.test.ts	parseArgv ad-hoc auth URL + profile skips anonymous verify; public marketing does not
+cli-help.test.ts	parseArgv --verify-with-profile enables verifyAfter for consistencyhub
+connect.test.ts	parseConnectFlags takes a positional or --url, expect, profile
+connect.test.ts	parseConnectFlags --save takes one profile and nothing else
+connect.test.ts	parseArgv routes connect and USAGE names both forms
+connect.test.ts	connectOutcome: ok only with claimOkProfile, and fail-closed rows stay honest
+connect.test.ts	connectOutcome: a bot wall is named, not blamed on the sign-in
+connect.test.ts	connectOutcome: a Solari browser crash after a good save offers the one check retry, not a text wall
+connect.test.ts	a window that closed before Save is not a Solari refusal
+cookie-save.test.ts	cookie Save contract is pre-save and does not claim reuse
+cookie-save.test.ts	classify reports cookie-strong, local-storage-auth, and IdP-only without token values
+cookie-save.test.ts	public marketing and a fresh session fold are not solariSaveReady
+cookie-save.test.ts	an explicit app-origin cookie count of 0 wins over matching hosts
+cookie-save.test.ts	parseAuthKeyNames accepts names and rejects token-shaped strings
+cookie-save.test.ts	localStorage auth names skip folded sessionStorage and values
+cookie-save.test.ts	ConsistencyHub with only IdP cookies stays weak; app cookies do not
+cookie-save.test.ts	cookie guide points at check and does not print a token
+device-emulation.test.ts	parseDeviceOptions unknown device throws with listDevices keys
+device-emulation.test.ts	parseDeviceOptions mobile matches iphone-13-pro fields
+door-stream.test.ts	docs/door-stream.js matches the TypeScript door helpers
+door-stream.test.ts	framebufferPoint uses the rendered canvas, not a stale scale
+door-stream.test.ts	applyDoorView fits once, maps the live canvas, and lightens the stream
+editor-fold.test.ts	pickEditorCdp accepts Playwright sockets and ignores VNC
+editor-fold.test.ts	stale and missing sessionStorage next remint or finalize-now and ban VWP
+editor-fold.test.ts	overlaySaveEditorNext is loud when editorSave fails or editorFold misses
+errors.test.ts	explainSolariError maps 402 and 429
+errors.test.ts	classifySolariError handles 413 Payload Too Large
+errors.test.ts	classifySolariError handles 5xx transient errors
+errors.test.ts	classifySolariError is structured, 402/429 not retryable, recovery names close/kill
+errors.test.ts	AuspexError preserves receipt fields
+errors.test.ts	exhaustion without status is SolariSdkExhausted and not a login failure
+errors.test.ts	exhausted 503 cause is infra-5xx and stealth text is stealth-pool-empty
+errors.test.ts	explainSolariError redacts slr_live_ tokens
+errors.test.ts	explainSolariError redacts other key-like tokens
+fail-closed.test.ts	loggedOut and needsHuman are not retried and skip sandbox verify
+fail-closed.test.ts	shouldVerifyCheck is shared CLI/MCP policy: consistencyhub defaults off
+fail-closed.test.ts	shouldVerifyCheck skips anonymous verify for ad-hoc auth hosts with a profile
+fail-closed.test.ts	shouldVerifyCheck skips anonymous verify for any attached profile except public marketing
+finalize-login.test.ts	resolveFinalizeLoginTarget requires url and expect for unknown profiles
+finalize-login.test.ts	resolveFinalizeLoginTarget uses saved check for consistencyhub
+finalize-login.test.ts	resolveFinalizeLoginTarget passes through generic url and expect
+finalize-login.test.ts	parseArgv finalize-login accepts unknown profile without url at parse time
+finalize-login.test.ts	finalizeLoginGuidance names --url/--expect only for unknown profiles
+finalize-login.test.ts	needsHuman next is finalize-login after Save, not retry check
+finalize-login.test.ts	public One Dashboard does not satisfy expect Dashboard
+finalize-login.test.ts	expect match on a non-persistable landing is not success-shaped
+finalize-login.test.ts	parseArgv finalize-login parses --url and --expect
+fold-steer.test.ts	editorSave 200 and fold no-cdp with cookies steers to finalize
+fold-steer.test.ts	IdP-only jar for consistencyhub.io does not steer to finalize
+fold-steer.test.ts	google.com apex cookies do not bypass IdP-only when the app host is missing
+fold-steer.test.ts	a jar that includes the site host is a cookie Save, not a fold
+fold-steer.test.ts	non-app cookies still steer to finalize
+fold-steer.test.ts	allowlisted localStorage auth key names are not IdP-only
+fold-steer.test.ts	editorSave 401 with cookies does not steer to finalize
+fold-steer.test.ts	empty seed and a real hijack do not steer to finalize
+fold-steer.test.ts	SkySQL and MariaDB are one product; an unrelated host is not
+fold-steer.test.ts	profile claim session is only the saved profile id
+haystack.test.ts	match and excerpt agree on extra-whitespace haystacks
+haystack.test.ts	Dashboard does not match inside One Dashboard; case stays sensitive
+haystack.test.ts	expectSchema and httpUrlSchema reject whitespace and non-http(s)
+haystack.test.ts	checkUrlSchema rejects loopback hosts that Solari cloud Chrome cannot see
+haystack.test.ts	MCP auspex_check schema rejects loopback, record+profile, and whitespace profile
+haystack.test.ts	MCP auspex_login schema rejects whitespace-only profile names
+haystack.test.ts	toReceiptPath does not embed an absolute home path
+haystack.test.ts	findProfileId does not auto-create
+haystack.test.ts	toPlaywrightStorageState fills required cookie fields
+haystack.test.ts	capitalized nav items on their own lines still match a single-word expect
+job.test.ts	parseJobFlags and parseArgv require jobId, name, or url+expect
+job.test.ts	scrubJobValue drops secret keys and redacts emails
+launch-options.test.ts	parseProxyFlag accepts country, smart, off, and sticky pin
+launch-options.test.ts	sessionCreateFromCheck implies stealth for proxy and captcha
+lifecycle.test.ts	sandbox create options are 1 vCPU / 2 GB with idle kill
+lifecycle.test.ts	createProgress emits a heartbeat line before return
+live-host-change.test.ts	live host different from mint fails closed with a remint nextCall
+live-host-change.test.ts	same host, www, saved-check subdomain, IdP, and CDN cookies are not a change
+live-host-change.test.ts	storage origin wins when the page URL is still the minted host
+live-host-change.test.ts	profile ownership and missing mint stay honest
+live-host-change.test.ts	ordinary second-host check is left alone; save and a marker fail closed
+live-host-change.test.ts	door site URL prefers a live https origin and ignores the password field
+live-host-change.test.ts	receipt refuses claimOkProfile when the live host changed
+login-trace.test.ts	cookieHostsFromState lists unique hosts without values
+login-trace.test.ts	loginTraceSeedExtras reports stale folded expiresInSec and omits values
+login-trace.test.ts	foldedExpiresInSecFromState is undefined without expiresOn
+login-trace.test.ts	traceUrlParts strips query (no PKCE)
+login-trace.test.ts	sanitizeLoginTraceEvent drops secret-shaped keys and JWTs
+login-trace.test.ts	parseArgv trace
+login-trace.test.ts	summarizeLoginTrace says mint ready and names mint-stop why
+login-trace.test.ts	summarizeLoginTrace does not say Mint ready when VNC/token mint failed
+login-trace.test.ts	summarizeLoginTrace says login mint does not send stealth
+login-trace.test.ts	summarizeLoginTrace advises reap on 429 and remint on 503
+login.test.ts	loginInstructions without IME page warns that Solari noVNC will not open the phone keyboard
+login.test.ts	loginInstructions with phone IME URL labels the real text-field page
+login.test.ts	phoneHandoffUrl puts the VNC token in the hash, not the query
+login.test.ts	editorStartOk treats 202 Accepted as starting (poll token)
+login.test.ts	phoneSavePaste is two short lines any agent chat can run
+login.test.ts	phone.html clipboard equals phoneSavePaste
+login.test.ts	phone Save paste names the phone page
+login.test.ts	loginInstructions echoes a derived host slug on next and savePaste
+login.test.ts	attachHandoffQr mentions qrPath only when a PNG was written
+login.test.ts	stampLoginStreamExpiry writes ISO expiry and never the JWT
+login.test.ts	publicHandoffUrl rewrites cluster-internal hosts and keeps the path
+mcp-schema.test.ts	auspexCheckInputObject is a ZodObject with url and expect (MCP ListTools needs .shape)
+next-call.test.ts	needsHuman receipt points nextCall at login with the profile from the prose
+next-call.test.ts	successful login mint points nextCall at await-login with saveEditor
+next-call.test.ts	noVNC mint without a QR still points nextCall at await-login with saveEditor
+next-call.test.ts	login with no handoff url points nextCall at auspex_login
+operator-doors.test.ts	agent tool schemas have no username, password, or Solari key field
+operator-doors.test.ts	phone door has no preview zoom controls
+operator-doors.test.ts	door scripts run in a browser-like page and keep secrets off the chat paste line
+operator-doors.test.ts	door does not call stream-expired on a live timer, and does when the stamp is past
+operator-doors.test.ts	old door and desktop URLs redirect to the phone door and keep the hash
+operator-doors.test.ts	Clear empties the whole field in one click, local and remote
+operator-doors.test.ts	Enter clears the IME after sending the key, and bullets mode still sends real characters
+operator-doors.test.ts	phone door fits the picture and does not keep resizing the remote
+operator-doors.test.ts	before Save, a closed stream still reconnects
+operator-session.test.ts	30-minute desktop idle keeps a fresh use, wipes at 30 minutes, and leaves a newer profile
+operator-session.test.ts	voluntary purge is selected only when the human agrees, and the agent object stays redacted
+operator-session.test.ts	phone QR list lasts 10 minutes and carries site and profile only
+operator-session.test.ts	voluntary purge is not ok when the named profile was not wiped
+page-action-ceiling.test.ts	check contract is one fill string and one click string
+page-action-ceiling.test.ts	MCP check schema refuses a list of fills or clicks
+page-action-ceiling.test.ts	parseArgv refuses a second fill or a second click
+page-actions-fill-select.test.ts	prepareFillTarget selects the inner contenteditable that holds the visible text
+page-actions.test.ts	assertFillPair requires fill and value together
+page-actions.test.ts	assertPageActionsAllowed refuses profile fill/click without the opt-in flag
+page-actions.test.ts	probeVisibleControl uses innerText and ignores hidden textContent
+page-actions.test.ts	probeVisibleControl reads input value and blanks a password
+phone-expiry.test.ts	parseUnixSeconds accepts ISO, unix seconds, and epoch ms
+phone-expiry.test.ts	jwtExpSeconds reads exp from segment 1 or segment 0
+phone-expiry.test.ts	resolvePhoneExpirySeconds uses the earliest of expiresAt and JWT
+phone-expiry.test.ts	phoneHandoffUrl writes min(handoffExpiresAt, vncJwtExp)
+phone-expiry.test.ts	isStreamExpired and streamExpiryStamp stay off the JWT
+phone-expiry.test.ts	doorStreamDisconnectAction pauses a live JWT on background and remints only when gone
+phone-expiry.test.ts	imeAutocomplete stays discoverable and never off
+profile-host-advice.test.ts	slug match is profileHostMatch true and does not emit suggestedProfile
+profile-host-advice.test.ts	saved-check host affinity keeps consistencyhub on consistencyhub.io
+profile-host-advice.test.ts	foreign host reusing consistencyhub is a soft mismatch with suggestedProfile
+profile-host-advice.test.ts	host affinity is label match, not a substring of another host
+profile-host-advice.test.ts	no URL or an unslugable URL omits the advisor instead of claiming a match
+profile-host-advice.test.ts	finalize target for consistencyhub matches; a foreign URL does not
+profile-host-advice.test.ts	parseArgv await-login accepts --url and rejects a non-http url
+profile-host-advice.test.ts	contract and receipt schema publish the advisor fields
+profile-host-advice.test.ts	toAgentReceipt keeps profileHostMatch false
+profile-persist.test.ts	await-login default and max match the 30-minute cold handoff
+profile-persist.test.ts	seedFromStorageState counts cookies and origins without requiring values
+profile-persist.test.ts	seedFromStorageState marks stale folded expiresOn without dropping the count
+profile-persist.test.ts	seedFromStorageState counts sessionStorage when origin is passed
+profile-persist.test.ts	toPlaywrightStorageState does not force httpOnly or secure true
+profile-persist.test.ts	inspectOriginForAwait forwards saved-check and login --url, not public marketing
+profile-persist.test.ts	loginWaitAwaitOpts waits for Save before POST editor/save
+profile-persist.test.ts	public checks target ironadamant One office job and Checkpoint
+profile-slug.test.ts	profileSlugFromHost hyphenates labels and strips www
+profile-slug.test.ts	profileSlugFromUrl reads the host only
+profile-slug.test.ts	profileSlugFromHost refuses empty or punctuation-only hosts
+profile-slug.test.ts	profileSlugFromHost caps length
+profile-slug.test.ts	resolveLoginProfile prefers explicit --profile over url host
+profile-slug.test.ts	derivedProfileNext names the slug and the override
+profile-slug.test.ts	parseArgv login --url without --profile derives a host slug
+profile-slug.test.ts	MCP login schema allows url-only and still rejects whitespace profile
+profile-status.test.ts	loggedOut check next names finalize-login not remint sso save-profile
+profile-storage.test.ts	foldSessionStorage stores session keys under the Auspex prefix
+profile-storage.test.ts	mergeStorageStates unions cookies and origin localStorage
+profile-storage.test.ts	hydrateSessionStorageSource copies prefixed keys
+profile-storage.test.ts	hydrateSessionStorageSource bakes sessionStorage for restore before navigation
+profile-storage.test.ts	originHasLandedBytes requires cookies or storage for that origin
+profile-storage.test.ts	isPersistableAppUrl rejects landing and auth, allows dashboard
+profile-storage.test.ts	isLoggedOutLanding is /landing, login, or unmatched /
+profile-storage.test.ts	parseFoldedExpiresOnMs accepts epoch ms, unix seconds, and ISO
+profile-storage.test.ts	isFoldedExpiresOnStale is past or within 5m skew; leftover count is ignored
+receipt-diff.test.ts	canonicalCheckUrl strips trailing slash and lowercases host
+receipt.test.ts	RECEIPT_ASSERT_PY does not echo manifest ok/matched for the claim
+receipt.test.ts	assertRunDirUnderRuns rejects paths outside .auspex/runs
+receipt.test.ts	parseAssertStdout uses the last JSON line and rejects garbage
+receipt.test.ts	parseAssertStdout detects anonymousClaimSkipped from claimErrors
+receipt.test.ts	assertReceiptUploadSize rejects oversized PNG+JSON
+receipt.test.ts	parseArgv check --verify requests verify-after-check
+receipt.test.ts	parseArgv verify accepts an optional run dir
+replay-redact.test.ts	redactEmailsInString replaces addresses and leaves Microsoft copy
+replay-redact.test.ts	redactRrwebEvents clears email/password values and source-5 input text
+replay-redact.test.ts	redactRrwebNdjson round-trips and keeps event count
+save-window.test.ts	isNotSavableConflict matches only that 409 phrase
+save-window.test.ts	line buffer flushes a newline and tolerates a missing handle
+saved-checks.test.ts	shipped auspex.yml has ironadamant, checkpoint, consistencyhub
+saved-checks.test.ts	canonicalSavedCheckName is case-insensitive for the three sites
+saved-checks.test.ts	parseSavedChecksYaml rejects invalid lines
+saved-checks.test.ts	applySavedCheckName fills url/expect/profile without reconstructing flags
+saved-checks.test.ts	unknown saved check lists known names
+scrub-url.test.ts	redactUrlSecrets drops OAuth codes and hash tokens but keeps host, path, and hash routes
+scrub-url.test.ts	redactUrlSecretsInText scrubs every URL inside a Playwright error line
+solari-health.test.ts	health client options are one attempt and an 8s cap
+solari-health.test.ts	402 and 403 are plan, not a remint
+solari-health.test.ts	401 is auth and BrowserUnhealthy keeps that code
+solari-health.test.ts	503 is infra-5xx and does not remint
+solari-health.test.ts	SDK abort exhaustion is timeout, not a login remint
+solari-health.test.ts	fetch failure is network
+solari-health.test.ts	exhausted 503 cause stays infra-5xx
+solari-health.test.ts	unknown exhaustion does not remint from this probe
+solari-health.test.ts	CLI parses solari-health with no flags
+sso.test.ts	stillOnAuth is true on Microsoft and /login
+sso.test.ts	shouldFailClosedAuth is always true on Microsoft, and on /login when sso or profile
+sso.test.ts	describeAuthWall fail-closes Microsoft and Google password and OTP without typing
+state-dir.test.ts	tests never share the operator's real .auspex
+state-dir.test.ts	AUSPEX_HOME wins, then test isolation, then npm install vs clone
+state-dir.test.ts	receipt paths: relative in the package, ~/ under home (no username), absolute elsewhere
+stdio.test.ts	parseContentLength rejects non-integers
+stream-deadline.test.ts	awaitStreamPlan caps save-editor to streamExpiresAt plus grace
+stream-deadline.test.ts	awaitStreamPlan keeps a short remaining JWT in the poll until the stamp
+stream-deadline.test.ts	dead stream without a completed seed refuses a new session and remints
+sweep.test.ts	parseSweepPlan accepts a read-only single-site plan
+sweep.test.ts	parseSweepPlan refuses page actions, other hosts, loopback, and oversize plans
+sweep.test.ts	classifySweepReceipt: a bot check is could-not-tell, never a fail or a regression
+sweep.test.ts	classifySweepReceipt: only a confirmed match is pass
+sweep.test.ts	a sweep row where the live browser missed but the second browser saw the words could not tell
+tui.test.ts	desktop log lines are append-only apt/pacman style
+tui.test.ts	createDesktopTui writes a sequence of lines with no cursor motion
+tui.test.ts	desktopSummary is a compact report footer
+tui.test.ts	desktopOverviewText is what MCP/Grok/Codex/Claude can show without a TTY
