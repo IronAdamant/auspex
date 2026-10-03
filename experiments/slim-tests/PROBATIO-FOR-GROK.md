@@ -56,6 +56,25 @@ Acceptance: fix a gap, rerun, and the gap shows as `fixed` with its guard; rever
 same id comes back as a regression naming the original commit; edit the guarded line and the
 decision goes `stale`; delete the guard and the change is refused without a `Guard-Change:` line.
 
+## Do not let agents game it (required in v0)
+
+Agents rewarded for killing mutants will find cheap kills: tests that pin internals or freeze
+current behaviour, bugs included. That is how the round-2 cover looked perfect and caught 10 of 18
+sealed real bugs. So:
+
+- Keep a **sealed slice of the ledger**: a random share of real bugs that gap-fixing agents never
+  see (not in `PROBATIO.md`, not in `status`, not in task files). It is used only to score their
+  work. If visible kills rise and sealed kills do not, report it: "these tests fit the yardstick,
+  not the code."
+- Prefer kills through public behaviour (exports, CLI, receipts) over kills that import internals;
+  flag a test whose only kills come from reaching into private helpers.
+
+## Every run ends with one paragraph for humans
+
+Agents are the main users, but a human decides whether to trust the work. Each run's JSON carries a
+`summary` a person can read in ten seconds, e.g. "52 of 52 known bugs still caught, 3 new gaps,
+1 guard changed (reason given)."
+
 ## Swarm protocol (several agents, one repo)
 
 - Work items are files: `.probatio/queue/<mutant-id>.json`. An agent claims one by atomic rename to
@@ -132,6 +151,11 @@ review by rerunning those commands.
 - **Generate docs from code** (CLI reference, field lists) so doc-sync tests disappear.
 - **Language adapters:** Python next (AST via `ast`, pytest JSON report), behind the same contract.
 - **Kill-map cache in the repo** so `verify-change` picks tests without running anything first.
+- **An independent second check on fixes:** a gap marked fixed by one agent is reviewed in a fresh
+  context, ideally by a different model, before it counts. Same idea as Auspex's `claimOk` /
+  `claimOkProfile`: one actor's view is not proof.
+- **Run mutants and agent-written tests in disposable sandboxes** (mutated code is broken on
+  purpose; agent tests are untrusted). Cloud sandboxes such as Solari's fit a swarm well.
 - **"Explain this test" output:** for any test, which mutants only it kills; deleting a test with
   unique kills needs a reason in the commit, the same as a golden contract change.
 
