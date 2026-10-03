@@ -3,8 +3,8 @@
 // with golden/out/<area>.json. A changed row fails with its name, the recorded value and the
 // new one. When the change is intended, re-record with UPDATE_GOLDEN=1 and review the JSON diff.
 import assert from "node:assert/strict"
-import { mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { homedir } from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import test, { mock } from "node:test"
@@ -17,14 +17,13 @@ const pkgRoot = path.resolve(here, "..")
 const update = process.env.UPDATE_GOLDEN === "1"
 
 
-const tmp = realpathSync(tmpdir())
+// Only this run's own folders are rewritten: the package, home, and the per-run test state folder
+// (a temp folder with a random name). A literal path such as /tmp/x.png in a row stays as it is.
 function machineFree(s: string): string {
   return s
+    .replace(/[^\s"']*auspex-test-state-\w+/g, "<test-state>")
     .split(pkgRoot).join("<pkg>")
-    .split(tmp).join("<tmp>")
-    .split(tmpdir()).join("<tmp>")
     .split(homedir()).join("<home>")
-    .replace(/auspex-test-state-\w+/g, "auspex-test-state-<random>")
 }
 
 function record(value: unknown): unknown {
