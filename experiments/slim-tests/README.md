@@ -131,7 +131,8 @@ Full tables: `round2-union-scores.tsv`, `round2-direct-scores.txt`.
 Slim D is the recommended suite: every real bug caught (52 of 52 across training and holdout),
 99.3% of unseen mutants, 23% fewer hand-written lines. "Much fewer lines" with no loss was not
 reached by pruning; the remaining large cuts need new kinds of test (record-replay flow goldens,
-docs generated from code), see `PROBATIO-HANDOFF.md`.
+docs generated from code). That work moved to its own project, Probatio (a sibling folder of this
+repo: `../Probatio`, with `HANDOFF.md` and the builder brief `FOR-GROK.md`).
 
 Two product observations recorded in `tests/golden/cases/gaps.ts`, not changed: the email
 redactor swallows the host of `user@host` URLs, and a host tie in `selectLiveHost` goes to the
