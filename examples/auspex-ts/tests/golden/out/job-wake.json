@@ -1,0 +1,10 @@
+{
+  "scrubJobValue({\"password\":\"hunter2\",\"token\":\"slr_live_abcdefghij\",\"sessionId\":\"sess-1\",\"excerpt\":\"sec...)": {
+    "next": "email [redacted-email]",
+    "nextCall": {
+      "tool": "auspex_job",
+      "jobId": "job-1",
+      "profile": "app-example"
+    }
+  }
+}

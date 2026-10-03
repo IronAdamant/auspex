@@ -1,0 +1,46 @@
+{
+  "cookieHostIsIdp(\"google.com\")": true,
+  "cookieHostIsIdp(\"www.google.com\")": true,
+  "cookieHostIsIdp(\"mail.google.com\")": false,
+  "cookieHostIsIdp(\".google.com\")": true,
+  "cookieHostsFromState({\"cookies\":[{\"name\":\"sid\",\"value\":\"SECRET\",\"domain\":\".login.microsoftonline.com\"},{\"nam...)": [
+    "consistencyhub.io",
+    "login.microsoftonline.com"
+  ],
+  "idpCookiesFromHosts(([\"consistencyhub.io\",\"login.microsoftonline.com\"]))": true,
+  "idpCookiesFromHosts(([\"consistencyhub.io\"]))": false,
+  "idpCookiesFromHosts(([\"login.microsoft.com\"]))": true,
+  "idpCookiesFromHosts(([\"live.com\"]))": true,
+  "idpCookiesFromHosts(([\"onedrive.live.com\"]))": false,
+  "loginTraceSeedExtras({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"SECRET\",\"domain\":\"login.microsoftonline.com\"}],...)": {
+    "cookieHosts": [
+      "login.microsoftonline.com"
+    ],
+    "idpCookies": true,
+    "foldedExpiresInSec": -60
+  },
+  "foldedExpiresInSecFromState({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\")": "<undefined>",
+  "traceUrlParts(\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?code_challenge=SECRET&p...)": {
+    "finalHost": "login.microsoftonline.com",
+    "finalPath": "/common/oauth2/v2.0/authorize"
+  },
+  "sanitizeLoginTraceEvent({\"ts\":\"t\",\"event\":\"login\",\"profile\":\"consistencyhub\",\"sessionId\":\"should-drop\",\"excerpt...)": {
+    "ts": "t",
+    "event": "login",
+    "profile": "consistencyhub",
+    "expiresAt": "2026-09-21T05:46:42.026Z"
+  },
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"consistencyhub\",\"phoneDoor\":\"ime\",\"remintIndex\":...)": "Episode ep-1 (consistencyhub): remint 1. Mint ready. Door is phone.html (the only login door, on a phone or a computer). Mint log stops here. Use await-login / finalize-login / check as normal ops.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"consistencyhub\",\"phoneDoor\":\"ime\",\"computerDoor\"...)": "Episode ep-desk (consistencyhub): remint 1. Mint ready. Door is phone.html (the only login door, on a phone or a computer). Mint log stops here. Use await-login / finalize-login / check as normal ops.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"mintStage\":\"key-check\",\"solariCode\":\"Missing...)": "Episode ungrouped (x): remint 1. Mint stopped at key-check: SOLARI_API_KEY is not set. Export it in the process that runs Auspex. Do not remint until the key is present.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"editorStartStatus\":401,\"mintStage\":\"editor-s...)": "Episode ungrouped (x): remint 1. Mint stopped at editor-start HTTP 401. Handoff token was rejected. Remint auspex_login; do not open Solari editor on a phone.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"editorStartStatus\":409,\"mintStage\":\"editor-s...)": "Episode ungrouped (x): remint 2. Mint stopped at editor-start HTTP 409. The live editor token was not reused. Do not finalize-login. Do not purge and remint while that editor is still running. Stop the editor (DELETE /editor), then remint.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"editorStartStatus\":409,\"mintStage\":\"ready\",\"...)": "Episode ungrouped (x): remint 1. Mint ready. Door is phone.html (the only login door, on a phone or a computer). Mint log stops here. Use await-login / finalize-login / check as normal ops.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"mintStage\":\"ready\",\"urlPresent\":true,\"vncMin...)": "Episode ungrouped (x): remint 1. Solari login-handoff hostname was cluster-internal; human packet uses the public console host. Report to Solari. Mint ready. Phone door was not minted. Remint auspex_login for the phone door. Mint log stops here. Use await-login / finalize-login / check as normal ops.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"mintStage\":\"editor-token\",\"vncMintOk\":false,...)": "Episode ungrouped (x): remint 1. Mint stopped at editor-token: no VNC token after 20s (editor start 200). Phone door not ready. Refresh the handoff card once; if still blank after 2-3 minutes, remint auspex_login for the phone door.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"mintStage\":\"editor-token\",\"vncMintOk\":false,...) #2": "Episode ep-empty (x): remint 1. Mint stopped at editor-token: empty handoff token (VNC not minted). Phone door not ready. Remint auspex_login for the phone door.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"x\",\"mintStage\":\"ready\",\"vncMintOk\":false,\"urlPre...)": "Episode ungrouped (x): remint 1. Handoff URL minted but phone VNC did not. Phone door was not minted. Remint auspex_login for the phone door. Remint auspex_login for the phone door.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"app-example\",\"solariStatus\":402,\"solariCode\":\"Fe...)": "Episode ungrouped (app-example): remint 1. Mint stopped: Solari 402 FeatureRequiresPlan. Not retryable. Drop the gated option or upgrade. Login mint does not send stealth: POST /profiles/:id/login-handoff and the profile editor ignore a stealth body (same cold handoff, no 402). Stealth is honored only on POST /sessions (auspex check --stealth).",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"consistencyhub\",\"solariStatus\":429,\"solariCode\":...)": "Episode ungrouped (consistencyhub): remint 1. Mint stopped: Solari 429 ConcurrencyLimitExceeded. Call auspex_reap, then remint. Do not retry create while the slot is held.",
+  "summarizeLoginTrace(([{\"ts\":\"t\",\"event\":\"login\",\"profile\":\"consistencyhub\",\"solariStatus\":503,\"solariCode\":...)": "Episode ungrouped (consistencyhub): remint 1. Mint stopped at editor-start HTTP 503 (Solari overload). Wait 5-10s, auspex_reap if the slot may be held, then remint. Not loggedOut or needsHuman."
+}

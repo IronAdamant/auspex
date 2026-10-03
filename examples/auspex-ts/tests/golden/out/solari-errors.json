@@ -1,0 +1,704 @@
+{
+  "classify: 402 FeatureRequiresPlan": {
+    "message": "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher.",
+    "code": "FeatureRequiresPlan",
+    "retryable": false,
+    "recovery": "Drop stealth/proxy/captcha/desktop or upgrade the plan. Do not retry the same call.",
+    "status": 402
+  },
+  "explain: 402 FeatureRequiresPlan": "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher. Drop stealth/proxy/captcha/desktop or upgrade the plan. Do not retry the same call.",
+  "failure payload: 402 FeatureRequiresPlan": {
+    "ok": false,
+    "error": "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher.",
+    "code": "FeatureRequiresPlan",
+    "retryable": false,
+    "recovery": "Drop stealth/proxy/captcha/desktop or upgrade the plan. Do not retry the same call.",
+    "status": 402
+  },
+  "health receipt: 402 FeatureRequiresPlan": {
+    "ok": false,
+    "reason": "plan",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari refused the plan. This probe did not start a browser. Drop stealth, proxy, captcha, or desktop, or upgrade, then retry. Do not remint to fix a plan refusal.",
+    "code": "FeatureRequiresPlan",
+    "status": 402,
+    "retryable": false,
+    "error": "Solari 402 FeatureRequiresPlan: stealth, proxy, captcha, or desktops need Starter or higher."
+  },
+  "classify: 403 PlanLimitExceeded": {
+    "message": "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage).",
+    "code": "PlanLimitExceeded",
+    "retryable": false,
+    "status": 403
+  },
+  "explain: 403 PlanLimitExceeded": "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage).",
+  "failure payload: 403 PlanLimitExceeded": {
+    "ok": false,
+    "error": "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage).",
+    "code": "PlanLimitExceeded",
+    "retryable": false,
+    "status": 403
+  },
+  "health receipt: 403 PlanLimitExceeded": {
+    "ok": false,
+    "reason": "plan",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari refused the plan. This probe did not start a browser. Drop stealth, proxy, captcha, or desktop, or upgrade, then retry. Do not remint to fix a plan refusal.",
+    "code": "PlanLimitExceeded",
+    "status": 403,
+    "retryable": false,
+    "error": "Solari 403 PlanLimitExceeded: this account is at a plan limit (profiles, minutes, or storage)."
+  },
+  "classify: 429 ConcurrencyLimitExceeded": {
+    "message": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot.",
+    "code": "ConcurrencyLimitExceeded",
+    "retryable": false,
+    "recovery": "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+    "status": 429,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    }
+  },
+  "explain: 429 ConcurrencyLimitExceeded": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot. Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+  "failure payload: 429 ConcurrencyLimitExceeded": {
+    "ok": false,
+    "error": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot.",
+    "code": "ConcurrencyLimitExceeded",
+    "retryable": false,
+    "recovery": "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+    "status": 429,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    }
+  },
+  "health receipt: 429 ConcurrencyLimitExceeded": {
+    "ok": false,
+    "reason": "concurrency",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari 429: leftover sessions hold a slot. Run auspex reap (ledger, not account-wide), then retry. Do not remint while the slot is held.",
+    "code": "ConcurrencyLimitExceeded",
+    "status": 429,
+    "retryable": false,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    },
+    "error": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot."
+  },
+  "classify: 429 bare": {
+    "message": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot.",
+    "code": "ConcurrencyLimitExceeded",
+    "retryable": false,
+    "recovery": "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+    "status": 429,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    }
+  },
+  "explain: 429 bare": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot. Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+  "failure payload: 429 bare": {
+    "ok": false,
+    "error": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot.",
+    "code": "ConcurrencyLimitExceeded",
+    "retryable": false,
+    "recovery": "Not retryable. Free the slot with auspex_reap (or solari_browser_close / solari_kill if that MCP is loaded), then retry.",
+    "status": 429,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    }
+  },
+  "health receipt: 429 bare": {
+    "ok": false,
+    "reason": "concurrency",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari 429: leftover sessions hold a slot. Run auspex reap (ledger, not account-wide), then retry. Do not remint while the slot is held.",
+    "code": "ConcurrencyLimitExceeded",
+    "status": 429,
+    "retryable": false,
+    "solariBlame": "concurrency",
+    "nextCall": {
+      "tool": "auspex_reap"
+    },
+    "error": "Solari 429 ConcurrencyLimitExceeded: leftover sessions still hold a slot."
+  },
+  "classify: 401 on GET /profiles": {
+    "message": "Solari GET /profiles failed: 401",
+    "code": "SolariError",
+    "retryable": false,
+    "status": 401
+  },
+  "explain: 401 on GET /profiles": "Solari GET /profiles failed: 401",
+  "failure payload: 401 on GET /profiles": {
+    "ok": false,
+    "error": "Solari GET /profiles failed: 401",
+    "code": "SolariError",
+    "retryable": false,
+    "status": 401
+  },
+  "health receipt: 401 on GET /profiles": {
+    "ok": false,
+    "reason": "auth",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari rejected the API key. Check SOLARI_API_KEY. Do not remint a login.",
+    "code": "SolariError",
+    "status": 401,
+    "retryable": false,
+    "error": "Solari GET /profiles failed: 401"
+  },
+  "classify: 404 InvalidSessionId": {
+    "message": "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released.",
+    "code": "InvalidSessionId",
+    "retryable": false,
+    "status": 404
+  },
+  "explain: 404 InvalidSessionId": "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released.",
+  "failure payload: 404 InvalidSessionId": {
+    "ok": false,
+    "error": "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released.",
+    "code": "InvalidSessionId",
+    "retryable": false,
+    "status": 404
+  },
+  "health receipt: 404 InvalidSessionId": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari GET /profiles returned HTTP 404. Retry auspex solari-health once. This is not an app login.",
+    "code": "InvalidSessionId",
+    "status": 404,
+    "retryable": false,
+    "error": "Solari InvalidSessionId: that session id is unknown or not this account's; it was not released."
+  },
+  "classify: 413 payload too large": {
+    "message": "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit.",
+    "code": "PayloadTooLarge",
+    "retryable": false,
+    "recovery": "Profile save payload exceeded Solari 1 MiB limit. By default, Auspex now omits indexedDB to keep saves lean (sessionStorage is still captured for apps like ConsistencyHub). If this still fails, remint auspex_login and use console Save for a leaner seed. Do not retry identical save.",
+    "status": 413
+  },
+  "explain: 413 payload too large": "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit. Profile save payload exceeded Solari 1 MiB limit. By default, Auspex now omits indexedDB to keep saves lean (sessionStorage is still captured for apps like ConsistencyHub). If this still fails, remint auspex_login and use console Save for a leaner seed. Do not retry identical save.",
+  "failure payload: 413 payload too large": {
+    "ok": false,
+    "error": "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit.",
+    "code": "PayloadTooLarge",
+    "retryable": false,
+    "recovery": "Profile save payload exceeded Solari 1 MiB limit. By default, Auspex now omits indexedDB to keep saves lean (sessionStorage is still captured for apps like ConsistencyHub). If this still fails, remint auspex_login and use console Save for a leaner seed. Do not retry identical save.",
+    "status": 413
+  },
+  "health receipt: 413 payload too large": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari GET /profiles returned HTTP 413. Retry auspex solari-health once. This is not an app login.",
+    "code": "PayloadTooLarge",
+    "status": 413,
+    "retryable": false,
+    "error": "Solari 413 Payload Too Large: profile JSON exceeds the 1 MiB limit."
+  },
+  "classify: 502 bad gateway": {
+    "message": "Solari 502 Bad Gateway: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 502
+  },
+  "explain: 502 bad gateway": "Solari 502 Bad Gateway: transient infrastructure issue (proxy, capacity, or upstream). Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+  "failure payload: 502 bad gateway": {
+    "ok": false,
+    "error": "Solari 502 Bad Gateway: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 502,
+    "solariBlame": "infra-5xx"
+  },
+  "health receipt: 502 bad gateway": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariInfraTransient",
+    "status": 502,
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "error": "Solari 502 Bad Gateway: transient infrastructure issue (proxy, capacity, or upstream)."
+  },
+  "classify: 503 ServiceUnavailable": {
+    "message": "Solari 503 Service Unavailable: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 503
+  },
+  "explain: 503 ServiceUnavailable": "Solari 503 Service Unavailable: transient infrastructure issue (proxy, capacity, or upstream). Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+  "failure payload: 503 ServiceUnavailable": {
+    "ok": false,
+    "error": "Solari 503 Service Unavailable: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 503,
+    "solariBlame": "infra-5xx"
+  },
+  "health receipt: 503 ServiceUnavailable": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariInfraTransient",
+    "status": 503,
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "error": "Solari 503 Service Unavailable: transient infrastructure issue (proxy, capacity, or upstream)."
+  },
+  "classify: 504 gateway timeout": {
+    "message": "Solari 504 Gateway Timeout: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 504
+  },
+  "explain: 504 gateway timeout": "Solari 504 Gateway Timeout: transient infrastructure issue (proxy, capacity, or upstream). Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+  "failure payload: 504 gateway timeout": {
+    "ok": false,
+    "error": "Solari 504 Gateway Timeout: transient infrastructure issue (proxy, capacity, or upstream).",
+    "code": "SolariInfraTransient",
+    "retryable": true,
+    "recovery": "Solari transient infrastructure issue (not app login failure). Wait 5-10 seconds, call auspex_reap if concurrency is suspect, then retry the same operation once. If the error was during login handoff (single-use URL), remint with auspex_login. Do not conflate with loggedOut or needsHuman.",
+    "status": 504,
+    "solariBlame": "infra-5xx"
+  },
+  "health receipt: 504 gateway timeout": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariInfraTransient",
+    "status": 504,
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "error": "Solari 504 Gateway Timeout: transient infrastructure issue (proxy, capacity, or upstream)."
+  },
+  "classify: 503 no stealth pool": {
+    "message": "Solari stealth pool is empty. The SDK may report this as exhausted attempts with no HTTP status.",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "stealth-pool-empty",
+    "recovery": "Drop --stealth, or wait once and retry that same call once. Do not solve CAPTCHA. Do not switch to a proxy. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "status": 503
+  },
+  "explain: 503 no stealth pool": "Solari stealth pool is empty. The SDK may report this as exhausted attempts with no HTTP status. Drop --stealth, or wait once and retry that same call once. Do not solve CAPTCHA. Do not switch to a proxy. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+  "failure payload: 503 no stealth pool": {
+    "ok": false,
+    "error": "Solari stealth pool is empty. The SDK may report this as exhausted attempts with no HTTP status.",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "recovery": "Drop --stealth, or wait once and retry that same call once. Do not solve CAPTCHA. Do not switch to a proxy. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "status": 503,
+    "solariBlame": "stealth-pool-empty"
+  },
+  "health receipt: 503 no stealth pool": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariSdkExhausted",
+    "status": 503,
+    "retryable": true,
+    "solariBlame": "stealth-pool-empty",
+    "error": "Solari stealth pool is empty. The SDK may report this as exhausted attempts with no HTTP status."
+  },
+  "classify: BrowserUnhealthy, no status": {
+    "message": "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check.",
+    "code": "BrowserUnhealthy",
+    "retryable": true
+  },
+  "explain: BrowserUnhealthy, no status": "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check.",
+  "failure payload: BrowserUnhealthy, no status": {
+    "ok": false,
+    "error": "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check.",
+    "code": "BrowserUnhealthy",
+    "retryable": true
+  },
+  "health receipt: BrowserUnhealthy, no status": {
+    "ok": false,
+    "reason": "BrowserUnhealthy",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari BrowserUnhealthy. Retry auspex solari-health. This is not loggedOut and not a phone door.",
+    "code": "BrowserUnhealthy",
+    "retryable": true,
+    "error": "Solari BrowserUnhealthy: the cloud Chrome failed its health probe; retry the check."
+  },
+  "classify: exhausted, status stripped": {
+    "message": "Solari SDK exhausted retries on POST /sessions and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "unknown-exhausted",
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "explain: exhausted, status stripped": "Solari SDK exhausted retries on POST /sessions and stripped the HTTP status (cookbook #56). Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+  "failure payload: exhausted, status stripped": {
+    "ok": false,
+    "error": "Solari SDK exhausted retries on POST /sessions and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "solariBlame": "unknown-exhausted",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "health receipt: exhausted, status stripped": {
+    "ok": false,
+    "reason": "unknown-exhausted",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari SDK exhausted retries and stripped the HTTP status. Wait once, then run auspex solari-health again. Do not remint from this probe. This is not loggedOut or needsHuman.",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "unknown-exhausted",
+    "error": "Solari SDK exhausted retries on POST /sessions and stripped the HTTP status (cookbook #56)."
+  },
+  "classify: exhausted, 503 cause": {
+    "message": "Solari 503 after SDK retries (exhausted attempts; HTTP status was on the cause, body stripped).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "infra-5xx",
+    "status": 503,
+    "recovery": "Wait once, then retry the same call once. The SDK already retried. auspex_reap only if a leftover slot is suspect (ledger, not account-wide). If this was a login handoff, remint auspex_login. This is not loggedOut or needsHuman."
+  },
+  "explain: exhausted, 503 cause": "Solari 503 after SDK retries (exhausted attempts; HTTP status was on the cause, body stripped). Wait once, then retry the same call once. The SDK already retried. auspex_reap only if a leftover slot is suspect (ledger, not account-wide). If this was a login handoff, remint auspex_login. This is not loggedOut or needsHuman.",
+  "failure payload: exhausted, 503 cause": {
+    "ok": false,
+    "error": "Solari 503 after SDK retries (exhausted attempts; HTTP status was on the cause, body stripped).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "recovery": "Wait once, then retry the same call once. The SDK already retried. auspex_reap only if a leftover slot is suspect (ledger, not account-wide). If this was a login handoff, remint auspex_login. This is not loggedOut or needsHuman.",
+    "status": 503,
+    "solariBlame": "infra-5xx"
+  },
+  "health receipt: exhausted, 503 cause": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariSdkExhausted",
+    "status": 503,
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "error": "Solari 503 after SDK retries (exhausted attempts; HTTP status was on the cause, body stripped)."
+  },
+  "classify: exhausted, abort cause": {
+    "message": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "unknown-exhausted",
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "explain: exhausted, abort cause": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56). Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+  "failure payload: exhausted, abort cause": {
+    "ok": false,
+    "error": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "solariBlame": "unknown-exhausted",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "health receipt: exhausted, abort cause": {
+    "ok": false,
+    "reason": "timeout",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not answer GET /profiles before the timeout. Wait, then run auspex solari-health again. Do not remint.",
+    "code": "Timeout",
+    "retryable": true,
+    "error": "Solari did not answer GET /profiles before the timeout. Wait, then run auspex solari-health again. Do not remint."
+  },
+  "classify: exhausted, fetch failed": {
+    "message": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "solariBlame": "unknown-exhausted",
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "explain: exhausted, fetch failed": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56). Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+  "failure payload: exhausted, fetch failed": {
+    "ok": false,
+    "error": "Solari SDK exhausted retries on GET /profiles and stripped the HTTP status (cookbook #56).",
+    "code": "SolariSdkExhausted",
+    "retryable": false,
+    "recovery": "Status is gone, so this is not a login failure. Wait once, then retry the same call once. If this was a login handoff, remint auspex_login. Do not keep creating sessions. This is not loggedOut or needsHuman.",
+    "solariBlame": "unknown-exhausted",
+    "nextCall": {
+      "tool": "auspex_login"
+    }
+  },
+  "health receipt: exhausted, fetch failed": {
+    "ok": false,
+    "reason": "network",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Could not reach api.getsolari.com. Check the network, then run auspex solari-health again. This is not an app login failure.",
+    "code": "Network",
+    "retryable": true,
+    "error": "Could not reach api.getsolari.com. Check the network, then run auspex solari-health again. This is not an app login failure."
+  },
+  "classify: profile busy": {
+    "message": "profile consistencyhub is locked by another Auspex process (refusing to save over it). Do not retry in a loop.",
+    "code": "ProfileBusy",
+    "retryable": false,
+    "recovery": "Wait for the other agent to finish. Do not retry in a loop."
+  },
+  "explain: profile busy": "profile consistencyhub is locked by another Auspex process (refusing to save over it). Do not retry in a loop. Wait for the other agent to finish. Do not retry in a loop.",
+  "failure payload: profile busy": {
+    "ok": false,
+    "error": "profile consistencyhub is locked by another Auspex process (refusing to save over it). Do not retry in a loop.",
+    "code": "ProfileBusy",
+    "retryable": false,
+    "recovery": "Wait for the other agent to finish. Do not retry in a loop."
+  },
+  "health receipt: profile busy": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "ProfileBusy",
+    "retryable": false,
+    "error": "profile consistencyhub is locked by another Auspex process (refusing to save over it). Do not retry in a loop."
+  },
+  "classify: AuspexError with receipt fields": {
+    "message": "boom",
+    "code": "AuspexError",
+    "retryable": false,
+    "recovery": "<undefined>",
+    "status": "<undefined>",
+    "solariBlame": "<undefined>",
+    "nextCall": "<undefined>"
+  },
+  "explain: AuspexError with receipt fields": "boom",
+  "failure payload: AuspexError with receipt fields": {
+    "ok": false,
+    "error": "boom",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "health receipt: AuspexError with receipt fields": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "AuspexError",
+    "retryable": false,
+    "error": "boom"
+  },
+  "classify: plain Error": {
+    "message": "plain",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "explain: plain Error": "plain",
+  "failure payload: plain Error": {
+    "ok": false,
+    "error": "plain",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "health receipt: plain Error": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "AuspexError",
+    "retryable": false,
+    "error": "plain"
+  },
+  "classify: key in message (slr_live_)": {
+    "message": "bad key slr_… and more",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "explain: key in message (slr_live_)": "bad key slr_… and more",
+  "failure payload: key in message (slr_live_)": {
+    "ok": false,
+    "error": "bad key slr_… and more",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "health receipt: key in message (slr_live_)": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "AuspexError",
+    "retryable": false,
+    "error": "bad key slr_… and more"
+  },
+  "classify: keys in message (slr_test_, sk-, Bearer)": {
+    "message": "slr_… and sk-… and Bearer …",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "explain: keys in message (slr_test_, sk-, Bearer)": "slr_… and sk-… and Bearer …",
+  "failure payload: keys in message (slr_test_, sk-, Bearer)": {
+    "ok": false,
+    "error": "slr_… and sk-… and Bearer …",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "health receipt: keys in message (slr_test_, sk-, Bearer)": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "AuspexError",
+    "retryable": false,
+    "error": "slr_… and sk-… and Bearer …"
+  },
+  "classify: ANSI colour codes in message": {
+    "message": "\u001b[2mlocator.click: Timeout 5000ms exceeded.\u001b[22m",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "explain: ANSI colour codes in message": "\u001b[2mlocator.click: Timeout 5000ms exceeded.\u001b[22m",
+  "failure payload: ANSI colour codes in message": {
+    "ok": false,
+    "error": "locator.click: Timeout 5000ms exceeded.",
+    "code": "AuspexError",
+    "retryable": false
+  },
+  "health receipt: ANSI colour codes in message": {
+    "ok": false,
+    "reason": "error",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 10,
+    "next": "Solari did not look healthy enough to proceed. Retry auspex solari-health once. This is not an app login.",
+    "code": "AuspexError",
+    "retryable": false,
+    "error": "\u001b[2mlocator.click: Timeout 5000ms exceeded.\u001b[22m"
+  }
+}

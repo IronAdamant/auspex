@@ -1,0 +1,8 @@
+{
+  "desktopLogHeader()": ":: Starting Solari desktop review\n==> Agent is using Solari to review",
+  "desktopLogLine(\"booting\")": ":: booting",
+  "desktopLogLine(\"screenshot\")": ":: screenshot",
+  "desktopLogLine(\"done\")": "==> Solari closed, all operations completed per request. Agent sending output...",
+  "desktopSummary({\"ok\":true,\"ready\":true,\"screenshotPath\":\".auspex/runs/stamp/screenshot.png\",\"errors\":[]})": "==> ok=true ready=true\n==> path=.auspex/runs/stamp/screenshot.png",
+  "desktopOverviewText()": "auspex_desktop\nAgent is using Solari to review\nSolari closed, all operations completed per request. Agent sending output..."
+}

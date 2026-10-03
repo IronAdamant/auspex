@@ -1,0 +1,916 @@
+{
+  "parseArgv(([\"check\",\"https://consistencyhub.io/login\",\"--expect\",\"Dashboard\",\"--profile\",\"consist...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io/login",
+        "expect": "Dashboard",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": true,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"Build it.\",\"--stealth=true\"]))": {
+    "status": "error",
+    "message": "unexpected arguments: --stealth=true"
+  },
+  "parseArgv(([\"login\",\"--profile\",\"auspex-goal-test\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "login",
+      "profile": "auspex-goal-test",
+      "url": "<undefined>",
+      "wait": false,
+      "profileDerived": false
+    }
+  },
+  "parseArgv(([\"profiles\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "profiles",
+      "purge": "<undefined>",
+      "humanAgree": false,
+      "keep": "<undefined>",
+      "unkeep": "<undefined>"
+    }
+  },
+  "parseArgv(([\"login\",\"--profile\",\"auspex-demo\",\"--wait\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "login",
+      "profile": "auspex-demo",
+      "url": "<undefined>",
+      "wait": true,
+      "profileDerived": false
+    }
+  },
+  "parseArgv(([\"await-login\",\"--profile\",\"auspex-demo\",\"--since-version\",\"10\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "await-login",
+      "profile": "auspex-demo",
+      "sinceVersion": 10,
+      "timeoutMs": "<undefined>",
+      "saveEditor": false,
+      "url": "<undefined>",
+      "expect": "<undefined>",
+      "chainFinalize": "<undefined>",
+      "authKeyNames": "<undefined>"
+    }
+  },
+  "parseArgv(([\"await-login\",\"--profile\",\"auspex-demo\",\"--save-editor\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "await-login",
+      "profile": "auspex-demo",
+      "sinceVersion": "<undefined>",
+      "timeoutMs": "<undefined>",
+      "saveEditor": true,
+      "url": "<undefined>",
+      "expect": "<undefined>",
+      "chainFinalize": "<undefined>",
+      "authKeyNames": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://consistencyhub.io\",\"--expect\",\"Document Editor\",\"--sso\",\"--record\"]))": {
+    "status": "error",
+    "message": "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+  },
+  "parseArgv(([\"check\",\"https://consistencyhub.io\",\"--expect\",\"Document Editor\",\"--profile\",\"consist...)": {
+    "status": "error",
+    "message": "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"Build it.\",\"--profile\",\"demo\",\"--record\"]))": {
+    "status": "error",
+    "message": "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile only for a public marketing host."
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"Build it.\",\"--profile\",\"demo\",\"--record...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://ironadamant.com",
+        "expect": "Build it.",
+        "selector": "<undefined>",
+        "profile": "demo",
+        "stealth": false,
+        "record": true,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": true,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--record\",\"--allow-record-profile\"]))": {
+    "status": "error",
+    "message": "--allow-record-profile is refused for the consistencyhub saved check (recordings capture a logged-in session)."
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"Build it.\",\"--wait-for\",\"#main\",\"--fill...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://ironadamant.com",
+        "expect": "Build it.",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "#main",
+        "fill": "#q",
+        "value": "hello",
+        "click": "button.submit",
+        "proxy": "us",
+        "proxySticky": "<undefined>",
+        "captcha": true,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--click\",\"button.export\"]))": {
+    "status": "error",
+    "message": "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click."
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--click\",\"button.export\",\"--allow-page-actions\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": true,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "button.export",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://example.com\",\"--expect\",\"Example Domain\",\"--profile\",\"auspex-demo\",\"...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://example.com",
+        "expect": "Example Domain",
+        "selector": "<undefined>",
+        "profile": "auspex-demo",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": true,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"reap\",\"--dry-run\",\"--session\",\"sess-1\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "reap",
+      "dryRun": true,
+      "sessionId": "sess-1",
+      "vmId": "<undefined>",
+      "packReceipts": false,
+      "accountWide": false
+    }
+  },
+  "parseArgv(([\"reap\",\"--account-wide\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "reap",
+      "dryRun": false,
+      "sessionId": "<undefined>",
+      "vmId": "<undefined>",
+      "packReceipts": false,
+      "accountWide": true
+    }
+  },
+  "parseArgv(([\"desktop\",\"--open\",\"mousepad\",\"--expect\",\"mousepad\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "desktop",
+      "open": "mousepad",
+      "type": "<undefined>",
+      "click": "<undefined>",
+      "expect": "mousepad"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"ironadamant\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://ironadamant.com",
+        "expect": "One office job.",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"checkpoint\",\"--no-verify\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://checkpointprojects.com",
+        "expect": "Checkpoint",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": false
+    }
+  },
+  "parseArgv(([\"check\",\"https://consistencyhub.io/dashboard\",\"--expect\",\"Document Editor\",\"--record\"]))": {
+    "status": "error",
+    "message": "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+  },
+  "parseArgv(([\"profile-status\",\"--name\",\"consistencyhub\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "profile-status",
+      "profile": "<undefined>",
+      "name": "consistencyhub",
+      "url": "<undefined>",
+      "expect": "<undefined>",
+      "authKeyNames": "<undefined>"
+    }
+  },
+  "parseArgv(([\"profile-status\",\"--profile\",\"app-example\",\"--url\",\"https://app.example\",\"--expect\",\"...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "profile-status",
+      "profile": "app-example",
+      "name": "<undefined>",
+      "url": "https://app.example",
+      "expect": "Workspace ready",
+      "authKeyNames": "<undefined>"
+    }
+  },
+  "parseArgv(([\"profile-status\",\"--profile\",\"app-example\",\"--expect\",\"\"]))": {
+    "status": "error",
+    "message": "profile-status --expect must be a non-empty string"
+  },
+  "parseArgv(([\"reap\",\"--dry-run\",\"--pack-receipts\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "reap",
+      "dryRun": true,
+      "sessionId": "<undefined>",
+      "vmId": "<undefined>",
+      "packReceipts": true,
+      "accountWide": false
+    }
+  },
+  "parseArgv(([\"desktop\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "desktop",
+      "open": "<undefined>",
+      "type": "<undefined>",
+      "click": "<undefined>",
+      "expect": "<undefined>"
+    }
+  },
+  "parseArgv(([\"desktop\",\"extra\"]))": {
+    "status": "error",
+    "message": "unexpected arguments: extra"
+  },
+  "parseArgv(([\"check\",\"https://onedrive.live.com/\",\"--expect\",\"My files\",\"--profile\",\"consistencyhu...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://onedrive.live.com/",
+        "expect": "My files",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://consistencyhub.io\",\"--expect\",\"Document Editor\",\"--profile\",\"consist...) #2": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"One office job.\",\"--profile\",\"demo\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://ironadamant.com",
+        "expect": "One office job.",
+        "selector": "<undefined>",
+        "profile": "demo",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://app.example.com\",\"--expect\",\"Dashboard\",\"--profile\",\"acme\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://app.example.com",
+        "expect": "Dashboard",
+        "selector": "<undefined>",
+        "profile": "acme",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://app.example.com\",\"--expect\",\"Dashboard\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://app.example.com",
+        "expect": "Dashboard",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--verify-with-profile\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": true,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--verify\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": true
+    }
+  },
+  "parseArgv(([\"check\",\"--name\",\"consistencyhub\",\"--no-verify\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://consistencyhub.io",
+        "expect": "Document Editor",
+        "selector": "<undefined>",
+        "profile": "consistencyhub",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": false,
+      "verify": false
+    }
+  },
+  "parseArgv(([\"connect\",\"https://app.example\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "connect",
+      "connect": {
+        "mode": "run",
+        "opts": {
+          "url": "https://app.example",
+          "expect": "<undefined>",
+          "profile": "<undefined>",
+          "verbose": "<undefined>"
+        }
+      }
+    }
+  },
+  "parseArgv(([\"finalize-login\",\"--profile\",\"myapp\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "finalize-login",
+      "profile": "myapp",
+      "url": "<undefined>",
+      "expect": "<undefined>",
+      "ssoProvider": "<undefined>"
+    }
+  },
+  "parseArgv(([\"finalize-login\",\"--profile\",\"myapp\",\"--url\",\"https://app.example.com\",\"--expect\",\"Da...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "finalize-login",
+      "profile": "myapp",
+      "url": "https://app.example.com",
+      "expect": "Dashboard",
+      "ssoProvider": "<undefined>"
+    }
+  },
+  "parseArgv(([\"job\",\"--url\",\"https://app.example\",\"--expect\",\"Workspace ready\",\"--verify-with-profi...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "job",
+      "opts": {
+        "jobId": "<undefined>",
+        "name": "<undefined>",
+        "profile": "<undefined>",
+        "url": "https://app.example",
+        "expect": "Workspace ready",
+        "skipFinalize": "<undefined>",
+        "verifyWithProfile": true,
+        "wait": "<undefined>",
+        "wakeWebhookUrl": "https://hooks.example/wake",
+        "timeoutMs": "<undefined>"
+      }
+    }
+  },
+  "parseArgv(([\"job-status\",\"--job-id\",\"job-abc-12345678\",\"--wait-ms\",\"500\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "job-status",
+      "jobId": "job-abc-12345678",
+      "waitMs": 500
+    }
+  },
+  "parseArgv(([\"trace\",\"--profile\",\"consistencyhub\",\"--limit\",\"20\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "trace",
+      "profile": "consistencyhub",
+      "limit": 20,
+      "all": false
+    }
+  },
+  "parseArgv(([\"trace\",\"--all\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "trace",
+      "profile": "<undefined>",
+      "limit": "<undefined>",
+      "all": true
+    }
+  },
+  "parseArgv(([\"check\",\"https://example.com\",\"--expect\",\"Example Domain\",\"--fill\",\"#q\",\"--value\",\"hi...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://example.com",
+        "expect": "Example Domain",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "#q",
+        "value": "hi",
+        "click": "button.go",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": "<undefined>"
+    }
+  },
+  "parseArgv(([\"check\",\"https://example.com\",\"--expect\",\"Example Domain\",\"--fill\",\"#a\",\"--value\",\"on...)": {
+    "status": "error",
+    "message": "unexpected arguments: --fill #b"
+  },
+  "parseArgv(([\"check\",\"https://example.com\",\"--expect\",\"Example Domain\",\"--click\",\"button.open\",\"--...)": {
+    "status": "error",
+    "message": "unexpected arguments: --click button.save"
+  },
+  "parseArgv(([\"await-login\",\"--profile\",\"consistencyhub\",\"--url\",\"https://app.socialaize.com\",\"--sa...)": {
+    "status": "ok",
+    "command": {
+      "cmd": "await-login",
+      "profile": "consistencyhub",
+      "sinceVersion": "<undefined>",
+      "timeoutMs": "<undefined>",
+      "saveEditor": true,
+      "url": "https://app.socialaize.com",
+      "expect": "<undefined>",
+      "chainFinalize": "<undefined>",
+      "authKeyNames": "<undefined>"
+    }
+  },
+  "parseArgv(([\"await-login\",\"--profile\",\"consistencyhub\",\"--url\",\"file:///tmp\"]))": {
+    "status": "error",
+    "message": "url must be an http or https URL"
+  },
+  "parseArgv(([\"login\",\"--url\",\"https://app.example.com\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "login",
+      "profile": "app-example-com",
+      "url": "https://app.example.com",
+      "wait": false,
+      "profileDerived": true
+    }
+  },
+  "parseArgv(([\"login\",\"--url\",\"https://app.example\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "login",
+      "profile": "app-example",
+      "url": "https://app.example",
+      "wait": false,
+      "profileDerived": true
+    }
+  },
+  "parseArgv(([\"login\",\"--profile\",\"consistencyhub\",\"--url\",\"https://app.example.com\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "login",
+      "profile": "consistencyhub",
+      "url": "https://app.example.com",
+      "wait": false,
+      "profileDerived": false
+    }
+  },
+  "parseArgv(([\"login\"]))": {
+    "status": "error",
+    "message": "login requires --profile <name> or --url <https> (url without profile derives a host slug)"
+  },
+  "parseArgv(([\"check\",\"https://ironadamant.com\",\"--expect\",\"Build it.\",\"--verify\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "check",
+      "opts": {
+        "url": "https://ironadamant.com",
+        "expect": "Build it.",
+        "selector": "<undefined>",
+        "profile": "<undefined>",
+        "stealth": false,
+        "record": false,
+        "sso": false,
+        "ssoProvider": "<undefined>",
+        "allowRecordProfile": false,
+        "allowPageActions": false,
+        "waitFor": "<undefined>",
+        "fill": "<undefined>",
+        "value": "<undefined>",
+        "click": "<undefined>",
+        "proxy": "<undefined>",
+        "proxySticky": "<undefined>",
+        "captcha": false,
+        "saveProfile": false,
+        "verifyWithProfile": false,
+        "mobile": false,
+        "device": "<undefined>",
+        "authKeyNames": "<undefined>"
+      },
+      "verifyAfter": true,
+      "verify": true
+    }
+  },
+  "parseArgv(([\"verify\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "verify",
+      "runDir": "<undefined>"
+    }
+  },
+  "parseArgv(([\"verify\",\".auspex/runs/stamp\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "verify",
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "parseArgv(([\"solari-health\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "solari-health"
+    }
+  },
+  "parseArgv(([\"solari-health\",\"--profile\",\"app-example\"]))": {
+    "status": "error",
+    "message": "unexpected arguments: --profile app-example"
+  },
+  "parseArgv(([\"solari-health\",\"--help\"]))": {
+    "status": "ok",
+    "command": {
+      "cmd": "help"
+    }
+  }
+}

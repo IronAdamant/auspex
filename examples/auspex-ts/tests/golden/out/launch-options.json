@@ -1,0 +1,51 @@
+{
+  "profileClaimSessionCreate(\"prof_saved\")": {
+    "profileId": "prof_saved"
+  },
+  "parseProxyFlag(\"us\")": "us",
+  "parseProxyFlag(\"smart\")": "smart",
+  "parseProxyFlag(\"off\")": "off",
+  "parseProxyFlag(\"gb\", \"warm-1\")": {
+    "country": "gb",
+    "session": "warm-1"
+  },
+  "parseProxyFlag(undefined, \"warm-1\")": {
+    "country": "us",
+    "session": "warm-1"
+  },
+  "sessionCreateFromCheck({\"proxy\":\"us\"})": {
+    "stealth": true,
+    "recording": false,
+    "profileId": "<undefined>",
+    "captcha": "<undefined>",
+    "proxy": "us"
+  },
+  "sessionCreateFromCheck({\"captcha\":true})": {
+    "stealth": true,
+    "recording": false,
+    "profileId": "<undefined>",
+    "captcha": true,
+    "proxy": "<undefined>"
+  },
+  "sessionCreateFromCheck({\"stealth\":false,\"proxy\":\"off\"})": {
+    "stealth": false,
+    "recording": false,
+    "profileId": "<undefined>",
+    "captcha": "<undefined>",
+    "proxy": "<undefined>"
+  },
+  "sessionCreateFromCheck({\"stealth\":true,\"record\":true,\"profileId\":\"p1\",\"url\":\"https://ironadamant.com\"})": {
+    "stealth": true,
+    "recording": true,
+    "profileId": "p1",
+    "captcha": "<undefined>",
+    "proxy": "<undefined>"
+  },
+  "sessionCreateFromCheck({\"record\":true,\"profileId\":\"p1\",\"url\":\"https://consistencyhub.io\"})": {
+    "stealth": false,
+    "recording": false,
+    "profileId": "p1",
+    "captcha": "<undefined>",
+    "proxy": "<undefined>"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "profileClaimBudgetMs(90000, 60000)": 29250,
+  "profileClaimBudgetMs(90000, 90000)": -750,
+  "parseAssertStdout(\"noise\\n{\\\"ok\\\":true,\\\"errors\\\":[],\\\"claimOk\\\":true,\\\"claimErrors\\\":[]}\\n\")": {
+    "ok": true,
+    "errors": [],
+    "claimOk": true,
+    "claimErrors": [],
+    "anonymousClaimSkipped": "<undefined>",
+    "finalUrl": "<undefined>"
+  },
+  "parseAssertStdout(\"not json\")": {
+    "ok": false,
+    "errors": [
+      "sandbox stdout was not JSON"
+    ],
+    "claimOk": false,
+    "claimErrors": []
+  },
+  "parseAssertStdout(\" \")": {
+    "ok": false,
+    "errors": [
+      "sandbox produced no stdout"
+    ],
+    "claimOk": false,
+    "claimErrors": []
+  },
+  "parseAssertStdout(\"{\\\"ok\\\":true,\\\"errors\\\":[],\\\"claimOk\\\":false,\\\"claimErrors\\\":[\\\"anonymous claim skippe...)": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "anonymous claim skipped"
+    ],
+    "anonymousClaimSkipped": true,
+    "finalUrl": "<undefined>"
+  },
+  "parseAssertStdout(\"{\\\"ok\\\":true,\\\"errors\\\":[],\\\"claimOk\\\":false,\\\"claimErrors\\\":[\\\"fetched page text does...)": {
+    "ok": true,
+    "errors": [],
+    "claimOk": false,
+    "claimErrors": [
+      "fetched page text does not contain expect"
+    ],
+    "anonymousClaimSkipped": "<undefined>",
+    "finalUrl": "<undefined>"
+  }
+}

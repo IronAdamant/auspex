@@ -1,0 +1,214 @@
+{
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...)": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          },
+          {
+            "name": "__auspex_ss__:expiresOn",
+            "value": "9"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "hydrateSessionStorageInMemory({\"__auspex_ss__:accessToken\":\"tok\",\"__auspex_ss__:expiresOn\":\"9\",\"refreshToken\":\"enc\"})": {
+    "accessToken": "tok",
+    "expiresOn": "9"
+  },
+  "mergeStorageStates({\"cookies\":[{\"name\":\"a\",\"value\":\"1\",\"domain\":\"example.com\",\"path\":\"/\"}]}, {\"cookies\":[{...)": {
+    "cookies": [
+      {
+        "name": "a",
+        "value": "1",
+        "domain": "example.com",
+        "path": "/"
+      },
+      {
+        "name": "b",
+        "value": "2",
+        "domain": "example.com",
+        "path": "/"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://example.com",
+        "localStorage": [
+          {
+            "name": "k",
+            "value": "v"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "hydrateSessionStorageSource()": "(() => { try { const baked = {}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = \"__auspex_ss__:\"; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? \"\"); } } catch {} })()",
+  "sessionItemsByOrigin({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...)": {
+    "https://consistencyhub.io": {
+      "accessToken": "tok"
+    }
+  },
+  "hydrateSessionStorageSource({\"https://consistencyhub.io\":{\"accessToken\":\"tok\"}})": "(() => { try { const baked = {\"https://consistencyhub.io\":{\"accessToken\":\"tok\"}}; const items = baked[location.origin]; if (items) { for (const [k, v] of Object.entries(items)) { if (sessionStorage.getItem(k) == null) sessionStorage.setItem(k, String(v)); } } const prefix = \"__auspex_ss__:\"; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (!k || !k.startsWith(prefix)) continue; const name = k.slice(prefix.length); if (name && sessionStorage.getItem(name) == null) sessionStorage.setItem(name, localStorage.getItem(k) ?? \"\"); } } catch {} })()",
+  "originHasLandedBytes({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"x\",\"domain\":\"login.microsoftonline.com\"}],\"orig...)": false,
+  "originStoreCounts({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"x\",\"domain\":\"login.microsoftonline.com\"}],\"orig...)": {
+    "cookies": 0,
+    "localStorage": 0,
+    "sessionStorage": 0
+  },
+  "foldSessionStorage({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"x\",\"domain\":\"login.microsoftonline.com\"}],\"orig...)": {
+    "cookies": [
+      {
+        "name": "ESTSAUTH",
+        "value": "x",
+        "domain": "login.microsoftonline.com"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "originHasLandedBytes({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"x\",\"domain\":\"login.microsoftonline.com\"}],\"orig...) #2": true,
+  "originStoreCounts({\"cookies\":[{\"name\":\"ESTSAUTH\",\"value\":\"x\",\"domain\":\"login.microsoftonline.com\"}],\"orig...) #2": {
+    "cookies": 0,
+    "localStorage": 0,
+    "sessionStorage": 1
+  },
+  "isPersistableAppUrl(\"https://consistencyhub.io/landing\")": false,
+  "isPersistableAppUrl(\"https://consistencyhub.io/\")": false,
+  "isPersistableAppUrl(\"https://consistencyhub.io/login\")": false,
+  "isPersistableAppUrl(\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\")": false,
+  "isPersistableAppUrl(\"https://consistencyhub.io/dashboard\")": true,
+  "isPersistableAppUrl(\"https://consistencyhub.io/document-editor\")": true,
+  "isLoggedOutLanding(\"https://consistencyhub.io/landing\")": true,
+  "isLoggedOutLanding(\"https://consistencyhub.io/landing/\")": true,
+  "isLoggedOutLanding(\"https://consistencyhub.io/login\")": true,
+  "isLoggedOutLanding(\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\")": true,
+  "isLoggedOutLanding(\"https://consistencyhub.io/dashboard\")": false,
+  "isLoggedOutLanding(\"https://consistencyhub.io/\")": true,
+  "isLoggedOutLanding(\"https://consistencyhub.io/\", {\"matched\":true})": false,
+  "isLoggedOutLanding(\"https://ironadamant.com/\", {\"matched\":true})": false,
+  "parseFoldedExpiresOnMs(\"1758370272000\")": 1758370272000,
+  "parseFoldedExpiresOnMs(\"1758370272\")": 1758370272000,
+  "parseFoldedExpiresOnMs(\"2026-09-20T11:51:12.000Z\")": 1789905072000,
+  "parseFoldedExpiresOnMs(\"\")": "<undefined>",
+  "parseFoldedExpiresOnMs(\"not-a-date\")": "<undefined>",
+  "parseFoldedExpiresOnMs(\"-1\")": "<undefined>",
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...) #2": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          },
+          {
+            "name": "__auspex_ss__:expiresOn",
+            "value": "1758370271999"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "isFoldedExpiresOnStale({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...)": true,
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...) #3": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          },
+          {
+            "name": "__auspex_ss__:expiresOn",
+            "value": "1758370332000"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "isFoldedExpiresOnStale({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...) #2": true,
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...) #4": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          },
+          {
+            "name": "__auspex_ss__:expiresOn",
+            "value": "1758370572000"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "isFoldedExpiresOnStale({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...) #3": true,
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...) #5": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          },
+          {
+            "name": "__auspex_ss__:expiresOn",
+            "value": "1758370572001"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "isFoldedExpiresOnStale({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...) #4": false,
+  "foldSessionStorage({\"cookies\":[],\"origins\":[]}, \"https://consistencyhub.io\", ([{\"name\":\"accessToken\",\"valu...) #6": {
+    "cookies": [],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": [
+          {
+            "name": "__auspex_ss__:accessToken",
+            "value": "tok"
+          }
+        ],
+        "indexedDB": "<undefined>"
+      }
+    ]
+  },
+  "isFoldedExpiresOnStale({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...) #5": false,
+  "originStoreCounts({\"cookies\":[],\"origins\":[{\"origin\":\"https://consistencyhub.io\",\"localStorage\":[{\"name\":...)": {
+    "cookies": 0,
+    "localStorage": 0,
+    "sessionStorage": 2
+  }
+}

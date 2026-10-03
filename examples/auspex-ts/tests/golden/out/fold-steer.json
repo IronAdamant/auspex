@@ -1,0 +1,44 @@
+{
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...)": true,
+  "foldMissFinalizeGuide({\"profile\":\"app-example\",\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false...)": {
+    "text": "Finalize-login NOW for --profile app-example. editorSave 200 succeeded. editorFold.no-cdp did not refresh folded sessionStorage. The VNC JWT may already be past. editorSave succeeded and the profile has cookies. That is not a remint. Cookies alone are not proof of login. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint auspex_login only if finalize-login returns needsHuman.",
+    "nextCall": {
+      "tool": "auspex_finalize_login",
+      "profile": "app-example",
+      "url": "https://app.example/languages",
+      "expect": "Your courses"
+    }
+  },
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...)": true,
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #2": false,
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #3": true,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #2": false,
+  "idpOnlySaveGuide(\"consistencyhub\")": {
+    "text": "Save stored only Microsoft or Google sign-in cookies for --profile consistencyhub. The app is not in this jar. Finish Microsoft or Google sign-in, land on the app UI, then tap Save. Remint now: npx auspex login --profile consistencyhub (MCP: auspex_login). Do not finalize-login on this seed.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "consistencyhub"
+    },
+    "idpOnlyKind": "sign-in-wall"
+  },
+  "idpOnlySaveGuide(\"consistencyhub-io\", {\"liveHost\":\"consistencyhub.io\",\"siteHost\":\"consistencyhub.io\"})": {
+    "text": "Save stored only Microsoft or Google sign-in cookies for --profile consistencyhub-io. liveHost is already consistencyhub.io, so the remote page is the app, not the sign-in wall. That screen is not a saved login. Solari handoff Save persists cookies and localStorage only (editorFold no-cdp); MSAL sessionStorage in that tab was not captured. Do not finalize-login on this seed: a new session has no app session and returns needsHuman. Do not remint to finish Microsoft. Another Save on this editor cannot read that tab.",
+    "idpOnlyKind": "app-visible"
+  },
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #4": true,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #3": false,
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #5": true,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #4": false,
+  "foldLeadBlockedByDrain({\"status\":\"stream-expired\",\"cookieHosts\":[\"google.com\",\"live.com\",\"login.live.com\",\"log...)": true,
+  "foldLeadBlockedByDrain({\"status\":\"timeout\",\"cookieHosts\":[\"google.com\",\"live.com\",\"login.live.com\",\"login.micr...)": true,
+  "foldLeadBlockedByDrain({\"status\":\"stream-expired\",\"cookieHosts\":[\"google.com\",\"live.com\",\"login.live.com\",\"log...) #2": false,
+  "foldLeadBlockedByDrain({\"status\":\"completed\",\"cookieHosts\":[\"google.com\",\"live.com\",\"login.live.com\",\"login.mi...)": false,
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #6": false,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #5": false,
+  "isIdpOnlySave({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #7": false,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #6": true,
+  "isIdpOnlySave({\"cookieHosts\":[\"live.com\",\"login.live.com\",\"login.microsoft.com\",\"login.microsoftonlin...)": false,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":false,\"status\":401,\"error\":\"Unauthorized\"},\"editorFold\":{\"ok\":false...)": false,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #7": false,
+  "shouldSteerToFinalize({\"editorSave\":{\"ok\":true,\"status\":200},\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"},\"coo...) #8": false
+}

@@ -1,0 +1,222 @@
+{
+  "parseConnectFlags(([\"https://app.example\",\"--expect\",\"Workspace ready\"]))": {
+    "ok": true,
+    "mode": "run",
+    "opts": {
+      "url": "https://app.example",
+      "expect": "Workspace ready",
+      "profile": "<undefined>",
+      "verbose": "<undefined>"
+    }
+  },
+  "parseConnectFlags(([\"--url\",\"https://app.example\",\"--profile\",\"mine\"]))": {
+    "ok": true,
+    "mode": "run",
+    "opts": {
+      "url": "https://app.example",
+      "expect": "<undefined>",
+      "profile": "mine",
+      "verbose": "<undefined>"
+    }
+  },
+  "parseConnectFlags(([]))": {
+    "ok": false,
+    "message": "connect requires the app URL: auspex connect https://app.example"
+  },
+  "parseConnectFlags(([\"ftp://x\"]))": {
+    "ok": false,
+    "message": "url must be an http or https URL"
+  },
+  "parseConnectFlags(([\"https://app.example\",\"extra\"]))": {
+    "ok": false,
+    "message": "unexpected arguments: extra"
+  },
+  "parseConnectFlags(([\"--save\",\"app-lorari-com\"]))": {
+    "ok": true,
+    "mode": "save",
+    "profile": "app-lorari-com"
+  },
+  "parseConnectFlags(([\"--save\"]))": {
+    "ok": false,
+    "message": "usage: auspex connect --save <profile>"
+  },
+  "parseConnectFlags(([\"--save\",\"x\",\"https://app.example\"]))": {
+    "ok": false,
+    "message": "usage: auspex connect --save <profile>"
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"completed\",\"status\":\"completed\",\"ok\":t...)": {
+    "ok": true,
+    "headline": "✓ Logged in to app.example. A second browser, using only the saved login, saw \"Workspace ready\".",
+    "detail": [
+      "Saved as profile app-example.",
+      "Next time: npx auspex check --profile app-example --url https://app.example/dash --expect \"Workspace ready\" --verify-with-profile"
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"completed\",\"status\":\"completed\",\"ok\":t...) #2": {
+    "ok": false,
+    "headline": "The live browser saw \"Workspace ready\", but a second browser using only the saved login did not confirm it.",
+    "detail": [
+      "Do not reuse profile app-example yet. Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"completed\",\"status\":\"completed\",\"ok\":t...) #3": {
+    "ok": false,
+    "headline": "The live browser saw \"Workspace ready\", but a second browser using only the saved login did not confirm it.",
+    "detail": [
+      "Do not reuse profile app-example yet. Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"idp-only-save\",\"ok\":...)": {
+    "ok": false,
+    "headline": "The app is on screen, but only your Microsoft or Google sign-in was saved, not the app's own login.",
+    "detail": [
+      "Signing in again will not change that for this app, so Auspex stops here instead of guessing.",
+      "Why: https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#two-truths"
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"idp-only-save\",\"ok\":...) #2": {
+    "ok": false,
+    "headline": "Save happened while the Microsoft or Google sign-in page was still showing.",
+    "detail": [
+      "Run the same command again. Finish signing in until the app itself is on screen, then save."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"timeout\",\"ok\":false,\"...)": {
+    "ok": false,
+    "headline": "Solari could not save the login (HTTP 502: Failed to export storageState). That is on Solari's side, not your sign-in.",
+    "detail": [
+      "Nothing was saved or claimed. Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"timeout\",\"ok\":false,\"...) #2": {
+    "ok": false,
+    "headline": "Solari could not save the login (HTTP 502: Failed to export storageState, again on a retry 5 s later). That is on Solari's side, not your sign-in.",
+    "detail": [
+      "Nothing was saved or claimed. Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"timeout\",\"ok\":false,\"...) #3": {
+    "ok": false,
+    "headline": "No Save arrived in time.",
+    "detail": [
+      "Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"stream-expired\",\"ok\"...)": {
+    "ok": false,
+    "headline": "Solari said the remote browser could not be saved right then (HTTP 409: The editor isn't in a savable state.).",
+    "detail": [
+      "Nothing was saved or claimed. Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"stream-expired\",\"ok\"...) #2": {
+    "ok": false,
+    "headline": "The five-minute sign-in window closed before Save.",
+    "detail": [
+      "Solari sets that window and Auspex cannot extend it.",
+      "Run the same command again. The new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on. Save as soon as the app is on screen."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"needsHuman\",\"ok\":fal...)": {
+    "ok": false,
+    "headline": "The saved login hit a password or code screen. Auspex never types those.",
+    "detail": [
+      "Run the same command again. Complete every sign-in step (tick \"Stay signed in\" if offered) before saving."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"host-changed\",\"ok\":f...)": {
+    "ok": false,
+    "headline": "The remote browser ended up on a different site (https://other.example).",
+    "detail": [
+      "If that is the app you meant, run: npx auspex connect https://other.example"
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"empty-save\",\"ok\":fal...)": {
+    "ok": false,
+    "headline": "Nothing was saved. The remote browser had no login for this site yet.",
+    "detail": [
+      "Run the same command again. Save only once the logged-in app is on screen."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"expectMatchedPublicL...)": {
+    "ok": false,
+    "headline": "\"Workspace ready\" also appears on a public or login page, so it cannot prove you are logged in.",
+    "detail": [
+      "Run again with words that only appear inside the app (for example a menu item or your workspace name)."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"loggedOut\",\"ok\":fals...)": {
+    "ok": false,
+    "headline": "A fresh browser with the saved login landed on a logged-out page.",
+    "detail": [
+      "Run the same command again. Make sure the app is fully loaded before saving."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"mismatch\",\"ok\":false...)": {
+    "ok": false,
+    "headline": "The saved login opened the app, but \"Workspace ready\" was not on the page.",
+    "detail": [
+      "Check the words (they are case-sensitive) and the URL, then run again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"concurrency-limited\"...)": {
+    "ok": false,
+    "headline": "Solari says too many browsers are open on this key (HTTP 429).",
+    "detail": [
+      "Auspex closed the ones it opened. Wait a minute, then run again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"network\",\"ok\":false,...)": {
+    "ok": false,
+    "headline": "Solari or the site did not answer in time.",
+    "detail": [
+      "Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"mismatch\",\"ok\":false...) #2": {
+    "ok": false,
+    "headline": "www.canva.com showed a bot check (\"Just a moment…\") to the fresh cloud browser, so Auspex could not confirm the login.",
+    "detail": [
+      "That is the site blocking cloud browsers, not a failed sign-in. Auspex does not solve bot checks.",
+      "Running it again will likely hit the same check."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"failed\",\"ok\":false,\"...)": {
+    "ok": false,
+    "headline": "Solari's browser closed during the check, and the SDK lost the error status (cookbook #56).",
+    "detail": [
+      "Your login did save. Retry just the check once:",
+      "npx auspex check --profile canva-com --url https://www.canva.com/ --expect \"Templates for you\" --verify-with-profile"
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"failed\",\"status\":\"failed\",\"ok\":false,\"...) #2": {
+    "ok": false,
+    "headline": "Stopped: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy.",
+    "detail": [
+      "Run the same command again."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"stream-expired\",\"ok\":...)": {
+    "ok": false,
+    "headline": "The five-minute sign-in window closed before Save.",
+    "detail": [
+      "Solari sets that window and Auspex cannot extend it.",
+      "Run the same command again. The new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on. Save as soon as the app is on screen."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"stream-expired\",\"ok\":...) #2": {
+    "ok": false,
+    "headline": "The five-minute sign-in window closed before Save.",
+    "detail": [
+      "Solari sets that window and Auspex cannot extend it.",
+      "Run the same command again. The new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on. Save as soon as the app is on screen."
+    ]
+  },
+  "connectOutcome({\"schemaVersion\":1,\"jobId\":\"job-test-1\",\"phase\":\"await\",\"status\":\"stream-expired\",\"ok\":...) #3": {
+    "ok": false,
+    "headline": "Solari said the remote browser could not be saved right then (HTTP 409: The editor isn't in a savable state.).",
+    "detail": [
+      "Nothing was saved or claimed. Run the same command again."
+    ]
+  }
+}

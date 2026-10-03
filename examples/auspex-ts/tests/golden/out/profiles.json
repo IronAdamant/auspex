@@ -1,0 +1,350 @@
+{
+  "loginInstructions({\"id\":\"prof_test_id\",\"name\":\"auspex-goal-test\"}, \"https://example.com/login\", {\"url\":\"h...)": {
+    "profileId": "prof_test_id",
+    "name": "auspex-goal-test",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "savePaste": "<undefined>",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 7,
+    "profileDerived": "<undefined>",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://example.com/login. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "auspex-goal-test"
+    }
+  },
+  "qrPayloadForHandoff({\"url\":\"https://console.getsolari.com/handoff/abc\",\"mobileUrl\":\"https://console.getsola...)": "https://console.getsolari.com/handoff/abc",
+  "phoneHandoffUrl(\"vnc.jwt.token\", \"https://console.getsolari.com/handoff/abc\")": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+  "loginInstructions({\"id\":\"prof_test_id\",\"name\":\"auspex-goal-test\"}, \"https://example.com/login\", {\"url\":\"h...) #2": {
+    "profileId": "prof_test_id",
+    "name": "auspex-goal-test",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "mobileUrl": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "openOnPhone": "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login: https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "savePaste": "I tapped Save on the Auspex phone page for profile auspex-goal-test.\nAgent: run npx auspex-solari connect --save auspex-goal-test (connect is waiting), or npx auspex-solari await-login --profile auspex-goal-test --save-editor.",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 7,
+    "profileDerived": "<undefined>",
+    "next": "Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://example.com/login. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "auspex-goal-test"
+    }
+  },
+  "phoneSavePaste(\"auspex-goal-test\")": "I tapped Save on the Auspex phone page for profile auspex-goal-test.\nAgent: run npx auspex-solari connect --save auspex-goal-test (connect is waiting), or npx auspex-solari await-login --profile auspex-goal-test --save-editor.",
+  "qrPayloadForHandoff({\"url\":\"https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token\",\"mobileUrl\":\"https:/...)": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+  "formatLogin({\"profileId\":\"prof_test_id\",\"name\":\"auspex-goal-test\",\"consoleUrl\":\"https://console.get...)": "{\n  \"profileId\": \"prof_test_id\",\n  \"name\": \"auspex-goal-test\",\n  \"consoleUrl\": \"https://console.getsolari.com\",\n  \"handoff\": {\n    \"url\": \"https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token\",\n    \"mobileUrl\": \"https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token\",\n    \"openOnPhone\": \"Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.\",\n    \"oneLiner\": \"Auspex login: https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token\",\n    \"savePaste\": \"I tapped Save on the Auspex phone page for profile auspex-goal-test.\\nAgent: run npx auspex-solari connect --save auspex-goal-test (connect is waiting), or npx auspex-solari await-login --profile auspex-goal-test --save-editor.\",\n    \"streamExpirySource\": \"unknown\"\n  },\n  \"url\": \"https://console.getsolari.com/handoff/abc\",\n  \"handoffId\": \"h1\",\n  \"expiresAt\": \"soon\",\n  \"sinceVersion\": 7,\n  \"next\": \"Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://example.com/login. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.\",\n  \"nextCall\": {\n    \"tool\": \"auspex_await_login\",\n    \"saveEditor\": true,\n    \"profile\": \"auspex-goal-test\"\n  }\n}\n",
+  "phoneHandoffUrl(\"tok.en\", \"https://console.getsolari.com/handoff/abc\")": "https://ironadamant.com/auspex/phone.html#v=tok.en",
+  "phoneHandoffUrl(\"tok.en\", \"https://console.getsolari.com/handoff/abc\", {\"profileId\":\"prof_1\",\"profileNa...)": "https://ironadamant.com/auspex/phone.html#v=tok.en&n=demo",
+  "phoneHandoffUrl(\"tok.en\", \"https://console.getsolari.com/handoff/abc\", {\"siteUrl\":\"https://consistencyh...)": "https://ironadamant.com/auspex/phone.html#v=tok.en&n=auspex-phone&u=https%3A%2F%2Fconsistencyhub.io",
+  "handoffTokenFromUrl(\"https://console.getsolari.com/handoff/WS2-abc\")": "WS2-abc",
+  "editorStartOk(200)": true,
+  "editorStartOk(201)": true,
+  "editorStartOk(202)": true,
+  "editorStartOk(409)": false,
+  "editorStartOk(401)": false,
+  "editorStartOk(503)": false,
+  "phoneSavePaste(\"consistencyhub\")": "I tapped Save on the Auspex phone page for profile consistencyhub.\nAgent: run npx auspex-solari connect --save consistencyhub (connect is waiting), or npx auspex-solari await-login --profile consistencyhub --save-editor.",
+  "phoneSavePaste()": "I tapped Save on the Auspex phone page for profile <yours>.\nAgent: run npx auspex-solari connect --save <yours> (connect is waiting), or npx auspex-solari await-login --profile <yours> --save-editor.",
+  "phoneSavePaste(\"\")": "I tapped Save on the Auspex phone page for profile <yours>.\nAgent: run npx auspex-solari connect --save <yours> (connect is waiting), or npx auspex-solari await-login --profile <yours> --save-editor.",
+  "phoneSavePaste(\"app-example\")": "I tapped Save on the Auspex phone page for profile app-example.\nAgent: run npx auspex-solari connect --save app-example (connect is waiting), or npx auspex-solari await-login --profile app-example --save-editor.",
+  "loginInstructions({\"id\":\"prof_test_id\",\"name\":\"app-example-com\"}, \"https://app.example.com\", {\"url\":\"http...)": {
+    "profileId": "prof_test_id",
+    "name": "app-example-com",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "mobileUrl": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "openOnPhone": "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login: https://ironadamant.com/auspex/phone.html#v=vnc.jwt.token",
+      "savePaste": "I tapped Save on the Auspex phone page for profile app-example-com.\nAgent: run npx auspex-solari connect --save app-example-com (connect is waiting), or npx auspex-solari await-login --profile app-example-com --save-editor.",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 7,
+    "profileDerived": true,
+    "next": "Profile name derived from URL host: app-example-com. Use --profile app-example-com on await-login, finalize-login, and check. Override with --profile <yours>. Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://app.example.com. Then auspex_await_login --profile app-example-com with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example-com (pass --url and --expect unless a saved check), then auspex_check --profile app-example-com. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example-com"
+    }
+  },
+  "loginInstructions({\"id\":\"prof_test_id\",\"name\":\"auspex-goal-test\"}, undefined, {\"url\":\"https://console.get...)": {
+    "profileId": "prof_test_id",
+    "name": "auspex-goal-test",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "savePaste": "<undefined>",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "<undefined>",
+    "expiresAt": "<undefined>",
+    "sinceVersion": "<undefined>",
+    "profileDerived": "<undefined>",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "auspex-goal-test"
+    }
+  },
+  "attachHandoffQr({\"profileId\":\"prof_test_id\",\"name\":\"auspex-goal-test\",\"consoleUrl\":\"https://console.get...)": {
+    "profileId": "prof_test_id",
+    "name": "auspex-goal-test",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "qrPath": "/tmp/handoff-qr.png",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. Phone QR is handoff.qrPath (encodes handoff.url). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "auspex-goal-test"
+    }
+  },
+  "attachHandoffQr({\"profileId\":\"prof_test_id\",\"name\":\"auspex-goal-test\",\"consoleUrl\":\"https://console.get...) #2": {
+    "profileId": "prof_test_id",
+    "name": "auspex-goal-test",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile auspex-goal-test with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile auspex-goal-test (pass --url and --expect unless a saved check), then auspex_check --profile auspex-goal-test. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "auspex-goal-test"
+    }
+  },
+  "phoneHandoffUrl(\"eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig\", \"https://console.getsolari.com/hand...)": "https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+  "loginInstructions({\"id\":\"p\",\"name\":\"app-example\"}, undefined, {\"url\":\"https://console.getsolari.com/hando...)": {
+    "profileId": "p",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "mobileUrl": "https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "openOnPhone": "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login: https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "savePaste": "I tapped Save on the Auspex phone page for profile app-example.\nAgent: run npx auspex-solari connect --save app-example (connect is waiting), or npx auspex-solari await-login --profile app-example --save-editor.",
+      "qrPath": "<undefined>",
+      "streamExpiresAt": "2023-11-14T22:13:20.000Z",
+      "streamExpirySource": "jwt"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "<undefined>",
+    "expiresAt": "2027-01-15T08:00:00.000Z",
+    "sinceVersion": "<undefined>",
+    "profileDerived": "<undefined>",
+    "next": "Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile app-example with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    }
+  },
+  "stampLoginStreamExpiry({\"profileId\":\"p\",\"name\":\"app-example\",\"consoleUrl\":\"https://console.getsolari.com\",\"han...)": {
+    "profileId": "p",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "mobileUrl": "https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "openOnPhone": "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login: https://ironadamant.com/auspex/phone.html?r=1700000000#v=eyJhbGciOiJub25lIn0.eyJleHAiOjE3MDAwMDAwMDB9.sig&exp=1700000000",
+      "savePaste": "I tapped Save on the Auspex phone page for profile app-example.\nAgent: run npx auspex-solari connect --save app-example (connect is waiting), or npx auspex-solari await-login --profile app-example --save-editor.",
+      "streamExpiresAt": "2023-11-14T22:13:20.000Z",
+      "streamExpirySource": "jwt"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "expiresAt": "2027-01-15T08:00:00.000Z",
+    "next": "Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile app-example with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    }
+  },
+  "classifyHandoffHost(\"http://console.example.svc.cluster.local/handoff/abc\")": "cluster-internal",
+  "publicHandoffUrl(\"http://console.example.svc.cluster.local/handoff/abc\")": "https://console.getsolari.com/handoff/abc",
+  "classifyHandoffHost(\"https://console.getsolari.com/handoff/abc\")": "public",
+  "phoneHandoffUrl(\"vnc.jwt.not-a-field\", \"https://console.getsolari.com/handoff/abc\")": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.not-a-field",
+  "loginInstructions({\"id\":\"prof_1\",\"name\":\"app-example\"}, \"https://app.example/home\", {\"url\":\"https://conso...)": {
+    "profileId": "prof_1",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.not-a-field",
+      "mobileUrl": "https://ironadamant.com/auspex/phone.html#v=vnc.jwt.not-a-field",
+      "openOnPhone": "Open handoff.url (phone.html) in the phone's own Safari or Chrome, or on a computer. handoff.mobileUrl is that same page. Chrome on phone is the dogfood browser. That page has a real text field so the phone keyboard can open. Check Show as bullets so 1Password / iOS Passwords / Android / Chrome can autofill without leaving this tab; paste still works with bullets off. If you swipe out for a password manager or Mail (OTP), return before the link timer — phone.html pauses and reconnects the same VNC token and does not invent a live stream. Remint only when stream-expired. Click the remote address bar (or the remote field you mean to fill) before typing anything in the one field at the bottom. Keys stream into Solari remote Chrome as you type (no Paste button). Enter sends Enter and clears the local field. Clear empties the whole field. Show as bullets is off by default so a password manager can paste into the text field. ironadamant.com does not see the password or any keystrokes (keys go into Solari remote Chrome and the destination site only; the destination site logs its own login; they stay off agent chat / MCP / receipts). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Then tap Save on that page (stay there). Save copies a line to the clipboard; paste it in the AI chat. Do not open Solari's handoff page on a phone: GET editor HTTP 401. Then auspex_await_login with saveEditor true. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login: https://ironadamant.com/auspex/phone.html#v=vnc.jwt.not-a-field",
+      "savePaste": "I tapped Save on the Auspex phone page for profile app-example.\nAgent: run npx auspex-solari connect --save app-example (connect is waiting), or npx auspex-solari await-login --profile app-example --save-editor.",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "profileDerived": "<undefined>",
+    "next": "Show handoff.url. That is the Auspex phone page (phone.html), the only login door, on a phone or a computer. handoff.mobileUrl is the same page. It has a real text field so the phone keyboard can open — seed/handoff door for off-site typing, not a same-session VNC takeover. Click the remote address bar (or the remote field you mean to fill) before typing anything. Keys stream as you type (no Paste button). Enter clears the local field. Clear empties the whole field. ironadamant.com does not see those keystrokes. Tap Save on that page (copies to the clipboard; paste in the AI chat), then auspex_await_login with saveEditor true. Do not open Solari's handoff page on a phone (GET editor HTTP 401). If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://app.example/home. Then auspex_await_login --profile app-example with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. Off-site: paste handoff.oneLiner. The link is handoff.url (phone.html). If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    }
+  },
+  "loginInstructions({\"id\":\"prof_1\",\"name\":\"app-example\"}, \"https://app.example/home\", {\"url\":\"https://conso...) #2": {
+    "profileId": "prof_1",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "savePaste": "<undefined>",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "profileDerived": "<undefined>",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://app.example/home. Then auspex_await_login --profile app-example with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    }
+  },
+  "attachHandoffQr({\"profileId\":\"prof_1\",\"name\":\"app-example\",\"consoleUrl\":\"https://console.getsolari.com\"...)": {
+    "profileId": "prof_1",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://app.example/home. Then auspex_await_login --profile app-example with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    }
+  },
+  "loginInstructions({\"id\":\"prof_1\",\"name\":\"app-example\"})": {
+    "profileId": "prof_1",
+    "name": "app-example",
+    "consoleUrl": "https://console.getsolari.com",
+    "sinceVersion": "<undefined>",
+    "profileDerived": "<undefined>",
+    "next": "Handoff mint returned no url. Remint with auspex_login for the phone door. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Hit Save (must store cookies or origins), then auspex_await_login --profile app-example, then auspex_finalize_login --profile app-example (pass --url and --expect unless a saved check), then auspex_check --profile app-example. Do not skip finalize-login after Save. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-example"
+    }
+  },
+  "phoneHandoffUrl(\"vnc.jwt.token\", \"https://console.getsolari.com/handoff/abc\", {\"expiresAt\":\"2026-09-20T...)": "https://ironadamant.com/auspex/phone.html?r=1789916400#v=vnc.jwt.token&exp=1789916400",
+  "phoneHandoffUrl(\"eyJuYmYiOjE3ODk5MTQ1OTUsImV4cCI6MTc4OTkxNDkwMH0.bm90LWpzb24.sig\", \"https://console.get...)": "https://ironadamant.com/auspex/phone.html?r=1789914900#v=eyJuYmYiOjE3ODk5MTQ1OTUsImV4cCI6MTc4OTkxNDkwMH0.bm90LWpzb24.sig&exp=1789914900",
+  "phoneHandoffUrl(\"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJleHAiOjE4MDAwMDAwMDB9.sig\", \"https://console.ge...)": "https://ironadamant.com/auspex/phone.html?r=1800000000#v=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJleHAiOjE4MDAwMDAwMDB9.sig&exp=1800000000",
+  "loginInstructions({\"id\":\"p\",\"name\":\"consistencyhub\"}, \"https://consistencyhub.io/login\", {\"url\":\"https://...)": {
+    "profileId": "p",
+    "name": "consistencyhub",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "savePaste": "<undefined>",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "profileDerived": "<undefined>",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://consistencyhub.io/login. Then auspex_await_login --profile consistencyhub with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile consistencyhub (pass --url and --expect unless a saved check), then auspex_check --profile consistencyhub. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "consistencyhub"
+    }
+  },
+  "loginInstructions({\"id\":\"p\",\"name\":\"consistencyhub\"}, undefined, {\"url\":\"https://console.getsolari.com/ha...)": {
+    "profileId": "p",
+    "name": "consistencyhub",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "savePaste": "<undefined>",
+      "qrPath": "<undefined>",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "profileDerived": "<undefined>",
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile consistencyhub with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile consistencyhub (pass --url and --expect unless a saved check), then auspex_check --profile consistencyhub. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "consistencyhub"
+    }
+  }
+}

@@ -1,0 +1,178 @@
+{
+  "parseSweepPlan({\"name\":\"App nightly\",\"profile\":\"app-example-com\",\"keepProfile\":true,\"pages\":[{\"name\":\"...)": {
+    "name": "App nightly",
+    "profile": "app-example-com",
+    "keepProfile": true,
+    "pages": [
+      {
+        "name": "Projects",
+        "url": "https://app.example.com/projects",
+        "expect": "Your projects"
+      },
+      {
+        "name": "Billing",
+        "url": "https://app.example.com/billing",
+        "expect": "Current plan"
+      },
+      {
+        "name": "Team",
+        "url": "https://www.app.example.com/team",
+        "expect": "Members"
+      }
+    ]
+  },
+  "parseSweepPlan({\"pages\":[{\"url\":\"https://example.com/docs/\",\"expect\":\"Docs\"}]})": {
+    "name": "sweep",
+    "profile": "<undefined>",
+    "pages": [
+      {
+        "name": "/docs",
+        "url": "https://example.com/docs/",
+        "expect": "Docs"
+      }
+    ]
+  },
+  "parseSweepPlan({\"profile\":\"p\",\"keepProfile\":false,\"pages\":[{\"url\":\"https://a.com/x\",\"expect\":\"X\"}]})": {
+    "name": "sweep",
+    "profile": "p",
+    "keepProfile": false,
+    "pages": [
+      {
+        "name": "/x",
+        "url": "https://a.com/x",
+        "expect": "X"
+      }
+    ]
+  },
+  "classifySweepReceipt({\"name\":\"home\",\"url\":\"https://app.example/\",\"expect\":\"Workspace ready\"}, {\"schemaVersio...)": {
+    "name": "home",
+    "url": "https://app.example/",
+    "expect": "Workspace ready",
+    "status": "unknown",
+    "reason": "mismatch",
+    "detail": "the site showed the cloud browser a bot check instead of the page. Not a pass, not a fail; Auspex does not solve bot checks.",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true,
+    "previousReason": "matched"
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...)": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #2": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "unknown",
+    "reason": "matched",
+    "detail": "live browser matched, but the second browser with the saved login did not confirm (claimOkProfile false). Not a pass.",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": false
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #3": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "unknown",
+    "reason": "matched",
+    "detail": "live browser matched, but the second browser with the saved login did not confirm (claimOkProfile missing). Not a pass.",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png"
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #4": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; anonymous second machine agreed",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png"
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #5": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "fail",
+    "reason": "mismatch",
+    "detail": "page loaded; the live browser did not find the expected text",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": false
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #6": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "unknown",
+    "reason": "mismatch",
+    "detail": "live browser matched; the second machine did not confirm (reason mismatch, claimOk false). Often JS-rendered text an anonymous fetch cannot see. Not a pass, not a fail.",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #7": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "unknown",
+    "reason": "network",
+    "detail": "could not tell (network)",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #8": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "unknown",
+    "reason": "loggedOut",
+    "detail": "could not tell (loggedOut)",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #9": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "fail",
+    "reason": "mismatch",
+    "detail": "page loaded; the live browser did not find the expected text",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": false,
+    "previousReason": "matched",
+    "regressed": true
+  },
+  "classifySweepReceipt({\"name\":\"Projects\",\"url\":\"https://app.example.com/projects\",\"expect\":\"Your projects\"}, ...) #10": {
+    "name": "Projects",
+    "url": "https://app.example.com/projects",
+    "expect": "Your projects",
+    "status": "fail",
+    "reason": "mismatch",
+    "detail": "page loaded; the live browser did not find the expected text",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": false
+  },
+  "classifySweepReceipt({\"name\":\"first-file\",\"url\":\"https://app.example/f/1\",\"expect\":\"Page 1\"}, {\"schemaVersio...)": {
+    "name": "first-file",
+    "url": "https://app.example/f/1",
+    "expect": "Page 1",
+    "status": "unknown",
+    "reason": "mismatch",
+    "detail": "the live browser did not find the text, but a second browser with the saved login did: the page draws late or changed between reads. Not a pass, not a fail; recheck that page with check --wait-for <the app's main element>.",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": true
+  },
+  "classifySweepReceipt({\"name\":\"first-file\",\"url\":\"https://app.example/f/1\",\"expect\":\"Page 1\"}, {\"schemaVersio...) #2": {
+    "name": "first-file",
+    "url": "https://app.example/f/1",
+    "expect": "Page 1",
+    "status": "fail",
+    "reason": "mismatch",
+    "detail": "page loaded; the live browser did not find the expected text",
+    "screenshotPath": "~/.auspex/runs/s/screenshot.png",
+    "claimOkProfile": false
+  }
+}

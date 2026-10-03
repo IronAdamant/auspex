@@ -1,0 +1,109 @@
+{
+  "decideOperatorSession({\"profiles\":[{\"profile\":\"supabase-com\",\"site\":\"https://supabase.com/dashboard\",\"lastUse...)": {
+    "wipe": [],
+    "agent": {
+      "question": "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.",
+      "idleMinutes": 30,
+      "sites": [
+        {
+          "site": "https://supabase.com/dashboard",
+          "profile": "supabase-com"
+        }
+      ]
+    }
+  },
+  "decideOperatorSession({\"profiles\":[{\"profile\":\"supabase-com\",\"site\":\"https://supabase.com/dashboard\",\"lastUse...) #2": {
+    "wipe": [
+      "supabase-com"
+    ],
+    "agent": {
+      "question": "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.",
+      "idleMinutes": 30,
+      "sites": [
+        {
+          "site": "https://supabase.com/dashboard",
+          "profile": "supabase-com"
+        },
+        {
+          "site": "https://appwrite.io/",
+          "profile": "appwrite-io"
+        }
+      ]
+    }
+  },
+  "decideOperatorSession({\"profiles\":[{\"profile\":\"supabase-com\",\"site\":\"https://supabase.com/dashboard\",\"lastUse...) #3": {
+    "wipe": [],
+    "agent": {
+      "question": "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.",
+      "idleMinutes": 30,
+      "sites": [
+        {
+          "site": "https://supabase.com/dashboard",
+          "profile": "supabase-com"
+        }
+      ]
+    }
+  },
+  "decideOperatorSession({\"profiles\":[{\"profile\":\"console-neon-tech\",\"site\":\"https://console.neon.tech\",\"lastUse...)": {
+    "wipe": [],
+    "agent": {
+      "question": "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.",
+      "idleMinutes": 30,
+      "sites": [
+        {
+          "site": "https://console.neon.tech",
+          "profile": "console-neon-tech"
+        }
+      ]
+    }
+  },
+  "decideOperatorSession({\"profiles\":[{\"profile\":\"console-neon-tech\",\"site\":\"https://console.neon.tech\",\"lastUse...) #2": {
+    "wipe": [
+      "console-neon-tech"
+    ],
+    "agent": {
+      "question": "After a saved login has been used and tested, ask the human whether testing is done and the login may be purged. Purge only after the human agrees. An idle saved profile is deleted on the next Auspex command after 30 minutes without use. A use resets that profile's 30-minute clock. There is no live 30-minute timer on the typing field. Other profiles stay. One site at a time. Keys typed on the door pages go into Solari remote Chrome (and the site). They stay off agent chat, MCP, and receipts. The local field clears on Enter, Save, or lock. The Save clipboard line does not include what was typed. ironadamant.com does not see the password or any IME keystrokes; the destination site logs its own login. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. They are not included in the agent message. Door pages do not collect the Solari API key. SOLARI_API_KEY or gitignored .auspex/operator-key on the operator machine is not that wipe.",
+      "idleMinutes": 30,
+      "sites": [
+        {
+          "site": "https://console.neon.tech",
+          "profile": "console-neon-tech"
+        }
+      ]
+    }
+  },
+  "phoneSavedParams(([{\"profile\":\"socialaize-com\",\"site\":\"https://socialaize.com/login\",\"username\":\"fixture...)": {
+    "saved": "W3sic2l0ZSI6Imh0dHBzOi8vc29jaWFsYWl6ZS5jb20vbG9naW4iLCJwcm9maWxlIjoic29jaWFsYWl6ZS1jb20ifV0",
+    "plist": "1700000600"
+  },
+  "decodePhoneSavedList(\"W3sic2l0ZSI6Imh0dHBzOi8vc29jaWFsYWl6ZS5jb20vbG9naW4iLCJwcm9maWxlIjoic29jaWFsYWl6ZS1jb2...)": [
+    {
+      "site": "https://socialaize.com/login",
+      "profile": "socialaize-com"
+    }
+  ],
+  "voluntaryPurgeHonesty({\"purge\":\"hub\",\"humanAgree\":true,\"wiped\":[],\"wipeFailed\":[{\"name\":\"hub\",\"error\":\"409 ed...)": {
+    "ok": false,
+    "wipeFailed": [
+      {
+        "name": "hub",
+        "error": "409 editor is open"
+      }
+    ]
+  },
+  "voluntaryPurgeHonesty({\"purge\":\"hub\",\"humanAgree\":true,\"wiped\":[]})": {
+    "ok": false,
+    "wipeFailed": [
+      {
+        "name": "hub",
+        "error": "profile was not wiped"
+      }
+    ]
+  },
+  "voluntaryPurgeHonesty({\"wiped\":[]})": {
+    "ok": true
+  },
+  "voluntaryPurgeHonesty({\"purge\":\"hub\",\"humanAgree\":true,\"wiped\":[\"hub\"]})": {
+    "ok": true
+  }
+}

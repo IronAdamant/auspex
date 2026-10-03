@@ -1,0 +1,85 @@
+{
+  "isWeakSeed({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io\",\"cookies\":4,\"origins\":1,\"...)": true,
+  "isWeakSeed({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io\",\"cookies\":4,\"origins\":1,\"...) #2": false,
+  "weakSeedWarning(\"consistencyhub\", {\"sessionStorage\":2,\"sessionStorageStale\":true})": "profile consistencyhub has stale folded sessionStorage expiresOn (past or within 5m; leftover count is not a fresh capture). --save-editor does not refresh folded sessionStorage. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint now: npx auspex login --profile consistencyhub (MCP: auspex_login; phone handoff.mobileUrl). finalize-login now only if the live editor tab is still on the app dashboard with a valid session. Remint auspex_login if finalize-login returns needsHuman. Run npx auspex finalize-login --profile consistencyhub (MCP: auspex_finalize_login). Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session. This seed is not overnight-safe. Guide: AGENTS.md, Long unattended loops.",
+  "remintLoginGuidance(\"consistencyhub\")": "Remint now: npx auspex login --profile consistencyhub (MCP: auspex_login; phone handoff.mobileUrl).",
+  "weakSeedWarning(\"consistencyhub\", {\"sessionStorage\":0})": "profile consistencyhub has cookies/origins but no counted sessionStorage. Finalize-login NOW while the token is live. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint auspex_login if finalize-login returns needsHuman. Run npx auspex finalize-login --profile consistencyhub (MCP: auspex_finalize_login). Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session. This seed is not overnight-safe. Guide: AGENTS.md, Long unattended loops.",
+  "saveEditorMissedFold({})": false,
+  "saveEditorMissedFold({\"editorFold\":{\"ok\":true,\"reason\":\"attached\"}})": false,
+  "saveEditorMissedFold({\"editorSave\":{\"ok\":false,\"status\":401,\"error\":\"Unauthorized\"}})": true,
+  "saveEditorMissedFold({\"editorFold\":{\"ok\":false,\"reason\":\"no-cdp\"}})": true,
+  "overlaySaveEditorNext({\"next\":\"Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consi...)": "Saved v20 with 74 cookies and 5 origins. editorSave failed (401: Unauthorized). POST finished. Not a 30-minute wait. Do not finalize-login on this seed. Cookies in the profile are not proof this login saved (a pre-login jar looks the same). Remint now: npx auspex login --profile consistencyhub (MCP: auspex_login; phone handoff.mobileUrl). If a later finalize returns needsHuman, that remint stands. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+  "overlaySaveEditorNext({\"next\":\"Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consi...) #2": "Saved v20 with 74 cookies and 5 origins. editorFold.no-cdp did not refresh folded sessionStorage. Save is not fold: --save-editor did not refresh folded sessionStorage. Finalize-login NOW while the token is live. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint auspex_login if finalize-login returns needsHuman. Run npx auspex finalize-login --profile consistencyhub (MCP: auspex_finalize_login). Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.",
+  "overlaySaveEditorNext({\"next\":\"Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consi...) #3": "Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consistencyhub",
+  "finalizeLoginGuidance(\"consistencyhub\")": "Run npx auspex finalize-login --profile consistencyhub (MCP: auspex_finalize_login). Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.",
+  "finalizeLoginGuidance(\"acme\")": "Run npx auspex finalize-login --profile acme --url <url> --expect <string> (MCP: auspex_finalize_login). --url and --expect are required unless the profile matches a saved check. Console Save and --save-editor do not refresh folded sessionStorage. SPAs that keep tokens in sessionStorage still need finalize-login while the token is valid. Never --record a logged-in session.",
+  "clampAwaitLoginTimeoutMs()": 1800000,
+  "clampAwaitLoginTimeoutMs(1000)": 5000,
+  "clampAwaitLoginTimeoutMs(9000000)": 1800000,
+  "seedFromStorageState(undefined)": {
+    "cookies": 0,
+    "origins": 0
+  },
+  "seedFromStorageState({\"cookies\":[],\"origins\":[]})": {
+    "cookies": 0,
+    "origins": 0
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"example.com\"},{\"name\":\"\",\"value\":\"x\"}],...)": {
+    "cookies": 1,
+    "origins": 1
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...)": {
+    "cookies": 1,
+    "origins": 1,
+    "sessionStorage": 2,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageStale": true
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...) #2": {
+    "cookies": 1,
+    "origins": 1,
+    "sessionStorage": 2,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageStale": true
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...) #3": {
+    "cookies": 1,
+    "origins": 1,
+    "sessionStorage": 2,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": []
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...) #4": {
+    "cookies": 1,
+    "origins": 1,
+    "sessionStorage": 0,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 1,
+    "localStorageAuthKeyNames": []
+  },
+  "seedFromStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...) #5": {
+    "cookies": 1,
+    "origins": 1
+  },
+  "inspectOriginForAwait({\"name\":\"consistencyhub\"})": "https://consistencyhub.io",
+  "inspectOriginForAwait({\"name\":\"ironadamant\"})": "<undefined>",
+  "inspectOriginForAwait({\"name\":\"checkpoint\"})": "<undefined>",
+  "inspectOriginForAwait({\"name\":\"myapp\"})": "<undefined>",
+  "inspectOriginForAwait({\"name\":\"myapp\",\"url\":\"https://app.example/login\"})": "https://app.example",
+  "inspectOriginForAwait({\"name\":\"myapp\",\"url\":\"https://ironadamant.com\"})": "<undefined>",
+  "loginWaitAwaitOpts()": {
+    "saveEditor": true,
+    "waitForSaveSignal": true
+  },
+  "loginWaitAwaitOpts({\"sinceVersion\":4,\"url\":\"https://app.example\"})": {
+    "sinceVersion": 4,
+    "url": "https://app.example",
+    "saveEditor": true,
+    "waitForSaveSignal": true
+  }
+}

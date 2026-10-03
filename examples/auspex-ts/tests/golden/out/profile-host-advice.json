@@ -1,0 +1,132 @@
+{
+  "adviseProfileHost({\"profile\":\"App-Example-Com\",\"url\":\"https://app.example.com/dashboard\"})": {
+    "profileHostMatch": true,
+    "nextLead": ""
+  },
+  "adviseProfileHost({\"profile\":\"example-com\",\"url\":\"https://www.example.com\"})": {
+    "profileHostMatch": true,
+    "nextLead": ""
+  },
+  "adviseProfileHost({\"profile\":\"ConsistencyHub\",\"url\":\"https://www.consistencyhub.io/login\"})": {
+    "profileHostMatch": true,
+    "nextLead": ""
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://app.consistencyhub.io\"})": {
+    "profileHostMatch": true,
+    "nextLead": ""
+  },
+  "stampLoginHost({\"profileId\":\"p\",\"name\":\"consistencyhub\",\"consoleUrl\":\"https://console.getsolari.com\",\"...)": {
+    "profileId": "p",
+    "name": "consistencyhub",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in at https://consistencyhub.io/login. Then auspex_await_login --profile consistencyhub with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile consistencyhub (pass --url and --expect unless a saved check), then auspex_check --profile consistencyhub. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "consistencyhub"
+    },
+    "profileHostMatch": true
+  },
+  "stampProfileHostAdvice({\"ok\":true,\"next\":\"Show handoff.url then auspex_await_login --profile consistencyhub.\",...)": {
+    "ok": true,
+    "next": "Profile host mismatch: --profile consistencyhub is not the host slug for https://app.socialaize.com/login (suggestedProfile app-socialaize-com). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com/login (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host. Show handoff.url then auspex_await_login --profile consistencyhub.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com/login"
+    },
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com"
+  },
+  "stampProfileHostAdvice({\"ok\":true,\"next\":\"Profile host mismatch: --profile consistencyhub is not the host slug...)": {
+    "ok": true,
+    "next": "Profile host mismatch: --profile consistencyhub is not the host slug for https://app.socialaize.com/login (suggestedProfile app-socialaize-com). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com/login (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host. Show handoff.url then auspex_await_login --profile consistencyhub.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com/login"
+    },
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com"
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://notconsistencyhub.io\"})": {
+    "profileHostMatch": false,
+    "suggestedProfile": "notconsistencyhub-io",
+    "nextLead": "Profile host mismatch: --profile consistencyhub is not the host slug for https://notconsistencyhub.io (suggestedProfile notconsistencyhub-io). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile notconsistencyhub-io --url https://notconsistencyhub.io (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "notconsistencyhub-io",
+      "url": "https://notconsistencyhub.io"
+    }
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io.evil.com\"})": {
+    "profileHostMatch": false,
+    "suggestedProfile": "consistencyhub-io-evil-com",
+    "nextLead": "Profile host mismatch: --profile consistencyhub is not the host slug for https://consistencyhub.io.evil.com (suggestedProfile consistencyhub-io-evil-com). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile consistencyhub-io-evil-com --url https://consistencyhub.io.evil.com (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "consistencyhub-io-evil-com",
+      "url": "https://consistencyhub.io.evil.com"
+    }
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://onedrive.live.com/\"})": {
+    "profileHostMatch": false,
+    "suggestedProfile": "onedrive-live-com",
+    "nextLead": "Profile host mismatch: --profile consistencyhub is not the host slug for https://onedrive.live.com/ (suggestedProfile onedrive-live-com). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile onedrive-live-com --url https://onedrive.live.com/ (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "onedrive-live-com",
+      "url": "https://onedrive.live.com/"
+    }
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\"})": "<undefined>",
+  "adviseProfileHost({\"url\":\"https://app.example.com\"})": "<undefined>",
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"not-a-url\"})": "<undefined>",
+  "stampLoginHost({\"profileId\":\"p\",\"name\":\"consistencyhub\",\"consoleUrl\":\"https://console.getsolari.com\",\"...) #2": {
+    "profileId": "p",
+    "name": "consistencyhub",
+    "consoleUrl": "https://console.getsolari.com",
+    "handoff": {
+      "url": "https://console.getsolari.com/handoff/abc",
+      "mobileUrl": "https://console.getsolari.com/handoff/abc",
+      "openOnPhone": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never paste the password into chat.",
+      "oneLiner": "Auspex login (phone): https://console.getsolari.com/handoff/abc",
+      "streamExpirySource": "unknown"
+    },
+    "url": "https://console.getsolari.com/handoff/abc",
+    "handoffId": "h1",
+    "expiresAt": "soon",
+    "sinceVersion": 3,
+    "next": "Solari handoff is noVNC (a picture of Chrome). The phone software keyboard will not open there. Remint auspex_login for the Auspex phone page. If cookies or cache are cleared, or the remote session or saved profile is wiped, type the login again. Auspex and ironadamant.com do not host those credentials or session secrets; they live only in the remote Chrome session and on the destination site. Never paste or type the password through the agent. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Sign in. Then auspex_await_login --profile consistencyhub with saveEditor true (waits up to 30 minutes), then auspex_finalize_login --profile consistencyhub (pass --url and --expect unless a saved check), then auspex_check --profile consistencyhub. Do not skip finalize-login after Save. Off-site: remint auspex_login for the phone page. If the handoff Chromium card is blank or spinning for more than 2 to 3 minutes, refresh once; if it stays unresponsive, remint with auspex_login (new handoff URL). Complete IdP consent in the handoff card before Save; do not open parallel agent checks mid-consent.",
+    "nextCall": {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "consistencyhub"
+    }
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io\"})": {
+    "profileHostMatch": true,
+    "nextLead": ""
+  },
+  "adviseProfileHost({\"profile\":\"consistencyhub\",\"url\":\"https://app.socialaize.com\"})": {
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "nextLead": "Profile host mismatch: --profile consistencyhub is not the host slug for https://app.socialaize.com (suggestedProfile app-socialaize-com). profileHostMatch is false. Do not reuse this profile for the new host. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (or omit --profile and let the host slug win). This command still ran (soft advise, not a refuse). Do not follow later steps that pass --profile consistencyhub for this host.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  }
+}

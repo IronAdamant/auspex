@@ -1,0 +1,306 @@
+{
+  "checkUrl https://ironadamant.com": {
+    "ok": true,
+    "data": "https://ironadamant.com"
+  },
+  "httpUrl https://ironadamant.com": {
+    "ok": true,
+    "data": "https://ironadamant.com"
+  },
+  "checkUrl https://consistencyhub.io": {
+    "ok": true,
+    "data": "https://consistencyhub.io"
+  },
+  "httpUrl https://consistencyhub.io": {
+    "ok": true,
+    "data": "https://consistencyhub.io"
+  },
+  "checkUrl http://example.com": {
+    "ok": true,
+    "data": "http://example.com"
+  },
+  "httpUrl http://example.com": {
+    "ok": true,
+    "data": "http://example.com"
+  },
+  "checkUrl http://localhost:3000": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://localhost:3000": {
+    "ok": true,
+    "data": "http://localhost:3000"
+  },
+  "checkUrl http://127.0.0.1/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://127.0.0.1/": {
+    "ok": true,
+    "data": "http://127.0.0.1/"
+  },
+  "checkUrl http://127.1/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://127.1/": {
+    "ok": true,
+    "data": "http://127.1/"
+  },
+  "checkUrl http://0.0.0.0/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://0.0.0.0/": {
+    "ok": true,
+    "data": "http://0.0.0.0/"
+  },
+  "checkUrl http://[::1]/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://[::1]/": {
+    "ok": true,
+    "data": "http://[::1]/"
+  },
+  "checkUrl http://169.254.169.254/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://169.254.169.254/": {
+    "ok": true,
+    "data": "http://169.254.169.254/"
+  },
+  "checkUrl http://metadata.google.internal/": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "httpUrl http://metadata.google.internal/": {
+    "ok": true,
+    "data": "http://metadata.google.internal/"
+  },
+  "checkUrl https://user:pass@example.com/": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "httpUrl https://user:pass@example.com/": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "checkUrl file:///etc/passwd": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "httpUrl file:///etc/passwd": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "checkUrl javascript:alert(1)": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "httpUrl javascript:alert(1)": {
+    "ok": false,
+    "issues": [
+      "url must be an http or https URL"
+    ]
+  },
+  "expect \"\"": {
+    "ok": false,
+    "issues": [
+      "check requires a non-empty --expect"
+    ]
+  },
+  "expect \"   \"": {
+    "ok": false,
+    "issues": [
+      "check requires a non-empty --expect"
+    ]
+  },
+  "expect \"Build it.\"": {
+    "ok": true,
+    "data": "Build it."
+  },
+  "auspex_check url + expect": {
+    "ok": true,
+    "data": {
+      "url": "https://ironadamant.com",
+      "expect": "Build it."
+    }
+  },
+  "auspex_check loopback url": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "auspex_check record + profile": {
+    "ok": false,
+    "issues": [
+      "--record cannot be used with --profile (recordings capture input). Pass --allow-record-profile only for a public marketing host.",
+      "--allow-record-profile is refused for the consistencyhub saved check (recordings capture a logged-in session)."
+    ]
+  },
+  "auspex_check record + consistencyhub + allowRecordProfile": {
+    "ok": false,
+    "issues": [
+      "--allow-record-profile is refused for the consistencyhub saved check (recordings capture a logged-in session)."
+    ]
+  },
+  "auspex_check record + profile + allowRecordProfile on marketing": {
+    "ok": true,
+    "data": {
+      "url": "https://ironadamant.com",
+      "expect": "Build it.",
+      "profile": "demo",
+      "record": true,
+      "allowRecordProfile": true
+    }
+  },
+  "auspex_check record + profile + fill": {
+    "ok": false,
+    "issues": [
+      "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs.",
+      "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click."
+    ]
+  },
+  "auspex_check record + profile + fill + allowPageActions": {
+    "ok": false,
+    "issues": [
+      "--record with a profile cannot be used with fill/click actions (recordings capture input), even on public marketing URLs."
+    ]
+  },
+  "auspex_check record + sso": {
+    "ok": false,
+    "issues": [
+      "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+    ]
+  },
+  "auspex_check record on a dashboard URL": {
+    "ok": false,
+    "issues": [
+      "--record cannot be used with a logged-in session (recordings capture input). Do not pass --sso or --save-profile with --record, and do not record a dashboard landing."
+    ]
+  },
+  "auspex_check saved check name only": {
+    "ok": true,
+    "data": {
+      "name": "ironadamant"
+    }
+  },
+  "auspex_check nothing": {
+    "ok": false,
+    "issues": [
+      "auspex_check requires name or url+expect"
+    ]
+  },
+  "auspex_check waitFor, fill, click, proxy, captcha": {
+    "ok": true,
+    "data": {
+      "url": "https://ironadamant.com",
+      "expect": "Build it.",
+      "waitFor": "#main",
+      "fill": "#q",
+      "value": "hello",
+      "click": "button.go",
+      "proxy": "us",
+      "captcha": true
+    }
+  },
+  "auspex_check fill without value": {
+    "ok": false,
+    "issues": [
+      "fill requires value"
+    ]
+  },
+  "auspex_check whitespace profile": {
+    "ok": false,
+    "issues": [
+      "profile name must be non-empty"
+    ]
+  },
+  "auspex_check one fill and one click": {
+    "ok": true,
+    "data": {
+      "url": "https://example.com",
+      "expect": "Example Domain",
+      "fill": "#q",
+      "value": "hi",
+      "click": "button.go",
+      "allowPageActions": true
+    }
+  },
+  "auspex_check two fills": {
+    "ok": false,
+    "issues": [
+      "Expected string, received array"
+    ]
+  },
+  "auspex_check two clicks": {
+    "ok": false,
+    "issues": [
+      "Expected string, received array"
+    ]
+  },
+  "auspex_login profile": {
+    "ok": true,
+    "data": {
+      "profile": "auspex-demo"
+    }
+  },
+  "auspex_login whitespace profile": {
+    "ok": false,
+    "issues": [
+      "profile name must be non-empty",
+      "auspex_login requires profile or url"
+    ]
+  },
+  "auspex_login padded profile": {
+    "ok": true,
+    "data": {
+      "profile": "auspex-demo"
+    }
+  },
+  "auspex_login url only": {
+    "ok": true,
+    "data": {
+      "url": "https://app.example.com"
+    }
+  },
+  "auspex_login loopback url": {
+    "ok": false,
+    "issues": [
+      "url is a loopback address, link-local, or cloud-metadata address; Solari cloud Chrome cannot see the agent machine"
+    ]
+  },
+  "auspex_login nothing": {
+    "ok": false,
+    "issues": [
+      "auspex_login requires profile or url"
+    ]
+  }
+}

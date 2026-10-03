@@ -1,0 +1,12 @@
+{
+  "pickEditorCdp({\"wsEndpoint\":\"wss://api.getsolari.com/ws/sess-1\",\"sessionId\":\"sess-1\"})": {
+    "wsEndpoint": "wss://api.getsolari.com/ws/sess-1",
+    "sessionId": "sess-1"
+  },
+  "pickEditorCdp({\"session\":{\"cdpEndpoint\":\"wss://api.getsolari.com/cdp/sess-2\"}})": {
+    "cdpEndpoint": "wss://api.getsolari.com/cdp/sess-2"
+  },
+  "pickEditorCdp({\"token\":\"vnc.jwt.token\",\"ready\":true})": "<undefined>",
+  "pickEditorCdp({\"wsEndpoint\":\"wss://api.getsolari.com/vnc-proxy/ws?token=x\"})": "<undefined>",
+  "pickEditorCdp({\"editorStatus\":\"idle\"})": "<undefined>"
+}

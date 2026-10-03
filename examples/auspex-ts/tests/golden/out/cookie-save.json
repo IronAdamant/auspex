@@ -1,0 +1,127 @@
+{
+  "classifySeedReadiness({\"profile\":\"app-example-com\",\"url\":\"https://app.example.com/home\",\"cookies\":4,\"origins\"...)": {
+    "phase": "post-save",
+    "appOriginCookies": true,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "cookie-strong",
+    "solariSaveReady": true
+  },
+  "classifySeedReadiness({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io\",\"cookies\":6,\"origins\":2,\"...)": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [
+      "accessToken"
+    ],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "local-storage-auth",
+    "solariSaveReady": true
+  },
+  "classifySeedReadiness({\"profile\":\"consistencyhub\",\"url\":\"https://consistencyhub.io\",\"cookies\":6,\"origins\":2,\"...) #2": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": true,
+    "weakSeed": false,
+    "shape": "idp-only",
+    "solariSaveReady": false,
+    "idpOnlyKind": "app-visible"
+  },
+  "classifySeedReadiness({\"profile\":\"ironadamant\",\"url\":\"https://ironadamant.com\",\"cookies\":4,\"origins\":1,\"sessi...)": {
+    "phase": "post-save",
+    "appOriginCookies": true,
+    "appOriginCookieCount": 1,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "unknown",
+    "solariSaveReady": false
+  },
+  "classifySeedReadiness({\"profile\":\"app-example\",\"url\":\"https://app.example\",\"cookies\":2,\"origins\":1,\"sessionSt...)": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 3,
+    "sessionStorageMiss": false,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "session-strong",
+    "solariSaveReady": false
+  },
+  "classifySeedReadiness({\"profile\":\"app-example\",\"url\":\"https://app.example\",\"cookies\":2,\"origins\":1,\"sessionSt...) #2": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": true,
+    "shape": "weak-seed",
+    "solariSaveReady": false
+  },
+  "classifySeedReadiness({\"url\":\"https://app.example\",\"cookies\":3,\"origins\":1,\"sessionStorage\":0,\"cookieHosts\":[...)": {
+    "phase": "post-save",
+    "appOriginCookies": false,
+    "appOriginCookieCount": 0,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": true,
+    "shape": "weak-seed",
+    "solariSaveReady": false
+  },
+  "parseAuthKeyNames(\"msal.token, accessToken\")": [
+    "msal.token",
+    "accessToken"
+  ],
+  "isSafeAuthKeyName(\"access_token\")": true,
+  "localStorageAuthKeyNames({\"cookies\":[],\"origins\":[{\"origin\":\"https://app.example\",\"localStorage\":[{\"name\":\"acces...)": [
+    "accessToken"
+  ],
+  "classifySeedReadiness({\"url\":\"https://app.example\",\"cookies\":2,\"origins\":1,\"sessionStorage\":0,\"appOriginCooki...)": {
+    "phase": "post-save",
+    "appOriginCookies": true,
+    "appOriginCookieCount": 2,
+    "localStorageCount": 0,
+    "localStorageAuthKeyNames": [],
+    "sessionStorageCount": 0,
+    "sessionStorageMiss": true,
+    "idpOnly": false,
+    "weakSeed": false,
+    "shape": "cookie-strong",
+    "solariSaveReady": true
+  },
+  "cookieSaveGuide({\"profile\":\"app-example\",\"readiness\":{\"phase\":\"post-save\",\"appOriginCookies\":true,\"appO...)": {
+    "text": "Solari Save for --profile app-example is cookie-strong. App-origin cookie count: 2. Counted sessionStorage is 0. That miss is expected on Solari editor Save. Editor Save stores cookies and localStorage only. Auspex does not invent sessionStorage. Run check --verify-with-profile and read claimOkProfile. solariSaveReady is not claimOkProfile. ok is not claimOk and not claimOkProfile. Do not finalize to invent sessionStorage. IdP hosts alone are not this shape. A first-party session cookie, or a short-lived access token written to an allowlisted localStorage key after OAuth, is app-side.",
+    "nextCall": {
+      "tool": "auspex_check",
+      "verifyWithProfile": true,
+      "profile": "app-example",
+      "url": "https://app.example/home",
+      "expect": "Workspace ready"
+    }
+  }
+}

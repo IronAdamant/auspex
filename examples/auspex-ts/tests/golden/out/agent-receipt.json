@@ -1,0 +1,370 @@
+{
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....)": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"mismatch\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": false,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true
+  },
+  "toAgentReceipt({\"ok\":false,\"reason\":\"loggedOut\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office j...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "loggedOut",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": false,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "verify": {
+      "ok": false,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [],
+      "runDir": ".auspex/runs/stamp",
+      "skipped": true,
+      "skipReason": "loggedOut"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #2": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "expect missing"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #3": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). Anonymous sandbox verify is honest: do not auto-retry.",
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "fetched page text does not contain expect"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #4": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "fetched page text does not contain expect",
+        "ocr of screenshot does not contain expect"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #5": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Live matched; independent fetch cannot see auth-gated content. For profile session checks, use --no-verify (or rely on OCR when available). OCR was unavailable (tesseract missing in sandbox). Anonymous sandbox verify is honest: do not auto-retry.",
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "fetched page text does not contain expect",
+        "ocr unavailable (tesseract not installed)"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #6": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "anonymous claim skipped"
+      ],
+      "anonymousClaimSkipped": true,
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #7": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "network",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Reuse gate is claimOkProfile, not ok. ok=true is not enough to treat the profile as reusable. claimOkProfile=false — do not reuse this seed. Stop the loop. Follow the door table once. Do not retry this check to chase claimOkProfile. auspex_login only when that row's nextCall is auspex_login. This is not app-visible and not a keepalive. Guide: AGENTS.md, Long unattended loops. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+    "verify": {
+      "ok": false,
+      "errors": [
+        "sandbox verify timed out after 90000ms"
+      ],
+      "claimOk": false,
+      "claimErrors": [],
+      "anonymousClaimSkipped": true,
+      "claimOkProfile": false,
+      "claimErrorsProfile": [
+        "sandbox verify timed out after 90000ms"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #8": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Reuse gate is claimOkProfile, not ok. ok=true is not enough to treat the profile as reusable. claimOkProfile=true — profile reuse is evidenced by this field. That pass is not an overnight lease. Longevity is the Solari profile and the site session, not an Auspex TTL. There is no keepalive.",
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "anonymous claim skipped"
+      ],
+      "anonymousClaimSkipped": true,
+      "claimOkProfile": true,
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #9": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Reuse gate is claimOkProfile, not ok. ok=true is not enough to treat the profile as reusable. claimOkProfile=false — do not reuse this seed. Stop the loop. Follow the door table once. Do not retry this check to chase claimOkProfile. auspex_login only when that row's nextCall is auspex_login. This is not app-visible and not a keepalive. Guide: AGENTS.md, Long unattended loops. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [
+        "anonymous claim skipped"
+      ],
+      "anonymousClaimSkipped": true,
+      "claimOkProfile": false,
+      "claimErrorsProfile": [
+        "expect missing"
+      ],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office job....) #10": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": true,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": true,
+      "claimErrors": [],
+      "runDir": ".auspex/runs/stamp"
+    }
+  },
+  "toAgentReceipt({\"ok\":false,\"reason\":\"mismatch\",\"url\":\"https://ironadamant.com\",\"expect\":\"One office jo...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "mismatch",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Iron Adamant",
+    "finalUrl": "https://ironadamant.com/",
+    "matched": false,
+    "excerpt": "One office job.",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "protocolOk": true
+  },
+  "toAgentReceipt({\"ok\":true,\"protocolOk\":true,\"reason\":\"hostChanged\",\"hostChanged\":true,\"profileHostMatc...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "hostChanged",
+    "url": "https://myapp.example",
+    "expect": "Workspace ready",
+    "screenshotPath": ".auspex/runs/x/screenshot.png",
+    "title": "App",
+    "finalUrl": "https://app.socialaize.com/",
+    "matched": false,
+    "excerpt": "switched",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Live host changed: remint",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    },
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "hostChanged": true,
+    "suggestedUrl": "https://app.socialaize.com",
+    "verify": {
+      "ok": true,
+      "errors": [],
+      "claimOk": false,
+      "claimErrors": [],
+      "claimOkProfile": false,
+      "runDir": ".auspex/runs/x",
+      "skipped": true,
+      "skipReason": "hostChanged"
+    },
+    "protocolOk": true
+  },
+  "toAgentReceipt({\"ok\":false,\"reason\":\"needsHuman\",\"url\":\"https://app.example/dashboard\",\"expect\":\"Dashb...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "needsHuman",
+    "url": "https://app.example/dashboard",
+    "expect": "Dashboard",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Sign in",
+    "finalUrl": "https://login.microsoftonline.com/",
+    "matched": false,
+    "excerpt": "Enter password",
+    "sessionId": "sess-should-not-enter-next-call",
+    "networkIdle": true,
+    "needsHuman": true,
+    "next": "Stop. Microsoft or Google password/OTP wall detected. Call auspex_login --profile app-example and show handoff.url (phone.html, the only login door, on a phone or a computer). handoff.mobileUrl is that same page, with a real text field so the phone keyboard can open. Never type in Solari's remote Chromium / noVNC card on a phone: that stream is a picture of Chrome, so the phone software keyboard will not open. Auspex phone.html is a seed/handoff door for off-site typing (IME + Save paste), not a same-session VNC takeover of the agent's live check. Never fill password via agent tools. After human completes sign-in and Save: await-login --profile app-example --save-editor then finalize-login --profile app-example --url <url> --expect <string>. Do not retry check on cookies alone. Never --record. This is a re-gate. Stop the loop. One human door. Do not auto-fill a secret or claim a challenge is solved. This seed is not overnight-safe. Guide: AGENTS.md, Long unattended loops. password hunter2secret token slr_live_abcdefghij",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-example"
+    }
+  },
+  "toAgentReceipt({\"ok\":true,\"reason\":\"matched\",\"url\":\"https://app.socialaize.com\",\"expect\":\"Dashboard\",\"...)": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://app.socialaize.com",
+    "expect": "Dashboard",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "title": "Socialaize",
+    "finalUrl": "https://app.socialaize.com/",
+    "matched": true,
+    "excerpt": "Dashboard",
+    "sessionId": "sess",
+    "networkIdle": true,
+    "next": "Profile host mismatch: remint",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    },
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com"
+  }
+}

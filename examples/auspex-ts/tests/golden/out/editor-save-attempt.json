@@ -1,0 +1,15 @@
+{
+  "isNotSavableConflict(409, \"not in a savable state\")": true,
+  "isNotSavableConflict(409, \"Editor is NOT in a savable state right now\")": true,
+  "isNotSavableConflict(409, \"profile is not in a savable state\")": true,
+  "isNotSavableConflict(409, \"The editor isn't in a savable state.\")": true,
+  "isNotSavableConflict(409, \"The editor isn’t in a savable state.\")": true,
+  "isNotSavableConflict(409, \"editor already running\")": false,
+  "isNotSavableConflict(409, \"editor is open\")": false,
+  "isNotSavableConflict(409, \"The editor isn't ready\")": false,
+  "isNotSavableConflict(409, \"not savable\")": false,
+  "isNotSavableConflict(409, \"cannot in a savable state\")": false,
+  "isNotSavableConflict(502, \"not in a savable state\")": false,
+  "isNotSavableConflict(502, \"The editor isn't in a savable state.\")": false,
+  "isNotSavableConflict(401, \"not in a savable state\")": false
+}

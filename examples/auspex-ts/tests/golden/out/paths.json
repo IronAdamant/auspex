@@ -1,0 +1,11 @@
+{
+  "resolveStateDir({\"AUSPEX_HOME\":\"/srv/auspex\"}, \"/any\", \"/home/u\")": "/srv/auspex",
+  "resolveStateDir({\"NODE_TEST_CONTEXT\":\"child-v8\"}, \"/any\", \"/home/u\")": "<tmp>/auspex-test-state-<random>",
+  "resolveStateDir({}, \"/home/u/.npm/_npx/abc/node_modules/auspex-solari/examples/auspex-ts\", \"/home/u\")": "/home/u/.auspex",
+  "resolveStateDir({}, \"/code/auspex/examples/auspex-ts\", \"/home/u\")": "/code/auspex/examples/auspex-ts/.auspex",
+  "toStatePath(PKG + \"/.auspex/runs/s/screenshot.png\")": ".auspex/runs/s/screenshot.png",
+  "toStatePath(\"/home-for-test/u/.auspex/runs/s/screenshot.png\", \"/home-for-test/u\")": "~/.auspex/runs/s/screenshot.png",
+  "resolveStatePath(\"~/.auspex/runs/s/screenshot.png\", \"/home-for-test/u\")": "/home-for-test/u/.auspex/runs/s/screenshot.png",
+  "toStatePath(\"/srv/auspex/runs/s/screenshot.png\", \"/home-for-test/u\")": "/srv/auspex/runs/s/screenshot.png",
+  "resolveStatePath(\".auspex/runs/s/screenshot.png\")": "<pkg>/.auspex/runs/s/screenshot.png"
+}

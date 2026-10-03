@@ -1,0 +1,6 @@
+{
+  "remintLoginNextCall(\"app-example\")": {
+    "tool": "auspex_login",
+    "profile": "app-example"
+  }
+}

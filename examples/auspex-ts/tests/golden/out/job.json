@@ -1,0 +1,6 @@
+{
+  "parseJobFlags(([]))": {
+    "ok": false,
+    "message": "auspex_job requires jobId, name, or url+expect"
+  }
+}

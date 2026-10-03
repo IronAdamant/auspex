@@ -1,0 +1,57 @@
+{
+  "redactEmailsInString(\"Sign in as ada@example.com please\")": "Sign in as [redacted-email] please",
+  "redactEmailsInString(\"Sign in with Microsoft\")": "Sign in with Microsoft",
+  "redactRrwebEvents(([{\"type\":4,\"data\":{\"href\":\"https://login.microsoftonline.com/common/oauth2/v2.0/author...)": [
+    {
+      "type": 4,
+      "data": {
+        "href": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?login_hint=%5Bredacted-email%5D"
+      }
+    },
+    {
+      "type": 2,
+      "data": {
+        "node": {
+          "type": 2,
+          "tagName": "html",
+          "childNodes": [
+            {
+              "type": 2,
+              "tagName": "input",
+              "attributes": {
+                "type": "email",
+                "name": "loginfmt",
+                "value": ""
+              },
+              "childNodes": []
+            },
+            {
+              "type": 2,
+              "tagName": "input",
+              "attributes": {
+                "type": "password",
+                "name": "passwd",
+                "value": ""
+              },
+              "childNodes": []
+            },
+            {
+              "type": 3,
+              "textContent": "Contact [redacted-email]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 5,
+        "id": 12,
+        "text": ""
+      }
+    }
+  ],
+  "assertNoCredentialLeak(\"[{\\\"type\\\":4,\\\"data\\\":{\\\"href\\\":\\\"https://login.microsoftonline.com/common/oauth2/v2.0...)": [],
+  "redactRrwebNdjson(\"{\\\"type\\\":4,\\\"data\\\":{\\\"href\\\":\\\"https://consistencyhub.io/landing\\\"}}\\n\")": "{\"type\":4,\"data\":{\"href\":\"https://consistencyhub.io/landing\"}}\n"
+}

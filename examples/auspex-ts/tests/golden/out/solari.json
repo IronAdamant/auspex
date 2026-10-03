@@ -1,0 +1,43 @@
+{
+  "findProfileId(([{\"id\":\"p1\",\"name\":\"consistencyhub\"}]), \"consistencyhub\")": "p1",
+  "findProfileId(([{\"id\":\"p1\",\"name\":\"consistencyhub\"}]), \" consistencyhub \")": "p1",
+  "toPlaywrightStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"consistencyhub.io\"}],\"origins\":[{\"origi...)": {
+    "cookies": [
+      {
+        "name": "sid",
+        "value": "1",
+        "domain": "consistencyhub.io",
+        "path": "/",
+        "expires": -1,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      }
+    ],
+    "origins": [
+      {
+        "origin": "https://consistencyhub.io",
+        "localStorage": []
+      }
+    ]
+  },
+  "toPlaywrightStorageState({\"cookies\":[{\"name\":\"x\",\"value\":\"y\"}]})": {
+    "cookies": [],
+    "origins": []
+  },
+  "toPlaywrightStorageState({\"cookies\":[{\"name\":\"sid\",\"value\":\"1\",\"domain\":\"example.com\"}]})": {
+    "cookies": [
+      {
+        "name": "sid",
+        "value": "1",
+        "domain": "example.com",
+        "path": "/",
+        "expires": -1,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      }
+    ],
+    "origins": []
+  }
+}

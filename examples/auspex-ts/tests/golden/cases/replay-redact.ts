@@ -1,0 +1,11 @@
+// Recorded from unit tests by experiments/slim-tests/record-goldens.ts. Outputs live in ../out/replay-redact.json.
+import { type GoldenCases } from "../harness.ts"
+import { assertNoCredentialLeak, redactEmailsInString, redactRrwebEvents, redactRrwebNdjson } from "../../../src/replay-redact.ts"
+
+export const cases: GoldenCases = {
+  "redactEmailsInString(\"Sign in as ada@example.com please\")": () => redactEmailsInString("Sign in as ada@example.com please"),
+  "redactEmailsInString(\"Sign in with Microsoft\")": () => redactEmailsInString("Sign in with Microsoft"),
+  "redactRrwebEvents(([{\"type\":4,\"data\":{\"href\":\"https://login.microsoftonline.com/common/oauth2/v2.0/author...)": () => redactRrwebEvents(([{"type":4,"data":{"href":"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?login_hint=ada@example.com"}},{"type":2,"data":{"node":{"type":2,"tagName":"html","childNodes":[{"type":2,"tagName":"input","attributes":{"type":"email","name":"loginfmt","value":"ada@example.com"},"childNodes":[]},{"type":2,"tagName":"input","attributes":{"type":"password","name":"passwd","value":"hunter2"},"childNodes":[]},{"type":3,"textContent":"Contact ada@example.com"}]}}},{"type":3,"data":{"source":5,"id":12,"text":"ada@example.com"}}] as never)),
+  "assertNoCredentialLeak(\"[{\\\"type\\\":4,\\\"data\\\":{\\\"href\\\":\\\"https://login.microsoftonline.com/common/oauth2/v2.0...)": () => assertNoCredentialLeak("[{\"type\":4,\"data\":{\"href\":\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?login_hint=%5Bredacted-email%5D\"}},{\"type\":2,\"data\":{\"node\":{\"type\":2,\"tagName\":\"html\",\"childNodes\":[{\"type\":2,\"tagName\":\"input\",\"attributes\":{\"type\":\"email\",\"name\":\"loginfmt\",\"value\":\"\"},\"childNodes\":[]},{\"type\":2,\"tagName\":\"input\",\"attributes\":{\"type\":\"password\",\"name\":\"passwd\",\"value\":\"\"},\"childNodes\":[]},{\"type\":3,\"textContent\":\"Contact [redacted-email]\"}]}}},{\"type\":3,\"data\":{\"source\":5,\"id\":12,\"text\":\"\"}}]"),
+  "redactRrwebNdjson(\"{\\\"type\\\":4,\\\"data\\\":{\\\"href\\\":\\\"https://consistencyhub.io/landing\\\"}}\\n\")": () => redactRrwebNdjson("{\"type\":4,\"data\":{\"href\":\"https://consistencyhub.io/landing\"}}\n"),
+}

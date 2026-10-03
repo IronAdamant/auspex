@@ -7,14 +7,16 @@
 // clock at that instant) to tests/golden/cases/<module>.ts. The assertions are not kept: the
 // golden harness records what each call returns (UPDATE_GOLDEN=1) and compares from then on.
 import { execFileSync, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
 const [ref, listPath] = process.argv.slice(2)
 if (!ref || !listPath) throw new Error("usage: record-goldens.ts <git-ref> <tests.tsv>")
 const pkg = process.cwd()
-const rec = path.join(pkg, ".golden-record")
+// A sibling of the package, so tests that reach ../../../docs from tests/ land in the same place.
+const rec = `${pkg}-golden-record`
 const recLog = path.join(rec, "calls.jsonl")
 const outDir = path.join(pkg, "tests", "golden", "cases")
 
@@ -29,6 +31,10 @@ for (const row of readFileSync(listPath, "utf8").split("\n")) {
 rmSync(rec, { recursive: true, force: true })
 mkdirSync(path.join(rec, "tests"), { recursive: true })
 mkdirSync(path.join(rec, "src"), { recursive: true })
+for (const entry of readdirSync(pkg)) {
+  if (entry === "tests" || entry === "src") continue
+  symlinkSync(path.join(pkg, entry), path.join(rec, entry))
+}
 const repoRel = path.relative(execFileSync("git", ["rev-parse", "--show-toplevel"]).toString().trim(), pkg)
 const srcModules = new Set<string>()
 for (const [file, titles] of wanted) {
@@ -86,18 +92,18 @@ export function wrap(mod: string, name: string, real: unknown): unknown {
 )
 for (const mod of srcModules) {
   const real = (await import(pathToFileURL(path.join(pkg, "src", `${mod}.ts`)).href)) as Record<string, unknown>
-  const lines = [`import * as real from "../../src/${mod}.ts"`, `import { wrap } from "../rec.ts"`]
+  const lines = [`import * as real from "../../${path.basename(pkg)}/src/${mod}.ts"`, `import { wrap } from "../rec.ts"`]
   for (const key of Object.keys(real)) lines.push(`export const ${key} = wrap(${JSON.stringify(mod)}, ${JSON.stringify(key)}, real.${key}) as typeof real.${key}`)
   writeFileSync(path.join(rec, "src", `${mod}.ts`), `${lines.join("\n")}\n`)
 }
 
 // 3. Run them once. A failing test still records the calls it made before it failed.
 const files = readdirSync(path.join(rec, "tests")).map((f) => path.join(rec, "tests", f))
-const run = spawnSync("npx", ["tsx", "--test", "--test-reporter=tap", ...files], { cwd: pkg, encoding: "utf8", env: { ...process.env, SOLARI_API_KEY: "" } })
+const run = spawnSync("npx", ["tsx", "--test", "--test-reporter=tap", ...files], { cwd: rec, encoding: "utf8", env: { ...process.env, SOLARI_API_KEY: "" } })
 const summary = (run.stdout.match(/^# (tests|pass|fail) \d+$/gm) ?? []).join(", ")
 console.log(`recording run: ${summary}`)
 for (const m of run.stdout.matchAll(/^not ok \d+ - (.*)$/gm)) console.log(`  failed while recording: ${m[1]}`)
-if (process.env.KEEP_RECORD) writeFileSync(path.join(pkg, ".golden-record.log"), run.stdout + run.stderr)
+if (process.env.KEEP_RECORD) writeFileSync(`${rec}.log`, run.stdout + run.stderr)
 
 // 4. One case file per module: unique calls only, named by function and a short argument preview.
 type Call = { mod: string; name: string; args: Array<{ u?: true; url?: string; v?: unknown }>; now: number }
@@ -107,9 +113,30 @@ const calls: Call[] = existsSync(recLog)
 const clockModules = new Set(
   readdirSync(path.join(pkg, "src")).filter((f) => f.endsWith(".ts") && /Date\.now|new Date\(/.test(readFileSync(path.join(pkg, "src", f), "utf8"))).map((f) => f.replace(/\.ts$/, "")),
 )
-const literal = (a: Call["args"][number]) => (a.u ? "undefined" : a.url !== undefined ? `new URL(${JSON.stringify(a.url)})` : JSON.stringify(a.v))
+// Recorded arguments must not carry this machine's folders: the package root and the home folder
+// become PKG and HOME, which the harness resolves on whatever machine runs the table.
+const machineDirs: Array<[string, string]> = [[pkg, "PKG"], [homedir(), "HOME"]]
+function portable(json: string): string {
+  let out = json
+  for (const [dir, name] of machineDirs) out = out.split(JSON.stringify(dir).slice(1, -1)).join(`" + ${name} + "`)
+  return out.replace(/^"" \+ /, "").replace(/ \+ ""$/, "")
+}
+const literal = (a: Call["args"][number]) => {
+  if (a.u) return "undefined"
+  if (a.url !== undefined) return `new URL(${portable(JSON.stringify(a.url))})`
+  const json = portable(JSON.stringify(a.v))
+  // Unit tests often pass a deliberately partial object; the table keeps the data, not the type.
+  return a.v !== null && typeof a.v === "object" ? `(${json} as never)` : json
+}
 const byMod = new Map<string, Map<string, Call>>()
+// A call on a per-run temp folder only makes sense in the run that made it.
+const tempDirs = [tmpdir(), realpathSync(tmpdir())]
+let skippedTemp = 0
 for (const c of calls) {
+  if (tempDirs.some((d) => JSON.stringify(c.args).includes(d))) {
+    skippedTemp++
+    continue
+  }
   const key = `${c.name}(${c.args.map(literal).join(", ")})`
   if (!byMod.has(c.mod)) byMod.set(c.mod, new Map())
   const seen = byMod.get(c.mod)!
@@ -123,7 +150,7 @@ for (const [mod, seen] of [...byMod].sort()) {
   const body: string[] = []
   for (const [key, c] of seen) {
     used.add(c.name)
-    const preview = c.args.map(literal).join(", ").replace(/\s+/g, " ")
+    const preview = c.args.map(literal).join(", ").replace(/ as never\)/g, ")").replace(/\(\{/g, "{").replace(/\}\)/g, "}").replace(/\s+/g, " ")
     let label = `${c.name}(${preview.length > 90 ? `${preview.slice(0, 87)}...` : preview})`
     for (let n = 2; names.has(label); n++) label = `${label.replace(/ #\d+$/, "")} #${n}`
     names.add(label)
@@ -133,12 +160,12 @@ for (const [mod, seen] of [...byMod].sort()) {
   }
   const head = [
     `// Recorded from unit tests by experiments/slim-tests/record-goldens.ts. Outputs live in ../out/${mod}.json.`,
-    `import { ${clockModules.has(mod) ? "at, " : ""}type GoldenCases } from "../harness.ts"`,
+    `import { ${clockModules.has(mod) ? "at, " : ""}${body.some((b) => b.includes("HOME + ")) ? "HOME, " : ""}${body.some((b) => b.includes("PKG + ")) ? "PKG, " : ""}type GoldenCases } from "../harness.ts"`,
     `import { ${[...used].sort().join(", ")} } from "../../../src/${mod}.ts"`,
     "",
     "export const cases: GoldenCases = {",
   ]
   writeFileSync(path.join(outDir, `${mod}.ts`), `${[...head, ...body, "}"].join("\n")}\n`)
 }
-console.log(`${calls.length} calls recorded, ${rows} unique rows in ${byMod.size} case files`)
+console.log(`${calls.length} calls recorded, ${rows} unique rows in ${byMod.size} case files (${skippedTemp} calls on temp folders skipped)`)
 rmSync(rec, { recursive: true, force: true })

@@ -1,0 +1,43 @@
+{
+  "awaitStreamPlan({\"saveEditor\":true,\"streamExpiresAt\":\"2026-09-24T03:23:22.000Z\",\"timeoutMs\":1800000,\"no...)": {
+    "preflight": "proceed",
+    "waitTimeoutMs": 125000,
+    "watchStreamExpiresAt": "2026-09-24T03:23:22.000Z"
+  },
+  "awaitStreamPlan({\"saveEditor\":true,\"streamExpiresAt\":\"2026-09-24T03:22:42.000Z\",\"timeoutMs\":1800000,\"no...)": {
+    "preflight": "low",
+    "waitTimeoutMs": 85000,
+    "watchStreamExpiresAt": "2026-09-24T03:22:42.000Z"
+  },
+  "awaitStreamPlan({\"saveEditor\":true,\"streamExpiresAt\":\"2026-09-24T03:21:21.000Z\",\"timeoutMs\":1800000,\"no...)": {
+    "preflight": "past",
+    "watchStreamExpiresAt": "2026-09-24T03:21:21.000Z"
+  },
+  "awaitStreamPlan({\"saveEditor\":false,\"streamExpiresAt\":\"2026-09-24T03:22:42.000Z\",\"timeoutMs\":1800000,\"n...)": {
+    "preflight": "proceed",
+    "waitTimeoutMs": 1800000
+  },
+  "shouldRefuseDeadStreamSession({\"streamExpiresAt\":\"2026-09-24T03:21:21.000Z\",\"nowMs\":1790220082000})": true,
+  "shouldRefuseDeadStreamSession({\"streamExpiresAt\":\"2026-09-24T03:21:21.000Z\",\"nowMs\":1790220082000,\"seed\":{\"sizeBytes\"...)": true,
+  "shouldRefuseDeadStreamSession({\"streamExpiresAt\":\"2026-09-24T03:21:21.000Z\",\"nowMs\":1790220082000,\"seed\":{\"sizeBytes\"...) #2": false,
+  "shouldRefuseDeadStreamSession({\"streamExpiresAt\":\"2026-09-24T03:23:22.000Z\",\"nowMs\":1790220082000})": false,
+  "deadStreamCheckResult({\"url\":\"https://app.example\",\"expect\":\"Workspace ready\",\"profile\":\"app-example\"})": {
+    "ok": false,
+    "protocolOk": false,
+    "reason": "stream-expired",
+    "url": "https://app.example",
+    "expect": "Workspace ready",
+    "screenshotPath": "",
+    "title": "",
+    "finalUrl": "",
+    "matched": false,
+    "excerpt": "",
+    "sessionId": "",
+    "networkIdle": false,
+    "next": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-example"
+    }
+  }
+}

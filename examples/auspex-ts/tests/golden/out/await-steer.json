@@ -1,0 +1,280 @@
+{
+  "steerAwaitLogin({\"patch\":{\"next\":\"remint the live host\",\"nextCall\":{\"tool\":\"auspex_login\",\"profile\":\"ap...)": {
+    "guided": {
+      "text": "remint the live host",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-socialaize-com"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":3,...)": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"waiting\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":3,...)": {
+    "guided": {
+      "text": "Finalize-login NOW for --profile app-example. editorSave 200 succeeded. editorFold.no-cdp did not refresh folded sessionStorage. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint auspex_login only if finalize-login returns needsHuman.",
+      "nextCall": {
+        "tool": "auspex_finalize_login",
+        "profile": "app-example",
+        "url": "https://app.example/app",
+        "expect": "Workspace ready"
+      }
+    },
+    "foldLead": {
+      "status": "completed",
+      "text": "Finalize-login NOW for --profile app-example. editorSave 200 succeeded. editorFold.no-cdp did not refresh folded sessionStorage. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP). Remint auspex_login only if finalize-login returns needsHuman.",
+      "nextCall": {
+        "tool": "auspex_finalize_login",
+        "profile": "app-example",
+        "url": "https://app.example/app",
+        "expect": "Workspace ready"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":3,...) #2": {
+    "guided": {
+      "text": "Solari Save for --profile app-example is cookie-strong. App-origin cookie count: 1. Counted sessionStorage is 0. That miss is expected on Solari editor Save. Editor Save stores cookies and localStorage only. Auspex does not invent sessionStorage. Run check --verify-with-profile and read claimOkProfile. solariSaveReady is not claimOkProfile. ok is not claimOk and not claimOkProfile. Do not finalize to invent sessionStorage. IdP hosts alone are not this shape. A first-party session cookie, or a short-lived access token written to an allowlisted localStorage key after OAuth, is app-side.",
+      "nextCall": {
+        "tool": "auspex_check",
+        "verifyWithProfile": true,
+        "profile": "app-example",
+        "url": "https://app.example/app",
+        "expect": "Workspace ready"
+      }
+    },
+    "cookieLead": {
+      "status": "completed",
+      "text": "Solari Save for --profile app-example is cookie-strong. App-origin cookie count: 1. Counted sessionStorage is 0. That miss is expected on Solari editor Save. Editor Save stores cookies and localStorage only. Auspex does not invent sessionStorage. Run check --verify-with-profile and read claimOkProfile. solariSaveReady is not claimOkProfile. ok is not claimOk and not claimOkProfile. Do not finalize to invent sessionStorage. IdP hosts alone are not this shape. A first-party session cookie, or a short-lived access token written to an allowlisted localStorage key after OAuth, is app-side.",
+      "nextCall": {
+        "tool": "auspex_check",
+        "verifyWithProfile": true,
+        "profile": "app-example",
+        "url": "https://app.example/app",
+        "expect": "Workspace ready"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"waiting\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...)": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"waiting\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...) #2": {
+    "guided": {
+      "text": "status editor-save-hung: editorSave or editorFold timed out. Fail-closed. Do not run finalize-login in parallel (ProfileBusy race). Retry npx auspex await-login --profile app-example --save-editor once. Remint auspex_login if it hangs again or returns stream-expired.",
+      "nextCall": {
+        "tool": "auspex_await_login",
+        "saveEditor": true,
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "editor-save-hung",
+      "text": "status editor-save-hung: editorSave or editorFold timed out. Fail-closed. Do not run finalize-login in parallel (ProfileBusy race). Retry npx auspex await-login --profile app-example --save-editor once. Remint auspex_login if it hangs again or returns stream-expired.",
+      "nextCall": {
+        "tool": "auspex_await_login",
+        "saveEditor": true,
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"waiting\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...) #3": {
+    "guided": {
+      "text": "status profile-busy: another Auspex save holds the profile lock (often finalize-login). Do not start a second finalize-login. Retry npx auspex await-login --profile app-example --save-editor after that save ends.",
+      "nextCall": {
+        "tool": "auspex_await_login",
+        "saveEditor": true,
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "profile-busy",
+      "text": "status profile-busy: another Auspex save holds the profile lock (often finalize-login). Do not start a second finalize-login. Retry npx auspex await-login --profile app-example --save-editor after that save ends.",
+      "nextCall": {
+        "tool": "auspex_await_login",
+        "saveEditor": true,
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"idp-only-save\",\"name\":\"app-example\",\"next\":\"picture is not a save...)": {
+    "guided": {
+      "text": "picture is not a saved login",
+      "nextCall": "<undefined>"
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"idp-only-save\",\"name\":\"app-example\",\"next\":\"finish sign-in\",\"cook...)": {
+    "guided": {
+      "text": "finish sign-in",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"stream-expired\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cook...)": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"completed\",\"name\":\"app-example\",\"next\":\"saved\",\"cookies\":3,\"origi...)": {
+    "guided": {
+      "text": "saved editorSave failed (401: unauthorized). POST finished. Not a 30-minute wait. Do not finalize-login on this seed. Cookies in the profile are not proof this login saved (a pre-login jar looks the same). Remint now: npx auspex login --profile app-example (MCP: auspex_login; phone handoff.mobileUrl). If a later finalize returns needsHuman, that remint stands. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"No non-empty Save yet for a...)": {
+    "guided": {
+      "text": "editorSave failed (502: Failed to export storageState). POST finished. Solari 502 stands. This is not loggedOut or needsHuman. Not a 30-minute wait. Do not finalize-login on this seed. Cookies in the profile are not proof this login saved (a pre-login jar looks the same). Remint now: npx auspex login --profile app-example (MCP: auspex_login; phone handoff.mobileUrl). If a later finalize returns needsHuman, that remint stands. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+      "nextCall": "<undefined>"
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...)": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 502. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 502. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...) #2": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 503. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 503. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"still waiting\",\"cookies\":0,...) #3": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 504. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). editorSave returned Solari 504. That status stands. This is not loggedOut or needsHuman. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"completed\",\"name\":\"app-example\",\"next\":\"saved\",\"cookies\":4,\"origi...)": {
+    "guided": {
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"completed\",\"name\":\"app-example\",\"next\":\"saved\",\"cookies\":0,\"origi...)": {
+    "guided": {
+      "text": "status stream-expired (editorRefusedSave): Solari refused editor/save (409 not in a savable state) while the phone stream still had time left, and editor/token returned 409. The clock did not cause this. This is not loggedOut or needsHuman, and nothing was saved. Remint once: npx auspex login --profile app-example (MCP: auspex_login). If it repeats, report editorSave and tokenStatus to Solari. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    },
+    "failClosed": {
+      "status": "stream-expired",
+      "text": "status stream-expired (editorRefusedSave): Solari refused editor/save (409 not in a savable state) while the phone stream still had time left, and editor/token returned 409. The clock did not cause this. This is not loggedOut or needsHuman, and nothing was saved. Remint once: npx auspex login --profile app-example (MCP: auspex_login). If it repeats, report editorSave and tokenStatus to Solari. Guide: AGENTS.md, Long unattended loops.",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"empty-save\",\"name\":\"app-example\",\"next\":\"Save bumped the profile ...)": {
+    "guided": {
+      "text": "editorSave failed (413: Payload Too Large). POST finished. The jar is empty. Not a 30-minute wait. Do not finalize-login on this seed. Remint now: npx auspex login --profile app-example (MCP: auspex_login; phone handoff.mobileUrl).",
+      "nextCall": {
+        "tool": "auspex_login",
+        "profile": "app-example"
+      }
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"empty-save\",\"name\":\"app-example\",\"next\":\"Save bumped the profile ...) #2": {
+    "guided": {
+      "text": "Save bumped the profile to v4 but stored no cookies or origins. Do not reuse --profile app-example until a non-empty Save.",
+      "nextCall": "<undefined>"
+    }
+  },
+  "steerAwaitLogin({\"steered\":{\"status\":\"timeout\",\"name\":\"app-example\",\"next\":\"No non-empty Save yet for a...) #2": {
+    "guided": {
+      "text": "editorSave failed (502: Failed to export storageState). POST finished. Solari 502 stands. This is not loggedOut or needsHuman. Not a 30-minute wait. Do not finalize-login on this seed. Cookies in the profile are not proof this login saved (a pre-login jar looks the same). Remint now: npx auspex login --profile app-example (MCP: auspex_login; phone handoff.mobileUrl). If a later finalize returns needsHuman, that remint stands. Do not run check --verify-with-profile against this editor fold — claimOkProfile will not pass on a dead fold. That verify path is removed. After finalize-login writes the profile store, --verify-with-profile boots a fresh Solari session from that store (no editor JWT, no fold CDP).",
+      "nextCall": "<undefined>"
+    }
+  }
+}
