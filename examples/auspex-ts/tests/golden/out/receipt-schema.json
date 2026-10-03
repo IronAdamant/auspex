@@ -1,0 +1,51 @@
+{
+  "parseReceiptV1({\"schemaVersion\":1,\"ok\":false,\"reason\":\"expectMatchedPublicLanding\",\"url\":\"https://app....)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "expectMatchedPublicLanding",
+    "url": "https://app.example/",
+    "expect": "your workspace",
+    "screenshotPath": ".auspex/runs/stamp/screenshot.png",
+    "matched": false,
+    "finalUrl": "https://app.example/",
+    "profileSaved": {
+      "ok": false,
+      "cookies": 0,
+      "origins": 0,
+      "error": "refusing to save a public /landing session over the profile"
+    }
+  },
+  "parseReceiptV1({\"schemaVersion\":1,\"ok\":false,\"reason\":\"hostChanged\",\"url\":\"https://myapp.example\",\"exp...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "hostChanged",
+    "url": "https://myapp.example",
+    "expect": "Workspace ready",
+    "screenshotPath": "a.png",
+    "hostChanged": true,
+    "suggestedUrl": "https://app.socialaize.com"
+  },
+  "parseReceiptV1({\"schemaVersion\":1,\"ok\":true,\"reason\":\"matched\",\"url\":\"https://app.socialaize.com\",\"exp...)": {
+    "schemaVersion": 1,
+    "ok": true,
+    "reason": "matched",
+    "url": "https://app.socialaize.com",
+    "expect": "Dashboard",
+    "screenshotPath": "shot.png",
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com"
+  },
+  "parseReceiptV1({\"schemaVersion\":1,\"ok\":false,\"reason\":\"stream-expired\",\"url\":\"https://app.example\",\"ex...)": {
+    "schemaVersion": 1,
+    "ok": false,
+    "reason": "stream-expired",
+    "url": "https://app.example",
+    "expect": "Workspace ready",
+    "screenshotPath": "",
+    "next": "status stream-expired: the VNC/phone stream is past and this profile has no cookies to finalize. Solari editor JWTs last about 5 minutes. Auspex cannot extend them (POST /editor/token has no TTL). This is not loggedOut, needsHuman, or a Solari 502. Do not poll await-login for 30 minutes. Remint now: npx auspex login --profile app-example (MCP: auspex_login). Ask the human to open the new handoff.url. Email or SMS codes that outlive the JWT need a Solari-side longer token or reconnect. Guide: AGENTS.md, Long unattended loops.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-example"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
@@ -17,7 +17,10 @@ import {
 } from "../src/door-await-contract.ts"
 import {
   AWAIT_LOGIN_DESCRIPTION,
-  } from "../src/tool-copy.ts"
+  CHECK_DESCRIPTION,
+  LOGIN_DESCRIPTION,
+  TRACE_DESCRIPTION,
+} from "../src/tool-copy.ts"
 
 const pkg = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repo = path.resolve(pkg, "../..")

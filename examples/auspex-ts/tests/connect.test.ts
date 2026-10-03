@@ -4,8 +4,10 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { PassThrough } from "node:stream"
 import test from "node:test"
-import { connectOutcome, parseConnectFlags, runConnect } from "../src/connect.ts"
+import { parseArgv, USAGE } from "../src/cli.ts"
+import { CONNECT_NEEDS_EXPECT, connectOutcome, parseConnectFlags, runConnect, runConnectSave } from "../src/connect.ts"
 import type { JobReceipt } from "../src/job-store.ts"
+import type { JobRunOptions } from "../src/job-cli.ts"
 import { runJob } from "../src/job.ts"
 import type { LoginResult } from "../src/profiles.ts"
 
@@ -39,18 +41,101 @@ function tty() {
   return { stdin, stdout, text: () => text }
 }
 
-test("parseConnectFlags takes a positional or --url, expect, profile", () => {
-  const a = parseConnectFlags(["https://app.example", "--expect", "Workspace ready"])
-  assert.ok(a.ok && a.mode === "run")
-  assert.equal(a.opts.url, "https://app.example")
-  assert.equal(a.opts.expect, "Workspace ready")
-  const b = parseConnectFlags(["--url", "https://app.example", "--profile", "mine"])
-  assert.ok(b.ok && b.mode === "run")
-  assert.equal(b.opts.profile, "mine")
-  assert.equal(b.opts.expect, undefined)
-  assert.equal(parseConnectFlags([]).ok, false)
-  assert.equal(parseConnectFlags(["ftp://x"]).ok, false)
-  assert.equal(parseConnectFlags(["https://app.example", "extra"]).ok, false)
+test("without a terminal connect needs --expect and never reads stdin", async () => {
+  const stdin = new PassThrough()
+  const stdout = new PassThrough()
+  let ran = false
+  const result = await runConnect({ url: "https://app.example" }, { stdin, stdout }, {
+    runJob: async () => {
+      ran = true
+      return job()
+    },
+  })
+  assert.equal(result.error, CONNECT_NEEDS_EXPECT)
+  assert.equal(ran, false)
+})
+
+test("agent path: no terminal, door printed, connect --save ends the wait", async () => {
+  const stdin = new PassThrough()
+  let text = ""
+  const stdout = new PassThrough()
+  stdout.on("data", (chunk) => {
+    text += String(chunk)
+  })
+  let signaled = false
+  const result = await runConnect({ url: "https://app.example/dash", expect: "Workspace ready" }, { stdin, stdout }, {
+    qr: async () => "QR",
+    runJob: async (opts) => {
+      opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR } })
+      // Stands in for the real waiter: connect --save flips this from another process.
+      setTimeout(() => void runConnectSave("app-example", {
+        isWaiting: async () => true,
+        signalSave: async () => {
+          signaled = true
+        },
+      }), 10)
+      while (!signaled) await new Promise((r) => setTimeout(r, 5))
+      return job()
+    },
+  })
+  assert.equal(result.ok, true)
+  assert.match(text, /phone\.html/)
+  assert.match(text, /connect --save app-example/)
+  assert.equal(/press enter/i.test(text), false, "agent mode must not tell anyone to press Enter")
+  assert.match(text, /✓ Logged in/)
+})
+
+test("connect --save says so when nothing is waiting", async () => {
+  let signaled = false
+  const none = await runConnectSave("app-example", {
+    isWaiting: async () => false,
+    signalSave: async () => {
+      signaled = true
+    },
+  })
+  assert.equal(none.ok, false)
+  assert.match(none.message, /No connect is waiting/)
+  assert.equal(signaled, false)
+  const live = await runConnectSave("app-example", { isWaiting: async () => true, signalSave: async () => undefined })
+  assert.equal(live.ok, true)
+})
+
+test("connect shows the door, Enter signals Save, and success needs claimOkProfile", async () => {
+  const io = tty()
+  const signaled: string[] = []
+  let seen: JobRunOptions | undefined
+  const result = await runConnect(
+    { url: "https://app.example/dash", expect: "Workspace ready" },
+    { stdin: io.stdin, stdout: io.stdout, now: () => Date.parse("2026-09-29T10:00:00Z") },
+    {
+      qr: async () => "QR",
+      signalSave: async (profile) => {
+        signaled.push(profile)
+      },
+      runJob: async (opts) => {
+        seen = opts
+        opts.onMinted?.({
+          profile: "app-example",
+          handoff: { url: DOOR, mobileUrl: DOOR, streamExpiresAt: "2026-09-29T10:05:00Z" },
+        })
+        setTimeout(() => io.stdin.write("\n"), 10)
+        while (signaled.length === 0) await new Promise((r) => setTimeout(r, 5))
+        opts.onProgress?.("job:check")
+        return job()
+      },
+    },
+  )
+  assert.equal(seen?.wait, true)
+  assert.equal(seen?.verifyWithProfile, true)
+  assert.deepEqual(signaled, ["app-example"])
+  assert.equal(result.ok, true)
+  const text = io.text()
+  assert.match(text, /phone\.html/)
+  assert.match(text, /5 min 0 s/)
+  assert.match(text, /press Enter here/)
+  assert.match(text, /Checking with a fresh browser/)
+  assert.match(text, /✓ Logged in to app\.example/)
+  assert.match(text, /check --profile app-example/)
 })
 
 test("connect asks for the logged-in words when --expect is missing", async () => {
@@ -65,6 +150,129 @@ test("connect asks for the logged-in words when --expect is missing", async () =
   })
   assert.equal(expect, "My workspace")
   assert.match(io.text(), /What words only appear once you're logged in/)
+})
+
+test("connect stops asking for words when input closes, instead of hanging", async () => {
+  const io = tty()
+  let ran = false
+  setTimeout(() => io.stdin.end(), 10)
+  const result = await runConnect({ url: "https://app.example" }, { stdin: io.stdin, stdout: io.stdout }, {
+    runJob: async () => {
+      ran = true
+      return job()
+    },
+  })
+  assert.equal(ran, false)
+  assert.equal(result.ok, false)
+  assert.equal(result.error, CONNECT_NEEDS_EXPECT)
+})
+
+test("connect survives a failed Save signal and a closed input while the job waits", async () => {
+  for (const mode of ["signal-throws", "stdin-closed"] as const) {
+    const io = tty()
+    const rejections: unknown[] = []
+    const onRejection = (err: unknown) => rejections.push(err)
+    process.on("unhandledRejection", onRejection)
+    try {
+      const result = await runConnect(
+        { url: "https://app.example/dash", expect: "Workspace ready" },
+        { stdin: io.stdin, stdout: io.stdout },
+        {
+          qr: async () => "QR",
+          signalSave: async () => {
+            throw new Error("disk full")
+          },
+          runJob: async (opts) => {
+            opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR } })
+            if (mode === "signal-throws") io.stdin.write("\n")
+            else io.stdin.end()
+            await new Promise((r) => setTimeout(r, 30))
+            return job()
+          },
+        },
+      )
+      assert.equal(result.ok, true)
+      assert.equal(rejections.length, 0)
+      assert.match(io.text(), /Tap Save on the phone page instead/)
+    } finally {
+      process.off("unhandledRejection", onRejection)
+    }
+  }
+})
+
+test("runJob calls onMinted with the door before the await", async () => {
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-"))
+  const order: string[] = []
+  const login = async (): Promise<LoginResult> => ({
+    profileId: "p1",
+    name: "app-example",
+    consoleUrl: "https://console.getsolari.com/profiles",
+    next: "Open handoff.url",
+    sinceVersion: 3,
+    handoff: { url: DOOR, mobileUrl: DOOR },
+  })
+  const result = await runJob(
+    {
+      url: "https://app.example",
+      expect: "Workspace ready",
+      wait: true,
+      onMinted: ({ handoff }) => order.push(`minted ${handoff.url}`),
+    },
+    {
+      jobsDir,
+      login,
+      awaitLogin: async () => {
+        order.push("await")
+        return { status: "timeout", profileId: "p1", name: "app-example", version: 3, cookies: 0, origins: 0, next: "" }
+      },
+      wake: async () => ({ ok: true, skipped: true }),
+    },
+  )
+  assert.deepEqual(order, [`minted ${DOOR}`, "await"])
+  assert.equal(result.status, "timeout")
+  assert.equal(JSON.stringify(result).includes("onMinted"), false)
+})
+
+test("runJob keeps a failed Solari editor/save status so connect can name it", async () => {
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-502-"))
+  const result = await runJob(
+    { url: "https://app.example", expect: "Workspace ready", wait: true },
+    {
+      jobsDir,
+      login: async () => ({
+        profileId: "p1",
+        name: "app-example",
+        consoleUrl: "https://console.getsolari.com/profiles",
+        next: "Open handoff.url",
+        sinceVersion: 1,
+        handoff: { url: DOOR, mobileUrl: DOOR },
+      }),
+      awaitLogin: async () => ({
+        status: "timeout",
+        profileId: "p1",
+        name: "app-example",
+        version: 1,
+        cookies: 0,
+        origins: 0,
+        next: "editorSave failed (502: Failed to export storageState). POST finished.",
+        editorSave: { ok: false, status: 502, error: "Failed to export storageState" },
+      }),
+      wake: async () => ({ ok: true, skipped: true }),
+    },
+  )
+  assert.equal(result.status, "timeout")
+  assert.deepEqual(result.editorSave, { ok: false, status: 502, error: "Failed to export storageState" })
+  assert.match(connectOutcome(result).headline, /Solari could not save the login \(HTTP 502/)
+})
+
+test("isBotChallengePage names Cloudflare checks and leaves real pages alone", async () => {
+  const { isBotChallengePage } = await import("../src/text.ts")
+  assert.equal(isBotChallengePage("Just a moment...", "We’ll have you designing again soon"), true)
+  assert.equal(isBotChallengePage("Attention Required! | Cloudflare", ""), true)
+  assert.equal(isBotChallengePage("", "Verify you are human by completing the action below."), true)
+  assert.equal(isBotChallengePage("Home - Canva", "What will you design today? Templates for you"), false)
+  assert.equal(isBotChallengePage("Just a moment of calm | Blog", "An article"), false)
+  assert.equal(isBotChallengePage("Sign in", "Enter your password"), false)
 })
 
 test("runJob: a bot wall never triggers the finalize fallback", async () => {
@@ -126,6 +334,53 @@ test("runJob: a bot wall never triggers the finalize fallback", async () => {
   assert.equal(finalized, 0)
   assert.equal(result.botWall, true)
   assert.match(connectOutcome(result).headline, /bot check/)
+})
+
+test("connect stops at once when Solari gives no phone door, instead of handing out the fallback page", async () => {
+  const { NO_PHONE_DOOR } = await import("../src/connect.ts")
+  const jobsDir = await mkdtemp(path.join(tmpdir(), "auspex-connect-nodoor-"))
+  let awaited = false
+  let text = ""
+  const stdout = new PassThrough()
+  stdout.on("data", (chunk) => {
+    text += String(chunk)
+  })
+  const result = await runConnect(
+    { url: "https://www.canva.com/", expect: "Templates for you" },
+    { stdin: new PassThrough(), stdout },
+    {
+      runJob: (opts) =>
+        runJob(opts, {
+          jobsDir,
+          login: async () => ({
+            profileId: "p1",
+            name: "canva-com",
+            consoleUrl: "https://console.getsolari.com/profiles",
+            next: "",
+            sinceVersion: 1,
+            handoff: { url: "https://console.getsolari.com/handoff/abc" },
+          }),
+          awaitLogin: async () => {
+            awaited = true
+            return { status: "timeout", profileId: "p1", name: "canva-com", version: 1, cookies: 0, origins: 0, next: "" }
+          },
+          wake: async () => ({ ok: true, skipped: true }),
+        }),
+    },
+  )
+  assert.equal(result.ok, false)
+  assert.equal(awaited, false, "must not wait on Solari's fallback page")
+  assert.equal(text.includes("console.getsolari.com/handoff"), false, "must not hand out the fallback page")
+  assert.match(text, new RegExp(NO_PHONE_DOOR.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+})
+
+test("tildePath hides the account folder in printed paths", async () => {
+  const { tildePath } = await import("../src/connect.ts")
+  assert.equal(tildePath("/Users/alice/.auspex/jobs/job-1.json", "/Users/alice"), "~/.auspex/jobs/job-1.json")
+  assert.equal(tildePath("/Users/alice", "/Users/alice/"), "~")
+  assert.equal(tildePath("/Users/alicewonder/x.json", "/Users/alice"), "/Users/alicewonder/x.json", "only a whole folder match")
+  assert.equal(tildePath("/tmp/job.json", "/Users/alice"), "/tmp/job.json")
+  assert.equal(tildePath("/x/y", "/"), "/x/y")
 })
 
 test("a refused second browser is named for what it is, never 'your words were not on the page'", async () => {
@@ -207,5 +462,23 @@ test("an Enter typed before the link appears is not taken as Save", async () => 
     },
   })
   assert.equal(signaled.length, 1)
+})
+
+test("agent mode prints the QR image path for the human to scan", async () => {
+  const out = new PassThrough()
+  let text = ""
+  out.on("data", (c) => (text += String(c)))
+  await runConnect(
+    { url: "https://app.example/dash", expect: "Workspace ready" },
+    { stdin: new PassThrough(), stdout: out },
+    {
+      runJob: async (opts) => {
+        opts.onMinted?.({ profile: "app-example", handoff: { url: DOOR, mobileUrl: DOOR, qrPath: "/tmp/auspex-x/.auspex/runs/r1/handoff-qr.png" } })
+        await new Promise((r) => setTimeout(r, 20))
+        return job()
+      },
+    },
+  )
+  assert.match(text, /QR code image \(scan it, or open it for the human\): \/tmp\/auspex-x\/\.auspex\/runs\/r1\/handoff-qr\.png/)
 })
 

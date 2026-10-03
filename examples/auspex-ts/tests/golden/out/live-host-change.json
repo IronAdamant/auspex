@@ -1,0 +1,112 @@
+{
+  "sameProductHosts(\"app.skysql.com\", \"cloud.mariadb.com\")": true,
+  "sameProductAdopt({\"mintUrl\":\"https://app.skysql.com\",\"pageUrl\":\"https://cloud.mariadb.com/dashboard\"})": {
+    "adopted": true,
+    "fromHost": "app.skysql.com",
+    "toHost": "cloud.mariadb.com",
+    "canonicalUrl": "https://cloud.mariadb.com"
+  },
+  "adviseLiveHostChange({\"profile\":\"app-skysql-com\",\"mintUrl\":\"https://app.skysql.com\",\"pageUrl\":\"https://cloud...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"app-skysql-com\",\"mintUrl\":\"https://app.skysql.com\",\"pageUrl\":\"https://evil....)": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "evil-example",
+    "suggestedUrl": "https://evil.example",
+    "nextLead": "Live host changed: the remote browser is on https://evil.example, not the host minted for --profile app-skysql-com. hostChanged is true. profileHostMatch is false. suggestedProfile evil-example. suggestedUrl https://evil.example. Do not finalize-login, do not save this browser into --profile app-skysql-com, and do not treat claimOkProfile as true. Remint with npx auspex login --profile evil-example --url https://evil.example (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "evil-example",
+      "url": "https://evil.example"
+    }
+  },
+  "doorSaveSiteUrl(\"\", \"https://consistencyhub.io\", \"\")": "https://consistencyhub.io",
+  "doorSaveSiteUrl(\"\", \"https://consistencyhub.io\", \"https://app.example/login\")": "https://consistencyhub.io",
+  "doorSaveSiteUrl(\"\", \"http://insecure.example\", \"notaurl\")": "",
+  "doorSaveSiteUrl(\"https://app.socialaize.com/home?q=1\", \"https://myapp.example/dashboard\", \"https://type...)": "https://app.socialaize.com",
+  "adviseLiveHostChange({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://app.soc...)": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "suggestedUrl": "https://app.socialaize.com",
+    "nextLead": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile myapp-example. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile myapp-example, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  },
+  "adviseLiveHostChange({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://www.mya...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://login.m...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"consistencyhub\",\"mintUrl\":\"https://consistencyhub.io\",\"pageUrl\":\"https://ap...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://myapp.e...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://myapp.e...) #2": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "suggestedUrl": "https://app.socialaize.com",
+    "nextLead": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile myapp-example. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile myapp-example, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  },
+  "adviseLiveHostChange({\"profile\":\"app-socialaize-com\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://ap...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"work\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://myapp.example/ho...)": "<undefined>",
+  "adviseLiveHostChange({\"profile\":\"work\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://app.socialaize.c...)": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "suggestedUrl": "https://app.socialaize.com",
+    "nextLead": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile work. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile work, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  },
+  "adviseLiveHostChange({\"profile\":\"consistencyhub\",\"pageUrl\":\"https://app.socialaize.com/home\"})": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "suggestedUrl": "https://app.socialaize.com",
+    "nextLead": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile consistencyhub. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile consistencyhub, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  },
+  "adviseLiveHostChange({\"profile\":\"work\",\"pageUrl\":\"https://app.socialaize.com/home\"})": "<undefined>",
+  "decideLiveHostPersist({\"profile\":\"consistencyhub\",\"mintUrl\":\"https://consistencyhub.io\",\"pageUrl\":\"https://on...)": "<undefined>",
+  "decideLiveHostPersist({\"profile\":\"consistencyhub\",\"mintUrl\":\"https://consistencyhub.io\",\"pageUrl\":\"https://on...) #2": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "onedrive-live-com",
+    "suggestedUrl": "https://onedrive.live.com",
+    "nextLead": "Live host changed: the remote browser is on https://onedrive.live.com, not the host minted for --profile consistencyhub. hostChanged is true. profileHostMatch is false. suggestedProfile onedrive-live-com. suggestedUrl https://onedrive.live.com. Do not finalize-login, do not save this browser into --profile consistencyhub, and do not treat claimOkProfile as true. Remint with npx auspex login --profile onedrive-live-com --url https://onedrive.live.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "onedrive-live-com",
+      "url": "https://onedrive.live.com"
+    }
+  },
+  "decideLiveHostPersist({\"profile\":\"myapp-example\",\"mintUrl\":\"https://myapp.example\",\"pageUrl\":\"https://myapp.e...)": {
+    "hostChanged": true,
+    "profileHostMatch": false,
+    "suggestedProfile": "app-socialaize-com",
+    "suggestedUrl": "https://app.socialaize.com",
+    "nextLead": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile myapp-example. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not save this browser into --profile myapp-example, and do not treat claimOkProfile as true. Remint with npx auspex login --profile app-socialaize-com --url https://app.socialaize.com (auspex_login). That creates the profile if it does not exist. Do not rename or migrate the old jar.",
+    "nextCall": {
+      "tool": "auspex_login",
+      "profile": "app-socialaize-com",
+      "url": "https://app.socialaize.com"
+    }
+  },
+  "doorSaveSiteUrl(\"https://app.socialaize.com/a?x=1\", \"https://myapp.example/b\", \"https://evil.example/se...)": "https://app.socialaize.com",
+  "doorSaveSiteUrl(\"http://insecure.example\", \"https://myapp.example/dashboard\", \"https://typed.example\")": "https://myapp.example",
+  "doorSaveSiteUrl(\"https://user:pass@app.socialaize.com/a\", \"https://myapp.example\")": "https://myapp.example",
+  "httpsPageUrlFromRecord({\"url\":\"https://app.socialaize.com\"})": "<undefined>",
+  "httpsPageUrlFromRecord({\"pageUrl\":\"https://login.microsoftonline.com/common\"})": "<undefined>",
+  "httpsPageUrlFromRecord({\"pageUrl\":\"https://app.socialaize.com/path?q=1\"})": "https://app.socialaize.com"
+}

@@ -1,0 +1,4 @@
+{
+  "isHttpOrHttpsUrl(\"http://example.com\")": true,
+  "isHttpOrHttpsUrl(\"https://user:pass@example.com/\")": false
+}

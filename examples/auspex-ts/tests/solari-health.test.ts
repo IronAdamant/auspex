@@ -1,9 +1,15 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { SolariError } from "@solarisdk/browser"
+import { parseArgv, USAGE } from "../src/cli.ts"
+import { AuspexError } from "../src/errors.ts"
 import {
   healthReceiptFromError,
+  healthSolariOptions,
   readSolariHealthList,
+  SOLARI_HEALTH_ENDPOINT,
+  SOLARI_HEALTH_PROBE,
+  SOLARI_HEALTH_TIMEOUT_MS,
   solariHealth,
   type SolariHealthClient,
   type SolariHealthResponse,
@@ -41,6 +47,51 @@ function client(res: SolariHealthResponse | ((method: string, path: string) => S
   }
 }
 
+function assertNoLoginClaim(body: object) {
+  const text = JSON.stringify(body)
+  assert.equal("claimOk" in body, false)
+  assert.equal("claimOkProfile" in body, false)
+  assert.equal(text.includes("claimOk"), false)
+  assert.equal(body && (body as { minted?: boolean }).minted, false)
+  assert.equal((body as { appLogin?: boolean }).appLogin, false)
+  assert.equal((body as { probe?: string }).probe, SOLARI_HEALTH_PROBE)
+  assert.equal((body as { endpoint?: string }).endpoint, SOLARI_HEALTH_ENDPOINT)
+}
+
+test("GET /profiles success counts rows and drops names and storage", async () => {
+  const fake = client(
+    jsonRes(200, [
+      { id: "p1", name: "secret-profile", storageState: { cookies: [{ value: "sekrit-cookie" }] } },
+      { id: "p2", name: "other-site" },
+    ]),
+  )
+  const listed = await readSolariHealthList(fake.client)
+  assert.deepEqual(listed, { profileCount: 2 })
+  assert.deepEqual(fake.calls, [{ method: "GET", path: "/profiles" }])
+  const receipt = await solariHealth({ probe: async () => listed, now: () => 1_000 })
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.schemaVersion, 1)
+  assert.equal(receipt.reason, "reachable")
+  assert.equal(receipt.called, true)
+  assert.equal(receipt.profileCount, 2)
+  assert.equal(receipt.elapsedMs, 0)
+  assert.match(receipt.next, /not a saved login/)
+  assert.match(receipt.next, /profile-status/)
+  assertNoLoginClaim(receipt)
+  const text = JSON.stringify(receipt)
+  assert.equal(text.includes("secret-profile"), false)
+  assert.equal(text.includes("sekrit-cookie"), false)
+  assert.equal(text.includes("other-site"), false)
+  assert.equal("nextCall" in receipt, false)
+})
+
+test("an empty profile list is still reachable", async () => {
+  const receipt = await solariHealth({ probe: async () => ({ profileCount: 0 }) })
+  assert.equal(receipt.ok, true)
+  assert.equal(receipt.profileCount, 0)
+  assert.equal(receipt.reason, "reachable")
+})
+
 test("a non-list body fails closed and does not echo the body", async () => {
   const fake = client(jsonRes(200, { name: "secret-profile", note: "not-a-list" }))
   await assert.rejects(() => readSolariHealthList(fake.client), /profile list/)
@@ -54,21 +105,46 @@ test("a non-list body fails closed and does not echo the body", async () => {
   assert.equal(JSON.stringify(receipt).includes("not-a-list"), false)
 })
 
-test("exhausted 503 cause stays infra-5xx", () => {
-  const cause = new SolariError("upstream", 503)
-  const err = new SolariError("Solari GET /profiles: exhausted 1 attempts", undefined, cause)
-  const receipt = healthReceiptFromError(err, 9)
-  assert.equal(receipt.reason, "infra-5xx")
-  assert.equal(receipt.status, 503)
-  assert.equal(receipt.solariBlame, "infra-5xx")
+test("missing key does not call Solari", async () => {
+  let called = false
+  const receipt = await solariHealth({
+    probe: async () => {
+      called = true
+      throw new AuspexError("SOLARI_API_KEY is not set. Export SOLARI_API_KEY.", {
+        issue: { code: "MissingApiKey", retryable: false },
+      })
+    },
+  })
+  assert.equal(called, true)
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.called, false)
+  assert.equal(receipt.reason, "missing-key")
+  assert.equal(receipt.code, "MissingApiKey")
+  assert.match(receipt.next, /did not call Solari/)
+  assert.equal(receipt.nextCall, undefined)
 })
 
-test("unknown exhaustion does not remint from this probe", () => {
-  const err = new SolariError("Solari GET /profiles: exhausted 2 attempts")
-  const receipt = healthReceiptFromError(err, 11)
-  assert.equal(receipt.reason, "unknown-exhausted")
-  assert.equal(receipt.solariBlame, "unknown-exhausted")
-  assert.equal(receipt.nextCall, undefined)
-  assert.match(receipt.next, /Do not remint from this probe/)
+test("429 is concurrency and points at auspex_reap", async () => {
+  const fake = client(jsonRes(429, { code: "ConcurrencyLimitExceeded", message: "slot held" }))
+  const receipt = await solariHealth({ probe: () => readSolariHealthList(fake.client) })
+  assert.equal(receipt.ok, false)
+  assert.equal(receipt.reason, "concurrency")
+  assert.equal(receipt.code, "ConcurrencyLimitExceeded")
+  assert.equal(receipt.status, 429)
+  assert.equal(receipt.solariBlame, "concurrency")
+  assert.equal(receipt.retryable, false)
+  assert.deepEqual(receipt.nextCall, { tool: "auspex_reap" })
+  assert.match(receipt.next, /auspex reap/)
+  assert.equal(receipt.next.includes("auspex_login"), false)
+  assert.equal(JSON.stringify(receipt).includes("slot held"), false)
+  assertNoLoginClaim(receipt)
+})
+
+test("error body codes are read and the body is not copied onto the receipt", async () => {
+  const fake = client(jsonRes(402, { code: "FeatureRequiresPlan", detail: "upgrade-me-secret" }))
+  const receipt = await solariHealth({ probe: () => readSolariHealthList(fake.client) })
+  assert.equal(receipt.reason, "plan")
+  assert.equal(receipt.code, "FeatureRequiresPlan")
+  assert.equal(JSON.stringify(receipt).includes("upgrade-me-secret"), false)
 })
 

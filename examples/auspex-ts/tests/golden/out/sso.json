@@ -1,0 +1,40 @@
+{
+  "stillOnAuth(new URL(\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\"))": true,
+  "stillOnAuth(new URL(\"https://login.live.com/\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/login\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/login/\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/login/oauth\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/Login\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/auth\"))": true,
+  "stillOnAuth(new URL(\"https://consistencyhub.io/auth/callback\"))": true,
+  "stillOnAuth(new URL(\"https://accounts.google.com/o/oauth2/v2/auth\"))": true,
+  "stillOnAuth(new URL(\"https://ironadamant.com/\"))": false,
+  "stillOnAuth(new URL(\"https://login.microsoftonline.com.evil.com/\"))": false,
+  "stillOnAuth(new URL(\"https://notlogin.live.com/\"))": false,
+  "shouldFailClosedAuth(new URL(\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\"), {})": true,
+  "shouldFailClosedAuth(new URL(\"https://accounts.google.com/o/oauth2/v2/auth\"), {})": true,
+  "shouldFailClosedAuth(new URL(\"https://consistencyhub.io/login\"), {})": false,
+  "shouldFailClosedAuth(new URL(\"https://consistencyhub.io/login\"), {\"sso\":true})": true,
+  "shouldFailClosedAuth(new URL(\"https://consistencyhub.io/login\"), {\"profile\":\"consistencyhub\"})": true,
+  "describeAuthWall({\"url\":\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\",\"hasPasswordInp...)": {
+    "needsHuman": true,
+    "wall": "password",
+    "url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+  },
+  "describeAuthWall({\"url\":\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\",\"text\":\"Approve...)": {
+    "needsHuman": true,
+    "wall": "otp",
+    "url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+  },
+  "describeAuthWall({\"url\":\"https://login.microsoftonline.com/common/oauth2/v2.0/authorize\",\"text\":\"Pick an...)": {
+    "needsHuman": false
+  },
+  "describeAuthWall({\"url\":\"https://consistencyhub.io/dashboard\",\"text\":\"Document Editor\"})": {
+    "needsHuman": false
+  },
+  "describeAuthWall({\"url\":\"https://accounts.google.com/signin/v2/challenge/pwd\",\"hasPasswordInput\":true,\"t...)": {
+    "needsHuman": true,
+    "wall": "password",
+    "url": "https://accounts.google.com/signin/v2/challenge/pwd"
+  }
+}

@@ -62,4 +62,4 @@ export function caughtBy(run, set) {
   return [...out]
 }
 
-export const kind = (id) => (id.startsWith("r-") ? "real" : id.startsWith("v") ? "synthetic-2" : id.startsWith("h-") ? "holdout" : "synthetic-1")
+export const kind = (id) => (id.startsWith("r-") ? "real" : id.startsWith("v") ? "synthetic-2" : id.startsWith("ho-") ? "holdout" : "synthetic-1")

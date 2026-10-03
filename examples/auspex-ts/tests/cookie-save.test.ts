@@ -1,57 +1,51 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  COOKIE_SAVE_CONTRACT,
   classifySeedReadiness,
-  } from "../src/cookie-save.ts"
+  cookieSaveGuide,
+  isSafeAuthKeyName,
+  localStorageAuthKeyNames,
+  parseAuthKeyNames,
+} from "../src/cookie-save.ts"
+import { isWeakSeed } from "../src/profile-persist.ts"
 
-test("public marketing and a fresh session fold are not solariSaveReady", () => {
-  const marketing = classifySeedReadiness({
-    profile: "ironadamant",
-    url: "https://ironadamant.com",
-    cookies: 4,
-    origins: 1,
+const secret = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig"
+
+test("a refresh-token-only localStorage Save says finalize is next if the check lands loggedOut", async () => {
+  const { classifySeedReadiness, cookieSaveGuide, refreshTokenOnly } = await import("../src/cookie-save.ts")
+  // Live ConsistencyHub shape: Microsoft cookies only, app origin holds refreshToken.
+  const msal = classifySeedReadiness({
+    url: "https://consistencyhub.io/",
+    cookies: 32,
+    origins: 2,
     sessionStorage: 0,
-    cookieHosts: ["ironadamant.com"],
+    cookieHosts: ["live.com", "login.live.com", "login.microsoftonline.com"],
+    liveHost: "consistencyhub.io",
+    appOriginCookieCount: 0,
+    localStorageCount: 82,
+    localStorageAuthKeyNames: ["refreshToken"],
   })
-  assert.equal(marketing.shape, "unknown")
-  assert.equal(marketing.solariSaveReady, false)
-  assert.equal(marketing.weakSeed, false)
-
-  const folded = classifySeedReadiness({
-    profile: "app-example",
-    url: "https://app.example",
-    cookies: 2,
-    origins: 1,
-    sessionStorage: 3,
-    cookieHosts: ["cdn.tracker.test"],
-  })
-  assert.equal(folded.shape, "session-strong")
-  assert.equal(folded.solariSaveReady, false)
-
-  const weak = classifySeedReadiness({
-    profile: "app-example",
-    url: "https://app.example",
-    cookies: 2,
-    origins: 1,
-    sessionStorage: 0,
-    cookieHosts: ["cdn.tracker.test"],
-  })
-  assert.equal(weak.shape, "weak-seed")
-  assert.equal(weak.solariSaveReady, false)
-})
-
-test("an explicit app-origin cookie count of 0 wins over matching hosts", () => {
-  const counted = classifySeedReadiness({
-    url: "https://app.example",
+  assert.equal(msal.shape, "local-storage-auth")
+  assert.equal(refreshTokenOnly(msal), true)
+  const guide = cookieSaveGuide({ profile: "consistencyhub", readiness: msal })
+  assert.match(guide.text, /If that check lands loggedOut, run finalize-login --profile consistencyhub next/)
+  assert.equal(guide.text.includes("Do not finalize to invent sessionStorage"), false)
+  assert.equal(guide.nextCall.tool, "auspex_check")
+  // An access token keeps the old rule.
+  const access = classifySeedReadiness({
+    url: "https://app.example.com/",
     cookies: 3,
     origins: 1,
     sessionStorage: 0,
-    cookieHosts: ["app.example"],
+    cookieHosts: ["login.microsoftonline.com"],
+    liveHost: "app.example.com",
     appOriginCookieCount: 0,
+    localStorageCount: 4,
+    localStorageAuthKeyNames: ["accessToken", "refreshToken"],
   })
-  assert.equal(counted.appOriginCookies, false)
-  assert.equal(counted.solariSaveReady, false)
-  assert.equal(counted.shape, "weak-seed")
+  assert.equal(refreshTokenOnly(access), false)
+  assert.match(cookieSaveGuide({ profile: "p", readiness: access }).text, /Do not finalize to invent sessionStorage/)
 })
 
 test("seed inventory names login cookies on the app's site and lists third-party hosts", async () => {

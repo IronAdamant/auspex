@@ -4,10 +4,26 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 import {
+  CLAIM_FALSE_STOP,
+  DOOR_AWAIT_BEGIN,
+  DOOR_AWAIT_END,
   DOOR_AWAIT_ROWS,
+  KEY_ENV_REFUSE,
+  LOGGED_IN_SEED_HEALTH,
+  LONG_RUN_BEGIN,
+  LONG_RUN_CLI_LINE,
+  LONG_RUN_END,
+  OPS_GUIDE,
+  PROFILES_MAP_LINE,
+  RE_GATE_STOP,
   agentsDoorAwaitBlock,
+  agentsLongRunBlock,
+  extractMarked,
   llmsDoorAwaitBlock,
-  } from "../src/door-await-contract.ts"
+  llmsLongRunBlock,
+} from "../src/door-await-contract.ts"
+import { USAGE } from "../src/cli.ts"
+import { PROFILES_DESCRIPTION } from "../src/tool-copy.ts"
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 

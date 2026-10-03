@@ -1,22 +1,74 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import vm from "node:vm"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import test from "node:test"
+import { toAgentReceipt } from "../src/agent-receipt.ts"
+import { deriveCheckReason } from "../src/check-reason.ts"
+import type { CheckResult } from "../src/check.ts"
 import {
   LIVE_HOST_CHANGED_MARK,
   adviseLiveHostChange,
-  } from "../src/live-host-change.ts"
+  decideLiveHostPersist,
+  doorSaveSiteUrl,
+  httpsPageUrlFromRecord,
+  noteProfileHostChanged,
+} from "../src/live-host-change.ts"
 import { waitForProfileSave } from "../src/profile-persist.ts"
+import { loadEditorSave, persistEditorSave } from "../src/profiles.ts"
+import { parseReceiptV1, SCHEMA_VERSION } from "../src/receipt-schema.ts"
 
-test("storage origin wins when the page URL is still the minted host", () => {
-  const change = adviseLiveHostChange({
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(here, "../../..")
+
+const SECRET = "s3cret-password-value"
+
+function switched() {
+  return adviseLiveHostChange({
     profile: "myapp-example",
     mintUrl: "https://myapp.example",
-    pageUrl: "https://myapp.example/dashboard",
+    pageUrl: "https://app.socialaize.com/home",
     state: {
-      origins: [{ origin: "https://app.socialaize.com", localStorage: [{ name: "k" }] }],
+      origins: [{ origin: "https://app.socialaize.com", localStorage: [{ name: "token" }] }],
+      cookies: [{ domain: ".app.socialaize.com", name: "sid" }],
     },
   })
-  assert.equal(change?.suggestedUrl, "https://app.socialaize.com")
-  assert.equal(change?.suggestedProfile, "app-socialaize-com")
+}
+
+test("door pages do not use the IME as a site picker", () => {
+  const page = readFileSync(path.join(repoRoot, "docs", "door-page.js"), "utf8")
+  assert.match(page, /cannot read the remote address bar/)
+  assert.match(page, /not a site picker/)
+  assert.match(page, /doorSiteUrl\(liveSiteUrl\(\), params\.get\("u"\)\)/)
+  assert.equal(page.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false)
+  const context: Record<string, unknown> = {}
+  context.window = context
+  vm.runInNewContext(page, context, { filename: "door-page.js" })
+  const api = context.AuspexDoorPage as {
+    liveSiteUrl: () => string
+    httpsSite: (value: string) => string
+    doorSiteUrl: (live?: string, minted?: string, typed?: string) => string
+  }
+  assert.equal(api.liveSiteUrl(), "")
+  assert.equal(api.httpsSite("https://app.socialaize.com/path?q=1"), "https://app.socialaize.com")
+  assert.equal(api.httpsSite("http://insecure.example"), "")
+  assert.equal(
+    api.doorSiteUrl("https://app.socialaize.com/a", "https://myapp.example/b", "https://evil.example"),
+    "https://app.socialaize.com",
+  )
+  assert.equal(
+    api.doorSiteUrl("", "https://myapp.example/dashboard", "https://typed.example/login"),
+    "https://myapp.example",
+  )
+  assert.equal(api.doorSiteUrl("http://insecure.example", "https://myapp.example", "https://typed.example"), "https://myapp.example")
+  for (const file of ["phone.html"]) {
+    const html = readFileSync(path.join(repoRoot, "docs", file), "utf8")
+    assert.match(html, /door-page\.js/, `${file} loads the shared door script`)
+    assert.equal(html.includes('doorSiteUrl(liveSiteUrl(), params.get("u"),'), false, file)
+  }
 })
 
 function awaitDeps(liveHost: string) {
@@ -53,3 +105,54 @@ test("await-login host change remints and does not tell the agent to finalize th
   assert.match(same.next, /finalize-login/)
 })
 
+test("host-changed marker roundtrip clears on the next login write", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "auspex-host-"))
+  try {
+    await persistEditorSave(
+      { profileId: "p", name: "myapp-example", handoffToken: "hand", siteUrl: "https://myapp.example" },
+      root,
+    )
+    const change = switched()
+    assert.ok(change)
+    await noteProfileHostChanged("myapp-example", change, root)
+    const marked = await loadEditorSave("myapp-example", root)
+    assert.equal(marked?.hostChanged, true)
+    assert.equal(marked?.suggestedProfile, "app-socialaize-com")
+    assert.equal(marked?.suggestedUrl, "https://app.socialaize.com")
+    await persistEditorSave(
+      {
+        profileId: "p",
+        name: "myapp-example",
+        handoffToken: "hand",
+        siteUrl: "https://myapp.example",
+        hostChanged: true,
+        suggestedUrl: "javascript:alert(1)",
+        suggestedProfile: "nope",
+      },
+      root,
+    )
+    assert.equal((await loadEditorSave("myapp-example", root))?.hostChanged, undefined)
+    await persistEditorSave(
+      { profileId: "p", name: "myapp-example", handoffToken: "hand", siteUrl: "https://app.socialaize.com" },
+      root,
+    )
+    const cleared = await loadEditorSave("myapp-example", root)
+    assert.equal(cleared?.hostChanged, undefined)
+    assert.equal(cleared?.siteUrl, "https://app.socialaize.com")
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("check, cli, and mcp keep the live-host refuse in front of soft host advice", () => {
+  const src = (rel: string) => readFileSync(path.join(here, "..", rel), "utf8")
+  const check = src("src/check.ts")
+  assert.match(check, /decideLiveHostPersist/)
+  assert.match(check, /if \(result\.hostChanged\) return result/)
+  assert.match(src("src/cli.ts"), /runLoginDoor|runAwaitLoginDoor/)
+  assert.match(src("src/runners.ts"), /preserveAwaitLiveHost/)
+  const persist = src("src/profile-persist.ts")
+  assert.match(persist, /persist-blocked/)
+  assert.match(persist, /import type \{ LiveHostChange \}/)
+  assert.equal(/import \{[^}]*\} from "\.\/live-host-change\.ts"/.test(persist), false)
+})

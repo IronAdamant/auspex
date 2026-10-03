@@ -8,27 +8,27 @@ import {
 } from "../src/editor-fold.ts"
 import { SESSION_STORAGE_PREFIX } from "../src/profile-storage.ts"
 import {
+  DEAD_FOLD_VWP_BAN,
   overlaySaveEditorNext,
+  remintLoginGuidance,
   saveEditorMissedFold,
-  } from "../src/profile-persist.ts"
+  weakSeedWarning,
+} from "../src/profile-persist.ts"
 
-test("pickEditorCdp accepts Playwright sockets and ignores VNC", () => {
-  assert.deepEqual(
-    pickEditorCdp({
-      wsEndpoint: "wss://api.getsolari.com/ws/sess-1",
-      sessionId: "sess-1",
-    }),
-    { wsEndpoint: "wss://api.getsolari.com/ws/sess-1", sessionId: "sess-1" },
-  )
-  assert.deepEqual(
-    pickEditorCdp({
-      session: { cdpEndpoint: "wss://api.getsolari.com/cdp/sess-2" },
-    }),
-    { cdpEndpoint: "wss://api.getsolari.com/cdp/sess-2" },
-  )
-  assert.equal(pickEditorCdp({ token: "vnc.jwt.token", ready: true }), undefined)
-  assert.equal(pickEditorCdp({ wsEndpoint: "wss://api.getsolari.com/vnc-proxy/ws?token=x" }), undefined)
-  assert.equal(pickEditorCdp({ editorStatus: "idle" }), undefined)
+test("captureEditorFoldState is no-cdp without a Playwright attach", async () => {
+  let connected = 0
+  const missed = await captureEditorFoldState({
+    saveJson: { editorStatus: "idle" },
+    connectAndCapture: async () => {
+      connected += 1
+      throw new Error("must not connect")
+    },
+  })
+  assert.equal(missed.fold.ok, false)
+  assert.equal(missed.fold.reason, "no-cdp")
+  assert.match(missed.fold.error ?? "", /no Playwright CDP/)
+  assert.equal(connected, 0)
+  assert.match(EDITOR_FOLD_NO_CDP, /POST \/sessions/)
 })
 
 test("captureEditorFoldState folds live SS and refuses empty capture persist", async () => {
@@ -110,40 +110,3 @@ test("persistCapturedEditorFold maps 409 as persist-blocked", async () => {
   assert.match(blocked.error ?? "", /editor is open/)
 })
 
-test("overlaySaveEditorNext is loud when editorSave fails or editorFold misses", () => {
-  assert.equal(saveEditorMissedFold({}), false)
-  assert.equal(saveEditorMissedFold({ editorFold: { ok: true, reason: "attached" } }), false)
-  assert.equal(saveEditorMissedFold({ editorSave: { ok: false, status: 401, error: "Unauthorized" } }), true)
-  assert.equal(saveEditorMissedFold({ editorFold: { ok: false, reason: "no-cdp" } }), true)
-
-  const healthy = "Saved v20 with 74 cookies and 5 origins. Run auspex check with --profile consistencyhub"
-  const failed = overlaySaveEditorNext({
-    next: healthy,
-    profile: "consistencyhub",
-    editorSave: { ok: false, status: 401, error: "Unauthorized" },
-  })
-  assert.equal(failed.includes("Run auspex check"), false)
-  assert.match(failed, /editorSave failed \(401: Unauthorized\)/)
-  assert.match(failed, /not proof this login saved/)
-  assert.match(failed, /claimOkProfile will not pass/)
-  assert.match(failed, /Remint now:/)
-  assert.equal(/Finalize-login NOW/.test(failed), false)
-
-  const noCdp = overlaySaveEditorNext({
-    next: healthy,
-    profile: "consistencyhub",
-    editorSave: { ok: true, status: 200 },
-    editorFold: { ok: false, reason: "no-cdp", error: EDITOR_FOLD_NO_CDP },
-  })
-  assert.equal(noCdp.includes("Run auspex check"), false)
-  assert.match(noCdp, /editorFold\.no-cdp did not refresh folded sessionStorage/)
-  assert.match(noCdp, /finalize-login/)
-
-  const untouched = overlaySaveEditorNext({
-    next: healthy,
-    profile: "consistencyhub",
-    editorSave: { ok: true, status: 200 },
-    editorFold: { ok: true, reason: "attached" },
-  })
-  assert.equal(untouched, healthy)
-})

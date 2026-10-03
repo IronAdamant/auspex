@@ -82,6 +82,31 @@ test("runDesktopReview writes terminal overview, screenshots, and kills", async 
   assert.equal(log.includes("\x1b["), false)
 })
 
+test("default demo opens mousepad and does not claim a hardcoded click", async () => {
+  const { stream } = capture()
+  const clicks: { x: number; y: number }[] = []
+  const opened: string[] = []
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        openApp: async (name) => {
+          opened.push(name)
+        },
+        click: async (x, y) => {
+          clicks.push({ x, y })
+        },
+      }),
+    sleep: async () => undefined,
+    status: stream,
+  })
+  assert.deepEqual(opened, ["mousepad"])
+  assert.equal(clicks.length, 0)
+  assert.equal(result.clicked, undefined)
+  assert.equal(result.click, undefined)
+  assert.equal(result.processOk, true)
+  assert.equal(result.ok, true)
+})
+
 test("explicit click is attempted but clicked is not claimed without verification", async () => {
   const { stream } = capture()
   const clicks: { x: number; y: number }[] = []
@@ -99,6 +124,44 @@ test("explicit click is attempted but clicked is not claimed without verificatio
   assert.deepEqual(clicks, [{ x: 10, y: 20 }])
   assert.deepEqual(result.click, { x: 10, y: 20, verified: false })
   assert.equal(result.clicked, undefined)
+})
+
+test("process present with a missing window list entry is not ok", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+        windowList: async () => ["xfce4-panel", "Desktop"],
+      }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", expect: "mousepad" },
+  })
+  assert.equal(result.processOk, true)
+  assert.equal(result.windowOk, false)
+  assert.equal(result.matched, true)
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((e) => /window/i.test(e)))
+})
+
+test("process missing is not ok", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        processList: async () => [{ pid: 1, name: "xfce4-session" }],
+        exec: async () => ({ stdout: "xfce4-session", exitCode: 0 }),
+      }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", expect: "mousepad" },
+    windowMs: 5,
+  })
+  assert.equal(result.processOk, false)
+  assert.equal(result.matched, false)
+  assert.equal(result.ok, false)
+  assert.ok(result.errors.some((e) => /process/i.test(e)))
 })
 
 test("wait vs expect use the same process haystack (processList miss, ps hit)", async () => {
@@ -130,3 +193,118 @@ test("wait vs expect use the same process haystack (processList miss, ps hit)", 
   assert.equal(result.ok, true)
 })
 
+test("wait vs expect agree when processList hits and ps misses", async () => {
+  const desktop: DesktopHandle = baseHandle({
+    processList: async () => [{ pid: 9, name: "mousepad", cmd: "mousepad" }],
+    exec: async () => ({ stdout: "xfce4-session", exitCode: 0 }),
+  })
+  const waited = await waitForProcess(desktop, "mousepad", async () => undefined, 5)
+  const signal = await collectProcessSignal(desktop)
+  assert.equal(waited.processOk, true)
+  assert.equal(expectOnProcessSignal(signal, "mousepad"), true)
+})
+
+test("runDesktopReview matches expect from the unified process signal and exposes streamUrl", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        sessionId: "desk-vnc",
+        streamUrl: "wss://api.getsolari.com/stream/desk-vnc",
+      }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { open: "mousepad", expect: "mousepad" },
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.matched, true)
+  assert.equal(result.processOk, true)
+  assert.equal(result.windowOk, undefined)
+  assert.equal(result.streamUrl, "wss://api.getsolari.com/stream/desk-vnc")
+})
+
+test("runDesktopReview is not ok when X11 never becomes ready", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        sessionId: "desk-unready",
+        health: async () => ({ ready: false }),
+      }),
+    sleep: async () => undefined,
+    status: stream,
+    task: { click: { x: 1, y: 1 } },
+    healthMs: 5,
+  })
+  assert.equal(result.ok, false)
+  assert.equal(result.ready, false)
+  assert.ok(result.errors.some((e) => /not ready/i.test(e)))
+})
+
+test("runDesktopReview is not ok:true when kill fails after a screenshot", async () => {
+  const { stream } = capture()
+  const result = await runDesktopReview({
+    create: async () =>
+      baseHandle({
+        sessionId: "desk-2",
+        kill: async () => {
+          throw new Error("kill boom")
+        },
+      }),
+    sleep: async () => undefined,
+    status: stream,
+  })
+  assert.equal(result.ok, false)
+  assert.match(result.errors.join(" "), /kill boom/)
+  assert.equal(result.desktopId, "desk-2")
+})
+
+test("runDesktopReview kills when screenshot throws", async () => {
+  const { stream, text } = capture()
+  let killed = false
+  await assert.rejects(
+    () =>
+      runDesktopReview({
+        create: async () =>
+          baseHandle({
+            sessionId: "desk-3",
+            screenshot: async () => {
+              throw new Error("shot failed")
+            },
+            kill: async () => {
+              killed = true
+            },
+          }),
+        sleep: async () => undefined,
+        status: stream,
+      }),
+    /shot failed/,
+  )
+  assert.equal(killed, true)
+  assert.match(text(), new RegExp(REVIEW_DONE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+})
+
+test("runDesktopReview overall bound kills a hung create", async () => {
+  const { stream } = capture()
+  let killed = false
+  await assert.rejects(
+    () =>
+      runDesktopReview({
+        overallMs: 40,
+        create: async () => {
+          await new Promise((r) => setTimeout(r, 200))
+          return baseHandle({
+            sessionId: "desk-late",
+            kill: async () => {
+              killed = true
+            },
+          })
+        },
+        sleep: async () => undefined,
+        status: stream,
+      }),
+    /timed out/,
+  )
+  await new Promise((r) => setTimeout(r, 250))
+  assert.equal(killed, true)
+})

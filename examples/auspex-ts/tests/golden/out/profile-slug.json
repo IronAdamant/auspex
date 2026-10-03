@@ -1,0 +1,23 @@
+{
+  "profileSlugFromHost(\"app.example.com\")": "app-example-com",
+  "profileSlugFromHost(\"www.example.com\")": "example-com",
+  "profileSlugFromHost(\"app.example\")": "app-example",
+  "profileSlugFromHost(\"EXAMPLE.COM.\")": "example-com",
+  "profileSlugFromHost(\"consistencyhub.io\")": "consistencyhub-io",
+  "profileSlugFromHost(\"192.0.2.1\")": "192-0-2-1",
+  "profileSlugFromUrl(\"https://app.example.com/dashboard?x=1\")": "app-example-com",
+  "profileSlugFromUrl(\"https://app.example/\")": "app-example",
+  "profileSlugFromHost(\"\")": "<undefined>",
+  "profileSlugFromHost(\"...\")": "<undefined>",
+  "profileSlugFromHost(\"www.\")": "<undefined>",
+  "profileSlugFromHost(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.example.com\")": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "resolveLoginProfile({\"profile\":\"consistencyhub\",\"url\":\"https://app.example.com\"})": {
+    "name": "consistencyhub",
+    "derived": false
+  },
+  "resolveLoginProfile({\"url\":\"https://app.example.com\"})": {
+    "name": "app-example-com",
+    "derived": true
+  },
+  "derivedProfileNext(\"app-example\")": "Profile name derived from URL host: app-example. Use --profile app-example on await-login, finalize-login, and check. Override with --profile <yours>."
+}

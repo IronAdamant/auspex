@@ -1,0 +1,94 @@
+import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import test from "node:test"
+import { gotoWithSessionRestore } from "../src/solari.ts"
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+
+function mockRestorePage(args: { landedUrl: string; restored: number }) {
+  const gotos: string[] = []
+  let current = "about:blank"
+  const page = {
+    goto: async (url: string) => {
+      gotos.push(url)
+      current = args.landedUrl
+    },
+    url: () => current,
+    evaluate: async () => args.restored,
+  }
+  return { page, gotos }
+}
+
+test("gotoWithSessionRestore re-gotos after hydrate on persistable /dashboard", async () => {
+  const { page, gotos } = mockRestorePage({
+    landedUrl: "https://consistencyhub.io/dashboard",
+    restored: 2,
+  })
+  const restored = await gotoWithSessionRestore(page as never, {
+    url: "https://consistencyhub.io/dashboard",
+    profile: true,
+  })
+  assert.equal(restored, 2)
+  assert.deepEqual(gotos, [
+    "https://consistencyhub.io/dashboard",
+    "https://consistencyhub.io/dashboard",
+  ])
+})
+
+test("gotoWithSessionRestore re-gotos after hydrate on non-persistable /", async () => {
+  const { page, gotos } = mockRestorePage({
+    landedUrl: "https://consistencyhub.io/",
+    restored: 2,
+  })
+  const restored = await gotoWithSessionRestore(page as never, {
+    url: "https://consistencyhub.io",
+    profile: true,
+  })
+  assert.equal(restored, 2)
+  assert.deepEqual(gotos, ["https://consistencyhub.io", "https://consistencyhub.io"])
+})
+
+test("gotoWithSessionRestore does not re-goto when restored is 0", async () => {
+  const { page, gotos } = mockRestorePage({
+    landedUrl: "https://consistencyhub.io/dashboard",
+    restored: 0,
+  })
+  const restored = await gotoWithSessionRestore(page as never, {
+    url: "https://consistencyhub.io/dashboard",
+    profile: true,
+  })
+  assert.equal(restored, 0)
+  assert.deepEqual(gotos, ["https://consistencyhub.io/dashboard"])
+})
+
+test("gotoWithSessionRestore does not re-goto without a profile", async () => {
+  const { page, gotos } = mockRestorePage({
+    landedUrl: "https://consistencyhub.io/dashboard",
+    restored: 2,
+  })
+  const restored = await gotoWithSessionRestore(page as never, {
+    url: "https://consistencyhub.io/dashboard",
+  })
+  assert.equal(restored, 2)
+  assert.deepEqual(gotos, ["https://consistencyhub.io/dashboard"])
+})
+
+test("gotoWithSessionRestore survives an app that redirects right after load (MariaDB sign-in refresh)", async () => {
+  const gotos: string[] = []
+  const page = {
+    goto: async (url: string) => {
+      gotos.push(url)
+    },
+    url: () => "https://cloud.example/dashboard",
+    evaluate: async () => {
+      throw new Error("page.evaluate: Execution context was destroyed, most likely because of a navigation.")
+    },
+  }
+  const restored = await gotoWithSessionRestore(page as never, { url: "https://cloud.example/dashboard", profile: true })
+  assert.equal(restored, 0)
+  assert.deepEqual(gotos, ["https://cloud.example/dashboard"], "no re-goto that would cut the app's own redirect short")
+  const broken = { ...page, evaluate: async () => { throw new Error("Target closed") } }
+  await assert.rejects(gotoWithSessionRestore(broken as never, { url: "https://cloud.example/dashboard", profile: true }), /Target closed/)
+})

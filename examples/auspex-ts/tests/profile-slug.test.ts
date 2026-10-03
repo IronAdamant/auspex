@@ -1,20 +1,16 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { parseArgv } from "../src/cli.ts"
 import {
   LOGIN_PROFILE_OR_URL_ERROR,
+  PROFILE_SLUG_ERROR,
+  PROFILE_SLUG_MAX,
+  derivedProfileNext,
+  profileSlugFromHost,
+  profileSlugFromUrl,
   resolveLoginProfile,
 } from "../src/profile-slug.ts"
-
-test("resolveLoginProfile prefers explicit --profile over url host", () => {
-  const named = resolveLoginProfile({ profile: "consistencyhub", url: "https://app.example.com" })
-  assert.equal(named.name, "consistencyhub")
-  assert.equal(named.derived, false)
-  const derived = resolveLoginProfile({ url: "https://app.example.com" })
-  assert.equal(derived.name, "app-example-com")
-  assert.equal(derived.derived, true)
-  assert.throws(() => resolveLoginProfile({}), new RegExp(LOGIN_PROFILE_OR_URL_ERROR.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
-  assert.throws(() => resolveLoginProfile({ profile: "   ", url: "https://app.example.com" }), /profile name/)
-})
+import { auspexLoginInputSchema } from "../src/tool-schema.ts"
 
 test("a profile name can never be a path (it names local editor-save and Save files)", async () => {
   const { requireProfileName, profileNameSchema, PROFILE_NAME_PATH_ERROR } = await import("../src/profile-slug.ts")

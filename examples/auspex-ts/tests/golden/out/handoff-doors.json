@@ -1,0 +1,49 @@
+{
+  "parseUnixSeconds(\"2026-09-20T12:00:00.000Z\")": 1789905600,
+  "parseUnixSeconds(\"1800000000\")": 1800000000,
+  "parseUnixSeconds(1800000000000)": 1800000000,
+  "parseUnixSeconds(\"soon\")": "<undefined>",
+  "parseUnixSeconds(\"\")": "<undefined>",
+  "jwtExpSeconds(\"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJleHAiOjE4MDAwMDAwMDB9.sig\")": 1800000000,
+  "jwtExpSeconds(\"eyJuYmYiOjE3OTk5OTk2OTUsImV4cCI6MTgwMDAwMDAwMH0.bm90LWpzb24.sig\")": 1800000000,
+  "jwtExpSeconds(\"vnc.jwt.token\")": "<undefined>",
+  "jwtExpSeconds(\"not-a-jwt\")": "<undefined>",
+  "jwtExpSeconds(\"\")": "<undefined>",
+  "resolvePhoneExpirySeconds({\"expiresAt\":\"2026-09-20T12:30:00.000Z\",\"jwt\":\"eyJuYmYiOjE3ODk5MDU1OTUsImV4cCI6MTc4OTkw...)": {
+    "exp": 1789905900,
+    "source": "jwt"
+  },
+  "resolvePhoneExpirySeconds({\"expiresAt\":\"2026-09-20T12:00:00.000Z\",\"jwt\":\"eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJl...)": {
+    "exp": 1789905600,
+    "source": "expiresAt"
+  },
+  "resolvePhoneExpirySeconds({\"jwt\":\"eyJuYmYiOjE3ODk5MDU1OTUsImV4cCI6MTc4OTkwNTkwMH0.bm90LWpzb24.sig\"})": {
+    "exp": 1789905900,
+    "source": "jwt"
+  },
+  "resolvePhoneExpirySeconds({\"expiresAt\":\"2026-09-20T12:30:00.000Z\",\"jwt\":\"vnc.jwt.token\"})": {
+    "exp": 1789907400,
+    "source": "expiresAt"
+  },
+  "resolvePhoneExpirySeconds({\"expiresAt\":\"soon\",\"jwt\":\"vnc.jwt.token\"})": {
+    "source": "unknown"
+  },
+  "isStreamExpired({\"expiresAt\":\"1700000000\",\"nowSec\":1700000001})": true,
+  "isStreamExpired({\"expiresAt\":\"2000000000\",\"nowSec\":1700000000})": false,
+  "isStreamExpired({\"expiresAt\":\"soon\",\"jwt\":\"vnc.jwt.token\",\"nowSec\":1700000000})": false,
+  "streamExpiryStamp({\"jwt\":\"eyJuYmYiOjE5OTk5OTk2OTUsImV4cCI6MjAwMDAwMDAwMH0.bm90LWpzb24.sig\"})": {
+    "streamExpirySource": "jwt",
+    "streamExpiresAt": "2033-05-18T03:33:20.000Z"
+  },
+  "doorStreamDisconnectAction({\"streamExpired\":true,\"pageHidden\":true,\"reconnectAttempts\":0})": "remint",
+  "doorStreamDisconnectAction({\"streamExpired\":false,\"pageHidden\":true,\"reconnectAttempts\":0})": "pause",
+  "doorStreamDisconnectAction({\"streamExpired\":false,\"pageHidden\":false,\"reconnectAttempts\":0})": "reconnect",
+  "doorStreamDisconnectAction({\"streamExpired\":false,\"pageHidden\":false,\"reconnectAttempts\":3})": "reconnect",
+  "doorStreamDisconnectAction({\"streamExpired\":false,\"pageHidden\":false,\"reconnectAttempts\":2,\"maxReconnects\":2})": "reconnect",
+  "imeAutocomplete({\"bulletsOn\":false})": "current-password",
+  "imeAutocomplete({\"bulletsOn\":true})": "current-password",
+  "imeAutocomplete({\"bulletsOn\":false,\"otpOn\":true})": "one-time-code",
+  "imeAutocomplete({\"bulletsOn\":true,\"otpOn\":true})": "current-password",
+  "imeInputType(false)": "text",
+  "imeInputType(true)": "password"
+}

@@ -4,15 +4,18 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import type { AgentReceipt } from "../src/agent-receipt.ts"
+import { AuspexError } from "../src/errors.ts"
 import { resolveStatePath } from "../src/paths.ts"
 import {
   classifySweepReceipt,
+  MAX_SWEEP_PAGES,
   parseSweepPlan,
   renderSweepMarkdown,
   runSweep,
   sweepNotifyPayload,
   writeSweepReport,
-  } from "../src/sweep.ts"
+  type SweepPage,
+} from "../src/sweep.ts"
 
 const PAGE_TEXT = "SECRET-LOGGED-IN-PAGE-TEXT account 12345678"
 
@@ -53,34 +56,50 @@ const plan = () =>
     ],
   })
 
-test("parseSweepPlan accepts a read-only single-site plan", () => {
-  const p = plan()
-  assert.equal(p.name, "App nightly")
-  assert.equal(p.profile, "app-example-com")
-  assert.equal(p.keepProfile, true)
-  assert.equal(p.pages.length, 3)
-  const unnamed = parseSweepPlan({ pages: [{ url: "https://example.com/docs/", expect: "Docs" }] })
-  assert.equal(unnamed.pages[0]!.name, "/docs")
-  assert.equal(unnamed.keepProfile, undefined)
-  assert.equal(parseSweepPlan({ profile: "p", keepProfile: false, pages: [{ url: "https://a.com/x", expect: "X" }] }).keepProfile, false)
+test("runSweep stops at a re-gate; remaining pages are not-run and ok is false", async () => {
+  const seen: string[] = []
+  const report = await runSweep(plan(), {
+    check: async (page) => {
+      seen.push(page.name)
+      if (page.name === "Billing") {
+        return receipt({ ok: false, reason: "loggedOut", next: "Stop. Remint.", nextCall: { tool: "auspex_login", profile: "app-example-com" } })
+      }
+      return receipt()
+    },
+  })
+  assert.deepEqual(seen, ["Projects", "Billing"])
+  assert.equal(report.ok, false)
+  assert.deepEqual(report.counts, { pass: 1, fail: 0, unknown: 1, notRun: 1 })
+  assert.equal(report.stopped?.reason, "loggedOut")
+  assert.deepEqual(report.stopped?.nextCall, { tool: "auspex_login", profile: "app-example-com" })
+  assert.match(report.next, /do not loop/)
 })
 
-test("classifySweepReceipt: a bot check is could-not-tell, never a fail or a regression", () => {
-  const page = { name: "home", url: "https://app.example/", expect: "Workspace ready" }
-  const walled = classifySweepReceipt(
-    page,
-    receipt({
-      ok: false,
-      reason: "mismatch",
-      matched: false,
-      botWall: true,
-      diff: { previousReason: "matched", previousExpect: "Workspace ready" } as AgentReceipt["diff"],
-    }),
-    true,
-  )
-  assert.equal(walled.status, "unknown")
-  assert.match(walled.detail, /bot check/)
-  assert.equal(walled.regressed, undefined)
+test("runSweep: 429 stops with reap; other errors are could-not-tell and continue", async () => {
+  const concurrency = new AuspexError("Solari 429", {
+    issue: { code: "ConcurrencyLimitExceeded", nextCall: { tool: "auspex_reap" }, recovery: "reap then retry" },
+  })
+  const stopped = await runSweep(plan(), {
+    check: async () => {
+      throw concurrency
+    },
+  })
+  assert.equal(stopped.stopped?.reason, "ConcurrencyLimitExceeded")
+  assert.deepEqual(stopped.stopped?.nextCall, { tool: "auspex_reap" })
+  assert.equal(stopped.counts.notRun, 2)
+
+  let n = 0
+  const mixed = await runSweep(plan(), {
+    check: async () => {
+      n += 1
+      if (n === 1) throw new Error("goto timed out")
+      if (n === 2) return receipt({ ok: false, reason: "mismatch", matched: false, verify: BOTH_MISSED })
+      return receipt()
+    },
+  })
+  assert.equal(mixed.stopped, undefined)
+  assert.deepEqual(mixed.counts, { pass: 1, fail: 1, unknown: 1, notRun: 0 })
+  assert.equal(mixed.ok, false)
 })
 
 test("all-pass sweep is ok and still says it is not a lease", async () => {
@@ -127,6 +146,13 @@ test("operator keep: idle wipe skips a kept profile; a human-agreed purge still 
   assert.equal(noteOperatorUse(state, { profile: "kept", keep: false }, now).profiles.kept!.keep, undefined)
 })
 
+test("operator keep survives a write/read round trip", async () => {
+  const { noteOperatorUse, emptyOperatorState, readOperatorState, writeOperatorState } = await import("../src/operator-session.ts")
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-op-"))
+  writeOperatorState(root, noteOperatorUse(emptyOperatorState(), { profile: "kept", keep: true }, 1))
+  assert.equal(readOperatorState(root).profiles.kept!.keep, true)
+})
+
 test("an unreadable lastUsedMs never idle-wipes that saved login", async () => {
   const { commitOperatorSession, operatorStatePath, OPERATOR_IDLE_MS } = await import("../src/operator-session.ts")
   const { writeFileSync, mkdirSync } = await import("node:fs")
@@ -146,6 +172,32 @@ test("an unreadable lastUsedMs never idle-wipes that saved login", async () => {
   })
   // A real old timestamp is still idle; a missing one is treated as used now.
   assert.deepEqual(wiped, ["old"])
+})
+
+test("a profiles listing never idle-wipes; only a human-agreed purge does", async () => {
+  const { commitOperatorSession, noteOperatorUse, emptyOperatorState, writeOperatorState, OPERATOR_IDLE_MS } = await import("../src/operator-session.ts")
+  const root = mkdtempSync(path.join(tmpdir(), "auspex-list-"))
+  writeOperatorState(root, noteOperatorUse(emptyOperatorState(), { profile: "stale" }, 0))
+  const wiped: string[][] = []
+  const applyWipes = async (names: readonly string[]) => {
+    wiped.push([...names])
+    return [...names]
+  }
+  const now = 10 * OPERATOR_IDLE_MS
+  const listed = await commitOperatorSession({ root, nowMs: now, idleWipe: false, applyWipes })
+  assert.deepEqual(listed.wiped, [])
+  assert.equal(wiped.length, 0)
+  const purged = await commitOperatorSession({ root, nowMs: now, idleWipe: false, humanAgree: true, voluntary: ["stale"], applyWipes })
+  assert.deepEqual(purged.wiped, ["stale"])
+})
+
+test("profiles --keep / --unkeep parse and refuse both at once", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  assert.deepEqual(parseArgv(["profiles", "--keep", "consistencyhub"]), {
+    status: "ok",
+    command: { cmd: "profiles", purge: undefined, humanAgree: false, keep: "consistencyhub", unkeep: undefined },
+  })
+  assert.equal(parseArgv(["profiles", "--keep", "a", "--unkeep", "b"]).status, "error")
 })
 
 test("CLI and MCP read a sweep plan the same way: from the caller's folder, with a plain error", async () => {

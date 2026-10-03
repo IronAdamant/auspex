@@ -3,6 +3,31 @@ import { spawnSync } from "node:child_process"
 import test from "node:test"
 import { ASSERT_RECEIPT_PY_PATH } from "../src/receipt.ts"
 
+function originErrors(requested: string, finalUrl: string): string[] {
+  const py = `
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("assert_receipt", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(mod)
+print(json.dumps(mod.validate_url_origin(sys.argv[2], sys.argv[3])))
+`
+  const out = spawnSync("python3", ["-c", py, ASSERT_RECEIPT_PY_PATH, requested, finalUrl], {
+    encoding: "utf8",
+  })
+  assert.equal(out.status, 0, out.stderr || out.stdout)
+  return JSON.parse(out.stdout) as string[]
+}
+
+test("validate_url_origin allows prefix-anchored www-flip and rejects notwww substring strip", () => {
+  assert.deepEqual(originErrors("https://ironadamant.com/", "https://www.ironadamant.com/"), [])
+  assert.deepEqual(originErrors("https://www.checkpointprojects.com/", "https://checkpointprojects.com/"), [])
+  assert.deepEqual(originErrors("http://example.com/", "https://example.com/"), [])
+  const bad = originErrors("https://notwww.example.com/", "https://not.example.com/")
+  assert.ok(bad.length > 0)
+  assert.match(bad[0] ?? "", /origin/)
+})
+
 function pageText(html: string): string {
   const py = `
 import importlib.util, sys
@@ -25,6 +50,30 @@ test("anonymous claim reads page text, not the <title> or a <template>", () => {
   assert.equal(text.includes("Example Domain"), false)
   assert.equal(text.includes("Hidden Words"), false)
   assert.match(text, /documentation examples/)
+})
+
+test("forbidden_host covers link-local and cloud metadata, not public or loopback hosts", () => {
+  const py = `
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("assert_receipt", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+urls = sys.argv[2:]
+print(json.dumps([mod.forbidden_host(u) for u in urls]))
+`
+  const urls = [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://metadata.google.internal/computeMetadata/v1/",
+    "http://127.0.0.1:8080/",
+    "http://localhost/",
+    "http://[::1]/",
+    "http://[fd00:ec2::254]/",
+    "https://example.com/",
+    "https://app.lorari.com/member/",
+  ]
+  const out = spawnSync("python3", ["-c", py, ASSERT_RECEIPT_PY_PATH, ...urls], { encoding: "utf8" })
+  assert.equal(out.status, 0, out.stderr)
+  assert.deepEqual(JSON.parse(out.stdout), [true, true, false, false, false, true, false, false])
 })
 
 test("the anonymous fetch refuses a redirect to cloud metadata without connecting to it", async () => {
@@ -78,3 +127,14 @@ print(json.dumps([mod.resolves_forbidden(u) for u in urls]))
   assert.deepEqual(JSON.parse(out.stdout), [true, true, true, false, false])
 })
 
+test("anonymous claim reads a button drawn by <input type=submit>, not text typed into a field", () => {
+  // Live, Trello's add-card page: "Send to Today" is <input type="submit" value="Send to Today">.
+  const text = pageText(
+    '<body><p>Create a card</p><input type="submit" value="Send to Today"><input type="button" value="Never Mind"><input type="text" value="Typed by an agent"><input type="submit" value="Hidden one" hidden><script>var x = "<input type=submit value=Script>"</script></body>',
+  )
+  assert.match(text, /Send to Today/)
+  assert.match(text, /Never Mind/)
+  assert.equal(text.includes("Typed by an agent"), false, "field text is not page text")
+  assert.equal(text.includes("Hidden one"), false)
+  assert.equal(text.includes("Script"), false)
+})

@@ -1,29 +1,113 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
-import { parseArgv } from "../src/cli.ts"
+import { parseArgv, USAGE } from "../src/cli.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
-test("parseArgv --verify-with-profile enables verifyAfter for consistencyhub", () => {
-  const withProfile = parseArgv(["check", "--name", "consistencyhub", "--verify-with-profile"])
-  assert.equal(withProfile.status, "ok")
-  if (withProfile.status === "ok" && withProfile.command.cmd === "check") {
-    assert.equal(withProfile.command.opts.profile, "consistencyhub")
-    assert.equal(withProfile.command.opts.verifyWithProfile, true)
-    assert.equal(withProfile.command.verifyAfter, true, "--verify-with-profile should enable verifyAfter")
-  }
-  const explicitVerify = parseArgv(["check", "--name", "consistencyhub", "--verify"])
-  assert.equal(explicitVerify.status, "ok")
-  if (explicitVerify.status === "ok" && explicitVerify.command.cmd === "check") {
-    assert.equal(explicitVerify.command.verifyAfter, true, "--verify should enable verifyAfter")
-  }
-  const explicitNoVerify = parseArgv(["check", "--name", "consistencyhub", "--no-verify"])
-  assert.equal(explicitNoVerify.status, "ok")
-  if (explicitNoVerify.status === "ok" && explicitNoVerify.command.cmd === "check") {
-    assert.equal(explicitNoVerify.command.verifyAfter, false, "--no-verify should disable verifyAfter")
-  }
+function runCli(args: string[]) {
+  return spawnSync("npx", ["tsx", "src/cli.ts", ...args], {
+    cwd: root,
+    encoding: "utf8",
+    env: process.env,
+  })
+}
+
+test("shipped CLI --help lists check, login, profiles", () => {
+  const help = runCli(["--help"])
+  assert.equal(help.status, 0, help.stderr)
+  assert.match(help.stdout, /check/)
+  assert.match(help.stdout, /login/)
+  assert.match(help.stdout, /profiles/)
+  assert.match(help.stdout, /verify/)
+  assert.match(help.stdout, /--verify/)
+  assert.match(help.stdout, /desktop/)
+  assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
+  assert.match(help.stdout, /await-login/)
+  assert.match(help.stdout, /--save-editor/)
+  assert.match(help.stdout, /login --wait blocks until Save is signaled[\s\S]*--save-editor/)
+  assert.match(help.stdout, /Clipboard Save is not the jar/)
+  assert.match(help.stdout, /does not kill it/)
+  assert.match(help.stdout, /--save-profile/)
+  assert.match(help.stdout, /--name/)
+  assert.match(help.stdout, /profile-status/)
+  assert.match(help.stdout, /trace/)
+  assert.match(help.stdout, /--all/)
+  assert.match(help.stdout, /--pack-receipts/)
+  assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
+})
+
+test("shipped CLI check --help lists login and profiles", () => {
+  const help = runCli(["check", "--help"])
+  assert.equal(help.status, 0, help.stderr)
+  assert.match(help.stdout, /check/)
+  assert.match(help.stdout, /login/)
+  assert.match(help.stdout, /profiles/)
+})
+
+test("shipped CLI rejects empty and whitespace --expect", () => {
+  const empty = runCli(["check", "https://ironadamant.com", "--expect", ""])
+  assert.notEqual(empty.status, 0)
+  assert.match(`${empty.stderr}${empty.stdout}`, /--expect/)
+  const ws = runCli(["check", "https://ironadamant.com", "--expect", "   "])
+  assert.notEqual(ws.status, 0)
+  assert.match(`${ws.stderr}${ws.stdout}`, /--expect/)
+})
+
+test("shipped CLI rejects a non-https URL", () => {
+  const bad = runCli(["check", "file:///tmp/x", "--expect", "Build it."])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI rejects a userinfo URL", () => {
+  const bad = runCli(["check", "https://user:pass@example.com/", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI does not take https as --profile", () => {
+  const bad = runCli([
+    "check",
+    "--profile",
+    "https://example.com",
+    "--expect",
+    "x",
+    "https://ironadamant.com",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /profile|URL|unexpected/i)
+})
+
+test("shipped CLI rejects loopback check URLs without launching Solari", () => {
+  const bad = runCli(["check", "http://localhost:3000", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /loopback|cloud Chrome|agent machine/i)
+})
+
+test("shipped CLI rejects --record with --profile", () => {
+  const bad = runCli([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "consistencyhub",
+    "--record",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /allow-record-profile|record/i)
+})
+
+test("shipped CLI rejects whitespace-only --profile", () => {
+  const check = runCli(["check", "https://ironadamant.com", "--expect", "Build it.", "--profile", "   "])
+  assert.notEqual(check.status, 0)
+  assert.match(`${check.stderr}${check.stdout}`, /profile name/i)
+  const login = runCli(["login", "--profile", "   "])
+  assert.notEqual(login.status, 0)
+  assert.match(`${login.stderr}${login.stdout}`, /profile name/i)
 })
 
 test("option values may start with a dash; a following flag is still not a value", async () => {
@@ -48,6 +132,55 @@ test("job and connect read a dash-leading value the same way check does", async 
   // A flag in the value's place is still not a value, in every command.
   assert.equal(parseArgv(["job", "--url", "https://app.example", "--expect", "-v"]).status, "error")
   assert.equal(parseArgv(["connect", "https://app.example", "--expect", "-v"]).status, "error")
+})
+
+test("every command's --help prints help, wherever it sits", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  for (const cmd of ["check", "login", "await-login", "finalize-login", "profiles", "profile-status", "solari-health", "reap", "desktop", "trace", "verify", "job", "job-status", "connect", "sweep", "mcp"]) {
+    assert.deepEqual(parseArgv([cmd, "--help"]), { status: "ok", command: { cmd: "help" } }, cmd)
+    assert.deepEqual(parseArgv([cmd, "--bogus", "-h"]), { status: "ok", command: { cmd: "help" } }, cmd)
+  }
+})
+
+test("sweep parses --plan and --notify and refuses a non-http notify", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  assert.deepEqual(parseArgv(["sweep", "--plan", "plan.json"]), { status: "ok", command: { cmd: "sweep", planPath: "plan.json", notify: undefined } })
+  assert.equal(parseArgv(["sweep"]).status, "error")
+  assert.equal(parseArgv(["sweep", "--plan", "p.json", "--notify", "file:///x"]).status, "error")
+})
+
+test("check takes its URL positionally or as --url, like login, job and connect", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  for (const argv of [
+    ["check", "https://app.example", "--expect", "Hi", "--profile", "app"],
+    ["check", "--profile", "app", "--url", "https://app.example", "--expect", "Hi", "--verify-with-profile"],
+  ]) {
+    const parsed = parseArgv(argv)
+    assert.equal(parsed.status, "ok", argv.join(" "))
+    if (parsed.status === "ok" && parsed.command.cmd === "check") assert.equal(parsed.command.opts.url, "https://app.example")
+  }
+  assert.equal(parseArgv(["check", "https://a.example", "--url", "https://b.example", "--expect", "Hi"]).status, "error")
+})
+
+test("the commands connect prints for next time and for a retry parse", async () => {
+  const { parseArgv } = await import("../src/cli.ts")
+  const { connectOutcome } = await import("../src/connect.ts")
+  const base = { schemaVersion: 1 as const, jobId: "job-1", profile: "tldraw-com", url: "https://www.tldraw.com", expect: 'My "big" workspace', createdAt: "", updatedAt: "" }
+  const lines = [
+    ...connectOutcome({ ...base, phase: "completed", status: "completed", ok: true, reason: "matched", claimOkProfile: true }).detail,
+    ...connectOutcome({ ...base, phase: "failed", status: "failed", ok: false, reason: "exhausted retries", seedReadiness: { solariSaveReady: true } as never }).detail,
+  ]
+  const commands = lines.map((l) => l.replace(/^Next time: /, "")).filter((l) => /^npx auspex(-solari)? check /.test(l))
+  assert.equal(commands.length, 2)
+  for (const command of commands) {
+    const args = [...command.replace(/^npx auspex(-solari)? /, "").matchAll(/"((?:[^"\\]|\\.)*)"|(\S+)/g)].map((m) => (m[1] ?? m[2]!).replace(/\\(.)/g, "$1"))
+    const parsed = parseArgv(args)
+    assert.equal(parsed.status, "ok", `${command} -> ${parsed.status === "error" ? parsed.message : ""}`)
+    if (parsed.status === "ok" && parsed.command.cmd === "check") {
+      assert.equal(parsed.command.opts.expect, 'My "big" workspace')
+      assert.equal(parsed.command.opts.verifyWithProfile, true)
+    }
+  }
 })
 
 test("every auspex command in the docs' code blocks parses", async () => {

@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import {
+  agentReceiptOk,
   deriveCheckReason,
   overlayVerifyReason,
 } from "../src/check-reason.ts"
@@ -26,103 +27,6 @@ function sampleCheck(over: Partial<CheckResult> = {}): CheckResult {
     ...over,
   }
 }
-
-test("deriveCheckReason covers matched, mismatch, network, loggedOut, needsHuman", () => {
-  assert.equal(
-    deriveCheckReason({
-      matched: true,
-      networkIdle: true,
-      finalUrl: "https://ironadamant.com/",
-      excerpt: "One office job.",
-      screenshotOk: true,
-    }),
-    "matched",
-  )
-  assert.equal(
-    deriveCheckReason({
-      matched: false,
-      networkIdle: true,
-      finalUrl: "https://ironadamant.com/",
-      excerpt: "hello",
-      screenshotOk: true,
-    }),
-    "mismatch",
-  )
-  assert.equal(
-    deriveCheckReason({
-      matched: false,
-      networkIdle: false,
-      finalUrl: "",
-      excerpt: "",
-      screenshotOk: false,
-    }),
-    "network",
-  )
-  assert.equal(
-    deriveCheckReason({
-      special: "loggedOut",
-      matched: false,
-      networkIdle: true,
-      finalUrl: "https://consistencyhub.io/landing",
-      excerpt: "Sign in",
-      screenshotOk: true,
-    }),
-    "loggedOut",
-  )
-  assert.equal(
-    deriveCheckReason({
-      special: "needsHuman",
-      needsHuman: true,
-      matched: false,
-      networkIdle: true,
-      finalUrl: "https://login.microsoftonline.com/",
-      excerpt: "password",
-      screenshotOk: true,
-    }),
-    "needsHuman",
-  )
-})
-
-test("overlayVerifyReason maps claim miss to mismatch and fetch fail to network", () => {
-  assert.equal(
-    overlayVerifyReason("matched", { ok: true, claimOk: true, errors: [], claimErrors: [] }),
-    "matched",
-  )
-  assert.equal(
-    overlayVerifyReason("matched", {
-      ok: true,
-      claimOk: false,
-      errors: [],
-      claimErrors: ["expect not found"],
-    }),
-    "mismatch",
-  )
-  assert.equal(
-    overlayVerifyReason("loggedOut", { ok: false, claimOk: false, errors: ["fetch failed"] }),
-    "loggedOut",
-  )
-  assert.equal(
-    overlayVerifyReason("expectMatchedPublicLanding", {
-      ok: false,
-      claimOk: false,
-      errors: ["expect not found"],
-    }),
-    "expectMatchedPublicLanding",
-  )
-  assert.equal(
-    overlayVerifyReason("matched", { ok: false, claimOk: false, errors: ["network timeout"] }),
-    "network",
-  )
-})
-
-test("mismatch is not agent ok even when protocolOk is true", () => {
-  const receipt = toAgentReceipt(
-    sampleCheck({ ok: false, protocolOk: true, matched: false, reason: "mismatch" }),
-  )
-  assert.equal(receipt.ok, false)
-  assert.equal(receipt.reason, "mismatch")
-  assert.equal((receipt as { protocolOk?: boolean }).protocolOk, true)
-})
 
 test("persistAgentManifest writes agent-success ok (not protocol ok) to disk", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "auspex-manifest-"))
@@ -146,3 +50,15 @@ test("persistAgentManifest writes agent-success ok (not protocol ok) to disk", a
   assert.equal(written.protocolOk, true)
 })
 
+test("a public check (no saved login) carries no profileSeed or seedReadiness", async () => {
+  // The CI receipt for ironadamant.com (no profile) said seedReadiness "post-save", shape "empty",
+  // which reads like a failed save. AGENTS: profileSeed only "when a profile was attached".
+  const receipt = toAgentReceipt(sampleCheck())
+  assert.equal("profileSeed" in receipt && receipt.profileSeed !== undefined, false)
+  assert.equal("seedReadiness" in receipt && receipt.seedReadiness !== undefined, false)
+  const withLogin = toAgentReceipt(sampleCheck({ profileSeed: { cookies: 3, origins: 1, appOriginCookieCount: 3 } }))
+  assert.ok(withLogin.seedReadiness, "a saved-login check still reports its seed")
+  const { readFileSync: read } = await import("node:fs")
+  const src = read(new URL("../src/check.ts", import.meta.url), "utf8")
+  assert.match(src, /profileSeed: opts\.profile \? profileSeed : undefined/)
+})

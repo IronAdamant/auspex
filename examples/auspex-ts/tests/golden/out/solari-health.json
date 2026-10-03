@@ -1,0 +1,8 @@
+{
+  "healthSolariOptions(\"slr_live_testkeyvalue\")": {
+    "apiKey": "slr_live_testkeyvalue",
+    "maxAttempts": 1,
+    "timeoutMs": 8000,
+    "backoffMs": 0
+  }
+}

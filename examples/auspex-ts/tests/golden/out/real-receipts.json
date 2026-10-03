@@ -1,0 +1,358 @@
+{
+  "back4app: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "back4app: sweep row": {
+    "name": "back4app",
+    "url": "https://dashboard.back4app.com/apps",
+    "expect": "New Backend",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "back4app: bot wall": false,
+  "back4app: url rules": {
+    "browserMayOpen": true,
+    "slug": "dashboard-back4app-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "chatwoot: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "chatwoot: sweep row": {
+    "name": "chatwoot",
+    "url": "https://app.chatwoot.com/app/accounts/<account>/dashboard",
+    "expect": "All Conversations",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "chatwoot: bot wall": false,
+  "chatwoot: url rules": {
+    "browserMayOpen": true,
+    "slug": "app-chatwoot-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "clozemaster: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "clozemaster: sweep row": {
+    "name": "clozemaster",
+    "url": "https://www.clozemaster.com/l/spa-eng",
+    "expect": "READY FOR REVIEW",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "clozemaster: bot wall": false,
+  "clozemaster: url rules": {
+    "browserMayOpen": true,
+    "slug": "clozemaster-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "consistencyhub-msal: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "consistencyhub-msal: sweep row": {
+    "name": "consistencyhub-msal",
+    "url": "https://consistencyhub.io",
+    "expect": "Document Editor",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "consistencyhub-msal: bot wall": false,
+  "consistencyhub-msal: url rules": {
+    "browserMayOpen": true,
+    "slug": "consistencyhub-io",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "consistencyhub: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "consistencyhub: sweep row": {
+    "name": "consistencyhub",
+    "url": "https://consistencyhub.io",
+    "expect": "Document Editor",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "examples/auspex-ts/demo/consistencyhub.png",
+    "claimOkProfile": true
+  },
+  "consistencyhub: bot wall": false,
+  "consistencyhub: url rules": {
+    "browserMayOpen": true,
+    "slug": "consistencyhub-io",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "goodtape: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "goodtape: sweep row": {
+    "name": "goodtape",
+    "url": "https://app.goodtape.io/tapes/new",
+    "expect": "You have no tapes.",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "goodtape: bot wall": false,
+  "goodtape: url rules": {
+    "browserMayOpen": true,
+    "slug": "app-goodtape-io",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "host-changed: receipt v1 parses": {
+    "ok": false,
+    "reason": "hostChanged"
+  },
+  "host-changed: sweep row": {
+    "name": "host-changed",
+    "url": "https://myapp.example",
+    "expect": "Workspace ready",
+    "status": "unknown",
+    "reason": "hostChanged",
+    "detail": "Live host changed: the remote browser is on https://app.socialaize.com, not the host minted for --profile myapp-example. hostChanged is true. profileHostMatch is false. suggestedProfile app-socialaize-com. suggestedUrl https://app.socialaize.com. Do not finalize-login, do not sav",
+    "screenshotPath": "<undefined>"
+  },
+  "host-changed: bot wall": false,
+  "host-changed: url rules": {
+    "browserMayOpen": true,
+    "slug": "myapp-example",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": false,
+    "loggedOutLanding": true,
+    "signInPage": false
+  },
+  "ironadamant: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "ironadamant: sweep row": {
+    "name": "ironadamant",
+    "url": "https://ironadamant.com",
+    "expect": "One office job.",
+    "status": "unknown",
+    "reason": "matched",
+    "detail": "live browser matched, but the second browser with the saved login did not confirm (claimOkProfile missing). Not a pass.",
+    "screenshotPath": "ironadamant.png"
+  },
+  "ironadamant: bot wall": false,
+  "ironadamant: url rules": {
+    "browserMayOpen": true,
+    "slug": "ironadamant-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": false,
+    "loggedOutLanding": true,
+    "signInPage": false
+  },
+  "job-failed: connect outcome": {
+    "ok": false,
+    "headline": "The five-minute sign-in window closed before Save.",
+    "detail": [
+      "Solari sets that window and Auspex cannot extend it.",
+      "Run the same command again. The new door reopens the same cloud browser while Solari keeps it, so a sign-in under way can carry on. Save as soon as the app is on screen."
+    ]
+  },
+  "lorari: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "lorari: sweep row": {
+    "name": "lorari",
+    "url": "https://app.lorari.com/member/",
+    "expect": "Your Bookings",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "lorari: bot wall": false,
+  "lorari: url rules": {
+    "browserMayOpen": true,
+    "slug": "app-lorari-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "mariadb: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "mariadb: sweep row": {
+    "name": "mariadb",
+    "url": "https://cloud.mariadb.com/dashboard",
+    "expect": "Create New Service",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "mariadb: bot wall": false,
+  "mariadb: url rules": {
+    "browserMayOpen": true,
+    "slug": "cloud-mariadb-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "onedrive: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "onedrive: sweep row": {
+    "name": "onedrive",
+    "url": "https://onedrive.live.com/",
+    "expect": "My files",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "onedrive: bot wall": false,
+  "onedrive: url rules": {
+    "browserMayOpen": true,
+    "slug": "onedrive-live-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": false,
+    "loggedOutLanding": true,
+    "signInPage": false
+  },
+  "tldraw: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "tldraw: sweep row": {
+    "name": "tldraw",
+    "url": "https://www.tldraw.com/f/<file>",
+    "expect": "My workspace",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "tldraw: bot wall": false,
+  "tldraw: url rules": {
+    "browserMayOpen": true,
+    "slug": "tldraw-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "trello: receipt v1 parses": {
+    "ok": true,
+    "reason": "matched"
+  },
+  "trello: sweep row": {
+    "name": "trello",
+    "url": "https://trello.com/",
+    "expect": "Create new board",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; a second browser with the saved login confirmed it",
+    "screenshotPath": "<undefined>",
+    "claimOkProfile": true
+  },
+  "trello: bot wall": false,
+  "trello: url rules": {
+    "browserMayOpen": true,
+    "slug": "trello-com",
+    "hostAdvice": {
+      "profileHostMatch": true,
+      "nextLead": ""
+    },
+    "persistable": true,
+    "loggedOutLanding": false,
+    "signInPage": false
+  },
+  "connect-run-2026-09-29.json: summary": {
+    "apps": 9,
+    "passed": 8,
+    "notConfirmed": [
+      "Canva"
+    ]
+  },
+  "connect-run-2026-09-30-lorari.json: summary": {
+    "apps": 1,
+    "passed": 1,
+    "notConfirmed": []
+  }
+}
