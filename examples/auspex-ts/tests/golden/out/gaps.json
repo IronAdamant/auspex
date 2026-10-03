@@ -1,0 +1,181 @@
+{
+  "sweep: matched but the second check failed is not a pass": {
+    "name": "home",
+    "url": "https://app.example/",
+    "expect": "Workspace ready",
+    "status": "unknown",
+    "reason": "matched",
+    "detail": "could not tell (matched)",
+    "screenshotPath": "<undefined>"
+  },
+  "sweep: matched and ok, no saved login": {
+    "name": "home",
+    "url": "https://app.example/",
+    "expect": "Workspace ready",
+    "status": "pass",
+    "reason": "matched",
+    "detail": "matched; anonymous second machine agreed",
+    "screenshotPath": "<undefined>"
+  },
+  "record guard: allowRecordProfile alone, no record": "<undefined>",
+  "dashboard landing: a page under /dashboard/": true,
+  "vwp refuse: cookies but no origins": "runs",
+  "vwp refuse: origins but no cookies": "runs",
+  "scrub: a URL with a username only": "https://[redacted-email]/x",
+  "scrub: a URL with a password only": "https://:[redacted-email]/x",
+  "scrub: userinfo on a dotless host": [
+    "https://intranet/x",
+    "https://intranet/x"
+  ],
+  "scrub: a URL with nothing to scrub": "https://example.com",
+  "url guard: unspecified IPv6": [
+    false,
+    false
+  ],
+  "landed on: non-http pages are not a forbidden host": [
+    false,
+    false,
+    false
+  ],
+  "landed on: unspecified and link-local IPv6": [
+    true,
+    true
+  ],
+  "auth wall: an unparseable URL": {
+    "needsHuman": false
+  },
+  "weak seed: an empty consistencyhub jar": false,
+  "consistencyhub target by URL": [
+    true,
+    false
+  ],
+  "check: --profile followed by a flag": {
+    "status": "error",
+    "message": "unexpected arguments: --profile"
+  },
+  "next call: await retry and save-editor keep the profile": [
+    {
+      "tool": "auspex_await_login",
+      "profile": "app-example"
+    },
+    {
+      "tool": "auspex_await_login",
+      "saveEditor": true,
+      "profile": "app-example"
+    },
+    {
+      "tool": "auspex_await_login"
+    }
+  ],
+  "match: a one-letter capitalised word before the expect": [
+    false,
+    true
+  ],
+  "folded expiresOn: zero and negative": [
+    "<undefined>",
+    "<undefined>",
+    1000
+  ],
+  "job flags: a non-http URL": {
+    "ok": false,
+    "message": "url must be an http or https URL"
+  },
+  "receipt key: empty url falls back to finalUrl": "https://a.example/x",
+  "replay: text on a non-input source is kept": [
+    {
+      "type": 3,
+      "data": {
+        "source": 2,
+        "text": "keep me"
+      }
+    },
+    {
+      "type": 3,
+      "data": {
+        "source": 5,
+        "text": ""
+      }
+    }
+  ],
+  "replay: a changed attribute that is not href or src": [
+    {
+      "type": 3,
+      "data": {
+        "source": 0,
+        "attributes": [
+          {
+            "id": 1,
+            "attributes": {
+              "title": "https://x.example/cb?state=abc",
+              "href": "https://x.example/cb?state=redacted"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "saved checks: an unknown key line": {
+    "<throws>": "Error: invalid auspex.yml line: colour: blue"
+  },
+  "saved checks: url, expect and profile lines": {
+    "site": {
+      "url": "https://a.example",
+      "expect": "Hi",
+      "profile": "site"
+    }
+  },
+  "live host: page host with and without a mint URL": [
+    {
+      "host": "app.example",
+      "suggestedUrl": "https://app.example"
+    },
+    {
+      "host": "other.example",
+      "suggestedUrl": "https://other.example"
+    },
+    {
+      "host": "b.example",
+      "suggestedUrl": "https://b.example"
+    }
+  ],
+  "await host: a stamped result keeps the host change": [
+    {
+      "status": "host-changed",
+      "hostChanged": true,
+      "profileHostMatch": false,
+      "suggestedProfile": "<undefined>",
+      "suggestedUrl": "https://b.example",
+      "next": "<undefined>",
+      "nextCall": "<undefined>"
+    },
+    {
+      "status": "completed"
+    }
+  ],
+  "mcp image: needsHuman by reason or by flag omits the screenshot": [
+    [
+      "text",
+      "text"
+    ],
+    [
+      "text",
+      "text"
+    ]
+  ],
+  "health: Solari 599 is infra": {
+    "ok": false,
+    "reason": "infra-5xx",
+    "probe": "GET /profiles",
+    "endpoint": "https://api.getsolari.com/profiles",
+    "called": true,
+    "minted": false,
+    "appLogin": false,
+    "elapsedMs": 5,
+    "next": "Solari infrastructure error. Wait 5-10 seconds and run auspex solari-health once more. auspex reap only if a leftover slot is suspect. Do not remint yet. This is not an app login failure.",
+    "code": "SolariError",
+    "status": 599,
+    "retryable": true,
+    "solariBlame": "infra-5xx",
+    "error": "edge"
+  }
+}
