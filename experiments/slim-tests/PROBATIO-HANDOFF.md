@@ -3,7 +3,8 @@
 Probatio (Latin: a testing, a proof) is a planned free, open-source testing toolkit built for AI
 agents (Claude, Grok, ChatGPT, others), working alone or as swarms. It grew out of the test-slimming
 experiment in this folder (Auspex, branch `experiment/slim-tests`). This page is for the first chat
-in the new Probatio folder: what was learned here, and what to build.
+in the new Probatio folder: what was learned here, and what to build. Builder brief (Grok builds,
+Claude refines): `PROBATIO-FOR-GROK.md`.
 
 ## Why a new tool
 
