@@ -15,6 +15,101 @@ function runCli(args: string[]) {
   })
 }
 
+test("shipped CLI --help lists check, login, profiles", () => {
+  const help = runCli(["--help"])
+  assert.equal(help.status, 0, help.stderr)
+  assert.match(help.stdout, /check/)
+  assert.match(help.stdout, /login/)
+  assert.match(help.stdout, /profiles/)
+  assert.match(help.stdout, /verify/)
+  assert.match(help.stdout, /--verify/)
+  assert.match(help.stdout, /desktop/)
+  assert.match(help.stdout, /auspex_reap|solari_kill|solari_browser_close/)
+  assert.match(help.stdout, /await-login/)
+  assert.match(help.stdout, /--save-editor/)
+  assert.match(help.stdout, /login --wait blocks until Save is signaled[\s\S]*--save-editor/)
+  assert.match(help.stdout, /Clipboard Save is not the jar/)
+  assert.match(help.stdout, /does not kill it/)
+  assert.match(help.stdout, /--save-profile/)
+  assert.match(help.stdout, /--name/)
+  assert.match(help.stdout, /profile-status/)
+  assert.match(help.stdout, /trace/)
+  assert.match(help.stdout, /--all/)
+  assert.match(help.stdout, /--pack-receipts/)
+  assert.equal(help.stdout.includes("kill leftover sessions in the console"), false)
+})
+
+test("shipped CLI check --help lists login and profiles", () => {
+  const help = runCli(["check", "--help"])
+  assert.equal(help.status, 0, help.stderr)
+  assert.match(help.stdout, /check/)
+  assert.match(help.stdout, /login/)
+  assert.match(help.stdout, /profiles/)
+})
+
+test("shipped CLI rejects empty and whitespace --expect", () => {
+  const empty = runCli(["check", "https://ironadamant.com", "--expect", ""])
+  assert.notEqual(empty.status, 0)
+  assert.match(`${empty.stderr}${empty.stdout}`, /--expect/)
+  const ws = runCli(["check", "https://ironadamant.com", "--expect", "   "])
+  assert.notEqual(ws.status, 0)
+  assert.match(`${ws.stderr}${ws.stdout}`, /--expect/)
+})
+
+test("shipped CLI rejects a non-https URL", () => {
+  const bad = runCli(["check", "file:///tmp/x", "--expect", "Build it."])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI rejects a userinfo URL", () => {
+  const bad = runCli(["check", "https://user:pass@example.com/", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /http or https/)
+})
+
+test("shipped CLI does not take https as --profile", () => {
+  const bad = runCli([
+    "check",
+    "--profile",
+    "https://example.com",
+    "--expect",
+    "x",
+    "https://ironadamant.com",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /profile|URL|unexpected/i)
+})
+
+test("shipped CLI rejects loopback check URLs without launching Solari", () => {
+  const bad = runCli(["check", "http://localhost:3000", "--expect", "x"])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /loopback|cloud Chrome|agent machine/i)
+})
+
+test("shipped CLI rejects --record with --profile", () => {
+  const bad = runCli([
+    "check",
+    "https://ironadamant.com",
+    "--expect",
+    "Build it.",
+    "--profile",
+    "consistencyhub",
+    "--record",
+  ])
+  assert.notEqual(bad.status, 0)
+  assert.match(`${bad.stderr}${bad.stdout}`, /allow-record-profile|record/i)
+})
+
+test("shipped CLI rejects whitespace-only --profile", () => {
+  const check = runCli(["check", "https://ironadamant.com", "--expect", "Build it.", "--profile", "   "])
+  assert.notEqual(check.status, 0)
+  assert.match(`${check.stderr}${check.stdout}`, /profile name/i)
+  const login = runCli(["login", "--profile", "   "])
+  assert.notEqual(login.status, 0)
+  assert.match(`${login.stderr}${login.stdout}`, /profile name/i)
+})
+
 test("option values may start with a dash; a following flag is still not a value", async () => {
   const { parseArgv } = await import("../src/cli.ts")
   const ok = parseArgv(["check", "https://example.com", "--expect", "-20% off"])

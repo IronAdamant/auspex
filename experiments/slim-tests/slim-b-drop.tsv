@@ -32,17 +32,8 @@ cli-help.test.ts	USAGE documents check, login, and profiles
 cli-help.test.ts	parseArgv check --sso
 cli-help.test.ts	parseArgv --stealth=true is not a boolean flag
 cli-help.test.ts	parseArgv login and profiles
-cli-help.test.ts	shipped CLI --help lists check, login, profiles
-cli-help.test.ts	shipped CLI check --help lists login and profiles
-cli-help.test.ts	shipped CLI rejects empty and whitespace --expect
-cli-help.test.ts	shipped CLI rejects a non-https URL
-cli-help.test.ts	shipped CLI rejects a userinfo URL
-cli-help.test.ts	shipped CLI does not take https as --profile
 cli-help.test.ts	parseArgv rejects --record with --sso or --save-profile
 cli-help.test.ts	parseArgv rejects --record with --profile unless override is set
-cli-help.test.ts	shipped CLI rejects loopback check URLs without launching Solari
-cli-help.test.ts	shipped CLI rejects --record with --profile
-cli-help.test.ts	shipped CLI rejects whitespace-only --profile
 cli-help.test.ts	parseArgv check click/fill/wait-for and proxy
 cli-help.test.ts	parseArgv rejects fill/click with a profile unless --allow-page-actions
 cli-help.test.ts	parseArgv check --save-profile
@@ -70,9 +61,6 @@ cookie-save.test.ts	ConsistencyHub with only IdP cookies stays weak; app cookies
 cookie-save.test.ts	cookie guide points at check and does not print a token
 device-emulation.test.ts	parseDeviceOptions unknown device throws with listDevices keys
 device-emulation.test.ts	parseDeviceOptions mobile matches iphone-13-pro fields
-door-stream.test.ts	docs/door-stream.js matches the TypeScript door helpers
-door-stream.test.ts	framebufferPoint uses the rendered canvas, not a stale scale
-door-stream.test.ts	applyDoorView fits once, maps the live canvas, and lightens the stream
 editor-fold.test.ts	pickEditorCdp accepts Playwright sockets and ignores VNC
 editor-fold.test.ts	stale and missing sessionStorage next remint or finalize-now and ban VWP
 editor-fold.test.ts	overlaySaveEditorNext is loud when editorSave fails or editorFold misses
@@ -146,7 +134,6 @@ login.test.ts	loginInstructions with phone IME URL labels the real text-field pa
 login.test.ts	phoneHandoffUrl puts the VNC token in the hash, not the query
 login.test.ts	editorStartOk treats 202 Accepted as starting (poll token)
 login.test.ts	phoneSavePaste is two short lines any agent chat can run
-login.test.ts	phone.html clipboard equals phoneSavePaste
 login.test.ts	phone Save paste names the phone page
 login.test.ts	loginInstructions echoes a derived host slug on next and savePaste
 login.test.ts	attachHandoffQr mentions qrPath only when a PNG was written
@@ -158,14 +145,6 @@ next-call.test.ts	successful login mint points nextCall at await-login with save
 next-call.test.ts	noVNC mint without a QR still points nextCall at await-login with saveEditor
 next-call.test.ts	login with no handoff url points nextCall at auspex_login
 operator-doors.test.ts	agent tool schemas have no username, password, or Solari key field
-operator-doors.test.ts	phone door has no preview zoom controls
-operator-doors.test.ts	door scripts run in a browser-like page and keep secrets off the chat paste line
-operator-doors.test.ts	door does not call stream-expired on a live timer, and does when the stamp is past
-operator-doors.test.ts	old door and desktop URLs redirect to the phone door and keep the hash
-operator-doors.test.ts	Clear empties the whole field in one click, local and remote
-operator-doors.test.ts	Enter clears the IME after sending the key, and bullets mode still sends real characters
-operator-doors.test.ts	phone door fits the picture and does not keep resizing the remote
-operator-doors.test.ts	before Save, a closed stream still reconnects
 operator-session.test.ts	30-minute desktop idle keeps a fresh use, wipes at 30 minutes, and leaves a newer profile
 operator-session.test.ts	voluntary purge is selected only when the human agrees, and the agent object stays redacted
 operator-session.test.ts	phone QR list lasts 10 minutes and carries site and profile only

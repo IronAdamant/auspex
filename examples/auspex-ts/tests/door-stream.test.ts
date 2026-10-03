@@ -49,6 +49,126 @@ function loadDoorStream() {
   }
 }
 
+test("docs/door-stream.js matches the TypeScript door helpers", () => {
+  const Door = loadDoorStream()
+  assert.equal(Door.MAX_RECONNECT, DOOR_STREAM_MAX_RECONNECT)
+  assert.equal(Door.RECONNECT_GRACE_MS, DOOR_STREAM_RECONNECT_GRACE_MS)
+  assert.equal(Door.doorStreamDisconnectAction(true, true, 0), "remint")
+  assert.equal(Door.doorStreamDisconnectAction(false, true, 0), "pause")
+  assert.equal(Door.doorStreamDisconnectAction(false, false, 0), "reconnect")
+  assert.equal(Door.doorStreamDisconnectAction(false, false, 3), "reconnect")
+  assert.equal(
+    doorStreamDisconnectAction({ streamExpired: false, pageHidden: true, reconnectAttempts: 1 }),
+    "pause",
+  )
+  assert.equal(Door.imeAutocomplete(false, false), imeAutocomplete({ bulletsOn: false }))
+  assert.equal(Door.imeAutocomplete(false, true), imeAutocomplete({ bulletsOn: false, otpOn: true }))
+  assert.equal(Door.imeInputType(true), imeInputType(true))
+  assert.equal(JSON.stringify(Door).includes("off"), false)
+  assert.equal("bindPreviewZoom" in Door, false)
+})
+
+test("framebufferPoint uses the rendered canvas, not a stale scale", () => {
+  const Door = loadDoorStream()
+  assert.equal(Door.framebufferPoint(0, 100, 200), 0)
+  assert.equal(Door.framebufferPoint(50, 100, 200), 100)
+  assert.equal(Door.framebufferPoint(99, 100, 200), 198)
+  assert.equal(Door.framebufferPoint(100, 100, 200), 199)
+  assert.equal(Door.framebufferPoint(-4, 100, 200), 0)
+  assert.equal(Door.framebufferPoint(10, 0, 200), 0)
+  assert.equal(Door.framebufferPoint(10, 100, 0), 0)
+})
+
+test("applyDoorView fits once, maps the live canvas, and lightens the stream", () => {
+  const Door = loadDoorStream()
+  const box = { width: 0, height: 0 }
+  const requests: number[][] = []
+  const canvas = {
+    width: 1280,
+    height: 800,
+    style: {} as Record<string, string>,
+    getBoundingClientRect() {
+      return { width: 390, height: 243.75, left: 8, top: 12 }
+    },
+  }
+  const rfb: Record<string, unknown> = {
+    _resizeSession: false,
+    _supportsSetDesktopSize: false,
+    _viewOnly: false,
+    _screen: {
+      style: {} as Record<string, string>,
+      getBoundingClientRect() {
+        return { width: box.width, height: box.height }
+      },
+    },
+    _canvas: canvas,
+    _display: {
+      _target: canvas,
+      absX(x: number) {
+        return Math.round(x / (390 / 1280))
+      },
+      absY(y: number) {
+        return Math.round(y / (243.75 / 800))
+      },
+    },
+    scaleViewport: false,
+    qualityLevel: 6,
+    compressionLevel: 2,
+    _requestRemoteResize() {
+      const self = this as {
+        _resizeSession: boolean
+        _supportsSetDesktopSize: boolean
+        _viewOnly: boolean
+        _screen: { getBoundingClientRect: () => { width: number; height: number } }
+      }
+      if (!self._resizeSession || !self._supportsSetDesktopSize || self._viewOnly) return
+      const size = self._screen.getBoundingClientRect()
+      requests.push([Math.floor(size.width), Math.floor(size.height)])
+    },
+  }
+  Object.defineProperty(rfb, "resizeSession", {
+    get() {
+      return (this as { _resizeSession: boolean })._resizeSession
+    },
+    set(value: boolean) {
+      ;(this as { _resizeSession: boolean })._resizeSession = value
+      ;(this as { _requestRemoteResize: () => void })._requestRemoteResize()
+    },
+  })
+  const view = Door.applyDoorView(rfb)
+  assert.equal(view.resizeGated, true)
+  assert.equal(view.mapped, true)
+  assert.equal(rfb.scaleViewport, true)
+  assert.equal(rfb.qualityLevel, Door.DOOR_QUALITY_LEVEL)
+  assert.equal(rfb.compressionLevel, Door.DOOR_COMPRESSION_LEVEL)
+  assert.equal(Door.DOOR_QUALITY_LEVEL, 4)
+  assert.equal(Door.DOOR_COMPRESSION_LEVEL, 6)
+  assert.equal((rfb._screen as { style: { overflow: string; touchAction: string } }).style.overflow, "hidden")
+  assert.equal((rfb._screen as { style: { touchAction: string } }).style.touchAction, "manipulation")
+  assert.equal(canvas.style.touchAction, "manipulation")
+  assert.equal(rfb.resizeSession, true)
+  assert.equal(requests.length, 0)
+  ;(rfb as { _supportsSetDesktopSize: boolean })._supportsSetDesktopSize = true
+  ;(rfb as { _requestRemoteResize: () => void })._requestRemoteResize()
+  assert.equal(requests.length, 0, "a 0×0 stage is not a resize")
+  assert.equal(rfb.resizeSession, true)
+  box.width = 390
+  box.height = 520
+  ;(rfb as { _requestRemoteResize: () => void })._requestRemoteResize()
+  assert.deepEqual(requests, [[390, 520]])
+  assert.equal(rfb.resizeSession, false)
+  ;(rfb as { _requestRemoteResize: () => void })._requestRemoteResize()
+  assert.deepEqual(requests, [[390, 520]])
+  const display = rfb._display as { absX: (x: number) => number; absY: (y: number) => number }
+  const shown = canvas.getBoundingClientRect()
+  shown.width = 780
+  shown.height = 487.5
+  canvas.getBoundingClientRect = () => shown
+  assert.equal(display.absX(390), Math.floor((390 * canvas.width) / 780))
+  assert.equal(display.absY(100), Math.floor((100 * canvas.height) / 487.5))
+  assert.notEqual(display.absX(390), 1280)
+})
+
 test("IME coalescer folds a burst, paces keys, and still commits on Enter and Clear", () => {
   const Door = loadDoorStream()
   const XK_BACKSPACE = 0xff08

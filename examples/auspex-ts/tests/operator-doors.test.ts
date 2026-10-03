@@ -449,6 +449,22 @@ function emit(
   handler.fn(ev ?? { preventDefault() {} })
 }
 
+test("phone door has no preview zoom controls", () => {
+  const html = readDoor("phone.html")
+  assert.equal(html.includes("zoomBar"), false)
+  assert.equal(html.includes("preview-zoom"), false)
+  assert.equal(html.includes("bindPreviewZoom"), false)
+  const loaded = loadDoor(html, "")
+  const ime = loaded.byId.get("ime")
+  assert.ok(ime)
+  assert.equal(loaded.byId.get("zoomIn"), undefined)
+  assert.equal(loaded.byId.get("zoomOut"), undefined)
+  assert.equal(loaded.byId.get("zoomReset"), undefined)
+  ime.value = PASSWORD
+  assert.equal(ime.value, PASSWORD)
+  assert.equal(ime.disabled, false)
+})
+
 test("a served docs tree returns the phone door and redirects old URLs", async () => {
   const pages: Record<string, string> = {
     "/door.html": readDoor("door.html"),
@@ -483,6 +499,150 @@ test("a served docs tree returns the phone door and redirects old URLs", async (
     assert.match(await oldDoor.text(), /id="phone"/)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test("door scripts run in a browser-like page and keep secrets off the chat paste line", () => {
+  for (const name of ["phone.html"] as const) {
+    const loaded = loadDoor(readDoor(name), "")
+    const ime = loaded.byId.get("ime")
+    const chat = loaded.byId.get("paste")
+    assert.ok(ime && chat)
+    ime.value = PASSWORD
+    click(loaded.byId.get("save"))
+    assert.equal(chat.value.includes(PASSWORD), false)
+    assert.equal(ime.value, "")
+    ime.value = USERNAME
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+    assert.equal(ime.value, "")
+    assert.equal(chat.value.includes(PASSWORD), false)
+    assert.equal(chat.value.includes(USERNAME), false)
+    assert.equal(chat.value.includes(SOLARI_KEY), false)
+    assert.equal(loaded.byId.get("copyScratch")?.value.includes(PASSWORD), false)
+    assert.equal(loaded.stored.size, 0)
+    if (name === "phone.html") {
+      ime.value = USERNAME
+      click(loaded.byId.get("enter"))
+      assert.equal(ime.value, "")
+      assert.equal(chat.value.includes(USERNAME), false)
+    }
+    ime.value = PASSWORD
+    click(loaded.byId.get("save"))
+    assert.match(chat.value, /I tapped Save/)
+    assert.match(chat.value, /supabase-com/)
+    assert.match(chat.value, /Auspex phone page/)
+    // npm users have no clone: bare `npx auspex` would fetch the unrelated npm package `auspex`.
+    assert.match(chat.value, /npx auspex-solari await-login --profile supabase-com --save-editor/)
+    assert.equal(/npx auspex (?!-solari)/.test(chat.value), false, "paste must not say bare npx auspex")
+    assert.equal(chat.value.includes("Auspex desktop page"), false)
+    assert.equal(chat.value.includes(PASSWORD), false)
+    assert.equal(chat.value.includes(USERNAME), false)
+    const intervals = new Map<number, () => void>()
+    const timeouts = new Map<number, () => void>()
+    const clients: Array<{ fire: (type: string) => void }> = []
+    const live = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
+      { intervals, timeouts, clients },
+    )
+    live.byId.get("ime")!.value = PASSWORD
+    assert.match(live.byId.get("ttl")?.textContent ?? "", /wait for the app to load, then Save/)
+    assert.equal(/VNC ~5 min/.test(live.byId.get("ttl")?.textContent ?? ""), false)
+    assert.ok(clients[0])
+    clients[0].fire("disconnect")
+    live.flushTimeouts()
+    const status = live.byId.get("status")?.textContent ?? ""
+    assert.match(status, /Reconnecting with the same VNC token/)
+    assert.equal(status.includes("new login link is required"), false)
+    assert.equal(live.byId.get("ime")?.disabled, false)
+    assert.equal(live.byId.get("ime")?.value, PASSWORD)
+    assert.ok(clients.length >= 2, `${name} reconnect opens a new RFB`)
+
+    const pauseClients: Array<{ fire: (type: string) => void }> = []
+    const hidden = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=auspex-desktop`,
+      { clients: pauseClients, hidden: true },
+    )
+    hidden.byId.get("ime")!.value = PASSWORD
+    assert.ok(pauseClients[0])
+    pauseClients[0].fire("disconnect")
+    hidden.flushTimeouts()
+    assert.match(hidden.byId.get("status")?.textContent ?? "", /Paused/)
+    assert.equal(hidden.byId.get("ime")?.disabled, false)
+    assert.equal(hidden.byId.get("ime")?.value, PASSWORD)
+    hidden.fireVisibility(false)
+    assert.match(hidden.byId.get("status")?.textContent ?? "", /Reconnecting/)
+    assert.equal((hidden.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+  }
+})
+
+test("door does not call stream-expired on a live timer, and does when the stamp is past", () => {
+  for (const name of ["phone.html"] as const) {
+    const clients: Array<{ fire: (type: string) => void }> = []
+    const live = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+      { clients },
+    )
+    for (let i = 0; i < 4; i++) {
+      const client = clients[clients.length - 1]
+      assert.ok(client, `${name} missing RFB client ${i}`)
+      client.fire("disconnect")
+      live.flushTimeouts()
+    }
+    const status = live.byId.get("status")?.textContent ?? ""
+    assert.match(status, /Reconnecting with the same VNC token/)
+    assert.equal(status.includes("new login link is required"), false)
+    assert.equal(live.byId.get("ime")?.disabled, false)
+
+    const dead = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) - 5}&n=app-example`,
+    )
+    const deadStatus = dead.byId.get("status")?.textContent ?? ""
+    assert.match(deadStatus, /status stream-expired/)
+    assert.match(deadStatus, /nextCall auspex_login/)
+    assert.equal(dead.byId.get("ime")?.disabled, true)
+    assert.equal(dead.byId.get("ime")?.value, "")
+
+    const soon = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 30}&n=app-example`,
+    )
+    assert.match(soon.byId.get("ttl")?.textContent ?? "", /Save once the app has loaded\. This link dies in/)
+    assert.match(soon.byId.get("ttl")?.className ?? "", /warn/)
+
+    const otpClients: Array<{ fire: (type: string) => void }> = []
+    const otp = loadDoor(
+      readDoor(name),
+      `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+      { clients: otpClients },
+    )
+    assert.ok(otpClients[0])
+    otpClients[0].fire("connect")
+    otp.byId.get("ime")!.value = PASSWORD
+    otp.fireVisibility(true)
+    assert.match(otp.byId.get("status")?.textContent ?? "", /Paused/)
+    assert.equal((otp.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+    assert.equal(otp.byId.get("ime")?.disabled, false)
+    assert.equal(otp.byId.get("ime")?.value, PASSWORD)
+    otp.fireVisibility(false)
+    assert.match(otp.byId.get("status")?.textContent ?? "", /Reconnecting with the same VNC token/)
+    assert.equal((otp.byId.get("status")?.textContent ?? "").includes("new login link is required"), false)
+    assert.equal(otp.byId.get("ime")?.disabled, false)
+  }
+})
+
+test("old door and desktop URLs redirect to the phone door and keep the hash", () => {
+  const hash = `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`
+  for (const name of ["door.html", "desktop.html"] as const) {
+    const loaded = loadDoor(readDoor(name), hash)
+    assert.equal(loaded.location.replaced, `./phone.html${hash}`, name)
+    assert.equal(loaded.byId.get("phone")?.href, `./phone.html${hash}`, name)
+    assert.equal(loaded.byId.get("ime"), undefined, name)
+    assert.equal(loaded.byId.get("desktop"), undefined, name)
+    assert.equal(loaded.byId.get("clear"), undefined, name)
   }
 })
 
@@ -615,6 +775,121 @@ test("Save strips any non-empty typed secret without mangling Site URL or templa
   }
 })
 
+test("Clear empties the whole field in one click, local and remote", () => {
+  const XK_BACKSPACE = 0xff08
+  const XK_CONTROL_L = 0xffe3
+  const XK_A = 0x61
+  // Ctrl down, A down, A up, Ctrl up, Backspace: select-all + delete in remote Chrome.
+  const CLEAR_REMOTE = [XK_CONTROL_L, XK_A, XK_A, XK_CONTROL_L, XK_BACKSPACE]
+  const keys: number[] = []
+  const loaded = loadDoor(readDoor("phone.html"), "", { keys })
+  const ime = loaded.byId.get("ime")
+  const clear = loaded.byId.get("clear")
+  assert.ok(ime && clear)
+  // Typed but not yet sent: the pending keys are dropped, never sent after the clear.
+  ime.value = "secret"
+  emit(ime, "input")
+  assert.equal(keys.length, 0)
+  click(clear)
+  assert.equal(ime.value, "")
+  drain(loaded)
+  assert.deepEqual(keys, CLEAR_REMOTE)
+  // Typed and sent, then Enter already emptied the local field: Clear still empties the remote field.
+  keys.length = 0
+  ime.value = "wrong@example.com"
+  emit(ime, "input")
+  drain(loaded)
+  emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+  assert.equal(ime.value, "")
+  const before = keys.length
+  click(clear)
+  drain(loaded)
+  assert.deepEqual(keys.slice(before), CLEAR_REMOTE)
+  assert.equal(ime.value, "")
+})
+
+test("Enter clears the IME after sending the key, and bullets mode still sends real characters", () => {
+  const XK_RETURN = 0xff0d
+  const XK_BACKSPACE = 0xff08
+  for (const name of ["phone.html"] as const) {
+    const keys: number[] = []
+    const loaded = loadDoor(readDoor(name), "", { keys })
+    const ime = loaded.byId.get("ime")
+    const bullets = loaded.byId.get("bullets")
+    const chat = loaded.byId.get("paste")
+    assert.ok(ime && bullets && chat)
+    assert.equal(bullets.checked, false)
+    assert.equal(ime.type, "text")
+    const hashBefore = loaded.location.hash
+    ime.value = "ab"
+    emit(ime, "input")
+    assert.equal(keys.length, 0)
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+    assert.equal(ime.value, "")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN])
+    assert.equal(keys.includes(XK_BACKSPACE), false)
+    ime.value = "Z"
+    emit(ime, "input")
+    drain(loaded)
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
+    bullets.checked = true
+    emit(bullets, "change")
+    assert.equal(ime.type, "password")
+    assert.equal(ime.autocomplete, "current-password")
+    assert.deepEqual(keys, ["a".charCodeAt(0), "b".charCodeAt(0), XK_RETURN, "Z".charCodeAt(0)])
+    emit(ime, "keydown", { key: "Enter", preventDefault() {} })
+    ime.value = PASSWORD
+    emit(ime, "input")
+    drain(loaded)
+    const passwordCodes = [...PASSWORD].map((ch) => ch.charCodeAt(0))
+    assert.deepEqual(keys.slice(-passwordCodes.length), passwordCodes)
+    assert.equal(keys.includes(0x2022), false)
+    click(loaded.byId.get("save"))
+    assert.equal(ime.value, "")
+    assert.equal(chat.value.includes(PASSWORD), false)
+    assert.equal(loaded.byId.get("copyScratch")?.value.includes(PASSWORD), false)
+    assert.equal(loaded.location.hash, hashBefore)
+    assert.equal(loaded.location.hash.includes(PASSWORD), false)
+    assert.equal(loaded.stored.size, 0)
+    bullets.checked = false
+    emit(bullets, "change")
+    assert.equal(ime.type, "text")
+    assert.equal(ime.autocomplete, "current-password")
+    if (name === "phone.html") {
+      const otp = loaded.byId.get("otpMode")
+      assert.ok(otp)
+      otp.checked = true
+      emit(otp, "change")
+      assert.equal(bullets.checked, false)
+      assert.equal(ime.type, "text")
+      assert.equal(ime.autocomplete, "one-time-code")
+    }
+    const user = loaded.byId.get("imeUser")
+    assert.ok(user)
+    user.value = USERNAME
+    click(loaded.byId.get("save"))
+    assert.equal(chat.value.includes(USERNAME), false)
+    assert.equal(user.value, "")
+  }
+})
+
+test("phone door fits the picture and does not keep resizing the remote", () => {
+  const clients: Array<{ fire: (type: string) => void; rfb: { scaleViewport: boolean; resizeSession: boolean; qualityLevel: number; compressionLevel: number } }> = []
+  const loaded = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=app-example`,
+    { clients },
+  )
+  assert.ok(clients[0])
+  assert.equal(clients[0].rfb.scaleViewport, true)
+  assert.equal(clients[0].rfb.resizeSession, false)
+  assert.equal(clients[0].rfb.qualityLevel, 4)
+  assert.equal(clients[0].rfb.compressionLevel, 6)
+  assert.match(readDoor("phone.html"), /touch-action: manipulation/)
+  assert.match(readDoor("phone.html"), /stays still while you tap/)
+  assert.equal(loaded.byId.get("ime")?.disabled, false)
+})
+
 test("Save says Copied only when the copy is confirmed; otherwise it asks for a hand copy", async () => {
   const settle = () => new Promise((resolve) => setImmediate(resolve))
   // Clipboard API resolves: confirmed.
@@ -687,6 +962,20 @@ test("after Save, a link that runs out without Solari closing the stream does no
   assert.match(ttl, /^Link ended\. Your agent confirms whether the login was saved\./)
   assert.equal(/^Saved/.test(ttl), false)
   assert.equal(/Solari closed the remote Chrome/.test(live.byId.get("status")?.textContent ?? ""), false)
+})
+
+test("before Save, a closed stream still reconnects", () => {
+  const clients: Array<{ fire: (type: string) => void }> = []
+  const live = loadDoor(
+    readDoor("phone.html"),
+    `#v=door-token&exp=${Math.floor(Date.now() / 1000) + 600}&n=consistencyhub`,
+    { clients },
+  )
+  clients[0]!.fire("connect")
+  clients[0]!.fire("disconnect")
+  live.flushTimeouts()
+  assert.ok(clients.length >= 2, "reconnect opens a new stream")
+  assert.match(live.byId.get("status")?.textContent ?? "", /Reconnecting/)
 })
 
 test("the saved-login idle clock is shared: a login used from the other install is not deleted", async () => {

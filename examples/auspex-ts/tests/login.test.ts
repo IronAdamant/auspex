@@ -200,6 +200,13 @@ function phoneHtmlSavePaste(name?: string): string {
   return api.savePasteLine(name)
 }
 
+test("phone.html clipboard equals phoneSavePaste", () => {
+  assert.equal(phoneHtmlSavePaste("consistencyhub"), phoneSavePaste("consistencyhub"))
+  assert.equal(phoneHtmlSavePaste(""), phoneSavePaste())
+  assert.equal(phoneHtmlSavePaste("  myapp  "), phoneSavePaste("  myapp  "))
+  assert.equal(phoneHtmlSavePaste(), phoneSavePaste())
+})
+
 test("saveProfileEditor POSTs editor/save", async () => {
   const calls: string[] = []
   const saved = await saveProfileEditor(
