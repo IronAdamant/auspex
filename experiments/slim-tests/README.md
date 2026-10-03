@@ -90,6 +90,6 @@ design and is not run until the round-2 suite is final. Round-1's 33 bugs are `m
 Tools: `synth-mutants.ts` (401 operator mutants, max 6 per src file, fixed seed), `affected.mjs`
 (test files that can see each src module), `run-mutants.mjs` (4 workers on a union checkout holding
 every test of every variant, so one run per mutant scores all variants). Flake baseline: 6 clean
-union runs under the same 4-way load, no flaky test.
+union runs under 3-way parallel load, no flaky test.
 
 Duplication is not the lever: jscpd finds 3% copy-paste in tests (592 of 20,000 lines).

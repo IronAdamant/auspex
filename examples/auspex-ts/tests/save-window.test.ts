@@ -1,18 +1,16 @@
 import assert from "node:assert/strict"
-import { spawn } from "node:child_process"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import {
-  EDITOR_SAVE_INFRA_RETRY_DELAY_MS,
   editorSaveForReceipt,
   editorSaveHttpProgress,
   isNotSavableConflict,
   saveEditorWithNotSavableReuse,
 } from "../src/editor-save-attempt.ts"
 import { enableLiveLineBuffer, writeLiveLine } from "../src/line-buffer.ts"
-import { clearSaveOwner, saveDrainDir, siblingSavedNext, signalSaveDrain } from "../src/save-drain.ts"
+import { saveDrainDir, signalSaveDrain } from "../src/save-drain.ts"
 import { postEditorSaveWhenSignaled, waitForSaveSignal } from "../src/signaled-editor-save.ts"
 
 const NOT_SAVABLE = { ok: false, status: 409, error: "profile is not in a savable state" }
@@ -23,50 +21,20 @@ async function tempRoot(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), "auspex-save-window-"))
 }
 
-test("Solari 409 isn't in a savable state reuses one live token then saves again", async () => {
-  let saves = 0
-  let liveChecks = 0
-  const phases: string[] = []
-  const saved = await saveEditorWithNotSavableReuse({
-    save: async () => {
-      saves += 1
-      return saves === 1 ? { ok: false, status: 409, error: SOLARI_NOT_SAVABLE } : { ok: true, status: 200 }
-    },
-    editorStillLive: async () => {
-      liveChecks += 1
-      return true
-    },
-    onProgress: (phase) => {
-      phases.push(phase)
-    },
-  })
-  assert.equal(saves, 2)
-  assert.equal(liveChecks, 1)
-  assert.equal(saved.ok, true)
-  assert.equal(saved.status, 200)
-  assert.equal(saved.tokenReuse, true)
-  assert.equal(saved.notSavableExhausted, undefined)
-  assert.deepEqual(editorSaveForReceipt(saved), { ok: true, status: 200, tokenReuse: true })
-  assert.equal(phases[0], "await: editor/save 409 not in a savable state. One live editor/token check.")
-  assert.equal(phases[1], "await: editor still live. POST editor/save once more.")
-})
-
-test("Solari 409 keeps the editor/token status on the receipt", async () => {
-  const refused = await saveEditorWithNotSavableReuse({
-    save: async () => ({ ok: false, status: 409, error: SOLARI_NOT_SAVABLE }),
-    editorStillLive: async () => ({ live: false, status: 409 }),
-  })
-  assert.equal(refused.notSavableExhausted, true)
-  assert.equal(refused.tokenReuse, false)
-  assert.equal(editorSaveForReceipt(refused).tokenStatus, 409)
-
-  const threw = await saveEditorWithNotSavableReuse({
-    save: async () => ({ ok: false, status: 409, error: SOLARI_NOT_SAVABLE }),
-    editorStillLive: async () => {
-      throw new Error("socket")
-    },
-  })
-  assert.equal(editorSaveForReceipt(threw).tokenStatus, 0)
+test("isNotSavableConflict matches only that 409 phrase", () => {
+  assert.equal(isNotSavableConflict(409, "not in a savable state"), true)
+  assert.equal(isNotSavableConflict(409, "Editor is NOT in a savable state right now"), true)
+  assert.equal(isNotSavableConflict(409, "profile is not in a savable state"), true)
+  assert.equal(isNotSavableConflict(409, SOLARI_NOT_SAVABLE), true)
+  assert.equal(isNotSavableConflict(409, "The editor isn’t in a savable state."), true)
+  assert.equal(isNotSavableConflict(409, "editor already running"), false)
+  assert.equal(isNotSavableConflict(409, "editor is open"), false)
+  assert.equal(isNotSavableConflict(409, "The editor isn't ready"), false)
+  assert.equal(isNotSavableConflict(409, "not savable"), false)
+  assert.equal(isNotSavableConflict(409, "cannot in a savable state"), false)
+  assert.equal(isNotSavableConflict(502, "not in a savable state"), false)
+  assert.equal(isNotSavableConflict(502, SOLARI_NOT_SAVABLE), false)
+  assert.equal(isNotSavableConflict(401, "not in a savable state"), false)
 })
 
 test("Solari 409 isn't stays fail-closed when the token is gone or the retry fails", async () => {
@@ -113,41 +81,6 @@ test("Solari 409 isn't stays fail-closed when the token is gone or the retry fai
   })
 })
 
-test("409 not-savable reuses one live token then saves again", async () => {
-  let saves = 0
-  let liveChecks = 0
-  const saved = await saveEditorWithNotSavableReuse({
-    save: async () => {
-      saves += 1
-      return saves === 1 ? NOT_SAVABLE : { ok: true, status: 200 }
-    },
-    editorStillLive: async () => {
-      liveChecks += 1
-      return true
-    },
-  })
-  assert.equal(saves, 2)
-  assert.equal(liveChecks, 1)
-  assert.equal(saved.ok, true)
-  assert.equal(saved.tokenReuse, true)
-  assert.equal(saved.notSavableExhausted, undefined)
-})
-
-test("a missing editor token does not claim a save", async () => {
-  let saves = 0
-  const saved = await saveEditorWithNotSavableReuse({
-    save: async () => {
-      saves += 1
-      return NOT_SAVABLE
-    },
-    editorStillLive: async () => false,
-  })
-  assert.equal(saves, 1)
-  assert.equal(saved.ok, false)
-  assert.equal(saved.notSavableExhausted, true)
-  assert.equal(saved.tokenReuse, false)
-})
-
 test("a second not-savable save is exhausted", async () => {
   let saves = 0
   const saved = await saveEditorWithNotSavableReuse({
@@ -188,61 +121,6 @@ test("a hung save is not a savable-state retry", async () => {
   assert.equal(second.tokenReuse, true)
   assert.equal(second.notSavableExhausted, undefined)
   assert.equal(second.ok, false)
-})
-
-test("a Solari 502 on save waits, checks the editor is live, and saves once more", async () => {
-  // Live, tldraw: editor/save 502 "Failed to export storageState" with two minutes of door left
-  // sent the human back to sign in again; the same save worked the next morning.
-  let saves = 0
-  let liveChecks = 0
-  const slept: number[] = []
-  const phases: string[] = []
-  const saved = await saveEditorWithNotSavableReuse({
-    save: async () => {
-      saves += 1
-      return saves === 1 ? { ok: false, status: 502, error: "Failed to export storageState" } : { ok: true, status: 200 }
-    },
-    editorStillLive: async () => {
-      liveChecks += 1
-      return { live: true, status: 200 }
-    },
-    sleep: async (ms) => {
-      slept.push(ms)
-    },
-    onProgress: (phase) => {
-      phases.push(phase)
-    },
-  })
-  assert.equal(saves, 2)
-  assert.equal(liveChecks, 1)
-  assert.deepEqual(slept, [EDITOR_SAVE_INFRA_RETRY_DELAY_MS])
-  assert.equal(saved.ok, true)
-  assert.equal(saved.retriedAfter, 502)
-  assert.equal(saved.notSavableExhausted, undefined)
-  assert.deepEqual(editorSaveForReceipt(saved), { ok: true, status: 200, tokenReuse: true, tokenStatus: 200, retriedAfter: 502 })
-  assert.match(phases.at(-1)!, /succeeded on the retry after Solari 502/)
-})
-
-test("a Solari 5xx on save with the editor already gone keeps the Solari status and does not save again", async () => {
-  let saves = 0
-  const phases: string[] = []
-  const saved = await saveEditorWithNotSavableReuse({
-    save: async () => {
-      saves += 1
-      return { ok: false, status: 503, error: "Service Unavailable" }
-    },
-    editorStillLive: async () => ({ live: false, status: 404 }),
-    sleep: async () => undefined,
-    onProgress: (phase) => {
-      phases.push(phase)
-    },
-  })
-  assert.equal(saves, 1)
-  assert.equal(saved.ok, false)
-  assert.equal(saved.status, 503)
-  assert.equal(saved.retriedAfter, undefined)
-  assert.equal(saved.notSavableExhausted, undefined, "a Solari 5xx is not stream-expired")
-  assert.match(phases.at(-1)!, /Solari status stands/)
 })
 
 test("a second Solari 5xx on the retry stands; it is still not stream-expired", async () => {
@@ -357,42 +235,6 @@ test("a paste with no waiter POSTs editor/save immediately", async () => {
   }
 })
 
-test("a paste signals a live waiter and does not kill it or save", async () => {
-  const root = await tempRoot()
-  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
-  let saves = 0
-  try {
-    assert.ok(child.pid)
-    const dir = saveDrainDir(root)
-    await mkdir(dir, { recursive: true })
-    await writeFile(
-      path.join(dir, "app-example.waiter.json"),
-      JSON.stringify({ pid: child.pid, profile: "app-example" }),
-    )
-    const outcome = await postEditorSaveWhenSignaled({
-      profile: "app-example",
-      sinceVersion: 1,
-      waitForSaveSignal: false,
-      deadlineMs: Date.now() + 60_000,
-      readVersion: async () => 9,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
-      },
-      editorStillLive: async () => true,
-      drainRoot: root,
-    })
-    assert.equal(outcome.mode, "signaled-waiter")
-    assert.match(outcome.next ?? "", /Do not kill/)
-    assert.match(outcome.next ?? "", /Do not remint/)
-    assert.equal(saves, 0)
-    assert.equal(child.exitCode, null)
-  } finally {
-    child.kill()
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test("the waiter POSTs when the paste arrives and ignores a stale signal", async () => {
   const root = await tempRoot()
   let saves = 0
@@ -482,229 +324,35 @@ test("expiry before Save does not POST", async () => {
   }
 })
 
-test("a sibling that already saved is not stream-expired and does not POST", async () => {
-  const root = await tempRoot()
-  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
-  let saves = 0
-  const now = 9_000_000
-  try {
-    assert.ok(child.pid)
-    const dir = saveDrainDir(root)
-    await mkdir(dir, { recursive: true })
-    await writeFile(
-      path.join(dir, "app-example.owner.json"),
-      JSON.stringify({ pid: child.pid, profile: "app-example", phase: "saved", status: 200 }),
-    )
-    const outcome = await postEditorSaveWhenSignaled({
-      profile: "app-example",
-      sinceVersion: 1,
-      waitForSaveSignal: true,
-      streamExpiresAt: new Date(now - 5_000).toISOString(),
-      deadlineMs: now + 60_000,
-      now: () => now,
-      sleep: async () => undefined,
-      pollMs: 1_000,
-      readVersion: async () => 8,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
+test("line buffer flushes a newline and tolerates a missing handle", () => {
+  const chunks: string[] = []
+  let blocking: boolean | undefined
+  const stream = {
+    write(line: string) {
+      chunks.push(line)
+      return true
+    },
+    _handle: {
+      setBlocking(value: boolean) {
+        blocking = value
       },
-      editorStillLive: async () => false,
-      drainRoot: root,
-    })
-    assert.equal(outcome.mode, "sibling-saved")
-    assert.equal(saves, 0)
-    assert.match(outcome.next ?? "", /status sibling-saved/)
-    assert.match(outcome.next ?? "", /Do not call this stream-expired/)
-    assert.match(outcome.next ?? "", /Do not remint/)
-    assert.match(outcome.next ?? "", /did not read the jar/)
-    assert.equal(outcome.next, siblingSavedNext("app-example"))
-  } finally {
-    child.kill()
-    await rm(root, { recursive: true, force: true })
+    },
   }
-})
+  enableLiveLineBuffer(stream as unknown as NodeJS.WritableStream)
+  assert.equal(blocking, true)
+  writeLiveLine(stream as unknown as NodeJS.WritableStream, "await: waiting")
+  writeLiveLine(stream as unknown as NodeJS.WritableStream, "await: again\n")
+  assert.deepEqual(chunks, ["await: waiting\n", "await: again\n"])
 
-test("a paste does not POST when a sibling save is in flight", async () => {
-  const root = await tempRoot()
-  const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })
-  let saves = 0
-  try {
-    assert.ok(child.pid)
-    const dir = saveDrainDir(root)
-    await mkdir(dir, { recursive: true })
-    await writeFile(
-      path.join(dir, "app-example.owner.json"),
-      JSON.stringify({ pid: child.pid, profile: "app-example", phase: "posting" }),
-    )
-    const outcome = await postEditorSaveWhenSignaled({
-      profile: "app-example",
-      sinceVersion: 1,
-      waitForSaveSignal: false,
-      deadlineMs: Date.now() + 60_000,
-      readVersion: async () => 4,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
-      },
-      editorStillLive: async () => true,
-      drainRoot: root,
-    })
-    assert.equal(outcome.mode, "sibling-saved")
-    assert.equal(saves, 0)
-    assert.match(outcome.next ?? "", /Do not call this stream-expired/)
-  } finally {
-    child.kill()
-    await rm(root, { recursive: true, force: true })
+  const bare = {
+    write(line: string) {
+      chunks.push(line)
+      return true
+    },
   }
-})
-
-test("the waiter yields when the sibling save appears before the token ends", async () => {
-  const root = await tempRoot()
-  let saves = 0
-  let now = 6_000_000
-  let noted = false
-  try {
-    const outcome = await postEditorSaveWhenSignaled({
-      profile: "app-example",
-      sinceVersion: 2,
-      waitForSaveSignal: true,
-      streamExpiresAt: new Date(now + 30_000).toISOString(),
-      deadlineMs: now + 20_000,
-      now: () => now,
-      sleep: async (ms: number) => {
-        if (!noted) {
-          noted = true
-          const dir = saveDrainDir(root)
-          await mkdir(dir, { recursive: true })
-          await writeFile(
-            path.join(dir, "app-example.owner.json"),
-            JSON.stringify({ pid: process.pid + 1, profile: "app-example", phase: "saved", status: 200 }),
-          )
-        }
-        now += ms
-      },
-      pollMs: 1_000,
-      readVersion: async () => 2,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
-      },
-      editorStillLive: async () => false,
-      drainRoot: root,
-    })
-    assert.equal(outcome.mode, "sibling-saved")
-    assert.equal(saves, 0)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test("two concurrent paste paths POST editor/save once", async () => {
-  const root = await tempRoot()
-  let release: () => void = () => undefined
-  const gate = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  let entered = 0
-  try {
-    const run = () =>
-      postEditorSaveWhenSignaled({
-        profile: "app-example",
-        sinceVersion: 1,
-        waitForSaveSignal: false,
-        deadlineMs: Date.now() + 60_000,
-        readVersion: async () => 1,
-        save: async () => {
-          entered += 1
-          await gate
-          return { ok: true, status: 200 }
-        },
-        editorStillLive: async () => false,
-        drainRoot: root,
-      })
-    const left = run()
-    const right = run()
-    const first = await Promise.race([
-      left.then((result) => ({ label: "left" as const, result })),
-      right.then((result) => ({ label: "right" as const, result })),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("both saves blocked")), 2_000)),
-    ])
-    assert.equal(first.result.mode, "sibling-saved")
-    const start = Date.now()
-    while (entered < 1 && Date.now() - start < 1_000) {
-      await new Promise((resolve) => setTimeout(resolve, 5))
-    }
-    assert.equal(entered, 1)
-    release()
-    const second = await (first.label === "left" ? right : left)
-    assert.equal(second.mode, "posted")
-    assert.equal(second.editorSave?.ok, true)
-    assert.equal(entered, 1)
-  } finally {
-    release()
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test("a failed save does not block a later POST, and a saved owner does until the next login clears it", async () => {
-  const root = await tempRoot()
-  let saves = 0
-  const base = {
-    profile: "app-example",
-    sinceVersion: 1,
-    waitForSaveSignal: false as const,
-    deadlineMs: Date.now() + 60_000,
-    readVersion: async () => 1,
-    editorStillLive: async () => false,
-    drainRoot: root,
-  }
-  try {
-    const failed = await postEditorSaveWhenSignaled({
-      ...base,
-      save: async () => {
-        saves += 1
-        return NOT_SAVABLE
-      },
-    })
-    assert.equal(failed.mode, "posted")
-    assert.equal(failed.editorSave?.notSavableExhausted, true)
-    assert.equal(saves, 1)
-
-    const again = await postEditorSaveWhenSignaled({
-      ...base,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
-      },
-    })
-    assert.equal(again.mode, "posted")
-    assert.equal(saves, 2)
-
-    const blocked = await postEditorSaveWhenSignaled({
-      ...base,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 200 }
-      },
-    })
-    assert.equal(blocked.mode, "sibling-saved")
-    assert.equal(saves, 2)
-
-    await clearSaveOwner("app-example", root)
-    const remint = await postEditorSaveWhenSignaled({
-      ...base,
-      save: async () => {
-        saves += 1
-        return { ok: true, status: 201 }
-      },
-    })
-    assert.equal(remint.mode, "posted")
-    assert.equal(remint.editorSave?.status, 201)
-    assert.equal(saves, 3)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
+  enableLiveLineBuffer(bare as unknown as NodeJS.WritableStream)
+  writeLiveLine(bare as unknown as NodeJS.WritableStream, "ok")
+  assert.equal(chunks.at(-1), "ok\n")
 })
 
 test("claimSaveOwner does not take a save lock whose owner is still writing it", async () => {
@@ -725,66 +373,6 @@ test("claimSaveOwner does not take a save lock whose owner is still writing it",
   assert.equal(later.ok, true)
   if (later.ok) await later.release()
   await rm(root, { recursive: true, force: true })
-})
-
-async function holdWaiter(root: string, shared: string, profile: string) {
-  // A separate process: a waiter in this same process is deliberately not "someone else waiting".
-  const saveDrain = path.resolve("src/save-drain.ts")
-  const child = spawn(
-    "npx",
-    ["tsx", "-e", `import("${saveDrain}").then(async (m) => { const c = await m.registerSaveWaiter("${profile}", ${JSON.stringify(root)}); console.log(c.ok ? "ready " + process.pid : "busy"); setTimeout(async () => { if (c.ok) await c.release(); process.exit(0) }, 20000) })`],
-    { env: { ...process.env, AUSPEX_SHARED_DRAIN: shared, NODE_TEST_CONTEXT: "" }, stdio: ["ignore", "pipe", "inherit"] },
-  )
-  const waiterPid = await new Promise<number>((resolve, reject) => {
-    child.stdout.on("data", (d) => {
-      const m = /ready (\d+)/.exec(String(d))
-      if (m) resolve(Number(m[1]))
-      else reject(new Error(String(d)))
-    })
-    child.on("exit", () => reject(new Error("waiter exited")))
-  })
-  // Kill the process that holds the waiter, not only npx: on Linux, killing npx leaves its node child running.
-  return {
-    kill: () => {
-      try {
-        process.kill(waiterPid)
-      } catch {
-        /* already gone */
-      }
-      child.kill()
-    },
-  }
-}
-
-test("connect --save finds a waiting connect in the other install (clone waiter, npm command)", async () => {
-  const { findWaitingDrain } = await import("../src/save-drain.ts")
-  const cloneRoot = await mkdtemp(path.join(tmpdir(), "auspex-clone-"))
-  const npmRoot = await mkdtemp(path.join(tmpdir(), "auspex-npm-"))
-  const shared = saveDrainDir(npmRoot)
-  const child = await holdWaiter(cloneRoot, shared, "app-example")
-  try {
-    // The npm install looks in its own folder (the shared one) and follows the clone's pointer.
-    assert.equal(await findWaitingDrain("app-example", npmRoot, shared), saveDrainDir(cloneRoot))
-    assert.equal(await findWaitingDrain("other-app", npmRoot, shared), undefined)
-  } finally {
-    child.kill()
-  }
-})
-
-test("connect --save from a clone finds a waiting npm connect", async () => {
-  const { findWaitingDrain } = await import("../src/save-drain.ts")
-  const cloneRoot = await mkdtemp(path.join(tmpdir(), "auspex-clone-"))
-  const npmRoot = await mkdtemp(path.join(tmpdir(), "auspex-npm-"))
-  const shared = saveDrainDir(npmRoot)
-  const child = await holdWaiter(npmRoot, shared, "app-example")
-  try {
-    assert.equal(await findWaitingDrain("app-example", cloneRoot, shared), shared)
-  } finally {
-    child.kill()
-  }
-  // Once that process is gone nothing is waiting, pointer or not.
-  await new Promise((r) => setTimeout(r, 300))
-  assert.equal(await findWaitingDrain("app-example", cloneRoot, shared), undefined)
 })
 
 test("connect prints the command for this install (clone: npx auspex)", async () => {

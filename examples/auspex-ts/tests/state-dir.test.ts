@@ -2,26 +2,6 @@ import assert from "node:assert/strict"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
-import { packageRoot, resolveStateDir, resolveStatePath, stateDir, toStatePath } from "../src/paths.ts"
-
-test("sandbox assert flags home paths only; ~/ and AUSPEX_HOME paths verify", async () => {
-  const { spawnSync } = await import("node:child_process")
-  const { ASSERT_RECEIPT_PY_PATH } = await import("../src/receipt.ts")
-  const probe = `import importlib.util, re, sys
-spec = importlib.util.spec_from_file_location("a", sys.argv[1]); src = open(sys.argv[1]).read()
-rx = re.search(r're\\.match\\((r"[^"]+")', src).group(1)
-pat = eval(rx)
-for s in sys.argv[2:]: print(s, bool(re.match(pat, s)))`
-  const cases = ["/Users/a/.auspex/x", "/home/a/x", "C:\\Users\\a\\x", "~/.auspex/runs/x", ".auspex/runs/x", "/srv/auspex/runs/x"]
-  const ran = spawnSync("python3", ["-c", probe, ASSERT_RECEIPT_PY_PATH, ...cases], { encoding: "utf8" })
-  if (ran.error) return // python3 missing on this runner
-  assert.equal(ran.status, 0, ran.stderr)
-  const flagged = Object.fromEntries(ran.stdout.trim().split("\n").map((l) => { const i = l.lastIndexOf(" "); return [l.slice(0, i), l.slice(i + 1) === "True"] }))
-  assert.deepEqual(flagged, {
-    "/Users/a/.auspex/x": true, "/home/a/x": true, "C:\\Users\\a\\x": true,
-    "~/.auspex/runs/x": false, ".auspex/runs/x": false, "/srv/auspex/runs/x": false,
-  })
-})
 
 test("two runs started in the same second get their own folders", async () => {
   const { ensureRunDir } = await import("../src/paths.ts")

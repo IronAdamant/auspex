@@ -18,15 +18,15 @@ const allTests = [...new Set(Object.values(affected).flat())].sort()
 mkdirSync(outDir, { recursive: true })
 
 function moduleOf(patch) {
-  const m = readFileSync(patch, "utf8").match(/^\+\+\+ b\/examples\/auspex-ts\/src\/([^\s]+)/m)
+  const m = readFileSync(patch, "utf8").match(/^\+\+\+ [ab]\/examples\/auspex-ts\/src\/([^\s]+)/m)
   return m?.[1]
 }
+// Failing tests by title only. node's TAP for several files prints a file heading only when that
+// file fails as a whole, so a remembered heading would stamp the wrong file on later failures.
+// Titles are unique across the suite; analysis maps each title to its file.
 function failures(tap) {
   const out = []
-  let file = ""
   for (const line of tap.split("\n")) {
-    const sub = line.match(/^# Subtest: (.*\.test\.ts)$/)
-    if (sub) file = path.basename(sub[1])
     const m = line.match(/^(\s*)not ok \d+ - (.*)$/)
     if (!m) continue
     const title = m[2].replace(/ # .*$/, "")
@@ -35,7 +35,7 @@ function failures(tap) {
       if (!tap.includes(`# Subtest: ${title}\n    # Subtest:`)) out.push(`${path.basename(title)}::<file>`)
       continue
     }
-    out.push(`${file}::${title}`)
+    out.push(`::${title}`)
   }
   return out
 }
@@ -75,7 +75,7 @@ async function worker(wt) {
     await run("npm", ["run", "build:mcp", "--silent"], pkg, 120_000)
     const res = await run(
       "npx",
-      ["tsx", "--test", "--test-reporter=tap", "--test-timeout=60000", ...files.map((f) => `tests/${f}`)],
+      ["tsx", "--test", "--test-reporter=tap", "--test-timeout=60000", "--test-concurrency=3", ...files.map((f) => `tests/${f}`)],
       pkg,
       600_000,
     )

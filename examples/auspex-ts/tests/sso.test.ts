@@ -1,11 +1,21 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { readFileSync } from "node:fs"
-import path from "node:path"
-import { fileURLToPath } from "node:url"
-import { completeSso, describeAuthWall, shouldFailClosedAuth, stillOnAuth } from "../src/sso.ts"
+import { completeSso, stillOnAuth } from "../src/sso.ts"
 
-const ssoSrc = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/sso.ts"), "utf8")
+test("stillOnAuth is true on Microsoft and /login", () => {
+  assert.equal(stillOnAuth(new URL("https://login.microsoftonline.com/common/oauth2/v2.0/authorize")), true)
+  assert.equal(stillOnAuth(new URL("https://login.live.com/")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/login")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/login/")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/login/oauth")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/Login")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/auth")), true)
+  assert.equal(stillOnAuth(new URL("https://consistencyhub.io/auth/callback")), true)
+  assert.equal(stillOnAuth(new URL("https://accounts.google.com/o/oauth2/v2/auth")), true)
+  assert.equal(stillOnAuth(new URL("https://ironadamant.com/")), false)
+  assert.equal(stillOnAuth(new URL("https://login.microsoftonline.com.evil.com/")), false)
+  assert.equal(stillOnAuth(new URL("https://notlogin.live.com/")), false)
+})
 
 test("completeSso: a Microsoft account tile that will not click is probed, not thrown", async () => {
   let url = "https://app.example/login"
@@ -36,27 +46,3 @@ test("completeSso: a Microsoft account tile that will not click is probed, not t
   assert.equal(result.needsHuman, false)
 })
 
-test("sign-in pages are recognised by any sign-in path segment, not only /login and /auth", async () => {
-  const { stillOnAuth } = await import("../src/sso.ts")
-  for (const url of [
-    "https://app.example/login",
-    "https://app.example/login/sso",
-    "https://app.example/auth/callback",
-    "https://app.example/signin",
-    "https://app.example/sign-in?next=/dash",
-    "https://gitlab.example/users/sign_in",
-    "https://app.example/account/login",
-    "https://app.example/accounts/log-in/",
-  ]) {
-    assert.equal(stillOnAuth(new URL(url)), true, url)
-  }
-  for (const url of [
-    "https://app.example/dashboard",
-    "https://app.example/settings/login-history",
-    "https://app.example/signing-keys",
-    "https://app.example/api/authors",
-    "https://www.tldraw.com/f/abc",
-  ]) {
-    assert.equal(stillOnAuth(new URL(url)), false, url)
-  }
-})

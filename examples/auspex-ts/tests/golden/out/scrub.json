@@ -1,9 +1,0 @@
-{
-  "redactUrlSecrets(\"https://cloud.example/login/oauth2/code/grant?code=4f47bc0be3df&state=M0jZ.JTJG&lang=en\")": "https://cloud.example/login/oauth2/code/grant?code=redacted&state=redacted&lang=en",
-  "redactUrlSecrets(\"https://app.example/#/dashboard\")": "https://app.example/#/dashboard",
-  "redactUrlSecrets(\"https://app.example/dashboard?tab=2\")": "https://app.example/dashboard?tab=2",
-  "redactUrlSecrets(\"https://app.example/cb#access_token=abc123&token_type=bearer&expires_in=3600\")": "https://app.example/cb#access_token=redacted&token_type=redacted&expires_in=3600",
-  "redactUrlSecrets(\"https://app.example/#/callback?id_token=eyJabc&view=1\")": "https://app.example/#/callback?id_token=redacted&view=1",
-  "redactUrlSecrets(\"not a url\")": "not a url",
-  "redactUrlSecretsInText(\"locator.click: Timeout 15000ms exceeded. navigated to \\\"https://cloud.example/login/oa...)": "locator.click: Timeout 15000ms exceeded. navigated to \"https://cloud.example/login/oauth2/code/grant?code=redacted&state=redacted\""
-}

@@ -213,6 +213,31 @@ test("phone door is the only login door; old URLs redirect", () => {
   }
 })
 
+test("agent tool schemas have no username, password, or Solari key field", () => {
+  const schemas = [
+    auspexCheckInputObject,
+    auspexLoginInputObject,
+    auspexAwaitLoginInputSchema,
+    auspexFinalizeLoginInputSchema,
+    auspexProfilesInputSchema,
+    auspexProfileStatusInputSchema,
+    auspexDesktopInputSchema,
+    auspexReapInputSchema,
+    auspexTraceInputSchema,
+  ]
+  for (const schema of schemas) {
+    for (const [key, field] of Object.entries(schema.shape)) {
+      assert.equal(/^(username|password|solariKey|apiKey)$/i.test(key), false, key)
+      const described = "description" in field && typeof field.description === "string" ? field.description : ""
+      assert.equal(/accept a password|pass (the |a )?password|username to type/i.test(described), false, key)
+    }
+  }
+  assert.ok(auspexProfilesInputSchema.shape.purge)
+  assert.ok(auspexProfilesInputSchema.shape.humanAgree)
+  assert.equal("password" in auspexProfilesInputSchema.shape, false)
+  assert.equal("username" in auspexProfilesInputSchema.shape, false)
+})
+
 type DoorEl = {
   textContent: string
   value: string

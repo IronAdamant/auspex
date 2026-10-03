@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import test from "node:test"
 import { listCompleteRunDirs } from "../src/receipt.ts"
-import { diffAgainstLastReceipt } from "../src/receipt-diff.ts"
+import { canonicalCheckUrl, diffAgainstLastReceipt } from "../src/receipt-diff.ts"
 import { packLastReceipts } from "../src/reap.ts"
 
 test("listCompleteRunDirs orders complete runs by mtime, not directory name", async () => {

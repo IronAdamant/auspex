@@ -13,9 +13,12 @@ import { createRequire } from "node:module"
 // TypeScript comes from the package being mutated (run from examples/auspex-ts).
 const ts = createRequire(path.join(process.cwd(), "package.json"))("typescript") as typeof import("typescript")
 
-const [outDir, capRaw, seedRaw] = process.argv.slice(2)
-if (!outDir) throw new Error("usage: synth-mutants.ts <outDir> [perFileCap] [seed]")
+const [outDir, capRaw, seedRaw, skipRaw, prefixRaw] = process.argv.slice(2)
+if (!outDir) throw new Error("usage: synth-mutants.ts <outDir> [perFileCap] [seed] [skipPerFile] [idPrefix]")
 const cap = Number(capRaw ?? 12)
+// Same seed, skip N: the next points of the same shuffle, so a second batch never repeats the first.
+const skip = Number(skipRaw ?? 0)
+const prefix = prefixRaw ?? "s"
 let seed = Number(seedRaw ?? 20261003)
 const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648)
 
@@ -70,13 +73,13 @@ for (const file of readdirSync(srcDir).filter((f) => f.endsWith(".ts") && !SKIP.
     const j = Math.floor(rand() * (i + 1))
     ;[pts[i], pts[j]] = [pts[j], pts[i]]
   }
-  chosen.push(...pts.slice(0, cap))
+  chosen.push(...pts.slice(skip, skip + cap))
 }
 
 mkdirSync(outDir, { recursive: true })
 const index: string[] = ["id\tfile\tline\top"]
 chosen.forEach((p, n) => {
-  const id = `s${String(n + 1).padStart(3, "0")}`
+  const id = `${prefix}${String(n + 1).padStart(3, "0")}`
   const text = readFileSync(path.join(srcDir, p.file), "utf8")
   const mutated = text.slice(0, p.start) + p.replacement + text.slice(p.end)
   // Reverse form (mutated -> original), written by diff -u so hunk headers are always right.
