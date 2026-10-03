@@ -210,30 +210,6 @@ test("demo PNG is a real PNG", () => {
   assert.ok(png.length > 1000)
 })
 
-test("committed replay.html is a stub; ndjson generates the player", () => {
-  const stub = readFileSync(path.join(demo, "replay.html"), "utf8")
-  assert.ok(stub.length < 8_192, "committed replay.html must stay a stub")
-  assert.match(stub, /generate:replay/)
-  const ndjson = readFileSync(path.join(demo, "replay.ndjson"), "utf8")
-  const events = ndjson
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => JSON.parse(l) as { type: number })
-  assert.ok(events.length >= 2)
-  assert.equal(typeof events[0]?.type, "number")
-  const generated = replayHtmlFromNdjson(ndjson)
-  const block = generated.match(/<script type="application\/json" id="events">([\s\S]*?)<\/script>/)
-  assert.ok(block)
-  const fromFn = JSON.parse(block[1] ?? "null") as unknown[]
-  assert.equal(fromFn.length, events.length)
-  assert.match(generated, /integrity="sha384-/)
-  const remoteScripts = [...generated.matchAll(/<script[^>]*src="[^"]+"[^>]*>/g)].map((m) => m[0])
-  for (const tag of remoteScripts) {
-    assert.match(tag, /integrity=/)
-  }
-})
-
 test("watch replay ndjson is ConsistencyHub Microsoft wall with emails and passwords stripped", () => {
   const ndjson = readFileSync(path.join(demo, "replay.ndjson"), "utf8")
   const html = replayHtmlFromNdjson(ndjson)

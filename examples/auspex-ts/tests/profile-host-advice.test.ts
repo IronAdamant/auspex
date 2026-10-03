@@ -212,17 +212,6 @@ test("contract and receipt schema publish the advisor fields", () => {
   )
 })
 
-test("CLI, MCP, and finalize-login stamp the advisor", () => {
-  const cli = readFileSync(new URL("../src/cli.ts", import.meta.url), "utf8")
-  const runners = readFileSync(new URL("../src/runners.ts", import.meta.url), "utf8")
-  const check = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  assert.match(cli, /runLoginDoor|runAwaitLoginDoor/)
-  assert.match(runners, /stampLoginHost\(/)
-  assert.match(runners, /stampAwaitLoginHost\(/)
-  assert.match(runners, /stampProfileHostAdvice\(/)
-  assert.match(check, /stampProfileHostAdvice\(result/)
-})
-
 test("toAgentReceipt keeps profileHostMatch false", () => {
   const check: CheckResult = {
     ok: true,

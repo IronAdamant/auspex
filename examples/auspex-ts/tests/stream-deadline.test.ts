@@ -197,10 +197,3 @@ test("dead stream without a completed seed refuses a new session and remints", (
   assert.equal(parsed.ok, false)
 })
 
-test("check refuses POST /sessions before launch when the dead-stream gate matches", () => {
-  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  const gate = src.indexOf("shouldRefuseDeadStreamSession")
-  const launch = src.indexOf("launchBrowser(")
-  assert.ok(gate > 0 && launch > gate)
-  assert.match(src, /deadStreamCheckResult/)
-})

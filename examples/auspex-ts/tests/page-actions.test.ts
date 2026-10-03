@@ -311,11 +311,6 @@ test("assertVisibleFillLanded refuses a contenteditable whose excerpt lacks --va
   await assert.doesNotReject(() => assertVisibleFillLanded(input, "#user", "alice", "body without the field"))
 })
 
-test("check re-reads visible fill text against the excerpt before keeping filled", () => {
-  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  assert.match(src, /assertVisibleFillLanded\(/)
-})
-
 test("filled is refused when textContent contains --value but visible innerText does not", async () => {
   const log: string[] = []
   const el = {
@@ -445,7 +440,6 @@ test("filled is set when type lands in innerText of a nested contenteditable", a
     ;(globalThis as { document?: unknown }).document = prev
   }
 })
-
 
 test("a missed click keeps the check alive: clickMissed is set, clicked is not", async () => {
   const timeout = "locator.click: Timeout 15000ms exceeded.\n\u001b[2mCall log:\u001b[22m\n  - waiting for locator('header button')"

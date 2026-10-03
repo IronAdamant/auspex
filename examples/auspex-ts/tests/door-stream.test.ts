@@ -68,17 +68,6 @@ test("docs/door-stream.js matches the TypeScript door helpers", () => {
   assert.equal("bindPreviewZoom" in Door, false)
 })
 
-test("phone door has no sign-in banner (the stream never reports the remote URL)", () => {
-  const Door = loadDoorStream() as unknown as Record<string, unknown>
-  for (const gone of ["IDP_WALL_TEXT", "pageHostIsIdp", "httpsHost", "idpWallVisible", "noteIdpSurface", "expireIdpWall"]) {
-    assert.equal(gone in Door, false, gone)
-  }
-  const page = readFileSync(path.join(repo, "docs", "door-page.js"), "utf8")
-  const phone = `${readFileSync(path.join(repo, "docs", "phone.html"), "utf8")}\n${page}`
-  assert.doesNotMatch(phone, /idpWall|Still on Microsoft or Google/)
-  assert.match(phone, /if \(fromHash\) return fromHash/)
-})
-
 test("framebufferPoint uses the rendered canvas, not a stale scale", () => {
   const Door = loadDoorStream()
   assert.equal(Door.framebufferPoint(0, 100, 200), 0)

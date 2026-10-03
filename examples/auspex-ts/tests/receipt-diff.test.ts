@@ -101,10 +101,3 @@ test("packLastReceipts copies last receipt per URL", async () => {
   assert.match(iron?.screenshotPath ?? "", /screenshot\.png/)
 })
 
-test("receipt run folders go through toStatePath, so a receipt never names the home folder", async () => {
-  const { readFileSync } = await import("node:fs")
-  const sandbox = readFileSync(new URL("../src/sandbox.ts", import.meta.url), "utf8")
-  assert.equal(/runDir: dir\b/.test(sandbox), false, "verify.runDir must be toStatePath(dir)")
-  assert.ok((sandbox.match(/runDir: toStatePath\(dir\)/g) ?? []).length >= 4)
-  assert.equal(toStatePath("/Users/someone/.auspex/runs/2026-10-01T00-00-00", "/Users/someone"), "~/.auspex/runs/2026-10-01T00-00-00")
-})

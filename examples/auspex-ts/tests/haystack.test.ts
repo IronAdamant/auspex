@@ -345,34 +345,6 @@ test("after a click the excerpt is the open dialog; without a click a dialog (co
   assert.equal(excerptRegion(whole, "", "", true), whole)
 })
 
-test("a menu popup a click opened counts as the dialog: the one an expanded menu button names", async () => {
-  // MariaDB's Manage button opens a popup that is neither a <dialog> nor role=menu; the button's
-  // aria-haspopup + aria-expanded + aria-controls is what says which element the click opened.
-  const { readFileSync } = await import("node:fs")
-  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  assert.match(src, /\[aria-haspopup\]:not\(\[aria-haspopup="false"\]\)\[aria-expanded="true"\]\[aria-controls\]/)
-  assert.match(src, /popupIds\.map\(\(id\) => document\.getElementById\(id\)\)/)
-})
-
-test("page functions in check.ts survive the clone's runner (no named helpers inside page.evaluate)", async () => {
-  // tsx compiles with keepNames, which wraps a function assigned to a name in __name(...). Code sent
-  // into the page by page.evaluate cannot see that helper, so such a function breaks every check in
-  // a clone (the npm bundle does not use keepNames, so only a live clone run would notice).
-  const { readFileSync } = await import("node:fs")
-  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  const bodies = [...src.matchAll(/page\.evaluate\(/g)].map((m) => {
-    let depth = 0
-    for (let i = m.index! + "page.evaluate".length; i < src.length; i++) {
-      if (src[i] === "(") depth++
-      else if (src[i] === ")" && --depth === 0) return src.slice(m.index!, i + 1)
-    }
-    return src.slice(m.index!)
-  })
-  assert.ok(bodies.length >= 1, "check.ts has page.evaluate calls")
-  const named = /\b(?:const|let|var)\s+\w+\s*(?::[^=]+)?=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*(?::[^=]+)?=>|\bfunction\s+\w+\s*\(|\bclass\s+\w+/
-  for (const body of bodies) assert.equal(named.test(body), false, body.slice(0, 300))
-})
-
 test("the live check re-reads for the expect with the second browser's budget before calling a miss", async () => {
   const { LIVE_EXPECT_SETTLE_MS, LIVE_EXPECT_EMPTY_EXTRA_MS, liveExpectBudgetMs } = await import("../src/check.ts")
   const { PROFILE_CLAIM_SETTLE_MS, PROFILE_CLAIM_RETRY_MS } = await import("../src/sandbox.ts")
@@ -386,18 +358,6 @@ test("the live check re-reads for the expect with the second browser's budget be
   const loop = src.indexOf("const cap = liveExpectBudgetMs(extracted.raw)")
   assert.ok(loop > 0 && loop < src.indexOf("title = extracted.title"), "the re-read runs before the receipt fields are set")
   assert.match(src.slice(loop, loop + 600), /extracted = await readPage\(\)/)
-})
-
-test("both browsers read visible button-input labels, and neither reads typed field text", async () => {
-  // Live, Trello: the screenshot showed "Send to Today", the check said it was missing, because
-  // innerText leaves out <input type="submit" value="…">.
-  const { readFileSync } = await import("node:fs")
-  const check = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  const sandbox = readFileSync(new URL("../src/sandbox.ts", import.meta.url), "utf8")
-  const buttons = `input[type="submit" i], input[type="button" i], input[type="reset" i]`
-  assert.ok(check.includes(buttons), "live check reads button-input labels")
-  assert.ok(sandbox.includes(buttons), "second browser reads the same labels")
-  for (const src of [check, sandbox]) assert.equal(/input\[type="text"|textarea\)\.value/.test(src), false)
 })
 
 test("after a click the excerpt is an overlay the click opened, not a cookie banner that was already there", async () => {

@@ -32,11 +32,3 @@ test("parseDeviceOptions mobile matches iphone-13-pro fields", () => {
   assert.equal(mobile?.hasTouch, true)
 })
 
-test("check.ts parses device options before launchBrowser", () => {
-  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  const workIdx = src.indexOf("const work =")
-  const parseIdx = src.indexOf("parseDeviceOptions(", workIdx)
-  const launchIdx = src.indexOf("launchBrowser(", workIdx)
-  assert.ok(workIdx >= 0)
-  assert.ok(parseIdx >= 0 && launchIdx > parseIdx, "parseDeviceOptions must run before launchBrowser")
-})

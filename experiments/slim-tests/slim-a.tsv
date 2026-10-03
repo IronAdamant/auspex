@@ -1,0 +1,58 @@
+# Slim A rule 1: the test only reads a source file as text and asserts on its wording
+device-emulation.test.ts	check.ts parses device options before launchBrowser
+finalize-login.test.ts	finalize check wires unpersistable expect hits away from reason matched
+haystack.test.ts	a menu popup a click opened counts as the dialog: the one an expanded menu button names
+haystack.test.ts	both browsers read visible button-input labels, and neither reads typed field text
+haystack.test.ts	page functions in check.ts survive the clone's runner (no named helpers inside page.evaluate)
+lifecycle.test.ts	check source fits PNG under the verify cap and attaches replay on record
+lifecycle.test.ts	check source waits for networkidle after DCL
+lifecycle.test.ts	checkThenVerify closes the verify-with-profile Solari client
+lifecycle.test.ts	runCheck asks Solari for the profile list once (profile id and dead-stream check share it)
+lifecycle.test.ts	sandbox verify uploads files in parallel
+lifecycle.test.ts	sso source has no extra fail-open networkidle or DCL waits
+lifecycle.test.ts	the MCP server reports the published package version
+mcp-schema.test.ts	auspexCheckInputObject descriptions advertise fail-closed constraints and structural vs call-time split
+mcp-schema.test.ts	login --wait and MCP wait:true both pass loginWaitAwaitOpts (saveEditor)
+mcp-schema.test.ts	mcp-tools desktop payload keeps ASCII log and JSON
+mcp-schema.test.ts	mcp.ts registers tools via registerAuspexTools; MCP check uses auspexCheckInputObject with FAIL-CLOSED descriptions
+page-action-ceiling.test.ts	a check opens a browser and closes it
+page-actions.test.ts	check re-reads visible fill text against the excerpt before keeping filled
+profile-host-advice.test.ts	CLI, MCP, and finalize-login stamp the advisor
+receipt-diff.test.ts	receipt run folders go through toStatePath, so a receipt never names the home folder
+receipt.test.ts	defaultProfileClaimCheck uses gotoWithSessionRestore
+receipt.test.ts	runCheck source does not auto-save Solari profiles
+receipt.test.ts	the saved-login second browser settles and re-reads a page that navigates while loading
+session-restore-regoto.test.ts	gotoWithSessionRestore drops the persistable-url re-goto guard
+sso.test.ts	completeSso source covers Google and a generic Sign in with button
+stream-deadline.test.ts	check refuses POST /sessions before launch when the dead-stream gate matches
+# Slim A rule 2: the test only asserts phrases in docs (kept: generated-sync checks, AGENT-CARD vs AGENTS, docs commands parse, door JS that runs)
+agents-sync.test.ts	clone MCP and replay stub stay honest after slim
+agents-sync.test.ts	code folders load the full contract; the root loads only the card
+agents-sync.test.ts	copy-paste fences put --save-editor on the typed await-login line
+agents-sync.test.ts	docs doors do not teach pre-#38 ok or flatten verify vs verifyWithProfile
+agents-sync.test.ts	frozen agent door sequence is documented for operators and not a takeover
+agents-sync.test.ts	honesty leftovers: desktop demo, dual LICENSE, OneDrive recipe-only
+agents-sync.test.ts	operator docs make claimOkProfile the reuse gate and phone a seed door
+agents-sync.test.ts	root README first screen is For Reviewers + watch URL
+agents-sync.test.ts	root README shipped bullets match shouldVerifyCheck and resolveFinalizeLoginTarget
+agents-sync.test.ts	showcase landing heroes the Pages HTML player, not jsDelivr text/plain
+agents-sync.test.ts	trace docs allow one post-handoff row and still forbid check rows and secrets
+agents-sync.test.ts	weakSeed docs are ConsistencyHub-only; VWP integrity miss is reason network
+agents-sync.test.ts	package README Run fence is login --url → await --save-editor → finalize → check, no trailing verify
+agents-sync.test.ts	published MCP paste cards use auspex-solari, env, and the job path for long awaits
+agents-sync.test.ts	root AGENTS holds P0/P1 contract facts; package AGENTS is a pointer
+demo.test.ts	committed replay.html is a stub; ndjson generates the player
+door-await-contract.test.ts	ops stamps lock key refuse, profile map, and the runbook
+door-await-contract.test.ts	llms clock and If stuck do not fork mint-or-finalize next to app-visible
+door-stream.test.ts	phone door has no sign-in banner (the stream never reports the remote URL)
+login.test.ts	docs/phone.html has a real text field and loads the local noVNC client
+page-action-ceiling.test.ts	public docs keep the one-check ceiling
+# Slim A rule 3: in-process twin of a shipped-CLI process test that checks the same rule
+cli-help.test.ts	parseArgv rejects empty --expect
+cli-help.test.ts	parseArgv rejects whitespace-only --expect
+cli-help.test.ts	parseArgv rejects non-http(s) URLs
+cli-help.test.ts	parseArgv rejects userinfo URLs
+cli-help.test.ts	parseArgv does not assign an https token as --profile
+cli-help.test.ts	parseArgv rejects loopback check URLs
+cli-help.test.ts	parseArgv rejects whitespace-only --profile on check and login
+cli-help.test.ts	parseArgv --help and check --help request help

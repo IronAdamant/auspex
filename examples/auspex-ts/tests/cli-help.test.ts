@@ -71,15 +71,6 @@ test("USAGE documents check, login, and profiles", () => {
   assert.match(USAGE, /npx tsx src\/cli.ts/)
 })
 
-test("parseArgv --help and check --help request help", () => {
-  const a = parseArgv(["--help"])
-  assert.equal(a.status, "ok")
-  if (a.status === "ok") assert.equal(a.command.cmd, "help")
-  const b = parseArgv(["check", "--help"])
-  assert.equal(b.status, "ok")
-  if (b.status === "ok") assert.equal(b.command.cmd, "help")
-})
-
 test("parseArgv check --sso", () => {
   const parsed = parseArgv([
     "check",
@@ -95,43 +86,6 @@ test("parseArgv check --sso", () => {
     assert.equal(parsed.command.opts.sso, true)
     assert.equal(parsed.command.opts.profile, "consistencyhub")
   }
-})
-
-test("parseArgv rejects empty --expect", () => {
-  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", ""])
-  assert.equal(parsed.status, "error")
-  if (parsed.status === "error") assert.match(parsed.message, /--expect/)
-})
-
-test("parseArgv rejects whitespace-only --expect", () => {
-  const parsed = parseArgv(["check", "https://ironadamant.com", "--expect", "   "])
-  assert.equal(parsed.status, "error")
-  if (parsed.status === "error") assert.match(parsed.message, /--expect/)
-})
-
-test("parseArgv rejects non-http(s) URLs", () => {
-  const parsed = parseArgv(["check", "file:///etc/passwd", "--expect", "x"])
-  assert.equal(parsed.status, "error")
-  if (parsed.status === "error") assert.match(parsed.message, /http or https/)
-})
-
-test("parseArgv rejects userinfo URLs", () => {
-  const parsed = parseArgv(["check", "https://user:pass@example.com/", "--expect", "x"])
-  assert.equal(parsed.status, "error")
-  if (parsed.status === "error") assert.match(parsed.message, /http or https/)
-})
-
-test("parseArgv does not assign an https token as --profile", () => {
-  const parsed = parseArgv([
-    "check",
-    "--profile",
-    "https://example.com",
-    "--expect",
-    "x",
-    "https://ironadamant.com",
-  ])
-  assert.equal(parsed.status, "error")
-  if (parsed.status === "error") assert.match(parsed.message, /profile|URL/i)
 })
 
 test("parseArgv --stealth=true is not a boolean flag", () => {
@@ -239,16 +193,6 @@ test("shipped CLI does not take https as --profile", () => {
   assert.match(`${bad.stderr}${bad.stdout}`, /profile|URL|unexpected/i)
 })
 
-test("parseArgv rejects loopback check URLs", () => {
-  for (const url of ["http://localhost:3000", "http://127.0.0.1/", "http://[::1]/"]) {
-    const parsed = parseArgv(["check", url, "--expect", "x"])
-    assert.equal(parsed.status, "error", url)
-    if (parsed.status === "error") {
-      assert.match(parsed.message, /loopback|cloud|agent machine/i)
-    }
-  }
-})
-
 test("parseArgv rejects --record with --sso or --save-profile", () => {
   const sso = parseArgv([
     "check",
@@ -312,22 +256,6 @@ test("parseArgv rejects --record with --profile unless override is set", () => {
   ])
   assert.equal(hub.status, "error")
   if (hub.status === "error") assert.match(hub.message, /consistencyhub/i)
-})
-
-test("parseArgv rejects whitespace-only --profile on check and login", () => {
-  const check = parseArgv([
-    "check",
-    "https://ironadamant.com",
-    "--expect",
-    "Build it.",
-    "--profile",
-    "   ",
-  ])
-  assert.equal(check.status, "error")
-  if (check.status === "error") assert.match(check.message, /profile name/i)
-  const login = parseArgv(["login", "--profile", "   "])
-  assert.equal(login.status, "error")
-  if (login.status === "error") assert.match(login.message, /profile name/i)
 })
 
 test("shipped CLI rejects loopback check URLs without launching Solari", () => {

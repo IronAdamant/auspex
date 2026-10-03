@@ -164,32 +164,6 @@ test("checkThenVerify verifies after matched and starts sandbox only after check
   assert.equal(both.verify.skipped, undefined)
 })
 
-test("check source waits for networkidle after DCL", () => {
-  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  assert.match(src, /waitForLoadState\("networkidle"/)
-  assert.match(src, /NETWORKIDLE_TIMEOUT_MS/)
-})
-
-test("sso source has no extra fail-open networkidle or DCL waits", () => {
-  const src = readFileSync(path.join(root, "src", "sso.ts"), "utf8")
-  assert.equal(src.includes("networkidle"), false)
-  assert.equal(src.includes("domcontentloaded"), false)
-})
-
-test("check source fits PNG under the verify cap and attaches replay on record", () => {
-  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  assert.match(src, /fitPngUnderCap/)
-  assert.match(src, /attachRecordedReplay/)
-  assert.match(src, /sessionCreateFromCheck/)
-  assert.match(src, /persistLiveProfile/)
-  assert.match(src, /emptyProfileSeedError/)
-})
-test("sandbox verify uploads files in parallel", () => {
-  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
-  assert.match(src, /Promise\.all\(/)
-  assert.match(src, /wrapSandboxRestExec/)
-})
-
 test("createProgress emits a heartbeat line before return", () => {
   const chunks: string[] = []
   const stream = { write: (s: string) => { chunks.push(s); return true } } as unknown as NodeJS.WritableStream
@@ -226,34 +200,10 @@ test("MCP progress sends nothing when the client did not ask for it", async () =
   assert.equal(sent, 0)
 })
 
-test("runCheck asks Solari for the profile list once (profile id and dead-stream check share it)", () => {
-  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  assert.equal(src.match(/profiles\.list\(\)/g)?.length, 1)
-  assert.equal(src.includes("resolveProfileId("), false)
-})
-
-test("the MCP server reports the published package version", () => {
-  const pkg = JSON.parse(readFileSync(path.join(root, "..", "..", "package.json"), "utf8")) as { version: string }
-  const src = readFileSync(path.join(root, "src", "mcp.ts"), "utf8")
-  assert.match(src, /import pkg from "\.\.\/\.\.\/\.\.\/package\.json" with \{ type: "json" \}/)
-  assert.match(src, /version: pkg\.version/)
-  assert.ok(pkg.version)
-})
-
 test("replay poll window is within documented 1–3s", async () => {
   const { REPLAY_ATTEMPTS, REPLAY_DELAY_MS } = await import("../src/solari.ts")
   assert.ok(REPLAY_ATTEMPTS * REPLAY_DELAY_MS <= 4_000)
   assert.ok(REPLAY_DELAY_MS <= 1_000)
-})
-
-test("checkThenVerify closes the verify-with-profile Solari client", () => {
-  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
-  const idx = src.indexOf("if (verifyWithProfile && opts.profile)")
-  assert.ok(idx >= 0, "verifyWithProfile client resolve must exist")
-  const slice = src.slice(idx, idx + 700)
-  assert.match(slice, /createClient\(\)/)
-  assert.match(slice, /finally/)
-  assert.match(slice, /solari\.close/)
 })
 
 test("checkThenVerify rewrites manifest ok to agent-success after verify", async () => {

@@ -33,16 +33,6 @@ test("shouldFailClosedAuth is always true on Microsoft, and on /login when sso o
   assert.equal(shouldFailClosedAuth(login, { profile: "consistencyhub" }), true)
 })
 
-test("completeSso source covers Google and a generic Sign in with button", () => {
-  assert.match(ssoSrc, /sign in with google/i)
-  assert.match(ssoSrc, /sign in with /i)
-  assert.equal(ssoSrc.includes("networkidle"), false)
-  assert.equal(ssoSrc.includes(".fill("), false)
-  assert.equal(ssoSrc.includes("keyboard.type"), false)
-  assert.match(ssoSrc, /needsHuman/)
-  assert.match(ssoSrc, /input\[type="password"\]/)
-})
-
 test("describeAuthWall fail-closes Microsoft and Google password and OTP without typing", () => {
   const password = describeAuthWall({
     url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",

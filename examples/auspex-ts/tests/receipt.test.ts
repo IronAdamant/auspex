@@ -335,31 +335,6 @@ test("RECEIPT_ASSERT_PY with --skip-anonymous-claim returns claimOk false", () =
   assert.match(parsed.claimErrors[0] ?? "", /anonymous claim skipped/i, "claimErrors should explain skip")
 })
 
-test("runCheck source does not auto-save Solari profiles", () => {
-  const src = readFileSync(path.join(root, "src", "check.ts"), "utf8")
-  assert.match(src, /opts\.saveProfile/)
-  assert.equal(src.includes("profiles.save"), false)
-  assert.equal(src.includes(".save("), false)
-  assert.match(src, /loggedOut/)
-  assert.match(src, /needsHuman/)
-  assert.match(src, /gotoWithSessionRestore/)
-})
-
-test("defaultProfileClaimCheck uses gotoWithSessionRestore", () => {
-  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
-  assert.match(src, /export async function defaultProfileClaimCheck/)
-  assert.match(src, /gotoWithSessionRestore/)
-  assert.match(src, /opts\.signal \?\? new AbortController\(\)\.signal/)
-  assert.match(src, /PROFILE_CLAIM_SETTLE_MS/)
-  assert.match(src, /PROFILE_CLAIM_RETRY_MS/)
-  assert.match(src, /abortableSleep/)
-  assert.match(src, /haystackMatches/)
-  assert.equal(src.includes("abortableSleep(PROFILE_CLAIM_SETTLE_MS"), false)
-  assert.equal(src.includes("abortableSleep(PROFILE_CLAIM_RETRY_MS"), false)
-  assert.match(src, /profileClaimBudgetMs/)
-  assert.match(src, /linkAbortSignal/)
-})
-
 test("assertReceiptUploadSize rejects oversized PNG+JSON", () => {
   const png = Buffer.alloc(MAX_IMAGE_BYTES + 1)
   assert.throws(() => assertReceiptUploadSize("{}", png), /exceeds/)
@@ -714,12 +689,3 @@ test("profileClaimVerdict keeps nothing from a landing on cloud metadata, not ev
   assert.equal(profileClaimVerdict({ raw: "Workspace ready", expect: "Workspace ready", landedUrl: "https://app.example/users/sign_in" }).claimOk, false)
 })
 
-test("the saved-login second browser settles and re-reads a page that navigates while loading", () => {
-  // Live on MariaDB Cloud: the dashboard navigated during the read, the second browser threw
-  // "Execution context was destroyed", and a working login was reported as not reusable.
-  const src = readFileSync(path.join(root, "src", "sandbox.ts"), "utf8")
-  const start = src.indexOf("export async function defaultProfileClaimCheck")
-  const body = src.slice(start, src.indexOf("\n}\n", start))
-  assert.match(body, /const sample = \(\) =>\s*extractPageSettled\(/)
-  assert.match(body, /waitForLoadState\("domcontentloaded"/)
-})

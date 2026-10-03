@@ -75,12 +75,6 @@ test("gotoWithSessionRestore does not re-goto without a profile", async () => {
   assert.deepEqual(gotos, ["https://consistencyhub.io/dashboard"])
 })
 
-test("gotoWithSessionRestore drops the persistable-url re-goto guard", () => {
-  const src = readFileSync(path.join(root, "src", "solari.ts"), "utf8")
-  assert.match(src, /if \(opts\.profile && restored > 0\)/)
-  assert.equal(src.includes("!isPersistableAppUrl(page.url())"), false)
-})
-
 test("gotoWithSessionRestore survives an app that redirects right after load (MariaDB sign-in refresh)", async () => {
   const gotos: string[] = []
   const page = {

@@ -156,16 +156,6 @@ test("expect match on a non-persistable landing is not success-shaped", () => {
   assert.equal(receipt.profileSaved?.ok, false)
 })
 
-test("finalize check wires unpersistable expect hits away from reason matched", () => {
-  const src = readFileSync(new URL("../src/check.ts", import.meta.url), "utf8")
-  assert.match(src, /expectOnUnpersistableLanding/)
-  assert.match(src, /special = "expectMatchedPublicLanding"/)
-  assert.match(src, /expectMatchedPublicLandingGuide/)
-  const refuse = src.split("if (!isPersistableAppUrl(liveUrl))")[1]?.split("} else {")[0] ?? ""
-  assert.equal(refuse.includes("persistLiveProfile"), false)
-  assert.match(refuse, /PUBLIC_PROFILE_SAVE_ERROR/)
-})
-
 test("parseArgv finalize-login parses --url and --expect", () => {
   const parsed = parseArgv([
     "finalize-login",
