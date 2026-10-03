@@ -17,9 +17,9 @@ const affected = JSON.parse(readFileSync(affectedPath, "utf8"))
 const allTests = [...new Set(Object.values(affected).flat())].sort()
 mkdirSync(outDir, { recursive: true })
 
-function moduleOf(patch) {
-  const m = readFileSync(patch, "utf8").match(/^\+\+\+ [ab]\/examples\/auspex-ts\/src\/([^\s]+)/m)
-  return m?.[1]
+// Every src module a patch touches (a real fix often spans several files).
+function modulesOf(patch) {
+  return [...readFileSync(patch, "utf8").matchAll(/^\+\+\+ [ab]\/examples\/auspex-ts\/src\/([^\s]+)/gm)].map((m) => m[1])
 }
 // Failing tests by title only. node's TAP for several files prints a file heading only when that
 // file fails as a whole, so a remembered heading would stamp the wrong file on later failures.
@@ -62,8 +62,9 @@ async function worker(wt) {
     const outFile = path.join(outDir, `${id}.json`)
     if (existsSync(outFile)) continue
     const clean = id.startsWith("clean")
-    const mod = clean ? undefined : moduleOf(patch)
-    const files = clean ? allTests : affected[mod] ?? allTests
+    const mods = clean ? [] : modulesOf(patch)
+    const mod = mods.join(",")
+    const files = clean || !mods.length || mods.some((m) => !affected[m]) ? allTests : [...new Set(mods.flatMap((m) => affected[m]))].sort()
     if (!clean) {
       const applied = spawnSync("git", ["-C", wt, "apply", "-R", path.resolve(patch)], { encoding: "utf8" })
       if (applied.status !== 0) {

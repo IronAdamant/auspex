@@ -29,16 +29,25 @@ Round 1 (33 real bugs from the repo's history, each put back into today's code):
 | also drop pure unit tests | 466 | 14,799 | 29/33 |
 | plus golden tables recorded from those unit tests | 466 + 868 rows | 14,917 + tables | 31/33 |
 
-Round 2 (401 synthetic mutants, batch 1, plus the 33 real bugs as training data):
+Round 2 (validated; full write-up and tables in `README.md`):
 
-- Dropping unit tests lost 27% of synthetic bugs; golden tables won back nearly all of them.
-- A line-weighted greedy cover (each bug caught by 2 tests where possible) chose 280 of 761 tests:
-  "slim C", ~8,800 hand-written lines (−58%), 14 s instead of 48 s.
-- Mutation testing found 25 untested branches, some real honesty risks (a sweep counted a failed
-  second check as a pass). One golden table of ~80 lines closed all 25, each row verified to kill
-  its mutant.
-- **Validation pending when this was written**: a second synthetic batch (597 mutants) and a sealed
-  holdout of 19 more real bugs. See `README.md` in this folder for the final numbers.
+| suite | test code lines | holdout real bugs (sealed) | unseen synthetic |
+|---|---|---|---|
+| full | 21,064 | 18/18 | 98.1% |
+| greedy kill-matrix cover, k=2 ("slim C") | 8,912 | **10/18** | 88.8% |
+| rules + golden tables + mutation-found gaps ("slim D") | 16,232 (−23%) | **18/18** (19/19 after one fix) | **99.3%** |
+
+- **Pruning by kill evidence overfits.** A cover fitted to one synthetic batch caught 100% of it
+  and 87–89% of the other; on the sealed real-bug holdout it caught 10 of 18. Of 55 tests with
+  zero training kills, 49 caught something in the next batch. "Zero kills" was sampling noise.
+- **What generalised:** cut tests by kind (source greps, doc phrases, duplicates), turn pure unit
+  tests into golden tables recorded from them, keep tests with hidden inputs as code, and use
+  mutation testing to **find gaps** (25 untested branches, 2 weak assertions; one ~100-line golden
+  table closed them, each row verified to kill its mutant).
+- **The holdout found a bug every suite missed**, the full one included (a printed path naming the
+  home folder). A growing real-bug ledger is worth more than any single audit.
+- Bigger cuts with no loss will need new kinds of test, not pruning: record-replay flow goldens and
+  docs generated from code.
 
 Lessons that cost time (build them into the tool):
 
@@ -47,6 +56,8 @@ Lessons that cost time (build them into the tool):
 - Under heavy parallel load (load 66 on 12 cores) timing tests flake. Cap per-suite concurrency,
   and confirm every kill by rerunning the failing test twice in isolation.
 - Store mutant patches in one direction and say which; a reversed reading inverted conclusions.
+- A patch can span several files; select tests for every file it touches, not the first.
+- Score a suite only against bugs the full test union can catch, never against itself.
 - Golden normalisation must touch only this run's own folders (package, home, per-run temp), never
   literal paths such as `/tmp/x.png`, or rows differ between macOS and Linux CI.
 - A recorder that captures call arguments cannot see hidden inputs (stubbed globals, fakes, the
@@ -66,8 +77,10 @@ TypeScript/JavaScript first, adapters for other languages later. CLI and MCP ser
 2. `mutate` — operator mutants (negate conditions, && <-> ||, === <-> !==, boundaries, booleans,
    drop !) in code only, never strings. Diff-scoped on every change (~20 mutants, minutes); full
    audit on a schedule. Sharded across workers or agents; kills confirmed by isolated reruns.
-3. `matrix` — kill matrix, per-test unique kills, gaps (mutants nothing catches), prune candidates
-   (zero unique kills across the ledger AND two independent synthetic batches, never one cover).
+3. `matrix` — kill matrix, per-test unique kills, and above all **gaps** (mutants nothing catches,
+   with `file:line`). Pruning is advisory only: a test is a prune candidate when it has zero kills
+   across the ledger and *dense* mutation (every mutation point, not a sample), and deleting it
+   still needs a reason in the commit. Never prune from one cover (round 2: 10 of 18 real bugs).
 4. `golden` — tables of real inputs with recorded outputs, split into **contract** (verdict fields:
    ok, reason, status, nextCall.tool…) and **wording**. Wording re-records freely; a contract change
    fails CI unless the commit says `Golden-Change: <row>: <why>`. **Invariants** (the project's rules

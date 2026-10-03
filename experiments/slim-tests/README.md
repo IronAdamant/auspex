@@ -81,15 +81,64 @@ change: `regressed: true`, a bot wall reported as a regression.
 - Not measured: how often goldens raise intended-change failures over a month of real commits, and
   whether agents actually fix faster from a golden diff. Both need replaying real history.
 
-## Round 2 (in progress): fewer lines, every bug caught
+## Round 2: fewer lines, every bug caught
 
-Overfitting guard: a **holdout** of 19 more real bugs (`mutants/holdout/`, 10 clean reversals of fix
-commits + 9 put back by hand with `craft-holdout.py`) was fixed on 2026-10-03 before any round-2
-design and is not run until the round-2 suite is final. Round-1's 33 bugs are `mutants/train/`.
+Yardsticks, all scored only on bugs the full union of tests can catch at all:
 
-Tools: `synth-mutants.ts` (401 operator mutants, max 6 per src file, fixed seed), `affected.mjs`
-(test files that can see each src module), `run-mutants.mjs` (4 workers on a union checkout holding
-every test of every variant, so one run per mutant scores all variants). Flake baseline: 6 clean
-union runs under 3-way parallel load, no flaky test.
+- **training**: the 33 round-1 real bugs (`mutants/train/`) and synthetic batch 1 (401 operator
+  mutants, max 6 per src file, fixed seed; 279 catchable);
+- **validation**: synthetic batch 2 (597 more mutants, never the same place as batch 1; 420
+  catchable);
+- **holdout**: 19 more real bugs (`mutants/holdout/`), fixed before any round-2 design and not run
+  until the end (18 catchable by any suite; the 19th is covered below).
 
-Duplication is not the lever: jscpd finds 3% copy-paste in tests (592 of 20,000 lines).
+Every kill is confirmed by rerunning the failing test twice in isolation with the mutant applied
+(9 flaky pairs dropped in total). Tools: `synth-mutants.ts`, `affected.mjs`, `run-mutants.mjs`
+(4 workers, 3 test processes each), `confirm-kills.mjs`, `score.mjs`, `cover.mjs`.
+
+| suite | test code lines | holdout real bugs | training real bugs | batch 2 (unseen) |
+|---|---|---|---|---|
+| full (`main`) | 21,064 | 18/18 | 33/33 | 98.1% |
+| slim A | 19,915 | 18/18 | 32/33 | 97.9% |
+| slim B0 | 14,799 | 14/18 | 30/33 | 74.5% |
+| slim B | 16,015 | 18/18 | 31/33 | 99.3% |
+| greedy cover k=1 | ~4,500 bodies | 6/18 | 31/33 | 78.6% |
+| greedy cover k=2 | ~7,000 bodies | 11/18 | 31/33 | 89.0% |
+| **slim C** (cover k=2 + gaps, run directly) | 8,912 | **10/18** | 32/33 | 88.8% |
+| **slim D** (B + gaps + 2 assertions + 3 tests, run directly) | **16,232 (−23%)** | **18/18, and 19/19 after the fix below** | **33/33** | **99.3%** |
+
+Run time: full, A, B, D about 48 s; C 14 s (it drops the slow page-action timer tests).
+Full tables: `round2-union-scores.tsv`, `round2-direct-scores.txt`.
+
+### What the data says
+
+1. **Pruning by a kill-matrix cover overfits.** Fitted to batch 1 it catches 100% of batch 1 and
+   89% of batch 2; fitted the other way, 86.7%. k=3 only reaches 91%. On the sealed real-bug
+   holdout, slim C caught 10 of 18. Of 55 tests with zero kills in training, 49 caught something
+   in batch 2 and 6 batch-2 bugs were caught only by them: "zero kills" was sampling noise. Across
+   all 1,031 mutants only 6 tests (74 lines) never catch anything.
+2. **Cutting by kind and turning unit tests into golden tables generalises.** Slim B and D hold
+   99.3% on unseen mutants (above the full suite's 98.1%: whole-output goldens catch changes that
+   single assertions miss) and every catchable holdout bug.
+3. **Mutation testing is best at finding gaps, not at deleting tests.** It found 25 untested
+   branches (training data only) that one golden table of ~100 lines now covers, and two weak
+   assertions (`receipt-diff`, `connect`) that pass with the bug in because the test folder is not
+   under home. Setting `HOME` over the test folder makes them real.
+4. **The holdout found a bug no suite caught**, the full one included: `connect` printing the
+   receipt path with the home folder (ho-ba32203). After the holdout score was recorded, the
+   connect success test was strengthened the same way; it now catches it.
+
+Slim D is the recommended suite: every real bug caught (52 of 52 across training and holdout),
+99.3% of unseen mutants, 23% fewer hand-written lines. "Much fewer lines" with no loss was not
+reached by pruning; the remaining large cuts need new kinds of test (record-replay flow goldens,
+docs generated from code), see `PROBATIO-HANDOFF.md`.
+
+Two product observations recorded in `tests/golden/cases/gaps.ts`, not changed: the email
+redactor swallows the host of `user@host` URLs, and a host tie in `selectLiveHost` goes to the
+host that is not the minted one.
+
+Mistakes made and corrected during round 2 (kept here so they are not repeated): TAP file headings
+stamped the wrong file on failures (attribute by title); a load average of 66 made timing tests
+flake (cap concurrency, confirm kills); a fuzzy-patch dry run was misread; the diff direction of
+mutant patches was read backwards once; multi-file patches selected tests for their first file
+only (15 patches rerun on every suite).

@@ -1,0 +1,8 @@
+slim C (run directly)
+holdout: 10/18 (55.6%)  missed ho-1cfec4a ho-4404714 ho-472fdd1 ho-6a9852a ho-983893c ho-b4525eb ho-c1cf241 ho-c96a8a2
+real (train): 32/33 (97.0%)  missed r-f05408b
+synthetic-2: 373/420 (88.8%)
+slim D (run directly, before the post-holdout connect fix)
+holdout: 18/18 (100.0%)
+real (train): 33/33 (100.0%)
+synthetic-2: 417/420 (99.3%)  missed v063 v097 v419

@@ -51,8 +51,9 @@ can be checked against them.
 2. **`ledger`**. Accept: from Auspex history it rebuilds the 13 cleanly reverting fixes in
    `mutants/train/` and reports the conflicting ones as needing a hand-made mutant (do not fuzz-apply
    silently). Hand-made mutants live in `.probatio/ledger/` with the fix commit they stand for.
-3. **`matrix`** (from `matrix-lib.mjs`, `kill-matrix.mjs`, `cover.mjs`). Accept: reproduces the
-   round-2 table in `README.md` for full / slim A / slim B0 / slim B.
+3. **`matrix`** (from `matrix-lib.mjs`, `score.mjs`, `cover.mjs`). Accept: reproduces the round-2
+   table in `README.md`, including the cover's collapse on batch 2 and the holdout. The headline
+   output is the gap list; pruning is advisory and never automatic (see the trap below).
 4. **`golden`** (from `tests/golden.test.ts`, `record-goldens.ts`). Contract/wording split and
    invariants are required, not optional. Accept: changing a `next` sentence re-records with
    `--update wording`; changing an `ok` or `reason` fails unless a `Golden-Change:` trailer names the
@@ -76,8 +77,12 @@ Probatio tests itself with Probatio: its own ledger, goldens and invariants from
   "keep as code" instead of recording them.
 - Treat a test as integration when it reaches a process or file through a helper, not only directly.
 - Write diffs with `diff -u` or the VCS, never by hand.
-- Prune only on zero unique kills across the ledger **and** two independent synthetic batches.
-  One greedy cover overfits.
+- **Do not build automatic pruning.** In round 2 a greedy cover fitted to 310 mutants kept 100% of
+  them and caught only 10 of 18 sealed real bugs; 49 of 55 "zero-kill" tests caught something in
+  the next batch. Probatio's value is finding gaps and guarding contracts, not deleting tests.
+- A patch can span several files: select tests for all of them (a real bug looked uncaught
+  because only the first file's tests ran).
+- Score a suite against the bugs the full test union catches, never against itself.
 - Never print a user's home path or name in outputs, fixtures or logs; normalise to `~`.
 
 ## How to leave things for me
