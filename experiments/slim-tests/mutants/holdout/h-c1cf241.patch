@@ -1,0 +1,22 @@
+diff --git b/examples/auspex-ts/src/solari.ts a/examples/auspex-ts/src/solari.ts
+index 7919749..2e21488 100644
+--- b/examples/auspex-ts/src/solari.ts
++++ a/examples/auspex-ts/src/solari.ts
+@@ -21,7 +21,7 @@ import {
+   closeThenRelease,
+   observeAbort,
+ } from "./timeout.ts"
+-import { hydrateSessionStorage, installSessionStorageRestore, isPersistableAppUrl } from "./profile-storage.ts"
++import { hydrateSessionStorage, installSessionStorageRestore } from "./profile-storage.ts"
+ 
+ /** Desktop key file. Env SOLARI_API_KEY wins. The key is not returned to callers. */
+ export function applyOperatorKeyFile(file: string): void {
+@@ -415,7 +415,7 @@ export async function gotoWithSessionRestore(
+     if (isNavigationRace(err)) return 0
+     throw err
+   })
+-  if (opts.profile && restored > 0 && !isPersistableAppUrl(page.url())) {
++  if (opts.profile && restored > 0) {
+     await page.goto(opts.url, {
+       timeout: opts.timeout ?? GOTO_TIMEOUT_MS,
+       waitUntil: opts.waitUntil ?? "domcontentloaded",

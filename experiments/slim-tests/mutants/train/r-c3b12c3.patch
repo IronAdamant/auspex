@@ -1,0 +1,99 @@
+diff --git b/examples/auspex-ts/src/connect.ts a/examples/auspex-ts/src/connect.ts
+index 13057bf..419a8ad 100644
+--- b/examples/auspex-ts/src/connect.ts
++++ a/examples/auspex-ts/src/connect.ts
+@@ -220,6 +220,12 @@ export function connectOutcome(job: JobReceipt): ConnectOutcome {
+         headline: "The saved login hit a password or code screen. Auspex never types those.",
+         detail: [`${again} Complete every sign-in step (tick "Stay signed in" if offered) before saving.`],
+       }
++    case "weak-seed":
++      return {
++        ok: false,
++        headline: `The live browser saw ${words}, but the save is missing part of the app's login, so a second browser could not be asked to confirm it.`,
++        detail: [`Nothing was claimed. ${again} Save once the app is fully loaded.`],
++      }
+     case "loggedOut":
+       return {
+         ok: false,
+diff --git b/examples/auspex-ts/src/job-store.ts a/examples/auspex-ts/src/job-store.ts
+index 4e8dd56..51018f0 100644
+--- b/examples/auspex-ts/src/job-store.ts
++++ a/examples/auspex-ts/src/job-store.ts
+@@ -46,6 +46,8 @@ export type JobStatus =
+   | "concurrency-limited"
+   | "mismatch"
+   | "network"
++  /** verify-with-profile refused: the save has cookies but not the app's session storage. */
++  | "weak-seed"
+ 
+ /** qrPath is a state path (relative in a clone, ~/ for npm) to a PNG of the door link, for the human to scan. */
+ export type JobHandoff = { url?: string; mobileUrl?: string; qrPath?: string }
+diff --git b/examples/auspex-ts/src/job.ts a/examples/auspex-ts/src/job.ts
+index b322120..0d70a39 100644
+--- b/examples/auspex-ts/src/job.ts
++++ a/examples/auspex-ts/src/job.ts
+@@ -205,9 +205,22 @@ function applyFailClosedReceipt(record: JobRecord, receipt: AgentReceipt): boole
+   return false
+ }
+ 
++/** verify-with-profile refused before a second browser ran: the save is the problem, not the words. */
++const VWP_REFUSED_STATUS = { weakSeed: "weak-seed", emptySave: "empty-save", "dead-fold": "idp-only-save" } as const
++
+ function applyCheckOutcome(record: JobRecord, receipt: AgentReceipt): JobRecord {
+   if (applyFailClosedReceipt(record, receipt)) return record
+   copyReceiptMeta(record, receipt)
++  const verifyRow = receipt.verify as { vwpRefused?: keyof typeof VWP_REFUSED_STATUS; vwpIdpOnlyKind?: JobRecord["idpOnlyKind"] } | undefined
++  const refused = verifyRow?.vwpRefused
++  if (refused && refused in VWP_REFUSED_STATUS) {
++    record.phase = "failed"
++    record.status = VWP_REFUSED_STATUS[refused]
++    record.ok = false
++    record.claimOkProfile = false
++    if (refused === "dead-fold" && verifyRow?.vwpIdpOnlyKind) record.idpOnlyKind = verifyRow.vwpIdpOnlyKind
++    return record
++  }
+   const claim = receipt.verify?.claimOkProfile
+   if (claim !== undefined) record.claimOkProfile = claim
+   record.ok = receipt.ok === true && receipt.reason === "matched"
+diff --git b/examples/auspex-ts/src/sandbox.ts a/examples/auspex-ts/src/sandbox.ts
+index 0d3409d..128c2c7 100644
+--- b/examples/auspex-ts/src/sandbox.ts
++++ a/examples/auspex-ts/src/sandbox.ts
+@@ -56,6 +56,8 @@ export type VerifyResult = {
+   skipReason?: string
+   /** Set when verify-with-profile was refused before a claim session. */
+   vwpRefused?: "weakSeed" | "emptySave" | "dead-fold"
++  /** With vwpRefused dead-fold: which IdP-only shape it was. */
++  vwpIdpOnlyKind?: "sign-in-wall" | "app-visible"
+ }
+ 
+ export type SandboxHandle = {
+@@ -520,6 +522,7 @@ export async function checkThenVerify(
+         claimOkProfile: false,
+         claimErrorsProfile: [ban.next],
+         vwpRefused: ban.kind,
++        ...(ban.idpOnlyKind ? { vwpIdpOnlyKind: ban.idpOnlyKind } : {}),
+       }
+       const refused = { ...check, ok: false, protocolOk: false, next: ban.next, nextCall: ban.nextCall }
+       await persistAgentManifest(refused, { verify }).catch(() => undefined)
+diff --git b/examples/auspex-ts/src/vwp-refuse.ts a/examples/auspex-ts/src/vwp-refuse.ts
+index 91f5058..e144e69 100644
+--- b/examples/auspex-ts/src/vwp-refuse.ts
++++ a/examples/auspex-ts/src/vwp-refuse.ts
+@@ -10,6 +10,8 @@ export type VwpRefuse = {
+   kind: VwpRefuseKind
+   next: string
+   nextCall?: NextCall
++  /** dead-fold only: app on screen (app-visible) or still on the sign-in page (sign-in-wall). */
++  idpOnlyKind?: "sign-in-wall" | "app-visible"
+ }
+ 
+ /**
+@@ -49,6 +51,7 @@ export function refuseVerifyWithProfile(opts: {
+       kind: "dead-fold",
+       next: `verify-with-profile refused: ${guide.text} Save is not sessionStorage.`,
+       nextCall: guide.nextCall,
++      idpOnlyKind: guide.idpOnlyKind,
+     }
+   }
+   if (

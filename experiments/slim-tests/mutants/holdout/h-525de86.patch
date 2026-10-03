@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/handoff-doors.ts a/examples/auspex-ts/src/handoff-doors.ts
+index c6cd8d9..bc8b530 100644
+--- b/examples/auspex-ts/src/handoff-doors.ts
++++ a/examples/auspex-ts/src/handoff-doors.ts
+@@ -99,7 +99,7 @@ export function jwtExpSeconds(token: string | undefined | null): number | undefi
+   const parts = raw.split(".")
+   let earliest: number | undefined
+   const limit = Math.min(parts.length, 2)
+-  for (let i = 1; i < limit; i++) {
++  for (let i = 0; i < limit; i++) {
+     const part = parts[i]
+     if (!part) continue
+     const exp = decodeJwtSegmentExp(part)

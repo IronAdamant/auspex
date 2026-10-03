@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/connect.ts a/examples/auspex-ts/src/connect.ts
+index 441b731..419a8ad 100644
+--- b/examples/auspex-ts/src/connect.ts
++++ a/examples/auspex-ts/src/connect.ts
+@@ -431,7 +431,7 @@ export async function runConnect(
+     out(outcome.headline)
+     for (const line of outcome.detail) out(`  ${line}`)
+     try {
+-      out(`  Receipt: ${jobFilePath(job.jobId)}`)
++      out(`  Receipt: ${tildePath(jobFilePath(job.jobId))}`)
+     } catch {
+       // job id invalid only on early input failure; nothing to point at
+     }

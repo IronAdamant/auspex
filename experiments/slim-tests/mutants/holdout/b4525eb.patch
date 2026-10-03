@@ -1,0 +1,13 @@
+diff --git a/examples/auspex-ts/src/assert_receipt.py b/examples/auspex-ts/src/assert_receipt.py
+index b993c5f..e6acdda 100644
+--- a/examples/auspex-ts/src/assert_receipt.py
++++ b/examples/auspex-ts/src/assert_receipt.py
+@@ -169,7 +169,7 @@ def auth_integrity_errors(url):
+ 
+ def audit_claim(man, work, skip_fetch, skip_all):
+     if skip_all:
+-        return []
++        return ["anonymous claim skipped"]
+     expect = str(man.get("expect") or "")
+     if not expect.strip():
+         return ["manifest has no expect to audit"]

@@ -1,0 +1,71 @@
+diff --git a/examples/auspex-ts/src/profiles.ts b/examples/auspex-ts/src/profiles.ts
+index 5024948..623dce4 100644
+--- a/examples/auspex-ts/src/profiles.ts
++++ b/examples/auspex-ts/src/profiles.ts
+@@ -369,18 +369,31 @@ export function formatLogin(result: LoginResult): string {
+   return `${JSON.stringify(result, null, 2)}\n`
+ }
+ 
+-export async function defaultProfileHttp(): Promise<ProfileHttp> {
++/** One login-handoff POST. Past this Solari is not answering; the mint fails instead of sitting on Node's 5-minute default. */
++export const LOGIN_HANDOFF_TIMEOUT_MS = 60_000
++
++export async function defaultProfileHttp(timeoutMs: number = LOGIN_HANDOFF_TIMEOUT_MS): Promise<ProfileHttp> {
+   const key = requireApiKey()
+   return {
+     post: async (path, body) => {
+-      const res = await fetch(`${BROWSER_API_BASE}${path}`, {
+-        method: "POST",
+-        headers: {
+-          Authorization: `Bearer ${key}`,
+-          "Content-Type": "application/json",
+-        },
+-        body: JSON.stringify(body ?? {}),
+-      })
++      let res: Response
++      try {
++        res = await fetch(`${BROWSER_API_BASE}${path}`, {
++          method: "POST",
++          headers: {
++            Authorization: `Bearer ${key}`,
++            "Content-Type": "application/json",
++          },
++          body: JSON.stringify(body ?? {}),
++          signal: AbortSignal.timeout(timeoutMs),
++        })
++      } catch (err) {
++        if ((err as { name?: string }).name !== "TimeoutError") throw err
++        throw new AuspexError(`Solari did not answer POST ${path.replace(/\/profiles\/[^/]+/, "/profiles/:id")} within ${Math.round(timeoutMs / 1000)} s.`, {
++          issue: { code: "SolariTimeout", retryable: true, solariBlame: "infra-5xx", recovery: "Wait a minute, then mint again once. This is Solari, not your sign-in." },
++          cause: err,
++        })
++      }
+       const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
+       if (!res.ok) {
+         const err = typeof json.error === "string" ? json.error : `login-handoff ${res.status}`
+diff --git a/examples/auspex-ts/src/reap.ts b/examples/auspex-ts/src/reap.ts
+index 7157d77..c3d14f9 100644
+--- a/examples/auspex-ts/src/reap.ts
++++ b/examples/auspex-ts/src/reap.ts
+@@ -144,6 +144,8 @@ export async function defaultReapDeps(): Promise<ReapDeps> {
+       const res = await fetch(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
+         method: "DELETE",
+         headers,
++        // One hung release must not stall the whole reap (or the Ctrl-C release) for minutes.
++        signal: AbortSignal.timeout(15_000),
+       })
+       if (res.status === 404) throw new Error(`browser session refused (404 InvalidSessionId): ${id}`)
+       if (!res.ok && res.status !== 204) throw new Error(`browser release ${res.status}`)
+diff --git a/examples/auspex-ts/src/solari.ts b/examples/auspex-ts/src/solari.ts
+index 011ede3..c75b49d 100644
+--- a/examples/auspex-ts/src/solari.ts
++++ b/examples/auspex-ts/src/solari.ts
+@@ -79,6 +79,8 @@ export async function getSessionStatus(
+ ): Promise<{ status?: string }> {
+   const res = await fetchImpl(`${BROWSER_API_BASE}/sessions/${encodeURIComponent(id)}`, {
+     headers: { Authorization: `Bearer ${requireApiKey()}` },
++    // One status read. The caller's loop has its own deadline; a hung read must not outlive it.
++    signal: AbortSignal.timeout(5_000),
+   })
+   if (!res.ok) throw new Error(`session status ${res.status}`)
+   return (await res.json()) as { status?: string }

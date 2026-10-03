@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/job-store.ts a/examples/auspex-ts/src/job-store.ts
+index 1d41060..51018f0 100644
+--- b/examples/auspex-ts/src/job-store.ts
++++ a/examples/auspex-ts/src/job-store.ts
+@@ -209,7 +209,7 @@ export async function readJobStatus(opts: JobStatusOptions, deps: JobStatusDeps
+     })
+   }
+   // A completed or failed job never changes on its own (a 429 resumes only through auspex_job), so waiting is idle time.
+-  if (waitMs <= 0) return publicJob(current)
++  if (waitMs <= 0 || current.phase === "completed" || current.phase === "failed") return publicJob(current)
+   const startPhase = current.phase
+   const startStatus = current.status
+   const deadline = Date.now() + waitMs

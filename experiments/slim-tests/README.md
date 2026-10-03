@@ -80,3 +80,16 @@ change: `regressed: true`, a bot wall reported as a regression.
   31k src lines, and 186 of 210 src commits touched tests).
 - Not measured: how often goldens raise intended-change failures over a month of real commits, and
   whether agents actually fix faster from a golden diff. Both need replaying real history.
+
+## Round 2 (in progress): fewer lines, every bug caught
+
+Overfitting guard: a **holdout** of 19 more real bugs (`mutants/holdout/`, 10 clean reversals of fix
+commits + 9 put back by hand with `craft-holdout.py`) was fixed on 2026-10-03 before any round-2
+design and is not run until the round-2 suite is final. Round-1's 33 bugs are `mutants/train/`.
+
+Tools: `synth-mutants.ts` (401 operator mutants, max 6 per src file, fixed seed), `affected.mjs`
+(test files that can see each src module), `run-mutants.mjs` (4 workers on a union checkout holding
+every test of every variant, so one run per mutant scores all variants). Flake baseline: 6 clean
+union runs under the same 4-way load, no flaky test.
+
+Duplication is not the lever: jscpd finds 3% copy-paste in tests (592 of 20,000 lines).

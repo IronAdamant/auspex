@@ -1,0 +1,65 @@
+diff --git a/examples/auspex-ts/src/desktop.ts b/examples/auspex-ts/src/desktop.ts
+index 0cde2e2..69200bd 100644
+--- a/examples/auspex-ts/src/desktop.ts
++++ b/examples/auspex-ts/src/desktop.ts
+@@ -344,7 +344,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
+         try {
+           desktop = await observeAbort(createP, signal)
+         } catch (err) {
+-          void createP.then((d) => d.kill().catch(() => undefined))
++          void createP.then((d) => d.kill().catch(() => undefined), () => undefined)
+           throw err
+         }
+         await rememberLive("desktop", desktop.sessionId).catch(() => undefined)
+@@ -442,7 +442,7 @@ export async function runDesktopReview(deps: DesktopDeps = defaultDesktopDeps())
+         /* original error wins */
+       }
+     } else {
+-      void createP.then((d) => d.kill().catch(() => undefined))
++      void createP.then((d) => d.kill().catch(() => undefined), () => undefined)
+     }
+     tui.close()
+     throw new AuspexError(explainSolariError(err), {
+diff --git a/examples/auspex-ts/src/sandbox.ts b/examples/auspex-ts/src/sandbox.ts
+index 0b3a428..2705627 100644
+--- a/examples/auspex-ts/src/sandbox.ts
++++ b/examples/auspex-ts/src/sandbox.ts
+@@ -339,7 +339,7 @@ export async function verifyReceipt(
+         try {
+           sandbox = await observeAbort(createP, signal)
+         } catch (err) {
+-          void createP.then((s) => s.kill().catch(() => undefined))
++          void createP.then((s) => s.kill().catch(() => undefined), () => undefined)
+           throw err
+         }
+         if (isCancelled()) {
+diff --git a/examples/auspex-ts/src/solari.ts b/examples/auspex-ts/src/solari.ts
+index 2cbaf18..2be7d1c 100644
+--- a/examples/auspex-ts/src/solari.ts
++++ b/examples/auspex-ts/src/solari.ts
+@@ -280,13 +280,18 @@ export async function launchBrowser(
+     try {
+       session = await observeAbort(createP, signal)
+     } catch (err) {
+-      void createP.then((s) => {
+-        void rememberLive("browser", s.id).catch(() => undefined)
+-        return deps.releaseAndWait(s.id).then(
+-          () => forgetLive("browser", s.id).catch(() => undefined),
+-          () => undefined,
+-        )
+-      })
++      // A late session is released. A failed create was already thrown above; the second
++      // handler stops that same rejection from also surfacing as unhandled (which ends the process).
++      void createP.then(
++        (s) => {
++          void rememberLive("browser", s.id).catch(() => undefined)
++          return deps.releaseAndWait(s.id).then(
++            () => forgetLive("browser", s.id).catch(() => undefined),
++            () => undefined,
++          )
++        },
++        () => undefined,
++      )
+       throw err
+     }
+   } else {

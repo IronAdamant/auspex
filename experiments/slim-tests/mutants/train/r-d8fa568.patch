@@ -1,0 +1,20 @@
+diff --git a/examples/auspex-ts/src/stdio-transport.ts b/examples/auspex-ts/src/stdio-transport.ts
+index 841fdbb..8a2f2bb 100644
+--- a/examples/auspex-ts/src/stdio-transport.ts
++++ b/examples/auspex-ts/src/stdio-transport.ts
+@@ -116,7 +116,14 @@ export class DualStdioServerTransport implements Transport {
+         if (this.buffer.length === 0) return null
+         continue
+       }
+-      return JSON.parse(line) as JSONRPCMessage
++      try {
++        return JSON.parse(line) as JSONRPCMessage
++      } catch {
++        // The line is already consumed, so nothing after it can be misread. Report and keep
++        // listening, as the MCP SDK's own stdio transport does; one stray line must not end the server.
++        this.onerror?.(new Error(`stdio: skipped a line that is not JSON (${line.length} bytes)`))
++        if (this.buffer.length === 0) return null
++      }
+     }
+   }
+ 

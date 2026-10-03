@@ -1,0 +1,83 @@
+diff --git b/examples/auspex-ts/src/check.ts a/examples/auspex-ts/src/check.ts
+index f905ddb..497d7d2 100644
+--- b/examples/auspex-ts/src/check.ts
++++ a/examples/auspex-ts/src/check.ts
+@@ -13,7 +13,7 @@ import {
+ import { persistAgentManifest } from "./agent-receipt.ts"
+ import { loginTraceSeedExtras, recordPostHandoffTrace } from "./login-trace.ts"
+ import { parseDeviceOptions } from "./device-emulation.ts"
+-import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, requireCheckUrl } from "./http-url.ts"
++import { FORBIDDEN_LANDING_NEXT, landedOnForbiddenHost, LOOPBACK_URL_ERROR, requireCheckUrl, resolvesToForbiddenHost } from "./http-url.ts"
+ import { sessionCreateFromCheck } from "./launch-options.ts"
+ import { assertVisibleFillLanded, clickMissedNext, runPageActions, waitForSurfaceQuiet } from "./page-actions.ts"
+ import { MAX_IMAGE_BYTES, fitPngUnderCap } from "./png-fit.ts"
+@@ -432,6 +432,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
+   assertRecordNotLoggedIn(opts)
+   assertPageActionsAllowed(opts)
+   if (opts.profile) opts = { ...opts, profile: requireProfileName(opts.profile) }
++  // The literal host passed; its DNS must not point the cloud browser at loopback or metadata either.
++  if (await resolvesToForbiddenHost(opts.url)) throw new Error(LOOPBACK_URL_ERROR)
+   const onProgress = opts.onProgress ?? noopProgress
+   const solari = createClient()
+   const closer = new ReadyRelease()
+@@ -644,7 +646,8 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
+           throw extractErr
+         }
+       }
+-      if (landedOnForbiddenHost(finalUrl || page.url())) {
++      const landedAt = finalUrl || page.url()
++      if (landedOnForbiddenHost(landedAt) || (landedAt !== opts.url && (await resolvesToForbiddenHost(landedAt)))) {
+         // Redirected to loopback / link-local / cloud metadata: keep nothing from that page.
+         forbiddenLanding = true
+         matched = false
+diff --git b/examples/auspex-ts/src/http-url.ts a/examples/auspex-ts/src/http-url.ts
+index 6a75340..9edfb26 100644
+--- b/examples/auspex-ts/src/http-url.ts
++++ a/examples/auspex-ts/src/http-url.ts
+@@ -1,3 +1,4 @@
++import { lookup } from "node:dns/promises"
+ import { isIP } from "node:net"
+ import { z } from "zod"
+ 
+@@ -139,6 +140,41 @@ export function landedOnForbiddenHost(finalUrl: string | undefined): boolean {
+   }
+ }
+ 
++export type HostLookup = (host: string) => Promise<Array<{ address: string }>>
++
++const defaultLookup: HostLookup = (host) => lookup(host, { all: true })
++
++/**
++ * A public-looking name whose DNS answer is loopback, link-local or cloud metadata
++ * (169.254.169.254.nip.io). Checked with this machine's resolver, bounded to 3 s; a failed or slow
++ * lookup is not a refusal (the cloud browser's own DNS decides, and the literal-host guard still runs).
++ */
++export async function resolvesToForbiddenHost(url: string, resolve: HostLookup = defaultLookup): Promise<boolean> {
++  let host: string
++  try {
++    const parsed = new URL(url)
++    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false
++    host = parsed.hostname.replace(/^\[|\]$/g, "")
++  } catch {
++    return false
++  }
++  if (!host || isIP(host)) return false
++  let timer: ReturnType<typeof setTimeout> | undefined
++  try {
++    const answers = await Promise.race([
++      resolve(host),
++      new Promise<never>((_, reject) => {
++        timer = setTimeout(() => reject(new Error("dns timeout")), 3_000)
++      }),
++    ])
++    return answers.some((row) => isForbiddenCheckHost(row.address))
++  } catch {
++    return false
++  } finally {
++    if (timer) clearTimeout(timer)
++  }
++}
++
+ export const FORBIDDEN_LANDING_NEXT =
+   "The page redirected to a loopback, link-local or cloud-metadata address. Auspex kept nothing from it: no page text, and the screenshot is blank. Check the URL you passed; do not retry it."
+ 

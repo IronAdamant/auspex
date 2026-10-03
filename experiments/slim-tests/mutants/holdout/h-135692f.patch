@@ -1,0 +1,12 @@
+diff --git b/examples/auspex-ts/src/check-reason.ts a/examples/auspex-ts/src/check-reason.ts
+index 8f9aee4..0c76a4a 100644
+--- b/examples/auspex-ts/src/check-reason.ts
++++ a/examples/auspex-ts/src/check-reason.ts
+@@ -92,6 +92,7 @@ export function agentReceiptOk(opts: {
+   if (!opts.protocolOk) return false
+   if (opts.reason !== "matched") return false
+   if (opts.verify && !opts.verify.skipped) {
++    if (opts.verify.anonymousClaimSkipped) return opts.verify.ok
+     return opts.verify.ok && opts.verify.claimOk
+   }
+   return true

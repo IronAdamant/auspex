@@ -1,0 +1,41 @@
+diff --git a/examples/auspex-ts/src/profile-status.ts b/examples/auspex-ts/src/profile-status.ts
+index 5159253..c1d1c04 100644
+--- a/examples/auspex-ts/src/profile-status.ts
++++ b/examples/auspex-ts/src/profile-status.ts
+@@ -409,7 +409,10 @@ export async function profileStatus(
+     url,
+     populated: true,
+     live: true,
+-    next: LOGGED_IN_SEED_HEALTH,
++    // Without words to look for, the probe only saw that the page was not a sign-in or public page.
++    next: claim
++      ? LOGGED_IN_SEED_HEALTH
++      : `No expect was given, so loggedIn only means the page did not land on a sign-in, landing, or public page. Pass --expect with words only the logged-in app shows. ${LOGGED_IN_SEED_HEALTH}`,
+     finalUrl: landed,
+     excerpt: result.excerpt,
+     screenshotPath: result.screenshotPath,
+diff --git a/examples/auspex-ts/src/sso.ts b/examples/auspex-ts/src/sso.ts
+index bd1150d..aea0b16 100644
+--- a/examples/auspex-ts/src/sso.ts
++++ b/examples/auspex-ts/src/sso.ts
+@@ -43,15 +43,16 @@ export function idpAuthHost(hostname: string): boolean {
+   return microsoftAuthHost(hostname) || googleAuthHost(hostname)
+ }
+ 
++/** A path segment that names a sign-in page: /login, /signin, /sign-in, /users/sign_in, /account/login… */
++const SIGN_IN_SEGMENT = /^(log-?in|sign-?in|sign_in|log_in)$/
++
+ export function stillOnAuth(url: URL): boolean {
+   if (idpAuthHost(url.hostname)) {
+     return true
+   }
+   const path = (url.pathname.replace(/\/+$/, "") || "/").toLowerCase()
+-  if (path === "/login" || path.startsWith("/login/") || path === "/auth" || path.startsWith("/auth/")) {
+-    return true
+-  }
+-  return false
++  if (path === "/auth" || path.startsWith("/auth/")) return true
++  return path.split("/").some((segment) => SIGN_IN_SEGMENT.test(segment))
+ }
+ 
+ /**

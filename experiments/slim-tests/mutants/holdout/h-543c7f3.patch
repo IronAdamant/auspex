@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/fold-steer.ts a/examples/auspex-ts/src/fold-steer.ts
+index bf3318f..1a7139a 100644
+--- b/examples/auspex-ts/src/fold-steer.ts
++++ a/examples/auspex-ts/src/fold-steer.ts
+@@ -144,7 +144,7 @@ export type IdpOnlyKind = "sign-in-wall" | "app-visible"
+ export function idpOnlyKind(opts: { liveHost?: string; siteHost?: string }): IdpOnlyKind {
+   const live = opts.liveHost?.trim().toLowerCase().replace(/^\./, "")
+   const site = opts.siteHost?.trim().toLowerCase().replace(/^\./, "")
+-  if (false && live && site && hostIs(live, site)) return "app-visible"
++  if (live && site && hostIs(live, site)) return "app-visible"
+   return "sign-in-wall"
+ }
+ 

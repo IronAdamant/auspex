@@ -1,0 +1,53 @@
+diff --git a/examples/auspex-ts/src/job.ts b/examples/auspex-ts/src/job.ts
+index 3f0d307..c6fc4a9 100644
+--- a/examples/auspex-ts/src/job.ts
++++ b/examples/auspex-ts/src/job.ts
+@@ -92,6 +92,9 @@ async function defaultJobQr(doorUrl: string): Promise<string> {
+   return (await generateQRCode(doorUrl, await ensureRunDir())).qrPath
+ }
+ 
++/** Failures only the operator can fix (key, plan). Retrying or starting a new job cannot help. */
++const NEEDS_OPERATOR = new Set(["MissingApiKey", "FeatureRequiresPlan", "PlanLimitExceeded"])
++
+ function isConcurrency(err: unknown): boolean {
+   const issue = classifySolariError(err)
+   return issue.code === "ConcurrencyLimitExceeded" || issue.status === 429
+@@ -600,9 +603,14 @@ export async function runJob(opts: JobRunOptions, deps: JobDeps = {}): Promise<J
+     record.phase = "failed"
+     record.status = "failed"
+     record.ok = false
+-    record.reason = classifySolariError(err).message
++    const issue = classifySolariError(err)
++    record.reason = issue.message
+     const target = { url: record.url, expect: record.expect }
+-    if (failedAt === "check") {
++    if (NEEDS_OPERATOR.has(issue.code)) {
++      // No key, or the plan refuses it: a new job fails the same way, so there is no call to take.
++      delete record.nextCall
++      record.next = `This job failed during ${failedAt} (${record.reason.slice(0, 160)}). A new job fails the same way until the operator fixes this. Stop and tell the human.`
++    } else if (failedAt === "check") {
+       record.nextCall = checkVerifyNextCall(record.profile, target)
+       record.next = `The check failed before it finished (${record.reason.slice(0, 160)}). The save already happened: retry only the check once. Do not remint for this.`
+     } else {
+diff --git a/examples/auspex-ts/src/receipt.ts b/examples/auspex-ts/src/receipt.ts
+index 002b816..937da1b 100644
+--- a/examples/auspex-ts/src/receipt.ts
++++ b/examples/auspex-ts/src/receipt.ts
+@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
+ import { readdir, readFile, stat } from "node:fs/promises"
+ import path from "node:path"
+ import { fileURLToPath } from "node:url"
+-import { stateDir } from "./paths.ts"
++import { stateDir, toStatePath } from "./paths.ts"
+ 
+ /** Beside this module under tsx (src/), or ../src from the esbuild bundle (dist/mcp.mjs). */
+ export function resolveAssertReceiptPy(moduleDir: string): string {
+@@ -53,7 +53,7 @@ export async function listCompleteRunDirs(runsDir = RUNS_DIR): Promise<string[]>
+ export async function findLatestRun(runsDir = RUNS_DIR): Promise<string> {
+   const dirs = await listCompleteRunDirs(runsDir)
+   const latest = dirs[0]
+-  if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${runsDir}`)
++  if (!latest) throw new Error(`no complete run (manifest.json + screenshot.png) in ${toStatePath(runsDir)}`)
+   return latest
+ }
+ 

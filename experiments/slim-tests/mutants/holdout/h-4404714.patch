@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/text.ts a/examples/auspex-ts/src/text.ts
+index dcd614a..2565162 100644
+--- b/examples/auspex-ts/src/text.ts
++++ a/examples/auspex-ts/src/text.ts
+@@ -45,7 +45,7 @@ export function prepareCheckExcerpt(opts: {
+   needsHuman?: boolean
+   prefix?: string
+ }): string {
+-  let inner = excerptOf(opts.raw)
++  let inner = excerptOf(maskSecrets(opts.raw))
+   if (opts.needsHuman) inner = stripDigitRuns(inner)
+   const fenced = fenceExcerpt(inner)
+   if (opts.prefix) return `${opts.prefix} ${fenced}`.trim()

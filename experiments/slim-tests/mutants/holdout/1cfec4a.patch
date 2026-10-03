@@ -1,0 +1,27 @@
+diff --git a/examples/auspex-ts/src/text.ts b/examples/auspex-ts/src/text.ts
+index 162785c..2565162 100644
+--- a/examples/auspex-ts/src/text.ts
++++ b/examples/auspex-ts/src/text.ts
+@@ -1,4 +1,5 @@
+ import { z } from "zod"
++import { redactEmailsInString } from "./replay-redact.ts"
+ 
+ export const EXCERPT_FENCE_START = "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)"
+ export const EXCERPT_FENCE_END = "AUSPEX_UNTRUSTED_PAGE_TEXT>>>"
+@@ -27,11 +28,13 @@ export function fenceExcerpt(text: string): string {
+ }
+ 
+ /**
+- * Key-shaped strings a dashboard may show (API keys, JWTs, long tokens). Receipts keep page text
+- * on disk; they must not keep these. Runs before truncation so a key cut at the limit is still masked.
++ * Key-shaped strings a dashboard may show (API keys, JWTs, long tokens), and email addresses (a
++ * logged-in page shows the account's). Receipts keep page text on disk and get attached to PRs;
++ * they must not keep these. Runs before truncation so a value cut at the limit is still masked.
++ * Matching always uses the unmasked page text.
+  */
+ export function maskSecrets(text: string): string {
+-  return text
++  return redactEmailsInString(text)
+     .replace(/\beyJ[\w-]{8,}\.[\w-]{8,}(?:\.[\w-]+)?/g, "[redacted-jwt]")
+     .replace(/\b(?:sk|pk|rk|sb|slr)[-_](?:(?:live|test|proj)[-_])?[A-Za-z0-9_-]{16,}/g, "[redacted-key]")
+     .replace(/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}\b/g, "[redacted-token]")

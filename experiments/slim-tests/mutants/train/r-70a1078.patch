@@ -1,0 +1,19 @@
+diff --git a/examples/auspex-ts/src/sso.ts b/examples/auspex-ts/src/sso.ts
+index f657fd7..bd1150d 100644
+--- a/examples/auspex-ts/src/sso.ts
++++ b/examples/auspex-ts/src/sso.ts
+@@ -155,10 +155,12 @@ async function finishMicrosoftPicker(page: Page, cancel: SsoCancel): Promise<Sso
+ 
+   const signedIn = page.getByText(/^Signed in$/i)
+   const tile = page.locator("[data-test-id='native-tile']").filter({ hasText: /signed in/i })
++  // A tile that will not click (overlay, animation) is not an error: the wall probe below says
++  // what the page is showing, the same as the Google picker.
+   if ((await signedIn.count()) > 0) {
+-    await signedIn.first().click({ timeout: 10_000, signal })
++    await signedIn.first().click({ timeout: 10_000, signal }).catch(() => undefined)
+   } else if ((await tile.count()) > 0) {
+-    await tile.first().click({ timeout: 10_000, signal })
++    await tile.first().click({ timeout: 10_000, signal }).catch(() => undefined)
+   } else {
+     const blocked = await probeSsoWall(page)
+     if (blocked.needsHuman) return blocked

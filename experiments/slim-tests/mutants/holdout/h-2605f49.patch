@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/argv.ts a/examples/auspex-ts/src/argv.ts
+index 338e408..bebc533 100644
+--- b/examples/auspex-ts/src/argv.ts
++++ a/examples/auspex-ts/src/argv.ts
+@@ -21,7 +21,7 @@ export function takeOption(args: string[], name: string, opts: { rejectHttp?: bo
+   const i = args.indexOf(name)
+   if (i === -1) return undefined
+   const value = args[i + 1]
+-  if (!value || looksLikeFlag(value)) return undefined
++  if (value === undefined || looksLikeFlag(value)) return undefined
+   if (opts.rejectHttp && /^https?:\/\//i.test(value)) return undefined
+   args.splice(i, 2)
+   return value

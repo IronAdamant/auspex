@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/fold-steer.ts a/examples/auspex-ts/src/fold-steer.ts
+index 7fdebdc..1a7139a 100644
+--- b/examples/auspex-ts/src/fold-steer.ts
++++ a/examples/auspex-ts/src/fold-steer.ts
+@@ -89,7 +89,7 @@ export function isIdpOnlySave(opts: {
+   if (cookieHostsAreIdpOnly(hosts)) return true
+   const hasCookies = (opts.cookies ?? 0) > 0 || (opts.origins ?? 0) > 0 || hosts.length > 0
+   if (!hasCookies) return false
+-  return false
++  return idpOnlyKind({ liveHost: opts.liveHost, siteHost: opts.siteHost }) === "app-visible"
+ }
+ 
+ /**

@@ -1,0 +1,42 @@
+diff --git a/examples/auspex-ts/src/cookie-save.ts b/examples/auspex-ts/src/cookie-save.ts
+index b1ea8a6..480ffb4 100644
+--- a/examples/auspex-ts/src/cookie-save.ts
++++ b/examples/auspex-ts/src/cookie-save.ts
+@@ -247,6 +247,17 @@ export function classifySeedReadiness(opts: SeedReadinessInput): SeedReadiness {
+   return { ...base, shape: "unknown", solariSaveReady: false }
+ }
+ 
++/** localStorage auth keys are only refresh tokens and there is no app-origin cookie. */
++export function refreshTokenOnly(readiness: SeedReadiness): boolean {
++  const names = readiness.localStorageAuthKeyNames
++  return (
++    readiness.shape === "local-storage-auth" &&
++    !readiness.appOriginCookies &&
++    names.length > 0 &&
++    names.every((name) => /^refresh_?token$/i.test(name))
++  )
++}
++
+ export function cookieSaveGuide(opts: {
+   profile: string
+   readiness: SeedReadiness
+@@ -261,12 +272,18 @@ export function cookieSaveGuide(opts: {
+   const miss = opts.readiness.sessionStorageMiss
+     ? "Counted sessionStorage is 0. That miss is expected on Solari editor Save."
+     : "sessionStorage on this jar is informational."
++  // Live ConsistencyHub (MSAL): only a refresh token on the app origin, no app cookie. The app did
++  // not rebuild a session from it; the check landed loggedOut and finalize-login was the fix.
++  const finalizeRule = refreshTokenOnly(opts.readiness)
++    ? `Only a refresh token was saved, with no app-origin cookie. Many OAuth apps (MSAL) do not rebuild a session from it. If that check lands loggedOut, run finalize-login --profile ${name} next while the IdP session is live; that is the one case finalize is right here. `
++    : `Do not finalize to invent sessionStorage. `
+   const text =
+     `Solari Save for --profile ${name} is ${opts.readiness.shape}. ${evidence} ${miss} ` +
+     `Editor Save stores cookies and localStorage only. Auspex does not invent sessionStorage. ` +
+     `Run check --verify-with-profile and read claimOkProfile. ` +
+     `solariSaveReady is not claimOkProfile. ok is not claimOk and not claimOkProfile. ` +
+-    `Do not finalize to invent sessionStorage. IdP hosts alone are not this shape. ` +
++    finalizeRule +
++    `IdP hosts alone are not this shape. ` +
+     `A first-party session cookie, or a short-lived access token written to an allowlisted localStorage key after OAuth, is app-side.`
+   return {
+     text,

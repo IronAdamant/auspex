@@ -1,0 +1,31 @@
+diff --git a/examples/auspex-ts/src/page-action-browser.ts b/examples/auspex-ts/src/page-action-browser.ts
+index c3f8e68..0a6f3d9 100644
+--- a/examples/auspex-ts/src/page-action-browser.ts
++++ b/examples/auspex-ts/src/page-action-browser.ts
+@@ -33,7 +33,12 @@ const PROBE_VISIBLE_CONTROL_SOURCE = `function probeVisibleControl(selector) {
+     const el = doc.querySelector(selector)
+     if (!el || typeof el.tagName !== "string") return blank
+     const tag = el.tagName.toUpperCase()
+-    const password = tag === "INPUT" && String(el.type ?? "").toLowerCase() === "password"
++    // Secret fields: a password box, the same box after a "show password" toggle (type text,
++    // autocomplete still current/new-password), and a one-time-code box. Agents never type these.
++    // (No regex escapes here: this source is a template literal, where a backslash-b is a backspace.)
++    const tokens = String(el.getAttribute?.("autocomplete") ?? el.autocomplete ?? "").toLowerCase().split(" ")
++    const secretHint = tokens.some((t) => t === "current-password" || t === "new-password" || t === "one-time-code")
++    const password = (tag === "INPUT" && String(el.type ?? "").toLowerCase() === "password") || secretHint
+     let contentEditable = el.isContentEditable === true
+     if (!contentEditable && typeof el.querySelector === "function") {
+       const nested = el.querySelector("[contenteditable]")
+diff --git a/examples/auspex-ts/src/page-actions.ts b/examples/auspex-ts/src/page-actions.ts
+index 8f691b9..ed29d40 100644
+--- a/examples/auspex-ts/src/page-actions.ts
++++ b/examples/auspex-ts/src/page-actions.ts
+@@ -35,7 +35,7 @@ export const PAGE_ACTIONS_PROFILE_ERROR =
+   "fill/click with a profile (including name=consistencyhub) requires --allow-page-actions. Refuse-by-default so a logged-in app is not driven from page/OCR text. Public checks without a profile may still fill/click."
+ 
+ export const PASSWORD_FILL_ERROR =
+-  "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]). Agents must never type passwords. SSO IdP password walls are detected and returned as needsHuman."
++  "Auspex check --fill is refused on input[type=password] selectors (includes input[type=password], input:password, [type='password'], [type=password]), and on any field marked autocomplete current-password, new-password, or one-time-code (a shown password or an OTP box). Agents must never type passwords or one-time codes. SSO IdP password walls are detected and returned as needsHuman."
+ 
+ export const FILL_NOT_LANDED_ERROR =
+   "check --fill did not land: the visible document text does not contain --value. filled was not set."

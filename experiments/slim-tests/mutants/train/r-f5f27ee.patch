@@ -1,0 +1,28 @@
+diff --git b/examples/auspex-ts/src/sweep.ts a/examples/auspex-ts/src/sweep.ts
+index 1fd68ee..e99b99e 100644
+--- b/examples/auspex-ts/src/sweep.ts
++++ a/examples/auspex-ts/src/sweep.ts
+@@ -147,7 +147,8 @@ export function classifySweepReceipt(page: SweepPage, receipt: AgentReceipt, has
+   const sameExpect = receipt.diff?.previousExpect === page.expect
+   if (previousReason && sameExpect) {
+     base.previousReason = previousReason
+-    if (previousReason === "matched" && receipt.reason !== "matched") base.regressed = true
++    // A bot check hides the page; it is not evidence the page changed.
++    if (previousReason === "matched" && receipt.reason !== "matched" && !receipt.botWall) base.regressed = true
+   }
+ 
+   if (receipt.reason === "matched" && receipt.ok) {
+@@ -168,6 +169,13 @@ export function classifySweepReceipt(page: SweepPage, receipt: AgentReceipt, has
+       detail: `live browser matched; the second machine did not confirm (reason ${receipt.reason}, claimOk ${verify?.claimOk ?? "missing"}). Often JS-rendered text an anonymous fetch cannot see. Not a pass, not a fail.`,
+     }
+   }
++  // A bot check also surfaces as mismatch, but the browser never saw the page: could not tell.
++  if (receipt.botWall) {
++    return {
++      ...base,
++      detail: "the site showed the cloud browser a bot check instead of the page. Not a pass, not a fail; Auspex does not solve bot checks.",
++    }
++  }
+   if (receipt.reason === "mismatch") {
+     // The two browsers disagree: the page drew its words late or changed between reads (live on
+     // tldraw before the live check re-read). That is evidence of neither a pass nor a fail.
