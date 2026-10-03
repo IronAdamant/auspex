@@ -10,6 +10,7 @@ import type { JobReceipt } from "../src/job-store.ts"
 import type { JobRunOptions } from "../src/job-cli.ts"
 import { runJob } from "../src/job.ts"
 import type { LoginResult } from "../src/profiles.ts"
+import { stateDir } from "../src/paths.ts"
 
 const DOOR = "https://ironadamant.com/auspex/phone.html#v=not.a.jwt"
 
@@ -104,6 +105,9 @@ test("connect shows the door, Enter signals Save, and success needs claimOkProfi
   const io = tty()
   const signaled: string[] = []
   let seen: JobRunOptions | undefined
+  // The printed receipt path must not name the account: with the state folder under "home" it reads ~/…
+  const home = process.env.HOME
+  process.env.HOME = path.dirname(stateDir)
   const result = await runConnect(
     { url: "https://app.example/dash", expect: "Workspace ready" },
     { stdin: io.stdin, stdout: io.stdout, now: () => Date.parse("2026-09-29T10:00:00Z") },
@@ -124,7 +128,7 @@ test("connect shows the door, Enter signals Save, and success needs claimOkProfi
         return job()
       },
     },
-  )
+  ).finally(() => (process.env.HOME = home))
   assert.equal(seen?.wait, true)
   assert.equal(seen?.verifyWithProfile, true)
   assert.deepEqual(signaled, ["app-example"])
@@ -136,6 +140,7 @@ test("connect shows the door, Enter signals Save, and success needs claimOkProfi
   assert.match(text, /Checking with a fresh browser/)
   assert.match(text, /✓ Logged in to app\.example/)
   assert.match(text, /check --profile app-example/)
+  assert.match(text, /Receipt: ~\/[^ ]*\.json/)
 })
 
 test("connect asks for the logged-in words when --expect is missing", async () => {
