@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/profile-status.ts a/examples/auspex-ts/src/profile-status.ts
+index 8a03777..c1d1c04 100644
+--- b/examples/auspex-ts/src/profile-status.ts
++++ a/examples/auspex-ts/src/profile-status.ts
+@@ -259,7 +259,7 @@ export async function profileStatus(
+       ...seedCounts(seed, url, profile, opts.name),
+     }
+   }
+-  if (false && result.botWall) {
++  if (result.botWall) {
+     // The probe never saw the app, so this is neither loggedIn nor loggedOut. Finalizing or
+     // reminting cannot get past a bot check.
+     return {

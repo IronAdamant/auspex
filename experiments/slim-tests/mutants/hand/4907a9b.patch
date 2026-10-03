@@ -1,0 +1,26 @@
+diff --git b/examples/auspex-ts/src/http-url.ts a/examples/auspex-ts/src/http-url.ts
+index 7ef8b2f..9edfb26 100644
+--- b/examples/auspex-ts/src/http-url.ts
++++ a/examples/auspex-ts/src/http-url.ts
+@@ -51,7 +51,7 @@ export function registeredDomain(host: string): string {
+   if (labels.length <= 2) return labels.join(".")
+   const tld = labels[labels.length - 1]!
+   const second = labels[labels.length - 2]!
+-  const take = tld.length === 2 && second.length <= 3 ? 3 : 2
++  const take = tld.length === 2 && COUNTRY_SECOND_LEVEL.has(second) ? 3 : 2
+   return labels.slice(-take).join(".")
+ }
+ 
+diff --git b/examples/auspex-ts/src/profile-persist.ts a/examples/auspex-ts/src/profile-persist.ts
+index ba4b4c9..c59fc3c 100644
+--- b/examples/auspex-ts/src/profile-persist.ts
++++ a/examples/auspex-ts/src/profile-persist.ts
+@@ -120,7 +120,7 @@ export function cookieOnSite(cookieDomain: string, appHost: string): boolean {
+   const app = appHost.toLowerCase()
+   return (
+     Boolean(d) &&
+-    (registeredDomain(d) === registeredDomain(app) || hostIs(d, app))
++    (registeredDomain(d) === registeredDomain(app) || hostIs(d, app) || (d.includes(".") && hostIs(app, d)))
+   )
+ }
+ 

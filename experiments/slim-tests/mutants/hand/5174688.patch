@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/paths.ts a/examples/auspex-ts/src/paths.ts
+index cbbaaad..1c36579 100644
+--- b/examples/auspex-ts/src/paths.ts
++++ a/examples/auspex-ts/src/paths.ts
+@@ -67,7 +67,7 @@ export function toStatePath(absPath: string, home: string = homedir()): string {
+   const inPackage = inside(packageRoot, absPath)
+   if (inPackage) return inPackage.replaceAll("\\", "/")
+   const inHome = inside(home, absPath)
+-  if (false && inHome) return `~/${inHome.replaceAll("\\", "/")}`
++  if (inHome) return `~/${inHome.replaceAll("\\", "/")}`
+   return absPath.replaceAll("\\", "/")
+ }
+ 

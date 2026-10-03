@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/errors.ts a/examples/auspex-ts/src/errors.ts
+index 13f6b47..6aa6da0 100644
+--- b/examples/auspex-ts/src/errors.ts
++++ a/examples/auspex-ts/src/errors.ts
+@@ -292,7 +292,7 @@ export function solariFailurePayload(err: unknown): {
+     (issue.code === "ConcurrencyLimitExceeded" || issue.status === 429 ? reapNextCall() : undefined)
+   return {
+     ok: false,
+-    error: issue.message,
++    error: stripAnsi(issue.message),
+     code: issue.code,
+     retryable: issue.retryable,
+     ...(issue.recovery ? { recovery: issue.recovery } : {}),

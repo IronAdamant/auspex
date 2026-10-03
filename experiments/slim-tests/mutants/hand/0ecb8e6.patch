@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/sandbox.ts a/examples/auspex-ts/src/sandbox.ts
+index e16906e..128c2c7 100644
+--- b/examples/auspex-ts/src/sandbox.ts
++++ a/examples/auspex-ts/src/sandbox.ts
+@@ -152,7 +152,7 @@ export function profileClaimVerdict(opts: { raw: string; expect: string; landedU
+   } catch {
+     onSignIn = false
+   }
+-  if (false && onSignIn) {
++  if (onSignIn) {
+     return {
+       claimOk: false,
+       claimErrors: [`profile-seeded check landed on a sign-in page (${new URL(opts.landedUrl).origin}${new URL(opts.landedUrl).pathname}); the saved login did not open the app`],

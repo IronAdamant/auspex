@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/operator-session.ts a/examples/auspex-ts/src/operator-session.ts
+index 47a357e..5551eb4 100644
+--- b/examples/auspex-ts/src/operator-session.ts
++++ a/examples/auspex-ts/src/operator-session.ts
+@@ -234,7 +234,7 @@ function readOperatorStateFile(file: string, nowMs: number): OperatorState {
+       const row = raw as { site?: unknown; lastUsedMs?: unknown; busyUntilMs?: unknown; keep?: unknown }
+       // A row with no readable clock counts as used now: an unreadable timestamp must never read as
+       // "idle since 1970", which would delete that saved login on this very command.
+-      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : 0
++      const lastUsedMs = typeof row.lastUsedMs === "number" && Number.isFinite(row.lastUsedMs) ? row.lastUsedMs : nowMs
+       const site = typeof row.site === "string" && row.site.trim() ? row.site.trim() : undefined
+       const busyUntilMs =
+         typeof row.busyUntilMs === "number" && Number.isFinite(row.busyUntilMs) ? row.busyUntilMs : undefined

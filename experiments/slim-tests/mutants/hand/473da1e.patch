@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/page-actions.ts a/examples/auspex-ts/src/page-actions.ts
+index d1ae88a..d6adbe3 100644
+--- b/examples/auspex-ts/src/page-actions.ts
++++ a/examples/auspex-ts/src/page-actions.ts
+@@ -373,7 +373,7 @@ export function shortClickError(err: unknown): string {
+   const raw = compactElementHtml((err instanceof Error ? err.message : String(err)).replace(/\u001b\[[0-9;]*m/g, ""))
+   const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean)
+   const head = (lines[0] ?? "").slice(0, 200)
+-  const reason = undefined && [...lines].reverse().find((line) => line.startsWith("- ") && !/^- (waiting \d+ms|retrying click action)/.test(line))
++  const reason = [...lines].reverse().find((line) => line.startsWith("- ") && !/^- (waiting \d+ms|retrying click action)/.test(line))
+   return reason ? `${head} ${reason.slice(2, 202)}` : head
+ }
+ 

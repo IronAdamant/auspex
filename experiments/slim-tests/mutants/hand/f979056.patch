@@ -1,0 +1,22 @@
+diff --git b/examples/auspex-ts/src/page-actions.ts a/examples/auspex-ts/src/page-actions.ts
+index b3e7c0d..d6adbe3 100644
+--- b/examples/auspex-ts/src/page-actions.ts
++++ a/examples/auspex-ts/src/page-actions.ts
+@@ -266,7 +266,7 @@ async function typeInto(page: ActionPage, selector: string, value: string, timeo
+   if (!keyboard || typeof keyboard.type !== "function") return
+   const box = page.locator(selector)
+   // Typing lands at the caret; a fill replaces what the field held (see clearField).
+-  void 0
++  await clearField(box, timeout, signal)
+   await box.click({ timeout, signal })
+   // Method call. Extracting keyboard.type drops this and Playwright throws reading _page.
+   await keyboard.type(value)
+@@ -504,7 +504,7 @@ export async function runPageActions(
+         landed = await landContentEditable(page, fillSelector, value, timeout, signal)
+       } else if (pageHasInsertText(page)) {
+         const keyboard = page.keyboard
+-        void 0
++        await clearField(box, timeout, signal)
+         await insertTextAt(
+           {
+             click: (clickOpts) => box.click({ timeout: clickOpts?.timeout ?? timeout, signal }),

@@ -1,0 +1,197 @@
+## fuzzy/9d824b9
+  full: desktop refuses password-like --type before any desktop VM is created
+  slimA: desktop refuses password-like --type before any desktop VM is created
+  slimB0: desktop refuses password-like --type before any desktop VM is created
+  slimB: desktop refuses password-like --type before any desktop VM is created
+
+## fuzzy/a8e2a50
+  full: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimA: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimB0: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimB: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+
+## fuzzy/c3b12c3
+  full: a refused second browser is named for what it is, never 'your words were not on the page'
+  slimA: a refused second browser is named for what it is, never 'your words were not on the page'
+  slimB0: a refused second browser is named for what it is, never 'your words were not on the page'
+  slimB: a refused second browser is named for what it is, never 'your words were not on the page'
+
+## fuzzy/ed3498c
+  full: withProfileLock does not steal a lock that is still being written
+  slimA: withProfileLock does not steal a lock that is still being written
+  slimB0: withProfileLock does not steal a lock that is still being written
+  slimB: withProfileLock does not steal a lock that is still being written
+
+## fuzzy/f5f27ee
+  full: classifySweepReceipt: a bot check is could-not-tell, never a fail or a regression
+  slimA: classifySweepReceipt: a bot check is could-not-tell, never a fail or a regression
+  slimB0: (none)
+  slimB: golden: sweep
+
+## fuzzy/fb9a1d3
+  full: redactRrwebEvents blanks one-time codes and value changes that arrive without a type
+  slimA: redactRrwebEvents blanks one-time codes and value changes that arrive without a type
+  slimB0: redactRrwebEvents blanks one-time codes and value changes that arrive without a type
+  slimB: redactRrwebEvents blanks one-time codes and value changes that arrive without a type
+
+## hand/0248893
+  full: profileStatus: a bot check is botWall with no nextCall, never loggedOut or finalize
+  slimA: profileStatus: a bot check is botWall with no nextCall, never loggedOut or finalize
+  slimB0: profileStatus: a bot check is botWall with no nextCall, never loggedOut or finalize
+  slimB: profileStatus: a bot check is botWall with no nextCall, never loggedOut or finalize
+
+## hand/0ecb8e6
+  full: profileClaimVerdict: a sign-in page never confirms the saved login, even with the words on it | profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimA: profileClaimVerdict: a sign-in page never confirms the saved login, even with the words on it | profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimB0: profileClaimVerdict: a sign-in page never confirms the saved login, even with the words on it | profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimB: profileClaimVerdict: a sign-in page never confirms the saved login, even with the words on it | profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+
+## hand/473da1e
+  full: a missed click keeps the check alive: clickMissed is set, clicked is not | click errors keep only the attributes that name an element (no href capability links, no classes)
+  slimA: a missed click keeps the check alive: clickMissed is set, clicked is not | click errors keep only the attributes that name an element (no href capability links, no classes)
+  slimB0: a missed click keeps the check alive: clickMissed is set, clicked is not | click errors keep only the attributes that name an element (no href capability links, no classes)
+  slimB: a missed click keeps the check alive: clickMissed is set, clicked is not | click errors keep only the attributes that name an element (no href capability links, no classes)
+
+## hand/4907a9b
+  full: seed inventory names login cookies on the app's site and lists third-party hosts
+  slimA: seed inventory names login cookies on the app's site and lists third-party hosts
+  slimB0: seed inventory names login cookies on the app's site and lists third-party hosts
+  slimB: seed inventory names login cookies on the app's site and lists third-party hosts
+
+## hand/5174688
+  full: trace names its file without the home folder (relative in a clone, ~/ otherwise) | receipt run folders go through toStatePath, so a receipt never names the home folder | findLatestRun names an empty runs folder with ~, never the account's home path | receipt paths: relative in the package, ~/ under home (no username), absolute elsewhere
+  slimA: trace names its file without the home folder (relative in a clone, ~/ otherwise) | findLatestRun names an empty runs folder with ~, never the account's home path | receipt paths: relative in the package, ~/ under home (no username), absolute elsewhere
+  slimB0: trace names its file without the home folder (relative in a clone, ~/ otherwise) | findLatestRun names an empty runs folder with ~, never the account's home path
+  slimB: golden: paths | trace names its file without the home folder (relative in a clone, ~/ otherwise) | findLatestRun names an empty runs folder with ~, never the account's home path
+
+## hand/69792bf
+  full: anonymous claim reads page text, not the <title> or a <template>
+  slimA: anonymous claim reads page text, not the <title> or a <template>
+  slimB0: anonymous claim reads page text, not the <title> or a <template>
+  slimB: anonymous claim reads page text, not the <title> or a <template>
+
+## hand/7b85b59
+  full: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimA: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimB0: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+  slimB: landedOnForbiddenHost flags a redirect to loopback, link-local or metadata | a check URL whose DNS points at loopback, link-local or metadata is refused before any browser
+
+## hand/992f512
+  full: parallel remember and forget calls never drop an id
+  slimA: parallel remember and forget calls never drop an id
+  slimB0: parallel remember and forget calls never drop an id
+  slimB: parallel remember and forget calls never drop an id
+
+## hand/af5a0c2
+  full: a failed job never points nextCall back at its own jobId | a check that throws after Save retries only the check
+  slimA: a failed job never points nextCall back at its own jobId | a check that throws after Save retries only the check
+  slimB0: a failed job never points nextCall back at its own jobId | a check that throws after Save retries only the check
+  slimB: a failed job never points nextCall back at its own jobId | a check that throws after Save retries only the check
+
+## hand/b0deeed
+  full: claimSaveOwner does not take a save lock whose owner is still writing it
+  slimA: claimSaveOwner does not take a save lock whose owner is still writing it
+  slimB0: claimSaveOwner does not take a save lock whose owner is still writing it
+  slimB: claimSaveOwner does not take a save lock whose owner is still writing it
+
+## hand/ef2f3a0
+  full: failure JSON carries no terminal colour codes from Playwright's call log
+  slimA: failure JSON carries no terminal colour codes from Playwright's call log
+  slimB0: failure JSON carries no terminal colour codes from Playwright's call log
+  slimB: failure JSON carries no terminal colour codes from Playwright's call log | golden: solari-errors
+
+## hand/eff9dfa
+  full: an unreadable lastUsedMs never idle-wipes that saved login
+  slimA: an unreadable lastUsedMs never idle-wipes that saved login
+  slimB0: an unreadable lastUsedMs never idle-wipes that saved login
+  slimB: an unreadable lastUsedMs never idle-wipes that saved login
+
+## hand/f979056
+  full: a fill replaces what an input already holds: 'Untitled' does not become 'UntitledAuspex probe' | a fill target that stops matching once focused says so, not a bare Playwright timeout
+  slimA: a fill replaces what an input already holds: 'Untitled' does not become 'UntitledAuspex probe' | a fill target that stops matching once focused says so, not a bare Playwright timeout
+  slimB0: a fill replaces what an input already holds: 'Untitled' does not become 'UntitledAuspex probe' | a fill target that stops matching once focused says so, not a bare Playwright timeout
+  slimB: a fill replaces what an input already holds: 'Untitled' does not become 'UntitledAuspex probe' | a fill target that stops matching once focused says so, not a bare Playwright timeout
+
+## hand/faea669
+  full: every command that sends the cloud browser to a URL refuses loopback and cloud metadata up front
+  slimA: every command that sends the cloud browser to a URL refuses loopback and cloud metadata up front
+  slimB0: every command that sends the cloud browser to a URL refuses loopback and cloud metadata up front
+  slimB: every command that sends the cloud browser to a URL refuses loopback and cloud metadata up front
+
+## mutants/0129560
+  full: a job that fails on the key or the plan has no nextCall: a new job fails the same way | findLatestRun names an empty runs folder with ~, never the account's home path
+  slimA: a job that fails on the key or the plan has no nextCall: a new job fails the same way | findLatestRun names an empty runs folder with ~, never the account's home path
+  slimB0: a job that fails on the key or the plan has no nextCall: a new job fails the same way | findLatestRun names an empty runs folder with ~, never the account's home path
+  slimB: a job that fails on the key or the plan has no nextCall: a new job fails the same way | findLatestRun names an empty runs folder with ~, never the account's home path
+
+## mutants/14ebd22
+  full: probeVisibleControl reads input value and blanks a password
+  slimA: probeVisibleControl reads input value and blanks a password
+  slimB0: (none)
+  slimB: (none)
+
+## mutants/42d7059
+  full: two runs started in the same second get their own folders | pruneRuns keeps the newest runs, never a young one, and touches only run folders
+  slimA: two runs started in the same second get their own folders | pruneRuns keeps the newest runs, never a young one, and touches only run folders
+  slimB0: two runs started in the same second get their own folders | pruneRuns keeps the newest runs, never a young one, and touches only run folders
+  slimB: two runs started in the same second get their own folders | pruneRuns keeps the newest runs, never a young one, and touches only run folders
+
+## mutants/46fde03
+  full: a profile name can never be a path (it names local editor-save and Save files)
+  slimA: a profile name can never be a path (it names local editor-save and Save files)
+  slimB0: a profile name can never be a path (it names local editor-save and Save files)
+  slimB: a profile name can never be a path (it names local editor-save and Save files)
+
+## mutants/57ad8f2
+  full: profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimA: profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimB0: profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+  slimB: profileClaimVerdict keeps nothing from a landing on cloud metadata, not even the sample
+
+## mutants/61febaa
+  full: door/await contract is generated from one source | connectOutcome: ok only with claimOkProfile, and fail-closed rows stay honest
+  slimA: door/await contract is generated from one source | connectOutcome: ok only with claimOkProfile, and fail-closed rows stay honest
+  slimB0: door/await contract is generated from one source
+  slimB: door/await contract is generated from one source | golden: connect
+
+## mutants/70a1078
+  full: completeSso: a Microsoft account tile that will not click is probed, not thrown
+  slimA: completeSso: a Microsoft account tile that will not click is probed, not thrown
+  slimB0: completeSso: a Microsoft account tile that will not click is probed, not thrown
+  slimB: completeSso: a Microsoft account tile that will not click is probed, not thrown
+
+## mutants/840551b
+  full: exhaustion without status is SolariSdkExhausted and not a login failure
+  slimA: exhaustion without status is SolariSdkExhausted and not a login failure
+  slimB0: (none)
+  slimB: golden: solari-errors
+
+## mutants/b3b3975
+  full: the anonymous fetch refuses a redirect to cloud metadata without connecting to it | a public name whose DNS points at link-local or metadata is not fetched
+  slimA: the anonymous fetch refuses a redirect to cloud metadata without connecting to it | a public name whose DNS points at link-local or metadata is not fetched
+  slimB0: the anonymous fetch refuses a redirect to cloud metadata without connecting to it | a public name whose DNS points at link-local or metadata is not fetched
+  slimB: the anonymous fetch refuses a redirect to cloud metadata without connecting to it | a public name whose DNS points at link-local or metadata is not fetched
+
+## mutants/b71dc78
+  full: an Enter typed before the link appears is not taken as Save
+  slimA: an Enter typed before the link appears is not taken as Save
+  slimB0: an Enter typed before the link appears is not taken as Save
+  slimB: an Enter typed before the link appears is not taken as Save
+
+## mutants/d8fa568
+  full: a line that is not JSON is reported and skipped; the server keeps listening
+  slimA: a line that is not JSON is reported and skipped; the server keeps listening
+  slimB0: a line that is not JSON is reported and skipped; the server keeps listening
+  slimB: a line that is not JSON is reported and skipped; the server keeps listening
+
+## mutants/f05408b
+  full: launchBrowser: a failed sessions.create under a signal is thrown once, never left unhandled
+  slimA: launchBrowser: a failed sessions.create under a signal is thrown once, never left unhandled
+  slimB0: launchBrowser: a failed sessions.create under a signal is thrown once, never left unhandled
+  slimB: launchBrowser: a failed sessions.create under a signal is thrown once, never left unhandled
+
+## mutants/fcf67aa
+  full: receipt run folders go through toStatePath, so a receipt never names the home folder
+  slimA: (none)
+  slimB0: (none)
+  slimB: (none)

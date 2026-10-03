@@ -1,0 +1,26 @@
+diff --git b/examples/auspex-ts/src/assert_receipt.py a/examples/auspex-ts/src/assert_receipt.py
+index 9ba829f..98ee134 100644
+--- b/examples/auspex-ts/src/assert_receipt.py
++++ a/examples/auspex-ts/src/assert_receipt.py
+@@ -276,7 +276,7 @@ def audit_claim(man, work, skip_fetch, skip_all):
+     url = str(man.get("finalUrl") or "")
+     if not skip_fetch:
+         parsed = urlparse(url)
+-        if False:
++        if forbidden_host(url) or resolves_forbidden(url):
+             notes.append("finalUrl is a link-local or cloud-metadata address; not fetched")
+         elif parsed.scheme in ("http", "https"):
+             try:
+diff --git b/examples/auspex-ts/src/check.ts a/examples/auspex-ts/src/check.ts
+index 599d08f..497d7d2 100644
+--- b/examples/auspex-ts/src/check.ts
++++ a/examples/auspex-ts/src/check.ts
+@@ -647,7 +647,7 @@ export async function runCheck(opts: CheckOptions): Promise<CheckResult> {
+         }
+       }
+       const landedAt = finalUrl || page.url()
+-      if (false) {
++      if (landedOnForbiddenHost(landedAt) || (landedAt !== opts.url && (await resolvesToForbiddenHost(landedAt)))) {
+         // Redirected to loopback / link-local / cloud metadata: keep nothing from that page.
+         forbiddenLanding = true
+         matched = false

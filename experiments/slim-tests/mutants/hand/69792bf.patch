@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/assert_receipt.py a/examples/auspex-ts/src/assert_receipt.py
+index 8fa07ea..98ee134 100644
+--- b/examples/auspex-ts/src/assert_receipt.py
++++ a/examples/auspex-ts/src/assert_receipt.py
+@@ -119,7 +119,7 @@ def haystack_matches(raw, expect):
+ 
+ # Not page text: code, styles, the tab title (example.com keeps "Example Domain" only there),
+ # and inert <template> content.
+-SKIP_TAGS = ("script", "style", "noscript")
++SKIP_TAGS = ("script", "style", "noscript", "title", "template")
+ # A button drawn by <input type="submit" value="Send to Today"> shows its value as its label. Text a
+ # user typed into a field is not page text (an agent could "find" words it filled in itself).
+ BUTTON_INPUT_TYPES = ("submit", "button", "reset")

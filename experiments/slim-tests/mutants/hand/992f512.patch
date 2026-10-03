@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/session-ledger.ts a/examples/auspex-ts/src/session-ledger.ts
+index c726ede..4b2457c 100644
+--- b/examples/auspex-ts/src/session-ledger.ts
++++ a/examples/auspex-ts/src/session-ledger.ts
+@@ -94,7 +94,7 @@ async function writeLiveLedger(ledger: LiveLedger, file = LIVE_LEDGER_PATH): Pro
+ // drop an id, and reap can no longer find that browser.
+ let queue: Promise<unknown> = Promise.resolve()
+ function serialized<T>(step: () => Promise<T>): Promise<T> {
+-  const run = step()
++  const run = queue.then(step, step)
+   queue = run.catch(() => undefined)
+   return run
+ }

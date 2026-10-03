@@ -1,0 +1,36 @@
+diff --git b/examples/auspex-ts/src/cli.ts a/examples/auspex-ts/src/cli.ts
+index 68e763e..129bd2a 100644
+--- b/examples/auspex-ts/src/cli.ts
++++ a/examples/auspex-ts/src/cli.ts
+@@ -122,6 +122,7 @@ function numberOption(raw: string | undefined, flag: string): number | undefined
+ function browserUrlOption(url: string | undefined): void {
+   if (url === undefined) return
+   if (!isHttpOrHttpsUrl(url)) fail("url must be an http or https URL")
++  if (!isCheckUrl(url)) fail(LOOPBACK_URL_ERROR)
+ }
+ 
+ function ssoProviderOption(raw: string | undefined): SsoProvider | undefined {
+diff --git b/examples/auspex-ts/src/connect.ts a/examples/auspex-ts/src/connect.ts
+index 31cd22b..419a8ad 100644
+--- b/examples/auspex-ts/src/connect.ts
++++ a/examples/auspex-ts/src/connect.ts
+@@ -71,6 +71,7 @@ export function parseConnectFlags(args: string[]): ({ ok: true } & ConnectComman
+   if (extra) return { ok: false, message: extra }
+   if (!url) return { ok: false, message: "connect requires the app URL: auspex connect https://app.example" }
+   if (!isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
++  if (!isCheckUrl(url)) return { ok: false, message: LOOPBACK_URL_ERROR }
+   if (expect !== undefined && !isNonEmptyExpect(expect)) return { ok: false, message: "--expect must not be empty" }
+   return { ok: true, mode: "run", opts: { url, expect, profile, verbose: verbose || undefined } }
+ }
+diff --git b/examples/auspex-ts/src/job-cli.ts a/examples/auspex-ts/src/job-cli.ts
+index 412a52a..bed262e 100644
+--- b/examples/auspex-ts/src/job-cli.ts
++++ a/examples/auspex-ts/src/job-cli.ts
+@@ -42,6 +42,7 @@ export function parseJobFlags(args: string[]): { ok: true; opts: JobRunOptions }
+   const extra = unexpectedArgs(rest)
+   if (extra) return { ok: false, message: extra }
+   if (url !== undefined && !isHttpOrHttpsUrl(url)) return { ok: false, message: "url must be an http or https URL" }
++  if (url !== undefined && !isCheckUrl(url)) return { ok: false, message: LOOPBACK_URL_ERROR }
+   if (wakeWebhookUrl !== undefined && !isHttpOrHttpsUrl(wakeWebhookUrl)) {
+     return { ok: false, message: "wakeWebhookUrl must be an http or https URL (no userinfo)" }
+   }

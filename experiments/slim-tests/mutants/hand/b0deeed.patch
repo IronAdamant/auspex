@@ -1,0 +1,13 @@
+diff --git b/examples/auspex-ts/src/save-drain.ts a/examples/auspex-ts/src/save-drain.ts
+index fe67ea6..b6f9eba 100644
+--- b/examples/auspex-ts/src/save-drain.ts
++++ a/examples/auspex-ts/src/save-drain.ts
+@@ -297,7 +297,7 @@ async function acquireSaveLock(file: string): Promise<boolean> {
+       const pid = await readLockPid(file)
+       if (pidAlive(pid)) return false
+       // Created but its PID not yet written: a lock being taken right now, not a dead owner.
+-      if (false && pid === 0 && (await lockIsYoung(file))) return false
++      if (pid === 0 && (await lockIsYoung(file))) return false
+       await unlink(file).catch(() => undefined)
+     }
+   }
