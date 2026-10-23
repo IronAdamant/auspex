@@ -44,14 +44,14 @@ export type ReplayPageCopy = {
 }
 
 export const IRONADAMANT_REPLAY_COPY: Required<ReplayPageCopy> = {
-  title: "Auspex — Solari cloud Chrome replay (ironadamant.com)",
+  title: "Auspex: Solari cloud Chrome replay (ironadamant.com)",
   href: "https://ironadamant.com/",
   hostLabel: "ironadamant.com",
   note: "public JS page, not a login. rrweb player; no window on the author's Mac.",
 }
 
 export const CONSISTENCYHUB_MICROSOFT_REPLAY_COPY: Required<ReplayPageCopy> = {
-  title: "Auspex — Solari cloud Chrome replay (consistencyhub.io)",
+  title: "Auspex: Solari cloud Chrome replay (consistencyhub.io)",
   href: "https://consistencyhub.io/",
   hostLabel: "consistencyhub.io",
   note: "Sign in with Microsoft, then the empty box. Emails and passwords stripped.",
@@ -89,7 +89,7 @@ export function replayHtmlFromNdjson(ndjson: string, copy: ReplayPageCopy = {}):
 </head>
 <body>
   <header>
-    <strong>Auspex</strong> — recorded Solari cloud Chrome on
+    <strong>Auspex</strong>: recorded Solari cloud Chrome on
     <a href="${href}">${hostLabel}</a>
     (${note})
   </header>
