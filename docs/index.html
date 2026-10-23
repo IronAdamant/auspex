@@ -229,7 +229,7 @@
         ConsistencyHub: blurred still + <a href="demo/consistencyhub-receipt.json">receipt</a> (19 September).
         OneDrive: receipt-only <a href="demo/onedrive-receipt.json">onedrive-receipt.json</a> (no public PNG, PII).
         Both: ok true, claimOk false (skipped), claimOkProfile true.
-        Worked evidence, not the recipe — strangers still use <code>login --url</code> plus their URL and expect.
+        Worked evidence, not the recipe. Strangers still use <code>login --url</code> plus their URL and expect.
         <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md#dual-pack-same-microsoft-seed">RECEIPTS.md Dual pack</a>.
       </p>
     </figure>
@@ -240,7 +240,7 @@ npx auspex-solari check --name ironadamant</pre>
     <p>
       Good looks like <code>"ok": true</code> in the JSON it prints.
       This is a public page with no login, so it does not prove the logged-in path; the table above does.
-      No key? Clone the repo and run <code>npm install &amp;&amp; npm test</code>.
+      No key? Clone the repo and run <code>npm install && npm test</code>.
     </p>
     <p>Your own site, whole login in one command (you sign in, then press Enter; it ends with one sentence):</p>
     <pre>npx auspex-solari connect https://your.app --expect "Words only shown when logged in"</pre>
@@ -275,7 +275,7 @@ npx auspex-solari check --name ironadamant</pre>
     <details class="later">
       <summary>How the login works <span class="hint">(phone door, agent steps)</span></summary>
     <p>
-      Recipe for any other site: <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile &lt;yours&gt;</code>).
+      Recipe for any other site: <code>login --url</code> (derives <code>--profile app-example</code>; override <code>--profile <yours></code>).
       <a href="https://github.com/IronAdamant/auspex/blob/main/RECEIPTS.md">Receipts</a>.
     </p>
     <div class="card">
@@ -283,7 +283,7 @@ npx auspex-solari check --name ironadamant</pre>
       <code>npx auspex-solari login</code> prints one link (<code>phone.html</code>).
       That page is the only login door, on a phone or a computer.
       You're controlling Solari's remote Chrome. Sign in on the site there.
-      Saved login data stays on Solari — not on this phone or desktop, and not in Auspex.
+      Saved login data stays on Solari. It is not on this phone or desktop, and not in Auspex.
       Open it in the phone's own Safari or Chrome, or on a computer.
       <code>phone.html</code> has a real text field, so the software keyboard opens.
       Chrome on the phone is the dogfood browser.
@@ -305,8 +305,8 @@ npx auspex-solari check --name ironadamant</pre>
       not a same-session HITL takeover of the live check.
       Solari's picture of Chrome will not open the phone keyboard.
       This is not the Mousepad sandbox demo (<code>auspex desktop</code>); that is a separate named Solari desktop primitive.
-      An idle saved profile is deleted on the next Auspex command after 30 minutes without use —
-      not a live timer on this field. Purge a used login only after the human agrees.
+      An idle saved profile is deleted on the next Auspex command after 30 minutes without use.
+      That is not a live timer on this field. Purge a used login only after the human agrees.
       Door pages do not collect the Solari API key.
     </div>
     <div class="card">
@@ -316,7 +316,7 @@ npx auspex-solari check --name ironadamant</pre>
       → the human taps Save and pastes the copied line
       → <code>await-login --save-editor</code>
       → <code>finalize-login</code>, then later <code>check</code> (optional <code>--verify-with-profile</code>).
-      Seed/handoff door for off-site typing — not a same-session VNC takeover.
+      Seed/handoff door for off-site typing. It is not a same-session VNC takeover.
       Agents never type a password. Secrets stay off chat, MCP, and receipts.
       <a href="https://github.com/IronAdamant/auspex/blob/main/AGENTS.md#frozen-agent-door-sequence">Frozen door sequence</a>
       (<a href="https://github.com/IronAdamant/auspex/blob/main/llms.txt">llms.txt</a>).
