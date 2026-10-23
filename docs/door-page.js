@@ -298,7 +298,7 @@
 
     var expSec = resolveExpirySeconds()
     if (!expSec) {
-      lockUi("Link expiry unknown — remint", remintLine())
+      lockUi("Link expiry unknown. Remint", remintLine())
       return
     }
 

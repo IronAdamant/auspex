@@ -19,7 +19,7 @@
   }
 
   /* noVNC defaults are quality 6 and compression 2. 4/6 is a lighter login
-     picture that still shows buttons. This build exposes both setters (0–9). */
+     picture that still shows buttons. This build exposes both setters (0 to 9). */
   var DOOR_QUALITY_LEVEL = 4
   var DOOR_COMPRESSION_LEVEL = 6
   var DOOR_RESIZE_MIN_PX = 64
