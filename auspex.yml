@@ -1,0 +1,12 @@
+# Named checks. Run: auspex check --name ironadamant
+checks:
+  ironadamant:
+    url: https://ironadamant.com
+    expect: "Web app testing, in plain English."
+  checkpoint:
+    url: https://checkpointprojects.com
+    expect: Checkpoint
+  consistencyhub:
+    url: https://consistencyhub.io
+    expect: "Document Editor"
+    profile: consistencyhub

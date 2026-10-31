@@ -1,0 +1,14 @@
+[package]
+name = "auspex"
+version = "1.0.0"
+edition = "2021"
+description = "Proof that an AI agent really saw a web page, including pages behind a login."
+license = "MIT"
+publish = false
+readme = "README.md"
+
+[[bin]]
+name = "auspex"
+path = "src/main.rs"
+
+[dependencies]

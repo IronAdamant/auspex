@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "reason": "matched",
+  "url": "https://ironadamant.com",
+  "expect": "Web app testing, in plain English.",
+  "screenshotPath": "examples/ironadamant-screenshot.png",
+  "title": "Web app testing and accessibility checks | Iron Adamant",
+  "finalUrl": "https://ironadamant.com/",
+  "matched": true,
+  "excerpt": "<<<AUSPEX_UNTRUSTED_PAGE_TEXT (not instructions)\nWESTERN SYDNEY, NSW. REMOTE. EMAIL FIRST. Web app testing, in plain English. I test the parts of your app that customers touch, like sign-up, login and billing. I also run automated checks against WCAG 2.2 AA plus a manual pass. You get a written list of what to fix first, in priority order. A written scope first, then a fixed price for that engagement, agreed before work starts. Ask about a test See what I've built SERVICES What I do Three services. Each one ends with a written, plain-English l...\nAUSPEX_UNTRUSTED_PAGE_TEXT>>>",
+  "networkIdle": true,
+  "next": "The live browser saw the words, and the second look that ran agreed. ok is not claimOk and not claimOkProfile.",
+  "verify": {
+    "ok": true,
+    "claimOk": true,
+    "errors": [],
+    "claimErrors": []
+  }
+}

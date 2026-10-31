@@ -1,9 +1,7 @@
 # Auspex
 
-The one-page agent card is loaded below: commands, the waiting pattern, the three answers, and when to stop.
+Read [AGENT-CARD.md](AGENT-CARD.md), then [AGENTS.md](AGENTS.md), before driving a check or a login.
 
-@AGENT-CARD.md
+The program is Rust. `cargo test` and `cargo clippy --all-targets -- -D warnings` must pass. There are no third-party crates. Do not add one.
 
-Read the full contract, [AGENTS.md](AGENTS.md) (door table, receipt schema, tool rules), before changing door, receipt, or login code, or when a status is not on the card. Quick web card: [llms.txt](llms.txt).
-
-Host paste cards (local stdio, published `auspex-solari`): [docs/HOSTS.md](docs/HOSTS.md).
+The agent does not type a password. `ok` is not `claimOk` and not `claimOkProfile`.

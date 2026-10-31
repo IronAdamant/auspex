@@ -1,0 +1,55 @@
+name: auspex
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget ca-certificates
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y /tmp/chrome.deb
+      - name: Test
+        run: cargo test
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Live check of ironadamant.com
+        run: |
+          set -euo pipefail
+          cargo build --release
+          home="${RUNNER_TEMP}/auspex-home"
+          mkdir -p "$home"
+          run_check() {
+            AUSPEX_HOME="$home" ./target/release/auspex check https://ironadamant.com \
+              --expect "Web app testing, in plain English." > "${RUNNER_TEMP}/receipt.json"
+          }
+          run_check || { sleep 8; run_check; }
+          python3 - << 'PY'
+          import json, os
+          body = json.load(open(os.environ["RUNNER_TEMP"] + "/receipt.json"))
+          assert body["schemaVersion"] == 1
+          assert body["ok"] is True
+          assert body["reason"] == "matched"
+          assert body["verify"]["claimOk"] is True
+          assert "claimOkProfile" not in body["verify"]
+          print("live check ok", body["title"])
+          PY
+      - name: Upload the live receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auspex-ironadamant-receipt
+          path: ${{ runner.temp }}/receipt.json
+          if-no-files-found: ignore

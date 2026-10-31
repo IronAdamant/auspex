@@ -1,119 +1,12 @@
-# Auspex — agent quick card
+# Auspex
 
-Source of truth: [AGENTS.md](AGENTS.md). One-page agent card: [AGENT-CARD.md](AGENT-CARD.md). This file is the short door. Product name is Auspex. Repo is `IronAdamant/auspex`. ConsistencyHub and OneDrive are worked examples of a logged-in app, not the recipe for every site.
+Local Chrome proof that an agent saw a web page. No cloud browser.
 
-Auspex opens the site in Solari cloud Chrome, checks the claim, then checks again on a second machine (by default on a public page; with `--verify-with-profile` on a logged-in app). It does not type passwords or log in for the user.
+- check <url> --expect <words>
+- login --url <https>, then a person taps Save
+- check --profile <name> --verify-with-profile, then read claimOkProfile
+- prove --profile <name> --url <https> --expect <words>
+- summary reloads the last run
+- mcp is the stdio server
 
-- `ok` means the live browser matched the claim, and the second check passed when it ran.
-- `claimOk` means an anonymous second machine saw the claim, with no saved login.
-- `claimOkProfile` means a second browser that reused the saved login saw the claim. After `--verify-with-profile`, this is the reuse signal. `ok` alone is not enough.
-
-We do not claim Alice-vs-Bob wrong-account detection.
-
-## What one check can do
-
-One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open. `--allow-page-actions` does not raise that ceiling. A dialog, a typed field, and a submit are three steps. Stage the page, then have a person finish it. A saved login is ready to reuse only when a later check sees the logged-in page. The short version is [Two truths about Save](README.md#two-truths-about-save). The full rules are in [AGENTS.md](AGENTS.md).
-
-`npx auspex-solari check --name ironadamant` is a public page with no login. It does **not** prove logged-in honesty.
-
-**Install `auspex-solari` (not npm `auspex`). Repo is `IronAdamant/auspex`.** `auspex-solari` **0.1.30 is published** (latest). Agents do not `npm publish`.
-
-After a git clone, run `npm install && npm run build:mcp` in `examples/auspex-ts`, or MCP fail-closes with reason `DistMissing` (not an empty silent server). Published `npx -p auspex-solari auspex-mcp` includes `dist/`. Put `SOLARI_API_KEY` in the MCP `env`. Host paste cards: [docs/HOSTS.md](docs/HOSTS.md). Claude Code: [CLAUDE.md](CLAUDE.md).
-
-A login wait can run about 30 minutes. A tool timeout near 300 seconds ends first. Use `npx auspex-solari job`, then `job-status` (`auspex_job`, then `auspex_job_status`).
-
-## Frozen door sequence
-
-Seed/handoff door for off-site typing. Not a same-session VNC takeover.
-
-1. Mint `login --url <https>` (derives `--profile` from the host; override `--profile <yours>`). The door is `handoff.url` (`phone.html`). `handoff.mobileUrl` is that same page, on a phone or a computer. Clear empties the whole field.
-2. Human logs in. Secrets stay off agent chat, MCP, and receipts.
-3. Human Save. Paste the short Save line or just say "saved" (in a terminal running `connect`, press Enter). The local field is cleared.
-4. `await-login --save-editor`, then `finalize-login` only when the seed is the app session, not an IdP-only jar (`idp-only-save`, kind `app-visible`). Use `--url` and an expect unique to the logged-in app (absent from public marketing).
-5. Later `check`. Optional `--verify-with-profile`.
-
-Shortest path: `npx auspex-solari connect <https> --expect <words>` runs steps 1–5 in one command and ends in one sentence ("Logged in" only when `claimOkProfile` is true). An agent runs it in the background, then `npx auspex-solari connect --save <profile>` when the human pastes the Save line or says "saved" (clone: `npx auspex connect`).
-
-New host: do not carry a previous `--profile`. A mismatch sets `profileHostMatch` false and `suggestedProfile`. Remint with that slug.
-
-Many profiles: One profile per host. login --url names the slug (app.example.com → app-example-com). A different host gets its own profile. profiles lists them. Purge one name only after the human agrees (--purge <name> --yes).
-
-## Clock
-
-The typing window dies in about five minutes. A saved profile does not die with it. Detail: [docs/stream-jwt-solari.md](docs/stream-jwt-solari.md).
-- While that window is still open, a dropped connection reconnects the same token. That is not `stream-expired`.
-- After the window dies and the profile has no cookies, mint again.
-- Human Save, then `await-login --save-editor`, then `finalize-login` only when the jar is the app session.
-- `editorSave` 200 and the jar includes the app host but is not cookie-strong or local-storage-auth: finalize now, even if the window already died.
-- App-origin cookies or allowlisted localStorage auth key names: `check --verify-with-profile`. `solariSaveReady` is not `claimOkProfile`. sessionStorage 0 is expected. Do not invent sessionStorage.
-- The app is on screen and the jar is only Microsoft or Google cookies: do not finalize. Do not mint again to finish Microsoft.
-
-## Long run
-
-<!-- auspex-long-run:begin -->
-A saved login can outlast the five-minute window. That span is the Solari profile and the site session, not an Auspex timer. There is no keepalive. One exception: a profile no Auspex command has used for 30 minutes is deleted on the next command. A multi-site loop, or a gap over 30 minutes, needs a human door again.
-
-Before a long unattended loop, run `profile-status`, then on an auth-gated host `check --verify-with-profile` and read `claimOkProfile`. `ok`, `loggedIn`, `weakSeed`, and `app-visible` are not overnight-safe. The cadence is that pair, before the loop and again before an older pass. There is no minute timer.
-
-Operator note: budget an occasional human door. Site expiry is the re-gate row. Longevity is the Solari profile and the site session, not an Auspex TTL. A sign-in longer than about five minutes needs a fresh login for the final Save window. Save before the phone countdown hits zero. Do not restart await mid-window. Auspex cannot lengthen the Solari token. Operator page: docs/ops-runbook.md.
-
-If you hit a sign-in wall, a fresh challenge, a dead typing window with no cookies, or a seed you cannot reuse: stop. One human door when the door table says `auspex_login`. Do not type a secret. Do not claim a CAPTCHA is solved. Do not keep checking for hours.
-
-`app-visible` still means stop with no mint. `editorFold` `no-cdp` with the app host in the jar still means finalize now when that jar is not cookie-strong. A cookie-strong Save is check --verify-with-profile. solariSaveReady is not claimOkProfile.
-<!-- auspex-long-run:end -->
-
-## Schema v1 required keys
-
-Check stdout is one JSON object. `schemaVersion` is `1`. Do not add required keys. Exit 0 only when `ok` is true.
-
-- `schemaVersion` — `1`
-- `ok` — agent success: `reason` is `matched`, and sandbox verify passed when it ran
-- `reason` — `matched` | `loggedOut` | `needsHuman` | `mismatch` | `network` | `recordedLoggedIn` | `expectMatchedPublicLanding` | `hostChanged` | `stream-expired`
-- `url` — requested URL, or landed URL if the request was empty
-- `expect` — claim substring
-- `screenshotPath` — on-disk PNG under `.auspex/runs/`
-
-## If stuck
-
-- The claim appeared on a public login or marketing page, so the profile was not saved (`expectMatchedPublicLanding`). Use the real app URL and text that only the logged-in app shows.
-- The live site moved to a different host than the one minted into the door (`hostChanged`). Mint `auspex_login` again for `suggestedProfile` and `suggestedUrl`. Leave the old profile alone.
-<!-- auspex-door-await:begin -->
-- `idp-only-save` / `app-visible`: do not finalize. Do not mint again to finish Microsoft. The picture is not a saved login.
-- `idp-only-save` / `sign-in-wall`: finish sign-in, land on the app UI, then Save, and mint again.
-- `editorFold` `no-cdp` and the jar includes the app host: finalize-login now, even if the window already died. Skip `--verify-with-profile` on that fold.
-- Bare `stream-expired` (no cookies): mint again. Skip a 30-minute wait. Do not treat this as finalize-now.
-<!-- auspex-door-await:end -->
-- `weakSeed` (counted in-tab session storage is 0): finalize-login while the token is live. This is not `app-visible`. Skip `--verify-with-profile`.
-- `weakSeed` (stale folded session storage): mint again. This is not `app-visible`. Skip `--verify-with-profile`.
-- `emptySave` (no saved profile): mint again. Do not finalize.
-- `cookie-strong` or `local-storage-auth`: Solari Save already holds app-origin cookies or allowlisted localStorage auth key names. Counted sessionStorage 0 is expected. Run `check --verify-with-profile` and read `claimOkProfile`. `solariSaveReady` is not `claimOkProfile`. Do not finalize to invent sessionStorage. IdP hosts alone stay the IdP rows.
-- Long unattended loop: [Long run](#long-run) and [docs/ops-runbook.md](docs/ops-runbook.md). Check the seed before you leave it. On a re-gate, stop.
-- Before a remint or a long await, `npx auspex-solari solari-health` asks if Solari answers with this key. It does not say the app is logged in. `profile-status` does that jar check.
-- Solari returned HTTP 429 (too many browsers). Run `auspex_reap`, then retry. The HTTP list is in [AGENTS.md](AGENTS.md#blame-solari-vs-auspex).
-- Login mint is silent. Read `traceSummary` / `npx auspex-solari trace` before minting again.
-
-## Do not
-
-- Treat one check as a multi-step form. One check can fill one field and click one control. A later check starts a new browser, so a form opened in the first check is not still open.
-- Type a password or OTP, copy one into chat, or fill one from a vault or an agent.
-- Build a Handraise-style same-session takeover. The door is off-site typing.
-- Open Solari noVNC to fix the phone keyboard. Phone typing uses `handoff.mobileUrl`.
-- Finalize because the dashboard is on screen (`idp-only-save` / `app-visible`).
-- Call an Auspex remote HTTP server. Local stdio only.
-- Turn on CAPTCHA, stealth, or a proxy. Leave them alone.
-- Install npm `auspex` or run `npm publish`. The package is `auspex-solari`.
-- SOLARI_API_KEY is env-only. Never commit .auspex/, .env, or keys.
-- `--record` a logged-in session, or run `auspex_verify` after a default check.
-- Treat `ok` as `claimOk` or `claimOkProfile`. Do not fold `claimOkProfile` into `ok`.
-- Treat `solariSaveReady` as `claimOkProfile`. A cookie or localStorage Save still needs `check --verify-with-profile`.
-- Treat `loggedIn`, `weakSeed`, or `app-visible` as safe for an unattended 24–48h loop, or invent a keepalive. Longevity is the Solari profile and the site session.
-
-## Links
-
-- Repo: [IronAdamant/auspex](https://github.com/IronAdamant/auspex) · npm package `auspex-solari`
-- Contract: [AGENTS.md](AGENTS.md)
-- Receipts: [RECEIPTS.md](RECEIPTS.md)
-- Five-minute skim: [docs/REVIEWER-5MIN.md](docs/REVIEWER-5MIN.md)
-- Ops runbook: [docs/ops-runbook.md](docs/ops-runbook.md)
-- Install and commands: [examples/auspex-ts/README.md](examples/auspex-ts/README.md)
-- Host paste cards: [docs/HOSTS.md](docs/HOSTS.md) · Claude Code pointer: [CLAUDE.md](CLAUDE.md)
+ok, claimOk, and claimOkProfile are separate. Auspex does not detect the wrong account. Details: AGENTS.md.
