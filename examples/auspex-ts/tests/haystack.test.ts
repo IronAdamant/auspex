@@ -29,6 +29,10 @@ test("Dashboard does not match inside One Dashboard; case stays sensitive", () =
   assert.equal(haystackMatches("Open the Document Editor today", "Document Editor"), true)
   assert.equal(haystackMatches("Checkpoint Projects", "Checkpoint"), true)
   assert.equal(haystackMatches("One office job. Your accounts.", "One office job."), true)
+  assert.equal(
+    haystackMatches("Web app testing, in plain English. I test the parts", "Web app testing, in plain English."),
+    true,
+  )
 })
 
 test("expectSchema and httpUrlSchema reject whitespace and non-http(s)", () => {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
+import { ironadamantCheckFromYaml } from "../scripts/release-smoke.mjs"
 import {
   applySavedCheckName,
   canonicalSavedCheckName,
@@ -16,7 +17,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 test("shipped auspex.yml has ironadamant, checkpoint, consistencyhub", () => {
   const checks = loadSavedChecks(path.join(root, "auspex.yml"))
-  assert.equal(resolveSavedCheck("ironadamant", checks).expect, "One office job.")
+  assert.equal(resolveSavedCheck("ironadamant", checks).expect, "Web app testing, in plain English.")
   assert.equal(resolveSavedCheck("ironadamant", checks).url, "https://ironadamant.com")
   assert.equal(resolveSavedCheck("Checkpoint", checks).expect, "Checkpoint")
   assert.equal(resolveSavedCheck("checkpoint", checks).url, "https://checkpointprojects.com")
@@ -57,6 +58,16 @@ test("parseSavedChecksYaml rejects sso/record on a saved check", () => {
 
 test("parseSavedChecksYaml rejects invalid lines", () => {
   assert.throws(() => parseSavedChecksYaml("checks:\n  nope: { json: true }\n"), /invalid auspex.yml/)
+})
+
+test("release smoke reads the same ironadamant phrase as the saved check", () => {
+  const yaml = readFileSync(path.join(root, "auspex.yml"), "utf8")
+  const target = ironadamantCheckFromYaml(yaml)
+  const saved = resolveSavedCheck("ironadamant", loadSavedChecks(path.join(root, "auspex.yml")))
+  assert.equal(target.url, saved.url)
+  assert.equal(target.expect, saved.expect)
+  assert.equal(target.expect, "Web app testing, in plain English.")
+  assert.throws(() => ironadamantCheckFromYaml("checks:\n  checkpoint:\n    url: https://checkpointprojects.com\n"), /no ironadamant/)
 })
 
 test("applySavedCheckName fills url/expect/profile without reconstructing flags", () => {

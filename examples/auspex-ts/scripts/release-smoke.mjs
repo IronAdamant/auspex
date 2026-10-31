@@ -12,9 +12,10 @@
 // In GitHub Actions it also writes the results table to the run page ($GITHUB_STEP_SUMMARY).
 
 import { spawn, spawnSync } from "node:child_process"
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
 const argv = process.argv.slice(2)
 const flag = (name) => argv.includes(name)
@@ -27,6 +28,37 @@ const spec = path.isAbsolute(option("--spec", "")) || option("--spec", "").start
   ? path.resolve(option("--spec", ""))
   : option("--spec", "auspex-solari@latest")
 const live = flag("--live")
+
+function unquoteYaml(value) {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1)
+  }
+  return value
+}
+
+/**
+ * The ironadamant url and expect from this repo's auspex.yml.
+ * `auspex-solari@latest` freezes `name: ironadamant` until the next npm release, so the live
+ * smoke passes these fields itself. A homepage rewrite is fixed here; the published server
+ * is still what opens the page and verifies the words.
+ */
+export function ironadamantCheckFromYaml(yaml) {
+  const block = /^  ironadamant:\n((?:    .*(?:\n|$))*)/m.exec(yaml)
+  if (!block) throw new Error("auspex.yml has no ironadamant check")
+  const field = (key) => {
+    const match = new RegExp(`^    ${key}:\\s*(.*)$`, "m").exec(block[1])
+    const value = match?.[1]?.trim()
+    if (!value) throw new Error(`auspex.yml ironadamant is missing ${key}`)
+    return unquoteYaml(value)
+  }
+  return { url: field("url"), expect: field("expect") }
+}
+
+function ironadamantCheckFromRepo() {
+  const yamlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "auspex.yml")
+  return ironadamantCheckFromYaml(readFileSync(yamlPath, "utf8"))
+}
+
 const evidenceDir = option("--evidence-dir", "")
 const timeoutMs = Number(option("--timeout-ms", "480000"))
 // Core tools every release since 0.1.5 exposes. Newer releases add more (auspex_sweep).
@@ -129,157 +161,165 @@ function writeStepSummary(ok) {
   appendFileSync(file, `${lines.join("\n")}\n`)
 }
 
-const cwd = mkdtempSync(path.join(tmpdir(), "auspex-smoke-"))
-const child = spawn("npx", ["-y", "-p", spec, "auspex-mcp"], {
-  cwd,
-  env: process.env,
-  stdio: ["pipe", "pipe", "pipe"],
-  shell: process.platform === "win32",
-})
+const invokedDirectly =
+  Boolean(process.argv[1]) && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 
-let buffer = ""
-let stderr = ""
-const waiters = new Map()
-child.stdout.on("data", (chunk) => {
-  buffer += chunk
-  let nl
-  while ((nl = buffer.indexOf("\n")) >= 0) {
-    const line = buffer.slice(0, nl)
-    buffer = buffer.slice(nl + 1)
-    try {
-      const msg = JSON.parse(line)
-      waiters.get(msg.id)?.(msg)
-    } catch {
-      /* non-JSON line (e.g. a DistMissing banner); the failed request reports it */
-    }
-  }
-})
-child.stderr.on("data", (chunk) => {
-  stderr = (stderr + chunk).slice(-4000)
-})
-
-let nextId = 0
-function request(method, params, ms = 120_000) {
-  return new Promise((resolve, reject) => {
-    const id = ++nextId
-    const timer = setTimeout(() => {
-      waiters.delete(id)
-      reject(new Error(`${method} timed out after ${ms}ms`))
-    }, ms)
-    waiters.set(id, (msg) => {
-      clearTimeout(timer)
-      waiters.delete(id)
-      resolve(msg)
-    })
-    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`)
-  })
-}
-
-async function callTool(name, args, ms) {
-  const msg = await request("tools/call", { name, arguments: args }, ms)
-  const content = msg.result?.content ?? []
-  const text = content.find((c) => c.type === "text")?.text
-  let json
-  try {
-    json = text ? JSON.parse(text) : undefined
-  } catch {
-    json = undefined
-  }
-  return { isError: msg.result?.isError === true, kinds: content.map((c) => c.type), json, error: msg.error }
-}
-
-const overall = setTimeout(() => finish(new Error(`smoke timed out after ${timeoutMs}ms`)), timeoutMs)
-
-async function run() {
-  const init = await request("initialize", {
-    protocolVersion: "2024-11-05",
-    capabilities: {},
-    clientInfo: { name: "auspex-release-smoke", version: "1" },
-  }, 240_000)
-  const server = init.result?.serverInfo
-  serverInfo = server
-  record("initialize", Boolean(server), { server })
-  if (!server) return
-  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`)
-
-  const tools = (await request("tools/list", {})).result?.tools?.map((t) => t.name) ?? []
-  const missing = requiredTools.filter((t) => !tools.includes(t))
-  record("tools/list", missing.length === 0, { count: tools.length, ...(missing.length ? { missing } : {}) })
-
-  // Loads the runner chain (receipt.ts reads assert_receipt.py at import). No key needed.
-  const trace = await callTool("auspex_trace", {})
-  // trace printed tracePath with the home folder through 0.1.27.
-  const traceHome = homePathsIn(trace.json)
-  record(
-    "auspex_trace",
-    trace.json?.ok === true && traceHome.length === 0,
-    trace.json?.ok === true ? (traceHome.length ? { homePaths: traceHome } : {}) : { error: trace.json?.error ?? trace.error },
-  )
-
-  // The CLI a stranger types: `npx auspex-solari trace` from the same empty folder (no key needed).
-  const cli = spawnSync("npx", ["-y", "-p", spec, "auspex-solari", "trace"], {
+function startSmoke() {
+  const cwd = mkdtempSync(path.join(tmpdir(), "auspex-smoke-"))
+  const child = spawn("npx", ["-y", "-p", spec, "auspex-mcp"], {
     cwd,
     env: process.env,
-    encoding: "utf8",
-    timeout: 240_000,
+    stdio: ["pipe", "pipe", "pipe"],
     shell: process.platform === "win32",
   })
-  let cliJson
-  try {
-    // Stdout is one JSON object (npx may print install notices to stderr only).
-    const out = cli.stdout ?? ""
-    cliJson = JSON.parse(out.slice(out.indexOf("{")))
-  } catch {
-    cliJson = undefined
-  }
-  record("cli auspex-solari trace", cli.status === 0 && cliJson?.ok === true, cli.status === 0 ? {} : { status: cli.status, stderrTail: (cli.stderr ?? "").trim().split("\n").slice(-3) })
 
-  if (!live) return
-  if (!process.env.SOLARI_API_KEY) {
-    record("live", false, { error: "--live needs SOLARI_API_KEY in the environment" })
-    return
-  }
-  const health = await callTool("auspex_solari_health", {})
-  record("auspex_solari_health", health.json?.ok === true, { reason: health.json?.reason })
-  if (health.json?.ok !== true) return
-
-  const check = await callTool("auspex_check", { name: "ironadamant" }, 360_000)
-  const r = check.json ?? {}
-  const shot = String(r.screenshotPath ?? "")
-  record("auspex_check", r.ok === true && r.reason === "matched" && r.verify?.claimOk === true, {
-    reason: r.reason,
-    claimOk: r.verify?.claimOk,
-    verifyErrors: r.verify?.errors,
+  let buffer = ""
+  let stderr = ""
+  const waiters = new Map()
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk
+    let nl
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl)
+      buffer = buffer.slice(nl + 1)
+      try {
+        const msg = JSON.parse(line)
+        waiters.get(msg.id)?.(msg)
+      } catch {
+        /* non-JSON line (e.g. a DistMissing banner); the failed request reports it */
+      }
+    }
   })
-  // Every string in the receipt, not only screenshotPath: verify.runDir and diff.previousRunDir
-  // carried the home folder through 0.1.27 while screenshotPath was clean.
-  const homePaths = homePathsIn(r)
-  record("receipt has no home dir in any field", Boolean(shot) && homePaths.length === 0, { screenshotPath: shot, homePaths })
-  record("check returns an image", check.kinds.includes("image"))
-  if (evidenceDir && r.schemaVersion) evidence = keepEvidence(r)
-}
+  child.stderr.on("data", (chunk) => {
+    stderr = (stderr + chunk).slice(-4000)
+  })
 
-let done = false
-function finish(err) {
-  if (done) return
-  done = true
-  clearTimeout(overall)
-  if (err) record("error", false, { error: err.message })
-  const ok = steps.length > 0 && steps.every((s) => s.ok)
-  const summary = { ok, spec, live, steps }
-  if (evidence) summary.evidenceDir = evidenceDir
-  if (!ok && stderr.trim()) summary.serverStderrTail = stderr.trim().split("\n").slice(-8)
-  try {
-    writeStepSummary(ok)
-  } catch {
-    /* the run page table is a convenience; the JSON on stdout stays the result */
+  let nextId = 0
+  function request(method, params, ms = 120_000) {
+    return new Promise((resolve, reject) => {
+      const id = ++nextId
+      const timer = setTimeout(() => {
+        waiters.delete(id)
+        reject(new Error(`${method} timed out after ${ms}ms`))
+      }, ms)
+      waiters.set(id, (msg) => {
+        clearTimeout(timer)
+        waiters.delete(id)
+        resolve(msg)
+      })
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`)
+    })
   }
-  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`)
-  child.kill()
-  process.exit(ok ? 0 : 1)
+
+  async function callTool(name, args, ms) {
+    const msg = await request("tools/call", { name, arguments: args }, ms)
+    const content = msg.result?.content ?? []
+    const text = content.find((c) => c.type === "text")?.text
+    let json
+    try {
+      json = text ? JSON.parse(text) : undefined
+    } catch {
+      json = undefined
+    }
+    return { isError: msg.result?.isError === true, kinds: content.map((c) => c.type), json, error: msg.error }
+  }
+
+  const overall = setTimeout(() => finish(new Error(`smoke timed out after ${timeoutMs}ms`)), timeoutMs)
+
+  async function run() {
+    const init = await request("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "auspex-release-smoke", version: "1" },
+    }, 240_000)
+    const server = init.result?.serverInfo
+    serverInfo = server
+    record("initialize", Boolean(server), { server })
+    if (!server) return
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`)
+
+    const tools = (await request("tools/list", {})).result?.tools?.map((t) => t.name) ?? []
+    const missing = requiredTools.filter((t) => !tools.includes(t))
+    record("tools/list", missing.length === 0, { count: tools.length, ...(missing.length ? { missing } : {}) })
+
+    // Loads the runner chain (receipt.ts reads assert_receipt.py at import). No key needed.
+    const trace = await callTool("auspex_trace", {})
+    // trace printed tracePath with the home folder through 0.1.27.
+    const traceHome = homePathsIn(trace.json)
+    record(
+      "auspex_trace",
+      trace.json?.ok === true && traceHome.length === 0,
+      trace.json?.ok === true ? (traceHome.length ? { homePaths: traceHome } : {}) : { error: trace.json?.error ?? trace.error },
+    )
+
+    // The CLI a stranger types: `npx auspex-solari trace` from the same empty folder (no key needed).
+    const cli = spawnSync("npx", ["-y", "-p", spec, "auspex-solari", "trace"], {
+      cwd,
+      env: process.env,
+      encoding: "utf8",
+      timeout: 240_000,
+      shell: process.platform === "win32",
+    })
+    let cliJson
+    try {
+      // Stdout is one JSON object (npx may print install notices to stderr only).
+      const out = cli.stdout ?? ""
+      cliJson = JSON.parse(out.slice(out.indexOf("{")))
+    } catch {
+      cliJson = undefined
+    }
+    record("cli auspex-solari trace", cli.status === 0 && cliJson?.ok === true, cli.status === 0 ? {} : { status: cli.status, stderrTail: (cli.stderr ?? "").trim().split("\n").slice(-3) })
+
+    if (!live) return
+    if (!process.env.SOLARI_API_KEY) {
+      record("live", false, { error: "--live needs SOLARI_API_KEY in the environment" })
+      return
+    }
+    const health = await callTool("auspex_solari_health", {})
+    record("auspex_solari_health", health.json?.ok === true, { reason: health.json?.reason })
+    if (health.json?.ok !== true) return
+
+    const target = ironadamantCheckFromRepo()
+    const check = await callTool("auspex_check", { url: target.url, expect: target.expect }, 360_000)
+    const r = check.json ?? {}
+    const shot = String(r.screenshotPath ?? "")
+    record("auspex_check", r.ok === true && r.reason === "matched" && r.verify?.claimOk === true, {
+      reason: r.reason,
+      claimOk: r.verify?.claimOk,
+      verifyErrors: r.verify?.errors,
+    })
+    // Every string in the receipt, not only screenshotPath: verify.runDir and diff.previousRunDir
+    // carried the home folder through 0.1.27 while screenshotPath was clean.
+    const homePaths = homePathsIn(r)
+    record("receipt has no home dir in any field", Boolean(shot) && homePaths.length === 0, { screenshotPath: shot, homePaths })
+    record("check returns an image", check.kinds.includes("image"))
+    if (evidenceDir && r.schemaVersion) evidence = keepEvidence(r)
+  }
+
+  let done = false
+  function finish(err) {
+    if (done) return
+    done = true
+    clearTimeout(overall)
+    if (err) record("error", false, { error: err.message })
+    const ok = steps.length > 0 && steps.every((s) => s.ok)
+    const summary = { ok, spec, live, steps }
+    if (evidence) summary.evidenceDir = evidenceDir
+    if (!ok && stderr.trim()) summary.serverStderrTail = stderr.trim().split("\n").slice(-8)
+    try {
+      writeStepSummary(ok)
+    } catch {
+      /* the run page table is a convenience; the JSON on stdout stays the result */
+    }
+    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`)
+    child.kill()
+    process.exit(ok ? 0 : 1)
+  }
+
+  child.on("exit", (code) => {
+    if (!done) finish(new Error(`server exited early (code ${code})`))
+  })
+  run().then(() => finish(), finish)
 }
 
-child.on("exit", (code) => {
-  if (!done) finish(new Error(`server exited early (code ${code})`))
-})
-run().then(() => finish(), finish)
+if (invokedDirectly) startSmoke()

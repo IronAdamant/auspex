@@ -16,7 +16,7 @@ export type SavedCheck = {
 }
 
 export const DEFAULT_SAVED_CHECKS: readonly SavedCheck[] = [
-  { name: "ironadamant", url: "https://ironadamant.com", expect: "One office job." },
+  { name: "ironadamant", url: "https://ironadamant.com", expect: "Web app testing, in plain English." },
   { name: "checkpoint", url: "https://checkpointprojects.com", expect: "Checkpoint" },
   {
     name: "consistencyhub",

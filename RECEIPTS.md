@@ -128,7 +128,7 @@ npx auspex check https://onedrive.live.com/ --expect "My files" \
 
 ## Ironadamant.com Check (Public Marketing)
 
-**Claim:** "One office job." appears on [ironadamant.com](https://ironadamant.com)
+**Claim:** "Web app testing, in plain English." appears on [ironadamant.com](https://ironadamant.com)
 
 **Saved check:** `npx auspex check --name ironadamant`
 
@@ -296,7 +296,7 @@ export SOLARI_API_KEY=slr_live_...   # grab one at console.getsolari.com
 npx auspex check --name ironadamant
 ```
 
-The saved check is configured for ironadamant.com with the expect string "One office job." — no URL or flags needed.
+The saved check is configured for ironadamant.com with the expect string "Web app testing, in plain English." — no URL or flags needed.
 
 ## Weekly GitHub Actions Checks
 

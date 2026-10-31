@@ -6,7 +6,7 @@
 checks:
   ironadamant:
     url: https://ironadamant.com
-    expect: "One office job."
+    expect: "Web app testing, in plain English."
   checkpoint:
     url: https://checkpointprojects.com
     expect: Checkpoint

@@ -5,20 +5,20 @@ No Chrome window opens on your Mac. Solari runs a remote browser; you only get J
 From `examples/auspex-ts` with `SOLARI_API_KEY` set:
 
 ```bash
-npx tsx src/cli.ts check https://ironadamant.com --expect "One office job."
+npx tsx src/cli.ts check https://ironadamant.com --expect "Web app testing, in plain English."
 ```
 
 Expect JSON on stdout with `"matched": true` and a PNG + `manifest.json` under `.auspex/runs/`. Same pattern on checkpointprojects.com (`--expect Checkpoint`). An auth-gated host uses `login --url` (derives `--profile` from the host; override `--profile <yours>`) plus *their* URL and expect after finalize-login — attached profiles on non-public-marketing URLs **default to no sandbox** (anonymous fetch cannot see the editor). The named `consistencyhub` saved check is the optional [worked example](#worked-example-dogfood). Public marketing `check` already verifies; do **not** also run `verify` after a default check. Only run `verify` after `--no-verify`:
 
 ```bash
-npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --no-verify
+npx tsx src/cli.ts check https://ironadamant.com --expect "Web app testing, in plain English." --no-verify
 npx tsx src/cli.ts verify
 ```
 
 Optional recording (polls replay; no presigned URL on JSON):
 
 ```bash
-npx tsx src/cli.ts check https://ironadamant.com --expect "One office job." --record
+npx tsx src/cli.ts check https://ironadamant.com --expect "Web app testing, in plain English." --record
 ```
 
 Desktop sandbox demo (open Mousepad; process list is the evidence):
@@ -71,13 +71,13 @@ npx tsx src/cli.ts check --name consistencyhub
 npx tsx src/cli.ts check --name consistencyhub --verify-with-profile
 ```
 
-Weekly public loop (ironadamant.com `One office job.` + Checkpoint; skips without a key):
+Weekly public loop (ironadamant.com `Web app testing, in plain English.` + Checkpoint; skips without a key):
 
 ```bash
 npm run public-check
 ```
 
-MCP for a stranger (no clone): `npx -p auspex-solari auspex-mcp` with `SOLARI_API_KEY` in `env`. Paste cards are on the root README and in `mcp.claude.example.json` / `grok.mcp.example.toml`. After a clone, run `npm install && npm run build:mcp`, then `mcp.cursor.example.json`. Ask the agent to verify https://ironadamant.com for `"One office job."` via `auspex_check`.
+MCP for a stranger (no clone): `npx -p auspex-solari auspex-mcp` with `SOLARI_API_KEY` in `env`. Paste cards are on the root README and in `mcp.claude.example.json` / `grok.mcp.example.toml`. After a clone, run `npm install && npm run build:mcp`, then `mcp.cursor.example.json`. Ask the agent to verify https://ironadamant.com for `"Web app testing, in plain English."` via `auspex_check`.
 
 Public demo artifacts (Solari cloud Chrome, not a local window):
 

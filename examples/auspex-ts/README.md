@@ -13,7 +13,7 @@ cd examples/auspex-ts
 npm install
 # Optional: gitignored .env is loaded only if SOLARI_API_KEY is unset. Prefer export.
 export SOLARI_API_KEY
-npx auspex check https://ironadamant.com --expect "One office job."
+npx auspex check https://ironadamant.com --expect "Web app testing, in plain English."
 npx auspex check --name ironadamant
 npx auspex check --name checkpoint
 npx auspex login --url https://app.example

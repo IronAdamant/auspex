@@ -10,6 +10,7 @@ import path from "node:path"
 import { gunzipSync } from "node:zlib"
 import { fileURLToPath } from "node:url"
 import { runCheck, packageRoot, runDirFromResult } from "../src/check.ts"
+import { resolveSavedCheck } from "../src/saved-checks.ts"
 import { assertNoCredentialLeak, redactRrwebNdjson } from "../src/replay-redact.ts"
 import { verifyReceipt } from "../src/sandbox.ts"
 import { createClient } from "../src/solari.ts"
@@ -143,9 +144,10 @@ async function downloadDemoReplay(
 }
 
 export async function saveDemoReceipt(): Promise<void> {
+  const saved = resolveSavedCheck("ironadamant")
   const result = await runCheck({
-    url: "https://ironadamant.com",
-    expect: "One office job.",
+    url: saved.url,
+    expect: saved.expect,
     record: true,
   })
   if (!result.ok || !result.matched || !result.sessionId) {

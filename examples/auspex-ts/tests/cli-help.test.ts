@@ -456,7 +456,7 @@ test("parseArgv check --name uses saved checks and verifies by default", () => {
   assert.equal(named.status, "ok")
   if (named.status === "ok" && named.command.cmd === "check") {
     assert.equal(named.command.opts.url, "https://ironadamant.com")
-    assert.equal(named.command.opts.expect, "One office job.")
+    assert.equal(named.command.opts.expect, "Web app testing, in plain English.")
     assert.equal(named.command.verifyAfter, true)
   }
   const hub = parseArgv(["check", "--name", "consistencyhub"])

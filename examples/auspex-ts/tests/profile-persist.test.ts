@@ -675,10 +675,10 @@ test("waitForProfileSave forwards login --url origin for unknown profiles", asyn
   assert.equal(completed.next.includes("Run auspex check"), false)
 })
 
-test("public checks target ironadamant One office job and Checkpoint", () => {
+test("public checks target the ironadamant headline and Checkpoint", () => {
   assert.equal(PUBLIC_CHECKS.length, 2)
   assert.equal(PUBLIC_CHECKS[0]?.url, "https://ironadamant.com")
-  assert.equal(PUBLIC_CHECKS[0]?.expect, "One office job.")
+  assert.equal(PUBLIC_CHECKS[0]?.expect, "Web app testing, in plain English.")
   assert.equal(PUBLIC_CHECKS[1]?.url, "https://checkpointprojects.com")
   assert.equal(PUBLIC_CHECKS[1]?.expect, "Checkpoint")
 })
@@ -691,7 +691,7 @@ test("runPublicChecks skips without a key and fails closed on a miss", async () 
     key: "slr_live_test",
     check: async (url, expect) => ({
       ok: true,
-      matched: expect === "One office job.",
+      matched: expect === "Web app testing, in plain English.",
       finalUrl: url,
     }),
   })
