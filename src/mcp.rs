@@ -21,10 +21,7 @@ pub fn serve() -> i32 {
     let mut stdout = std::io::stdout().lock();
     let home = state::home_dir();
     let _ = state::ensure_home(&home);
-    loop {
-        let Some(message) = read_message(&mut reader) else {
-            break;
-        };
+    while let Some(message) = read_message(&mut reader) {
         if let Some(response) = dispatch(&message, &home) {
             let _ = writeln!(stdout, "{response}");
             let _ = stdout.flush();

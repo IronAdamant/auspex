@@ -42,7 +42,8 @@ pub fn decode(text: &str) -> Result<Vec<u8>, String> {
         }
     }
     let bytes = text.trim().as_bytes();
-    if bytes.len() % 4 != 0 {
+    let len = bytes.len();
+    if len / 4 * 4 != len {
         return Err("invalid base64 length".into());
     }
     let mut out = Vec::new();
