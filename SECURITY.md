@@ -1,16 +1,11 @@
 # Security
 
-Short skim. Full notes: [`examples/auspex-ts/SECURITY.md`](examples/auspex-ts/SECURITY.md).
+Auspex stores saved logins on disk. Treat `~/.auspex/profiles` like a password store. The files are mode 0600. Do not commit them, do not paste them into chat, and do not attach them to a pull request.
 
-- **Never type passwords or OTPs.** `--fill` refuses `input[type=password]`. Microsoft/Google walls are `needsHuman`. Desktop `--type` is fail-closed on password-like strings.
-- **No second browser actor.** The live check session is the only agent-driven browser that may take page actions. Profile-seeded verify (`--verify-with-profile`) is a **separate read-only** Solari browser for `claimOkProfile`. It does not log in, fill, or click.
-- **`--record` + `--profile`** is refused unless `--allow-record-profile` on a public marketing host. Refused for ConsistencyHub. Never record a logged-in session.
-- **Profiles are OAuth secret stores.** Never commit `.auspex/`, `.env`, or `SOLARI_API_KEY`.
-- **Pages doors are keyless.** Humans open `ironadamant.com/auspex/*`. Agents use env `SOLARI_API_KEY` or gitignored `.auspex/operator-key` on the operator machine.
+The agent does not type passwords, one-time codes, or captcha answers. The sign-in page sends keystrokes into local Chrome and does not write those keystrokes to the log.
 
-```
-human browser     →  ironadamant.com/auspex/* (keyless Pages)  →  VNC token in URL hash
-operator machine  →  CLI/MCP  →  SOLARI_API_KEY or .auspex/operator-key  →  Solari API
-```
+Logs, traces, receipts, and door access lines are scrubbed. Email addresses, JSON web tokens, key-shaped strings, and secret URL parameters are removed or marked redacted. Cookie and token fields are dropped. A screenshot of a `needsHuman` page is not saved.
 
-Report issues on GitHub. Do not add or remove the repo Actions `SOLARI_API_KEY` from a PR. Weekly `public` already runs with that secret present (Actions run 36789267135, 2026-10-01).
+Do not point Auspex at a site you are not allowed to open. Hornet Swarm, when used, keeps its own permission checks. Auspex does not bypass them.
+
+Report a problem to the repository owner. Do not open a public issue that includes a profile file, a cookie, or a receipt excerpt from a private page.
